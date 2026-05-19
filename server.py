@@ -5,6 +5,7 @@ import os
 import ssl
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 
@@ -35,38 +36,78 @@ def ensure_cert(cert_path: Path, key_path: Path) -> None:
     )
 
 
+def make_server(host: str, port: int, ssl_ctx: ssl.SSLContext | None) -> http.server.ThreadingHTTPServer:
+    handler = http.server.SimpleHTTPRequestHandler
+    httpd = http.server.ThreadingHTTPServer((host, port), handler)
+    if ssl_ctx is not None:
+        httpd.socket = ssl_ctx.wrap_socket(httpd.socket, server_side=True)
+    return httpd
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Serve current folder over HTTPS.")
+    parser = argparse.ArgumentParser(
+        description="Serve current folder over HTTP and HTTPS (both by default)."
+    )
     parser.add_argument(
         "--host", default="0.0.0.0", help="Bind address (default: 0.0.0.0)"
     )
     parser.add_argument(
-        "--port", type=int, default=8443, help="Bind port (default: 8443)"
+        "--http-port", type=int, default=8000, help="HTTP port (default: 8000)"
+    )
+    parser.add_argument(
+        "--https-port", type=int, default=8443, help="HTTPS port (default: 8443)"
+    )
+    parser.add_argument(
+        "--http-only", action="store_true", help="Serve plain HTTP only (no TLS)"
+    )
+    parser.add_argument(
+        "--https-only", action="store_true", help="Serve HTTPS only"
     )
     parser.add_argument("--cert", default="cert.pem", help="TLS certificate path")
     parser.add_argument("--key", default="key.pem", help="TLS private key path")
     parser.add_argument("--dir", default=os.getcwd(), help="Directory to serve")
     args = parser.parse_args()
 
-    cert = Path(args.cert).resolve()
-    key = Path(args.key).resolve()
-    ensure_cert(cert, key)
+    if args.http_only and args.https_only:
+        parser.error("--http-only and --https-only are mutually exclusive")
+
+    serve_http = not args.https_only
+    serve_https = not args.http_only
 
     os.chdir(args.dir)
 
-    handler = http.server.SimpleHTTPRequestHandler
-    httpd = http.server.ThreadingHTTPServer((args.host, args.port), handler)
+    servers: list[tuple[str, int, http.server.ThreadingHTTPServer]] = []
 
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
-    httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+    if serve_https:
+        cert = Path(args.cert).resolve()
+        key = Path(args.key).resolve()
+        ensure_cert(cert, key)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
+        servers.append(("https", args.https_port, make_server(args.host, args.https_port, ctx)))
 
-    print(f"Serving {args.dir} on https://{args.host}:{args.port}")
+    if serve_http:
+        servers.append(("http", args.http_port, make_server(args.host, args.http_port, None)))
+
+    print(f"Serving {args.dir} on:")
+    for scheme, port, _ in servers:
+        print(f"  {scheme}://localhost:{port}")
+        print(f"  {scheme}://{args.host}:{port}")
+
+    threads = []
+    for scheme, port, httpd in servers:
+        t = threading.Thread(target=httpd.serve_forever, name=f"{scheme}:{port}", daemon=True)
+        t.start()
+        threads.append(t)
+
     try:
-        httpd.serve_forever()
+        for t in threads:
+            t.join()
     except KeyboardInterrupt:
         print("\nShutting down.")
-        httpd.server_close()
+        for _, _, httpd in servers:
+            httpd.shutdown()
+            httpd.server_close()
 
 
 if __name__ == "__main__":

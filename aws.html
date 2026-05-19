@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS CLI &amp; S3 Cheatsheet — Interactive</title>
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a26;
+    --panel-2: #1a2436;
+    --border: #2a3754;
+    --text: #ecf1f8;
+    --muted: #8a95a8;
+    --navy: #232f3e;
+    --accent: #ff9900;
+    --accent-2: #ffb547;
+    --accent-3: #ff6b6b;
+    --code-bg: #060a12;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, rgba(255, 153, 0, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 0% 5%, rgba(255, 181, 71, 0.05), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, #161e2a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo .cube {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), #c0660d);
+    border-radius: 5px; position: relative;
+    box-shadow: 0 0 16px rgba(255,153,0,0.5);
+    transform: rotate(45deg);
+  }
+  .logo .cube::after {
+    content: ""; position: absolute; inset: 6px;
+    border: 2px solid #052622; border-radius: 2px;
+    transform: rotate(-45deg);
+  }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #1c1303;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(255,153,0,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(255, 153, 0, 0.10);
+    border-color: rgba(255, 153, 0, 0.45);
+    box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(255, 153, 0, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .playground .sandbox-tag {
+    position: absolute; top: 10px; right: 14px;
+    font-size: 10.5px; color: var(--accent-3);
+    border: 1px solid var(--accent-3);
+    padding: 2px 8px; border-radius: 999px;
+    font-weight: 700; letter-spacing: 0.4px;
+    background: rgba(255, 107, 107, 0.08);
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 10px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 100px; }
+  .pg-row select, .pg-row input[type="text"], .pg-row input[type="number"], .pg-row input[type="search"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    min-width: 160px;
+  }
+  .pg-out {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--accent-2);
+    word-break: break-all; white-space: pre-wrap;
+    margin-top: 8px; min-height: 36px;
+  }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #c0660d);
+    color: #1c1303; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(255, 153, 0, 0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Mock S3 bucket */
+  .bucket {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 180px;
+    margin-top: 10px;
+  }
+  .bucket-header {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--accent); font-weight: 700; font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 8px; margin-bottom: 10px;
+  }
+  .bucket-header .icon {
+    width: 22px; height: 22px;
+    background: linear-gradient(180deg, var(--accent) 0%, #c0660d 100%);
+    border-radius: 0 0 6px 6px;
+    position: relative;
+  }
+  .bucket-header .icon::before {
+    content: ""; position: absolute; top: -3px; left: 0; right: 0;
+    height: 3px; background: var(--accent-2); border-radius: 6px 6px 0 0;
+  }
+  .file-row {
+    display: grid; grid-template-columns: 24px 1fr 100px 80px;
+    gap: 10px; align-items: center;
+    padding: 6px 8px; border-radius: 5px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    transition: background 0.15s, transform 0.2s;
+  }
+  .file-row:hover { background: var(--panel-2); }
+  .file-row.added { animation: slidein 0.4s ease; }
+  .file-row.removing { animation: slideout 0.3s ease forwards; }
+  @keyframes slidein {
+    from { opacity: 0; transform: translateX(-12px); background: rgba(255,153,0,0.15); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes slideout {
+    to { opacity: 0; transform: translateX(12px); height: 0; padding: 0; }
+  }
+  .file-row .ico { color: var(--accent-2); }
+  .file-row .name { color: var(--text); }
+  .file-row .size { color: var(--muted); text-align: right; }
+  .file-row .cls { color: var(--accent-2); text-align: right; font-size: 11px; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+
+  .uri-display {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-top: 10px;
+  }
+  .uri-part {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .uri-part .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .uri-part .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; color: var(--accent); margin-top: 4px;
+    word-break: break-all;
+  }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 153, 0, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    font-size: 13px; margin: 12px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    cursor: pointer; user-select: none;
+    transition: all 0.15s;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    color: #1c1303; background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Help overlay */
+  .help-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .help-overlay.open { display: flex; }
+  .help-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px; max-width: 380px;
+    box-shadow: 0 20px 50px -10px rgba(0,0,0,0.6);
+  }
+  .help-card h3 { margin: 0 0 12px; color: var(--accent); }
+  .help-card kbd {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 2px 6px; border-radius: 4px; font-size: 11px;
+    color: var(--text); font-family: ui-monospace, monospace;
+  }
+  .help-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: var(--muted); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .uri-display { grid-template-columns: 1fr; }
+    .file-row { grid-template-columns: 24px 1fr 80px; }
+    .file-row .cls { display: none; }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="cube"></span> AWS CLI &amp; S3</div>
+    <div class="search">
+      <span class="icon">⌕</span>
+      <input id="searchInput" type="search" placeholder="Search commands, configs… ( / )" />
+    </div>
+    <span class="badge">CLI v2</span>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="setup">Setup</button>
+    <button data-tab="iam">IAM</button>
+    <button data-tab="s3">S3</button>
+    <button data-tab="s3adv">S3 Advanced</button>
+    <button data-tab="hello">Hello World</button>
+    <button data-tab="other">Other Services</button>
+    <button data-tab="trouble">Troubleshooting</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== SETUP ========== -->
+<section class="tab-section active" id="setup">
+  <h1>Setup</h1>
+  <p class="lead">Install AWS CLI v2, configure credentials, and verify you can hit your account. Five minutes.</p>
+
+  <h2>Install</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">macOS</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># pkg installer</span>
+curl <span class="tok-s">"https://awscli.amazonaws.com/AWSCLIV2.pkg"</span> -o <span class="tok-s">"AWSCLIV2.pkg"</span>
+sudo installer -pkg AWSCLIV2.pkg -target /
+
+<span class="tok-c"># or via Homebrew</span>
+brew install awscli
+
+aws --version
+<span class="tok-c"># aws-cli/2.15.x Python/3.x Darwin/24.x</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Linux</div><button class="copy-btn">Copy</button></div>
+      <pre><code>curl <span class="tok-s">"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"</span> -o <span class="tok-s">"awscliv2.zip"</span>
+unzip awscliv2.zip
+sudo ./aws/install
+
+<span class="tok-c"># Apple Silicon / ARM</span>
+curl <span class="tok-s">"https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"</span> -o <span class="tok-s">"awscliv2.zip"</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Windows</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># MSI installer</span>
+msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
+
+<span class="tok-c"># or in Powershell:</span>
+winget install -e --id Amazon.AWSCLI</code></pre>
+    </div>
+  </div>
+
+  <h2>Configure</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">aws configure (default profile)</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws configure
+<span class="tok-c"># AWS Access Key ID: AKIA...</span>
+<span class="tok-c"># AWS Secret Access Key: ...</span>
+<span class="tok-c"># Default region name: us-east-1</span>
+<span class="tok-c"># Default output format: json</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Named profiles</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Most teams have multiple accounts (dev, staging, prod). Use a profile per account.</div>
+      <pre><code>aws configure --profile prod
+<span class="tok-c"># every command:</span>
+aws s3 ls --profile prod
+<span class="tok-c"># or via env var:</span>
+<span class="tok-k">export</span> AWS_PROFILE=prod</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Files on disk</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># ~/.aws/credentials</span>
+[default]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+[prod]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+<span class="tok-c"># ~/.aws/config</span>
+[default]
+region = us-east-1
+output = json
+
+[profile prod]
+region = us-west-2
+output = json</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSO (recommended for humans)</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">No long-lived keys on your laptop. Federated, time-limited credentials.</div>
+      <pre><code>aws configure sso
+aws sso login --profile prod
+
+<span class="tok-c"># in ~/.aws/config:</span>
+[profile prod]
+sso_session = my-sso
+sso_account_id = 123456789012
+sso_role_name = PowerUser
+region = us-west-2</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Env vars (CI / scripts)</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">export</span> AWS_ACCESS_KEY_ID=AKIA...
+<span class="tok-k">export</span> AWS_SECRET_ACCESS_KEY=...
+<span class="tok-k">export</span> AWS_SESSION_TOKEN=...        <span class="tok-c"># for STS</span>
+<span class="tok-k">export</span> AWS_REGION=us-east-1
+<span class="tok-k">export</span> AWS_PROFILE=prod              <span class="tok-c"># OR use a profile</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Verify</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws sts get-caller-identity
+<span class="tok-c"># {</span>
+<span class="tok-c">#   "UserId": "AIDA...",</span>
+<span class="tok-c">#   "Account": "123456789012",</span>
+<span class="tok-c">#   "Arn": "arn:aws:iam::123...:user/jane"</span>
+<span class="tok-c"># }</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>Don't:</strong> commit <code>~/.aws/credentials</code>, paste keys into Slack, bake them into Docker images, or check them into Lambda env vars. Prefer IAM roles (EC2 instance role, Lambda execution role, EKS IRSA) — they hand out short-lived credentials automatically.</div>
+</section>
+
+<!-- ========== IAM ========== -->
+<section class="tab-section" id="iam">
+  <h1>IAM Basics</h1>
+  <p class="lead">Identity (who) + Policy (what) + Resource (where). Every API call is authorized against a policy.</p>
+
+  <h2>Concepts</h2>
+  <table class="ref">
+    <thead><tr><th>Thing</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><code>User</code></td><td>Long-lived identity tied to a person (or service). Can have access keys, console password, MFA.</td></tr>
+      <tr><td><code>Role</code></td><td>An identity that can be <em>assumed</em>. Returns short-lived credentials (STS). Used by EC2, Lambda, EKS, cross-account access, federation.</td></tr>
+      <tr><td><code>Policy</code></td><td>JSON document. <em>Identity policy</em> attaches to user/role. <em>Resource policy</em> attaches to a resource (e.g., S3 bucket policy).</td></tr>
+      <tr><td><code>Group</code></td><td>Bag of users that share policies. No nesting.</td></tr>
+      <tr><td><code>STS</code></td><td>Security Token Service. Issues short-lived creds via <code>AssumeRole</code>, <code>AssumeRoleWithWebIdentity</code>, etc.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Minimal S3 policy</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Read-only on one bucket</div><button class="copy-btn">Copy</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Action"</span>: [<span class="tok-s">"s3:GetObject"</span>, <span class="tok-s">"s3:ListBucket"</span>],
+    <span class="tok-s">"Resource"</span>: [
+      <span class="tok-s">"arn:aws:s3:::my-bucket"</span>,
+      <span class="tok-s">"arn:aws:s3:::my-bucket/*"</span>
+    ]
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Write to one prefix</div><button class="copy-btn">Copy</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Action"</span>: [<span class="tok-s">"s3:PutObject"</span>, <span class="tok-s">"s3:DeleteObject"</span>],
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-bucket/uploads/*"</span>
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Trust policy (role assumed by EC2)</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Attached to a role; says <em>who can assume me</em>.</div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: {<span class="tok-s">"Service"</span>: <span class="tok-s">"ec2.amazonaws.com"</span>},
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"sts:AssumeRole"</span>
+  }]
+}</code></pre>
+    </div>
+  </div>
+
+  <h2>IAM CLI commands</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Assume a role</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws sts assume-role \
+  --role-arn arn:aws:iam::123456789012:role/Deploy \
+  --role-session-name deploy-$(date +%s)
+
+<span class="tok-c"># Or in ~/.aws/config:</span>
+[profile prod-deploy]
+role_arn = arn:aws:iam::123456789012:role/Deploy
+source_profile = default
+region = us-west-2</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Manage users / roles</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws iam list-users
+aws iam list-roles
+aws iam get-role --role-name Deploy
+aws iam list-attached-role-policies --role-name Deploy
+aws iam list-access-keys --user-name jane</code></pre>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">Generator</span>
+    <h3>Policy builder</h3>
+    <div class="desc">Pick actions and a resource ARN. The page generates a JSON policy you can paste into the console or attach via CLI.</div>
+    <div class="pg-row" style="align-items:flex-start">
+      <label style="margin-top:6px">Actions</label>
+      <div class="chips" id="iamActions">
+        <span class="chip active" data-a="s3:GetObject">s3:GetObject</span>
+        <span class="chip active" data-a="s3:ListBucket">s3:ListBucket</span>
+        <span class="chip" data-a="s3:PutObject">s3:PutObject</span>
+        <span class="chip" data-a="s3:DeleteObject">s3:DeleteObject</span>
+        <span class="chip" data-a="s3:GetObjectVersion">s3:GetObjectVersion</span>
+        <span class="chip" data-a="s3:ListAllMyBuckets">s3:ListAllMyBuckets</span>
+      </div>
+    </div>
+    <div class="pg-row">
+      <label>Resource (bucket)</label>
+      <input id="iamBucket" type="text" value="my-app-data" />
+      <label style="min-width:80px">Prefix</label>
+      <input id="iamPrefix" type="text" value="uploads/" placeholder="uploads/  or *" />
+    </div>
+    <div class="pg-row">
+      <button class="btn" id="iamGen">Generate</button>
+      <button class="btn ghost" id="iamCopy">Copy JSON</button>
+    </div>
+    <pre id="iamOut" style="background:var(--code-bg);padding:14px;border-radius:6px;border:1px solid var(--border)"></pre>
+  </div>
+</section>
+
+<!-- ========== S3 ========== -->
+<section class="tab-section" id="s3">
+  <h1>S3 Essentials</h1>
+  <p class="lead">A bucket is a flat namespace inside a region. Keys look like paths but aren't folders. Below are the commands you'll run weekly.</p>
+
+  <h2>Buckets</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Create / list / delete</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># create — bucket names are GLOBAL</span>
+aws s3 mb s3://my-bucket --region us-east-1
+
+aws s3 ls
+aws s3 ls s3://my-bucket
+aws s3 ls s3://my-bucket --recursive --human-readable --summarize
+
+<span class="tok-c"># delete (must be empty)</span>
+aws s3 rb s3://my-bucket
+<span class="tok-c"># or force-empty + delete:</span>
+aws s3 rb s3://my-bucket --force</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">cp — single file</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3 cp ./report.csv s3://my-bucket/reports/
+
+<span class="tok-c"># download</span>
+aws s3 cp s3://my-bucket/reports/report.csv ./
+
+<span class="tok-c"># cross-bucket</span>
+aws s3 cp s3://src/key s3://dst/key
+
+<span class="tok-c"># with metadata + storage class</span>
+aws s3 cp ./big.tgz s3://my-bucket/ \
+  --storage-class STANDARD_IA \
+  --metadata "team=ml,owner=jane" \
+  --content-type application/gzip</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">sync — directory</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Copies only files that differ. Default does not delete remote files missing locally — pass --delete for that.</div>
+      <pre><code>aws s3 sync ./build/ s3://my-bucket/v1/ \
+  --exclude "*.tmp" \
+  --exclude ".git/*" \
+  --include "*.html" \
+  --delete \
+  --dryrun</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">rm</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3 rm s3://my-bucket/old.csv
+
+<span class="tok-c"># entire prefix (recursive)</span>
+aws s3 rm s3://my-bucket/tmp/ --recursive
+
+<span class="tok-c"># with filter</span>
+aws s3 rm s3://my-bucket/ --recursive \
+  --exclude "*" --include "*.log"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Presigned URL</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Time-limited signed URL anyone can use without AWS creds. Default expiry is 3600s.</div>
+      <pre><code>aws s3 presign s3://my-bucket/report.csv \
+  --expires-in 900
+
+<span class="tok-c"># for upload (PUT) — needs s3api:</span>
+aws s3 presign s3://my-bucket/upload.bin \
+  --expires-in 600
+<span class="tok-c"># Note: aws s3 presign issues GET URLs.</span>
+<span class="tok-c"># For PUT presigns use the SDK or s3api command.</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Common flags</div><button class="copy-btn">Copy</button></div>
+      <pre><code>--storage-class  STANDARD | STANDARD_IA | INTELLIGENT_TIERING |
+                 ONEZONE_IA | GLACIER_IR | GLACIER | DEEP_ARCHIVE
+--exclude PATTERN     <span class="tok-c"># can repeat</span>
+--include PATTERN     <span class="tok-c"># overrides exclude</span>
+--dryrun              <span class="tok-c"># show what would happen</span>
+--quiet               <span class="tok-c"># no per-file output</span>
+--no-progress
+--cache-control "max-age=3600"
+--content-encoding gzip
+--metadata "k1=v1,k2=v2"
+--profile prod
+--region us-west-2</code></pre>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">Builder</span>
+    <h3>Command builder</h3>
+    <div class="desc">Pick an op + flags. The page generates the exact <code>aws s3</code> command. Doesn't talk to AWS.</div>
+    <div class="pg-row">
+      <label>Operation</label>
+      <select id="cbOp">
+        <option value="cp">cp</option>
+        <option value="sync">sync</option>
+        <option value="ls">ls</option>
+        <option value="rm">rm</option>
+        <option value="presign">presign</option>
+        <option value="mb">mb</option>
+        <option value="rb">rb</option>
+      </select>
+    </div>
+    <div class="pg-row">
+      <label>Source</label>
+      <input id="cbSrc" type="text" value="./build/" />
+      <label>Dest</label>
+      <input id="cbDst" type="text" value="s3://my-bucket/v1/" />
+    </div>
+    <div class="pg-row">
+      <label>Storage class</label>
+      <select id="cbCls">
+        <option>(default STANDARD)</option>
+        <option>STANDARD_IA</option>
+        <option>INTELLIGENT_TIERING</option>
+        <option>GLACIER_IR</option>
+        <option>GLACIER</option>
+      </select>
+      <label>Region</label>
+      <input id="cbRegion" type="text" value="us-east-1" style="min-width:120px" />
+    </div>
+    <div class="pg-row">
+      <label>Extra flags</label>
+      <span class="chips" id="cbFlags">
+        <span class="chip" data-f="--recursive">--recursive</span>
+        <span class="chip" data-f="--delete">--delete</span>
+        <span class="chip" data-f="--dryrun">--dryrun</span>
+        <span class="chip" data-f="--quiet">--quiet</span>
+        <span class="chip" data-f='--exclude "*.tmp"'>--exclude "*.tmp"</span>
+        <span class="chip" data-f="--profile prod">--profile prod</span>
+      </span>
+    </div>
+    <div class="pg-row">
+      <button class="btn" id="cbBuild">Build</button>
+      <button class="btn ghost" id="cbCopy">Copy</button>
+    </div>
+    <div class="pg-out" id="cbOut">aws s3 cp ./build/ s3://my-bucket/v1/ --region us-east-1</div>
+  </div>
+
+  <div class="playground">
+    <h3>S3 URI parser</h3>
+    <div class="desc">Paste an S3 URI; the page splits it into bucket, prefix, and key.</div>
+    <div class="pg-row">
+      <input id="uriIn" type="text" value="s3://my-bucket/data/2026/05/orders.parquet" style="flex:1;min-width:280px" />
+      <button class="btn" id="uriParse">Parse</button>
+    </div>
+    <div class="uri-display">
+      <div class="uri-part"><div class="lbl">Bucket</div><div class="val" id="uriBucket">—</div></div>
+      <div class="uri-part"><div class="lbl">Prefix</div><div class="val" id="uriPrefix">—</div></div>
+      <div class="uri-part"><div class="lbl">Key (basename)</div><div class="val" id="uriKey">—</div></div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">Sandbox · not real AWS</span>
+    <h3>Mock S3 explorer</h3>
+    <div class="desc">A pretend bucket. Buttons run fake commands against the local state. Nothing leaves your browser.</div>
+    <div class="pg-row">
+      <input id="mockKey" type="text" placeholder="key e.g. data/orders.csv" value="reports/jan.csv" style="flex:1;min-width:200px" />
+      <input id="mockSize" type="number" placeholder="size KB" value="42" style="max-width:90px" />
+      <button class="btn" id="mockCp">cp</button>
+      <button class="btn ghost" id="mockLs">ls</button>
+      <button class="btn ghost" id="mockSync">sync ./build/</button>
+      <button class="btn danger" id="mockRm">rm</button>
+      <button class="btn ghost" id="mockClear">empty bucket</button>
+    </div>
+    <div class="bucket">
+      <div class="bucket-header"><div class="icon"></div><span>s3://my-bucket</span><span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:11px" id="mockCount">0 objects</span></div>
+      <div id="mockFiles"></div>
+    </div>
+    <div class="pg-out" id="mockOut" style="margin-top:8px"># try: type a key, click cp. Then ls.</div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">Generator</span>
+    <h3>Presigned URL demo</h3>
+    <div class="desc">Generates a URL with the correct <em>shape</em> (so you can see the SigV4 query params). Not a real signature.</div>
+    <div class="pg-row">
+      <label>Bucket</label>
+      <input id="psBucket" type="text" value="my-bucket" />
+      <label>Region</label>
+      <input id="psRegion" type="text" value="us-east-1" />
+    </div>
+    <div class="pg-row">
+      <label>Key</label>
+      <input id="psKey" type="text" value="reports/q1.csv" style="flex:1;min-width:200px" />
+      <label style="min-width:80px">Expires (s)</label>
+      <input id="psExp" type="number" value="3600" style="max-width:120px" />
+      <button class="btn" id="psGen">Generate</button>
+    </div>
+    <div class="pg-out" id="psOut"></div>
+  </div>
+</section>
+
+<!-- ========== S3 ADVANCED ========== -->
+<section class="tab-section" id="s3adv">
+  <h1>S3 Advanced</h1>
+  <p class="lead">Versioning, encryption, lifecycle, hosting. The features that turn a bucket from a dumping ground into infrastructure.</p>
+
+  <h2>Versioning</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Enable / list / delete</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3api put-bucket-versioning \
+  --bucket my-bucket \
+  --versioning-configuration Status=Enabled
+
+<span class="tok-c"># list versions</span>
+aws s3api list-object-versions --bucket my-bucket --prefix reports/
+
+<span class="tok-c"># delete a specific version</span>
+aws s3api delete-object \
+  --bucket my-bucket --key reports/q1.csv \
+  --version-id 3HL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY+MTRCxf3vjVBH40Nrjfkd</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">MFA Delete</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Forces an MFA token to delete an object version or disable versioning. Root account only.</div>
+      <pre><code>aws s3api put-bucket-versioning \
+  --bucket my-bucket \
+  --versioning-configuration Status=Enabled,MFADelete=Enabled \
+  --mfa "arn:aws:iam::123456789012:mfa/root 123456"</code></pre>
+    </div>
+  </div>
+
+  <h2>Encryption</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Default bucket encryption</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># SSE-S3 (AES256, AWS-managed)</span>
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules":[{"ApplyServerSideEncryptionByDefault":{
+      "SSEAlgorithm":"AES256"}}]}'
+
+<span class="tok-c"># SSE-KMS (customer-managed key)</span>
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules":[{"ApplyServerSideEncryptionByDefault":{
+      "SSEAlgorithm":"aws:kms",
+      "KMSMasterKeyID":"alias/my-key"}}]}'</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSE-S3 vs SSE-KMS</div></div>
+      <div class="card-desc"><strong>SSE-S3</strong>: zero-config, AWS owns the key. Free. Use unless you need audit/IAM control over key usage.<br><strong>SSE-KMS</strong>: per-key audit logs, key rotation, cross-account grants. Costs $0.03/10k requests + KMS key fee.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Per-object encryption</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3 cp file.txt s3://my-bucket/ \
+  --sse aws:kms \
+  --sse-kms-key-id alias/my-key</code></pre>
+    </div>
+  </div>
+
+  <h2>Bucket policy &amp; public access</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Public-access block (you want this on)</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3api put-public-access-block \
+  --bucket my-bucket \
+  --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Bucket policy: allow CloudFront only</div><button class="copy-btn">Copy</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: {<span class="tok-s">"Service"</span>: <span class="tok-s">"cloudfront.amazonaws.com"</span>},
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"s3:GetObject"</span>,
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-bucket/*"</span>,
+    <span class="tok-s">"Condition"</span>: {<span class="tok-s">"StringEquals"</span>:{
+      <span class="tok-s">"AWS:SourceArn"</span>: <span class="tok-s">"arn:aws:cloudfront::123:distribution/E1ABC..."</span>}}
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Apply policy</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3api put-bucket-policy \
+  --bucket my-bucket \
+  --policy file://policy.json
+
+aws s3api get-bucket-policy --bucket my-bucket
+aws s3api delete-bucket-policy --bucket my-bucket</code></pre>
+    </div>
+  </div>
+
+  <h2>Lifecycle, CORS, website</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Lifecycle: auto-tier &amp; expire</div><button class="copy-btn">Copy</button></div>
+      <pre><code>{
+  <span class="tok-s">"Rules"</span>: [{
+    <span class="tok-s">"ID"</span>: <span class="tok-s">"logs-tiering"</span>,
+    <span class="tok-s">"Status"</span>: <span class="tok-s">"Enabled"</span>,
+    <span class="tok-s">"Filter"</span>: {<span class="tok-s">"Prefix"</span>: <span class="tok-s">"logs/"</span>},
+    <span class="tok-s">"Transitions"</span>: [
+      {<span class="tok-s">"Days"</span>: <span class="tok-n">30</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"STANDARD_IA"</span>},
+      {<span class="tok-s">"Days"</span>: <span class="tok-n">90</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"GLACIER_IR"</span>}
+    ],
+    <span class="tok-s">"Expiration"</span>: {<span class="tok-s">"Days"</span>: <span class="tok-n">365</span>}
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CORS</div><button class="copy-btn">Copy</button></div>
+      <pre><code>{
+  <span class="tok-s">"CORSRules"</span>: [{
+    <span class="tok-s">"AllowedOrigins"</span>: [<span class="tok-s">"https://app.example.com"</span>],
+    <span class="tok-s">"AllowedMethods"</span>: [<span class="tok-s">"GET"</span>, <span class="tok-s">"PUT"</span>, <span class="tok-s">"POST"</span>],
+    <span class="tok-s">"AllowedHeaders"</span>: [<span class="tok-s">"*"</span>],
+    <span class="tok-s">"ExposeHeaders"</span>: [<span class="tok-s">"ETag"</span>],
+    <span class="tok-s">"MaxAgeSeconds"</span>: <span class="tok-n">3000</span>
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Static website hosting</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3 website s3://my-bucket/ \
+  --index-document index.html \
+  --error-document 404.html
+
+<span class="tok-c"># endpoint:</span>
+<span class="tok-c"># http://my-bucket.s3-website-us-east-1.amazonaws.com</span></code></pre>
+    </div>
+  </div>
+
+  <div class="note"><strong>Today:</strong> for production sites, put CloudFront in front of an S3 bucket with public-access blocked, and use an Origin Access Control (OAC). The bare s3-website endpoint is HTTP-only and has no edge caching.</div>
+</section>
+
+<!-- ========== HELLO WORLD ========== -->
+<section class="tab-section" id="hello">
+  <h1>Hello World Workflows</h1>
+  <p class="lead">Three end-to-end recipes you can run today.</p>
+
+  <h2>① Host a static site on S3 + CloudFront</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">1. Make the bucket</div><button class="copy-btn">Copy</button></div>
+      <pre><code>BUCKET=my-site-$(uuidgen | tr A-Z a-z)
+REGION=us-east-1
+
+aws s3 mb s3://$BUCKET --region $REGION
+
+<span class="tok-c"># keep public access blocked — CloudFront will serve the content</span>
+aws s3api put-public-access-block \
+  --bucket $BUCKET \
+  --public-access-block-configuration \
+   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">2. Sync the site</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3 sync ./site/ s3://$BUCKET/ \
+  --delete \
+  --cache-control "public,max-age=3600" \
+  --exclude "*.html" \
+  --exclude "service-worker.js"
+
+<span class="tok-c"># short-cache HTML so deploys are visible quickly</span>
+aws s3 sync ./site/ s3://$BUCKET/ \
+  --exclude "*" --include "*.html" \
+  --cache-control "public,max-age=60"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">3. CloudFront in front</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws cloudfront create-distribution \
+  --origin-domain-name $BUCKET.s3.$REGION.amazonaws.com
+<span class="tok-c"># In the console: turn on OAC, attach a bucket policy that</span>
+<span class="tok-c"># allows the CloudFront SourceArn (see "Bucket policy" card).</span>
+
+<span class="tok-c"># invalidate after deploy</span>
+aws cloudfront create-invalidation \
+  --distribution-id E1ABC... --paths "/*"</code></pre>
+    </div>
+  </div>
+
+  <h2>② Presigned upload + download</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Backend issues a PUT URL</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># Python (boto3) — in your API server:</span>
+<span class="tok-k">import</span> <span class="tok-t">boto3</span>
+s3 = boto3.<span class="tok-f">client</span>(<span class="tok-s">"s3"</span>, region_name=<span class="tok-s">"us-east-1"</span>)
+url = s3.<span class="tok-f">generate_presigned_url</span>(
+  <span class="tok-s">"put_object"</span>,
+  Params={<span class="tok-s">"Bucket"</span>: <span class="tok-s">"my-bucket"</span>,
+          <span class="tok-s">"Key"</span>: <span class="tok-s">f"uploads/{uid}.bin"</span>,
+          <span class="tok-s">"ContentType"</span>: <span class="tok-s">"application/octet-stream"</span>},
+  ExpiresIn=<span class="tok-n">600</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Browser uploads</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">await</span> <span class="tok-f">fetch</span>(presignedUrl, {
+  method: <span class="tok-s">"PUT"</span>,
+  headers: {<span class="tok-s">"Content-Type"</span>: <span class="tok-s">"application/octet-stream"</span>},
+  body: file,
+});</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Issue a download URL</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># CLI shortcut for GET URLs:</span>
+aws s3 presign s3://my-bucket/uploads/$uid.bin \
+  --expires-in 900</code></pre>
+    </div>
+  </div>
+
+  <h2>③ S3 → Lambda trigger</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Trust + execution role</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws iam create-role \
+  --role-name lambda-thumb \
+  --assume-role-policy-document '{
+    "Version":"2012-10-17",
+    "Statement":[{"Effect":"Allow",
+      "Principal":{"Service":"lambda.amazonaws.com"},
+      "Action":"sts:AssumeRole"}]}'
+
+aws iam attach-role-policy \
+  --role-name lambda-thumb \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+aws iam put-role-policy --role-name lambda-thumb \
+  --policy-name s3rw --policy-document '{
+    "Version":"2012-10-17",
+    "Statement":[{"Effect":"Allow",
+      "Action":["s3:GetObject","s3:PutObject"],
+      "Resource":"arn:aws:s3:::my-bucket/*"}]}'</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Create the function</div><button class="copy-btn">Copy</button></div>
+      <pre><code>zip thumb.zip lambda_function.py
+
+aws lambda create-function \
+  --function-name thumb \
+  --runtime python3.12 \
+  --handler lambda_function.handler \
+  --role arn:aws:iam::123:role/lambda-thumb \
+  --zip-file fileb://thumb.zip</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Wire S3 → Lambda</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws lambda add-permission \
+  --function-name thumb --statement-id s3 \
+  --action lambda:InvokeFunction \
+  --principal s3.amazonaws.com \
+  --source-arn arn:aws:s3:::my-bucket
+
+aws s3api put-bucket-notification-configuration \
+  --bucket my-bucket \
+  --notification-configuration '{
+    "LambdaFunctionConfigurations":[{
+      "LambdaFunctionArn":"arn:aws:lambda:us-east-1:123:function:thumb",
+      "Events":["s3:ObjectCreated:*"],
+      "Filter":{"Key":{"FilterRules":[
+        {"Name":"prefix","Value":"uploads/"},
+        {"Name":"suffix","Value":".jpg"}]}}
+    }]}'</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OTHER ========== -->
+<section class="tab-section" id="other">
+  <h1>Other Services</h1>
+  <p class="lead">Quick pocket-cards for the next 5 services you'll touch.</p>
+
+  <h2>EC2</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">List instances</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws ec2 describe-instances \
+  --filters "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].[InstanceId,InstanceType,PublicIpAddress,Tags[?Key==`Name`]|[0].Value]' \
+  --output table</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Run / stop / terminate</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws ec2 run-instances \
+  --image-id ami-0abcd1234 \
+  --instance-type t3.micro \
+  --key-name my-key \
+  --security-group-ids sg-0abc \
+  --subnet-id subnet-0abc \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jumpbox}]'
+
+aws ec2 stop-instances --instance-ids i-0abc
+aws ec2 terminate-instances --instance-ids i-0abc</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSM session (no SSH)</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws ssm start-session --target i-0abc</code></pre>
+    </div>
+  </div>
+
+  <h2>Lambda</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Invoke + tail logs</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws lambda invoke \
+  --function-name thumb \
+  --payload '{"key":"uploads/x.jpg"}' \
+  --cli-binary-format raw-in-base64-out \
+  out.json
+
+aws logs tail /aws/lambda/thumb --follow</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Update code</div><button class="copy-btn">Copy</button></div>
+      <pre><code>zip -r thumb.zip .
+aws lambda update-function-code \
+  --function-name thumb \
+  --zip-file fileb://thumb.zip
+
+aws lambda update-function-configuration \
+  --function-name thumb \
+  --memory-size 512 --timeout 30 \
+  --environment "Variables={LOG_LEVEL=info}"</code></pre>
+    </div>
+  </div>
+
+  <h2>CloudWatch Logs</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Tail / filter</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># live tail</span>
+aws logs tail /aws/lambda/thumb --follow --since 10m
+
+<span class="tok-c"># filter</span>
+aws logs tail /aws/lambda/thumb --since 1h \
+  --filter-pattern '"ERROR" -InvalidArgument'
+
+<span class="tok-c"># Insights query</span>
+aws logs start-query \
+  --log-group-name /aws/lambda/thumb \
+  --start-time $(date -u -v-1H +%s) \
+  --end-time   $(date -u +%s) \
+  --query-string 'fields @timestamp, @message | filter @message like /ERROR/ | limit 50'</code></pre>
+    </div>
+  </div>
+
+  <h2>Secrets Manager &amp; SSM Parameter Store</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Secrets Manager</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws secretsmanager create-secret \
+  --name prod/db/password \
+  --secret-string '{"user":"app","pass":"…"}'
+
+aws secretsmanager get-secret-value \
+  --secret-id prod/db/password \
+  --query SecretString --output text</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSM Parameter Store</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Free tier (Standard, 4 KB). Use <code>SecureString</code> for secrets — encrypted with KMS.</div>
+      <pre><code>aws ssm put-parameter \
+  --name /prod/api/URL \
+  --value https://api.example.com \
+  --type String --overwrite
+
+aws ssm get-parameter \
+  --name /prod/api/URL \
+  --with-decryption \
+  --query Parameter.Value --output text
+
+<span class="tok-c"># list a tree</span>
+aws ssm get-parameters-by-path \
+  --path /prod/ --recursive --with-decryption</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TROUBLESHOOTING ========== -->
+<section class="tab-section" id="trouble">
+  <h1>Troubleshooting</h1>
+  <p class="lead">If your CLI call is unhappy, read this page first.</p>
+
+  <h2>Common errors</h2>
+  <table class="ref">
+    <thead><tr><th>Symptom</th><th>Likely cause &amp; fix</th></tr></thead>
+    <tbody>
+      <tr><td><code>An error occurred (AccessDenied)</code></td><td>IAM policy doesn't grant the action. Check both the identity policy and the bucket/resource policy. <code>aws sts get-caller-identity</code> first to confirm <em>which</em> identity. Use the IAM Policy Simulator.</td></tr>
+      <tr><td><code>NoSuchBucket</code></td><td>Bucket name typo, or you're in the wrong region/account. Bucket names are global; <code>aws s3 ls</code> only lists buckets <em>your</em> account owns.</td></tr>
+      <tr><td><code>The bucket you are attempting to access must be addressed using the specified endpoint</code></td><td>Region mismatch. Pass <code>--region us-west-2</code> or set <code>AWS_REGION</code>.</td></tr>
+      <tr><td><code>ExpiredToken</code> / <code>InvalidToken</code></td><td>SSO/STS creds expired. Run <code>aws sso login --profile foo</code> or re-assume the role.</td></tr>
+      <tr><td><code>Could not connect to the endpoint URL</code></td><td>Wrong region (no S3 in that one), VPC endpoint policy, or proxy. Try <code>--debug</code>.</td></tr>
+      <tr><td><code>RequestTimeTooSkewed</code></td><td>Your clock drifted. Sync time (NTP).</td></tr>
+      <tr><td><code>An error occurred (SlowDown) when calling …</code></td><td>S3 is rate-limiting per-prefix. Spread keys across more prefixes; back off and retry. Per-prefix limit: 3500 PUT/COPY/POST/DELETE and 5500 GET req/s.</td></tr>
+      <tr><td><code>InvalidAccessKeyId</code></td><td>Wrong key, deactivated key, or the key belongs to another account. Re-check <code>~/.aws/credentials</code> and <code>$AWS_PROFILE</code>.</td></tr>
+      <tr><td><code>EntityAlreadyExists</code> on bucket create</td><td>Bucket names are global. Pick another.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Debugging tools</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">--debug</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Prints every signed request, headers, retry attempts, response body. Great for permission/region issues. Verbose.</div>
+      <pre><code>aws s3 ls s3://my-bucket --debug 2&gt;&amp;1 | tee aws-debug.log</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Which identity am I?</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws sts get-caller-identity --output table
+
+<span class="tok-c"># env:</span>
+env | grep AWS_
+
+<span class="tok-c"># config:</span>
+aws configure list
+aws configure list-profiles</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Dry-run (S3 sync/cp/rm)</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws s3 sync ./build/ s3://my-bucket/v1/ \
+  --delete --dryrun
+<span class="tok-c"># prints (dryrun) upload: ... → s3://...</span>
+<span class="tok-c"># prints (dryrun) delete: s3://...</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Output formats</div><button class="copy-btn">Copy</button></div>
+      <pre><code>--output  json | yaml | yaml-stream | text | table
+
+aws ec2 describe-instances \
+  --query 'Reservations[].Instances[].InstanceId' \
+  --output text</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pagination</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># the CLI auto-paginates by default. Override:</span>
+--max-items 50          <span class="tok-c"># total returned</span>
+--page-size 200         <span class="tok-c"># per-call</span>
+--no-paginate           <span class="tok-c"># raw single response</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Endpoint override (LocalStack, MinIO)</div><button class="copy-btn">Copy</button></div>
+      <pre><code>aws --endpoint-url http://localhost:4566 \
+    s3 ls
+
+<span class="tok-c"># CLI v2: per-service endpoints</span>
+[profile local]
+endpoint_url = http://localhost:4566</code></pre>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="help-overlay" id="helpOverlay">
+  <div class="help-card">
+    <h3>Keyboard shortcuts</h3>
+    <div class="row"><span>Focus search</span><kbd>/</kbd></div>
+    <div class="row"><span>Switch tab</span><kbd>1</kbd>–<kbd>7</kbd></div>
+    <div class="row"><span>Help</span><kbd>?</kbd></div>
+    <div class="row"><span>Close / clear</span><kbd>Esc</kbd></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn ghost" id="helpClose">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer">Single self-contained HTML cheatsheet. Sandbox interactions never leave your browser. Press <code>?</code> for shortcuts.</div>
+
+<script>
+  // --- Tabs
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // --- Search
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall, .note');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+
+  // --- Help overlay
+  const help = document.getElementById('helpOverlay');
+  document.getElementById('helpClose').addEventListener('click', () => help.classList.remove('open'));
+  help.addEventListener('click', (e) => { if (e.target === help) help.classList.remove('open'); });
+
+  // --- Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    const inField = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+    if (e.key === '/' && !inField) { e.preventDefault(); search.focus(); }
+    if (e.key === '?' && !inField) { help.classList.toggle('open'); }
+    if (e.key === 'Escape') { help.classList.remove('open'); search.value=''; filter(); search.blur(); }
+    if (/^[1-7]$/.test(e.key) && !inField) {
+      const order = ['setup','iam','s3','s3adv','hello','other','trouble'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // --- Copy buttons
+  function copy(text) {
+    return navigator.clipboard ? navigator.clipboard.writeText(text) : new Promise((res) => {
+      const ta = document.createElement('textarea'); ta.value = text;
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      res();
+    });
+  }
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const text = card?.querySelector('pre code')?.innerText || '';
+      await copy(text);
+      btn.textContent = 'Copied'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // --- Chip toggling helper
+  function bindChips(rootId) {
+    document.querySelectorAll('#' + rootId + ' .chip').forEach(ch => {
+      ch.addEventListener('click', () => ch.classList.toggle('active'));
+    });
+  }
+  bindChips('iamActions'); bindChips('cbFlags');
+
+  // --- IAM policy generator
+  const iamGen = document.getElementById('iamGen');
+  const iamCopy = document.getElementById('iamCopy');
+  const iamOut = document.getElementById('iamOut');
+  function buildIamPolicy() {
+    const actions = [...document.querySelectorAll('#iamActions .chip.active')].map(c => c.dataset.a);
+    const bucket = document.getElementById('iamBucket').value.trim() || 'my-bucket';
+    const prefix = document.getElementById('iamPrefix').value.trim();
+    const bucketArn = `arn:aws:s3:::${bucket}`;
+    const objArn = prefix && prefix !== '*' ? `${bucketArn}/${prefix}*` : `${bucketArn}/*`;
+    const bucketActions = actions.filter(a => /ListBucket|ListAllMyBuckets/.test(a));
+    const objActions = actions.filter(a => !bucketActions.includes(a));
+    const stmts = [];
+    if (bucketActions.length) stmts.push({ Effect:'Allow', Action: bucketActions.length===1?bucketActions[0]:bucketActions, Resource: bucketActions.includes('s3:ListAllMyBuckets')?'*':bucketArn });
+    if (objActions.length) stmts.push({ Effect:'Allow', Action: objActions.length===1?objActions[0]:objActions, Resource: objArn });
+    if (!stmts.length) stmts.push({ Effect:'Allow', Action:[], Resource:[] });
+    const policy = { Version: '2012-10-17', Statement: stmts };
+    return JSON.stringify(policy, null, 2);
+  }
+  function renderIam() { iamOut.textContent = buildIamPolicy(); }
+  iamGen.addEventListener('click', renderIam);
+  iamCopy.addEventListener('click', async () => {
+    await copy(iamOut.textContent);
+    iamCopy.textContent = 'Copied'; setTimeout(() => iamCopy.textContent = 'Copy JSON', 1100);
+  });
+  document.querySelectorAll('#iamActions .chip').forEach(c => c.addEventListener('click', renderIam));
+  ['iamBucket','iamPrefix'].forEach(id => document.getElementById(id).addEventListener('input', renderIam));
+  renderIam();
+
+  // --- Command builder
+  const cb = {
+    op: document.getElementById('cbOp'),
+    src: document.getElementById('cbSrc'),
+    dst: document.getElementById('cbDst'),
+    cls: document.getElementById('cbCls'),
+    region: document.getElementById('cbRegion'),
+    out: document.getElementById('cbOut'),
+  };
+  function buildCmd() {
+    const op = cb.op.value;
+    let cmd = `aws s3 ${op}`;
+    if (op === 'cp' || op === 'sync') cmd += ` ${cb.src.value} ${cb.dst.value}`;
+    else if (op === 'ls' || op === 'rm' || op === 'presign' || op === 'mb' || op === 'rb') cmd += ` ${cb.dst.value}`;
+    if (cb.cls.value && !/default/.test(cb.cls.value) && (op === 'cp' || op === 'sync')) cmd += ` --storage-class ${cb.cls.value}`;
+    if (cb.region.value) cmd += ` --region ${cb.region.value}`;
+    document.querySelectorAll('#cbFlags .chip.active').forEach(c => { cmd += ` ${c.dataset.f}`; });
+    cb.out.textContent = cmd;
+  }
+  document.getElementById('cbBuild').addEventListener('click', buildCmd);
+  document.getElementById('cbCopy').addEventListener('click', async () => {
+    await copy(cb.out.textContent);
+    document.getElementById('cbCopy').textContent = 'Copied';
+    setTimeout(() => document.getElementById('cbCopy').textContent = 'Copy', 1100);
+  });
+  Object.values(cb).forEach(el => { if (el && el.addEventListener && el !== cb.out) el.addEventListener('input', buildCmd); });
+  document.querySelectorAll('#cbFlags .chip').forEach(c => c.addEventListener('click', buildCmd));
+  buildCmd();
+
+  // --- URI parser
+  function parseUri() {
+    const v = document.getElementById('uriIn').value.trim();
+    const m = v.match(/^s3:\/\/([^/]+)\/?(.*)$/);
+    if (!m) {
+      document.getElementById('uriBucket').textContent = 'invalid';
+      document.getElementById('uriPrefix').textContent = '—';
+      document.getElementById('uriKey').textContent = '—';
+      return;
+    }
+    const bucket = m[1];
+    const path = m[2] || '';
+    const slashAt = path.lastIndexOf('/');
+    const prefix = slashAt >= 0 ? path.slice(0, slashAt + 1) : '';
+    const key = slashAt >= 0 ? path.slice(slashAt + 1) : path;
+    document.getElementById('uriBucket').textContent = bucket;
+    document.getElementById('uriPrefix').textContent = prefix || '(none)';
+    document.getElementById('uriKey').textContent = key || '(none)';
+  }
+  document.getElementById('uriParse').addEventListener('click', parseUri);
+  document.getElementById('uriIn').addEventListener('input', parseUri);
+  parseUri();
+
+  // --- Mock S3 explorer
+  const mock = { files: [{ key:'reports/q1.csv', size:84, cls:'STANDARD' }] };
+  const mockFiles = document.getElementById('mockFiles');
+  const mockOut = document.getElementById('mockOut');
+  const mockCount = document.getElementById('mockCount');
+  function renderMock() {
+    mockFiles.innerHTML = '';
+    if (!mock.files.length) {
+      const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'empty bucket';
+      mockFiles.appendChild(e);
+    } else {
+      mock.files.forEach(f => {
+        const row = document.createElement('div'); row.className = 'file-row';
+        row.innerHTML = `<span class="ico">⬢</span><span class="name">${f.key}</span><span class="size">${f.size} KB</span><span class="cls">${f.cls}</span>`;
+        mockFiles.appendChild(row);
+      });
+    }
+    mockCount.textContent = mock.files.length + ' object' + (mock.files.length === 1 ? '' : 's');
+  }
+  function logMock(line) { mockOut.textContent = line; }
+  document.getElementById('mockCp').addEventListener('click', () => {
+    const k = document.getElementById('mockKey').value.trim();
+    const s = parseInt(document.getElementById('mockSize').value || '1', 10);
+    if (!k) return logMock('# need a key, e.g. data/orders.csv');
+    const idx = mock.files.findIndex(f => f.key === k);
+    if (idx >= 0) mock.files[idx].size = s;
+    else mock.files.push({ key:k, size:s, cls:'STANDARD' });
+    renderMock();
+    [...mockFiles.children].forEach(r => { if (r.querySelector('.name')?.textContent === k) r.classList.add('added'); });
+    logMock(`upload: ./${k} → s3://my-bucket/${k}`);
+  });
+  document.getElementById('mockLs').addEventListener('click', () => {
+    if (!mock.files.length) return logMock('# (empty)');
+    logMock(mock.files.map(f => `${f.cls.padEnd(8)}  ${String(f.size).padStart(6)} KB  s3://my-bucket/${f.key}`).join('\n'));
+  });
+  document.getElementById('mockSync').addEventListener('click', () => {
+    const incoming = [
+      { key:'index.html', size:6 },
+      { key:'app.js', size:48 },
+      { key:'styles/main.css', size:12 },
+      { key:'img/hero.jpg', size:240 },
+    ];
+    incoming.forEach(f => {
+      if (!mock.files.find(m => m.key === f.key)) mock.files.push({ ...f, cls:'STANDARD' });
+    });
+    renderMock();
+    logMock(`upload: ./build/index.html → s3://my-bucket/index.html\nupload: ./build/app.js → s3://my-bucket/app.js\n... (+ 2 more)`);
+  });
+  document.getElementById('mockRm').addEventListener('click', () => {
+    const k = document.getElementById('mockKey').value.trim();
+    const idx = mock.files.findIndex(f => f.key === k);
+    if (idx < 0) return logMock(`# not found: ${k}`);
+    mock.files.splice(idx, 1);
+    renderMock();
+    logMock(`delete: s3://my-bucket/${k}`);
+  });
+  document.getElementById('mockClear').addEventListener('click', () => {
+    mock.files = []; renderMock(); logMock('# bucket emptied');
+  });
+  renderMock();
+
+  // --- Presigned URL fake
+  document.getElementById('psGen').addEventListener('click', () => {
+    const b = document.getElementById('psBucket').value.trim() || 'my-bucket';
+    const r = document.getElementById('psRegion').value.trim() || 'us-east-1';
+    const k = document.getElementById('psKey').value.trim() || 'object.bin';
+    const e = parseInt(document.getElementById('psExp').value || '3600', 10);
+    const now = new Date();
+    const date = now.toISOString().replace(/[-:]|\.\d+/g, '').slice(0,15) + 'Z';
+    const cred = `AKIA${Math.random().toString(36).toUpperCase().slice(2,10)}/` +
+                 `${date.slice(0,8)}/${r}/s3/aws4_request`;
+    const sig = Array.from({length:64}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+    const url =
+      `https://${b}.s3.${r}.amazonaws.com/${k}?` +
+      `X-Amz-Algorithm=AWS4-HMAC-SHA256&` +
+      `X-Amz-Credential=${encodeURIComponent(cred)}&` +
+      `X-Amz-Date=${date}&` +
+      `X-Amz-Expires=${e}&` +
+      `X-Amz-SignedHeaders=host&` +
+      `X-Amz-Signature=${sig}`;
+    document.getElementById('psOut').textContent = url;
+  });
+  document.getElementById('psGen').click();
+</script>
+
+</body>
+</html>

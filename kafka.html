@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka Cheatsheet — Interactive</title>
+<style>
+  :root {
+    --bg: #0b1418;
+    --panel: #0f1c22;
+    --panel-2: #14262e;
+    --border: #1f3640;
+    --text: #e6f1f5;
+    --muted: #7d97a1;
+    --accent: #14e0c4;       /* Kafka teal */
+    --accent-2: #0bb4ff;     /* cyan */
+    --accent-3: #ff6b6b;     /* alarm red */
+    --code-bg: #07101417;
+    --code-bg-2: #061015;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 0% -10%, rgba(20, 224, 196, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(11, 180, 255, 0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #0f1c22 0%, #0b1418 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; letter-spacing: 0.3px; }
+  .logo .mark {
+    width: 26px; height: 26px; display: inline-block;
+    background: radial-gradient(circle at 30% 30%, var(--accent) 0%, #0a8b7d 60%, #053b34 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(20, 224, 196, 0.45);
+    position: relative;
+  }
+  .logo .mark::after {
+    content: ""; position: absolute; inset: 5px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 50%;
+    border-right-color: transparent;
+    animation: spin 4s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #052622;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(20,224,196,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(20,224,196,0.10);
+    border-color: rgba(20,224,196,0.45);
+    box-shadow: 0 0 0 3px rgba(20,224,196,0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(20, 224, 196, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg-2);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 12px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 110px; }
+  .pg-row select, .pg-row input[type="number"], .pg-row input[type="text"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .pg-row input[type="range"] { accent-color: var(--accent); }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #0a8b7d);
+    color: #042622; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(20,224,196,0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Partition visualizer */
+  .pviz {
+    display: grid; grid-template-columns: 130px 1fr; gap: 10px;
+    align-items: center;
+  }
+  .pviz .row {
+    display: contents;
+  }
+  .pviz .clabel {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; color: var(--text);
+    padding: 6px 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .pviz .parts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pviz .part {
+    padding: 6px 10px; border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; font-weight: 700;
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border);
+    transition: all 0.18s;
+  }
+  .pviz .part.assigned {
+    color: #052622;
+    border-color: transparent;
+    box-shadow: 0 0 12px -2px currentColor;
+  }
+  .pviz .pempty { color: var(--muted); font-size: 12px; padding: 4px 8px; }
+
+  /* Lag simulator */
+  .lagsim {
+    background: var(--code-bg-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; margin-top: 10px;
+  }
+  .lagsim .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 12px;
+  }
+  .lagsim .stat { background: var(--panel-2); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+  .lagsim .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .lagsim .stat .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 18px; font-weight: 700; color: var(--accent); margin-top: 4px;
+  }
+  .lagsim .bar {
+    height: 18px; background: var(--panel-2); border-radius: 4px;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    margin-top: 4px;
+  }
+  .lagsim .bar > div {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+  .lagsim .barlbl { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+  /* Message flow */
+  .msgflow { width: 100%; height: 240px; }
+  .msgflow text { fill: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .msgflow .node { fill: var(--panel-2); stroke: var(--border); stroke-width: 1.5; }
+  .msgflow .leader { stroke: var(--accent); }
+  .msgflow .follower { stroke: var(--accent-2); stroke-dasharray: 4 4; }
+  .msgflow .edge { stroke: var(--border); stroke-width: 2; fill: none; }
+  .msgflow .dot { fill: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+
+  /* Architecture diagram */
+  .arch { width: 100%; height: 320px; }
+  .arch .topic { fill: var(--panel-2); stroke: var(--border); }
+  .arch .partition { fill: var(--panel-2); stroke: var(--accent); stroke-width: 1.5; }
+  .arch .arrow { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .arch text { fill: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+  .arch .lbl { fill: var(--muted); }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th { background: var(--panel-2); color: var(--accent-2); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .pviz { grid-template-columns: 90px 1fr; }
+    .lagsim .stats { grid-template-columns: repeat(2, 1fr); }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="mark"></span> Kafka Cheatsheet</div>
+    <div class="search">
+      <span class="icon">⌕</span>
+      <input id="searchInput" type="text" placeholder="Search topics, commands, configs… ( / )" />
+    </div>
+    <span class="badge">v3.7+</span>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="concepts">Concepts</button>
+    <button data-tab="producers">Producers</button>
+    <button data-tab="consumers">Consumers</button>
+    <button data-tab="cli">CLI</button>
+    <button data-tab="streams">Streams &amp; ksqlDB</button>
+    <button data-tab="ops">Ops &amp; Tuning</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== CONCEPTS ========== -->
+<section class="tab-section active" id="concepts">
+  <h1>Concepts</h1>
+  <p class="lead">Brokers form a cluster. Topics split into partitions. Producers append; consumers read by offset. That's the whole game.</p>
+
+  <div class="playground">
+    <h3>Cluster anatomy</h3>
+    <div class="desc">A producer writes records to a topic. The partitioner picks which partition. Each partition is replicated. Consumers in a group divide partitions among themselves.</div>
+    <svg class="arch" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet">
+      <!-- Producers -->
+      <rect class="topic" x="10" y="120" width="120" height="60" rx="8"/>
+      <text x="70" y="155" text-anchor="middle">producer</text>
+
+      <!-- Topic = orders, 4 partitions -->
+      <rect class="topic" x="200" y="40" width="320" height="240" rx="10"/>
+      <text class="lbl" x="360" y="60" text-anchor="middle">topic: orders   (4 partitions, RF=3)</text>
+      <g>
+        <rect class="partition" x="220" y="80" width="80" height="40" rx="6"/>
+        <text x="260" y="105" text-anchor="middle">P0</text>
+        <rect class="partition" x="320" y="80" width="80" height="40" rx="6"/>
+        <text x="360" y="105" text-anchor="middle">P1</text>
+        <rect class="partition" x="420" y="80" width="80" height="40" rx="6"/>
+        <text x="460" y="105" text-anchor="middle">P2</text>
+        <rect class="partition" x="320" y="140" width="80" height="40" rx="6"/>
+        <text x="360" y="165" text-anchor="middle">P3</text>
+        <text class="lbl" x="360" y="200" text-anchor="middle">leader / 2 followers (ISR)</text>
+        <text class="lbl" x="360" y="220" text-anchor="middle">retention.ms = 7d · log compaction off</text>
+      </g>
+
+      <!-- Consumer groups -->
+      <rect class="topic" x="580" y="50" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="70" text-anchor="middle">group: billing  (2 consumers)</text>
+      <rect class="partition" x="600" y="90" width="120" height="40" rx="6"/>
+      <text x="660" y="115" text-anchor="middle">c1 → P0,P1</text>
+      <rect class="partition" x="740" y="90" width="120" height="40" rx="6"/>
+      <text x="800" y="115" text-anchor="middle">c2 → P2,P3</text>
+
+      <rect class="topic" x="580" y="170" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="190" text-anchor="middle">group: analytics  (1 consumer)</text>
+      <rect class="partition" x="600" y="210" width="260" height="40" rx="6"/>
+      <text x="730" y="235" text-anchor="middle">c1 → P0..P3</text>
+
+      <!-- Arrows -->
+      <path class="arrow" d="M 130 150 L 200 150" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 100 L 580 100" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 220 L 580 220" marker-end="url(#arrow)"/>
+
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d97a1"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <h2>Vocabulary</h2>
+  <table class="ref">
+    <thead><tr><th>Term</th><th>What it means</th></tr></thead>
+    <tbody>
+      <tr><td><code>broker</code></td><td>A Kafka server. Cluster = many brokers. Each broker is identified by a numeric <code>broker.id</code>.</td></tr>
+      <tr><td><code>topic</code></td><td>A named log of records. Created with a partition count and a replication factor.</td></tr>
+      <tr><td><code>partition</code></td><td>An ordered, append-only commit log. Records inside a partition are strictly ordered. Across partitions: no order guarantee.</td></tr>
+      <tr><td><code>offset</code></td><td>Monotonic 64-bit position inside a partition. Consumers track which offset they've read.</td></tr>
+      <tr><td><code>leader / follower</code></td><td>For each partition, one broker is leader (handles reads + writes), others replicate. On leader failure, a follower is promoted.</td></tr>
+      <tr><td><code>ISR</code></td><td>In-Sync Replicas: followers that are caught up within <code>replica.lag.time.max.ms</code>. Only ISR members are eligible to become leader.</td></tr>
+      <tr><td><code>consumer group</code></td><td>A set of consumers sharing a <code>group.id</code>. Kafka assigns each partition to one consumer in the group at a time.</td></tr>
+      <tr><td><code>rebalance</code></td><td>Reassignment of partitions when group membership changes (consumer joins/leaves/dies).</td></tr>
+      <tr><td><code>__consumer_offsets</code></td><td>Internal compacted topic where committed offsets live (50 partitions by default).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Ordering rules</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Per-partition ordering only</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Records in one partition are strictly ordered. Across partitions: no order. Same key → same partition by default → ordered for that key.</div>
+      <pre><code><span class="tok-c"># Ordering pitfall</span>
+<span class="tok-c"># key=user-42 → goes to partition hash(user-42) % N</span>
+<span class="tok-c"># All user-42 events stay ordered. user-99 may interleave.</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">acks &amp; durability</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">acks=all + min.insync.replicas≥2 = no data loss on a single broker failure.</div>
+      <pre><code><span class="tok-k">acks</span>=<span class="tok-s">0</span>    <span class="tok-c"># fire and forget</span>
+<span class="tok-k">acks</span>=<span class="tok-s">1</span>    <span class="tok-c"># wait for leader only</span>
+<span class="tok-k">acks</span>=<span class="tok-s">all</span>  <span class="tok-c"># wait for all ISR</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Delivery semantics</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">At-least-once is the default. Exactly-once needs idempotent producers + transactions + read_committed consumers.</div>
+      <pre><code><span class="tok-c"># exactly-once recipe</span>
+<span class="tok-k">enable.idempotence</span>=<span class="tok-s">true</span>
+<span class="tok-k">transactional.id</span>=<span class="tok-s">order-app-1</span>
+<span class="tok-c"># consumer:</span>
+<span class="tok-k">isolation.level</span>=<span class="tok-s">read_committed</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>Pitfall:</strong> increasing partitions later does not move existing data. Existing keys stay in their old partitions; new keys may land elsewhere — ordering for that key splits across two partitions for a while. Plan partition count up front or use a key-aware re-partitioning job.</div>
+</section>
+
+<!-- ========== PRODUCERS ========== -->
+<section class="tab-section" id="producers">
+  <h1>Producers</h1>
+  <p class="lead">Producers append records to a topic. Picking a key, an ack policy, and a partitioner is 80% of the design.</p>
+
+  <h2>Quick start (kafka-python)</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Basic producer</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaProducer
+<span class="tok-k">import</span> <span class="tok-t">json</span>
+
+<span class="tok-f">p</span> = KafkaProducer(
+    bootstrap_servers=<span class="tok-s">"broker1:9092,broker2:9092"</span>,
+    value_serializer=<span class="tok-k">lambda</span> v: <span class="tok-t">json</span>.dumps(v).encode(),
+    key_serializer=<span class="tok-k">lambda</span> k: k.encode() <span class="tok-k">if</span> k <span class="tok-k">else</span> <span class="tok-k">None</span>,
+    acks=<span class="tok-s">"all"</span>,
+    enable_idempotence=<span class="tok-k">True</span>,
+    linger_ms=<span class="tok-n">5</span>,
+    compression_type=<span class="tok-s">"zstd"</span>,
+)
+<span class="tok-f">p</span>.send(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"user-42"</span>, value={<span class="tok-s">"sku"</span>: <span class="tok-s">"X"</span>, <span class="tok-s">"qty"</span>: <span class="tok-n">2</span>})
+<span class="tok-f">p</span>.flush()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Idempotent + retries</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">No duplicates on retry, no re-ordering when max.in.flight ≤ 5.</div>
+      <pre><code>KafkaProducer(
+    enable_idempotence=<span class="tok-k">True</span>,
+    acks=<span class="tok-s">"all"</span>,
+    retries=<span class="tok-t">2</span>**<span class="tok-n">31</span>-<span class="tok-n">1</span>,
+    max_in_flight_requests_per_connection=<span class="tok-n">5</span>,
+    delivery_timeout_ms=<span class="tok-n">120_000</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Transactional producer</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Atomic write across multiple topics + partitions. Used for read-process-write apps and exactly-once.</div>
+      <pre><code><span class="tok-c"># confluent-kafka style</span>
+<span class="tok-k">from</span> <span class="tok-t">confluent_kafka</span> <span class="tok-k">import</span> Producer
+p = Producer({
+  <span class="tok-s">"bootstrap.servers"</span>: <span class="tok-s">"broker1:9092"</span>,
+  <span class="tok-s">"transactional.id"</span>: <span class="tok-s">"order-app-1"</span>,
+  <span class="tok-s">"enable.idempotence"</span>: <span class="tok-k">True</span>,
+})
+p.<span class="tok-f">init_transactions</span>()
+p.<span class="tok-f">begin_transaction</span>()
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">produce</span>(<span class="tok-s">"audit"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">commit_transaction</span>()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Custom partitioner</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Default uses murmur2(key) % N when key is set; sticky partitioner when key is null.</div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">tenant_partitioner</span>(key, all_parts, available):
+    <span class="tok-c"># route tenant=premium to dedicated partitions 0..3</span>
+    <span class="tok-k">if</span> key <span class="tok-k">and</span> key.startswith(<span class="tok-s">b"premium:"</span>):
+        <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-n">4</span>
+    <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-f">len</span>(all_parts)
+
+KafkaProducer(partitioner=tenant_partitioner, …)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Headers + timestamps</div><button class="copy-btn">Copy</button></div>
+      <pre><code>p.send(
+  <span class="tok-s">"orders"</span>, key=<span class="tok-s">b"u1"</span>, value=<span class="tok-s">b"..."</span>,
+  headers=[(<span class="tok-s">"trace-id"</span>, <span class="tok-s">b"abc123"</span>),
+           (<span class="tok-s">"schema"</span>, <span class="tok-s">b"OrderV2"</span>)],
+  timestamp_ms=<span class="tok-f">int</span>(<span class="tok-t">time</span>.time()*<span class="tok-n">1000</span>),
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Async + callback</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">on_delivery</span>(err, msg):
+    <span class="tok-k">if</span> err:
+        log.<span class="tok-f">error</span>(<span class="tok-s">"failed: %s"</span>, err)
+    <span class="tok-k">else</span>:
+        log.<span class="tok-f">debug</span>(<span class="tok-s">"%s[%d]@%d"</span>,
+                  msg.topic(), msg.partition(), msg.offset())
+
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, value=v, on_delivery=on_delivery)
+p.<span class="tok-f">poll</span>(<span class="tok-n">0</span>)  <span class="tok-c"># drive callbacks</span></code></pre>
+    </div>
+  </div>
+
+  <h2>acks vs durability vs latency</h2>
+  <table class="ref">
+    <thead><tr><th>acks</th><th>Durability</th><th>Latency</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>None — fire and forget</td><td>Lowest</td><td>Metrics, fully replaceable telemetry.</td></tr>
+      <tr><td><code>1</code></td><td>Survives if leader survives</td><td>Low</td><td>Hot paths where occasional loss is OK.</td></tr>
+      <tr><td><code>all</code></td><td>Survives min.insync.replicas brokers</td><td>Higher</td><td>Default for everything important.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Compression &amp; batching</h2>
+  <table class="ref">
+    <thead><tr><th>Knob</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>linger.ms</code></td><td>Wait this long before sending a batch even if it isn't full. 5–20 ms gives big throughput wins.</td></tr>
+      <tr><td><code>batch.size</code></td><td>Bytes per partition batch (default 16 KB). 64 KB+ helps for high-throughput producers.</td></tr>
+      <tr><td><code>compression.type</code></td><td><code>none</code> · <code>gzip</code> · <code>snappy</code> · <code>lz4</code> · <code>zstd</code>. <strong>zstd</strong> usually best for ratio + CPU.</td></tr>
+      <tr><td><code>buffer.memory</code></td><td>Total bytes the client may use to buffer un-sent records (default 32 MB).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== CONSUMERS ========== -->
+<section class="tab-section" id="consumers">
+  <h1>Consumers</h1>
+  <p class="lead">Subscribe to topics, poll, process, commit offsets. Group membership and rebalance behavior is what bites you.</p>
+
+  <div class="playground">
+    <h3>Partition assignment visualizer</h3>
+    <div class="desc">Pick partitions, consumers, and assignment strategy. Watch how Kafka divides partitions across the group.</div>
+    <div class="pg-row">
+      <label>Partitions</label>
+      <input type="range" id="vizParts" min="1" max="16" value="6">
+      <span id="vizPartsVal" class="clabel" style="min-width:32px;text-align:center">6</span>
+      <label>Consumers</label>
+      <input type="range" id="vizCons" min="1" max="8" value="3">
+      <span id="vizConsVal" class="clabel" style="min-width:32px;text-align:center">3</span>
+      <label>Strategy</label>
+      <select id="vizStrat">
+        <option value="range">Range</option>
+        <option value="roundrobin" selected>RoundRobin</option>
+        <option value="sticky">CooperativeSticky</option>
+      </select>
+      <button class="btn ghost" id="vizDrop">Drop a consumer</button>
+      <button class="btn ghost" id="vizAdd">Add a consumer</button>
+    </div>
+    <div class="pviz" id="pviz"></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:10px" id="vizNote"></div>
+  </div>
+
+  <div class="playground">
+    <h3>Offset / lag simulator</h3>
+    <div class="desc">Slide produce and consume rates. Watch the committed offset trail the log end. Lag = end - committed.</div>
+    <div class="pg-row">
+      <label>Produce msg/s</label>
+      <input type="range" id="rateP" min="0" max="2000" value="500" step="50">
+      <span id="ratePV" class="clabel" style="min-width:60px;text-align:center">500</span>
+      <label>Consume msg/s</label>
+      <input type="range" id="rateC" min="0" max="2000" value="600" step="50">
+      <span id="rateCV" class="clabel" style="min-width:60px;text-align:center">600</span>
+      <button class="btn" id="lagToggle">Pause</button>
+      <button class="btn ghost" id="lagBurst">+10k burst</button>
+      <button class="btn ghost" id="lagReset">Reset</button>
+    </div>
+    <div class="lagsim">
+      <div class="stats">
+        <div class="stat"><div class="label">Log end</div><div class="val" id="lagEnd">0</div></div>
+        <div class="stat"><div class="label">Committed</div><div class="val" id="lagCommit">0</div></div>
+        <div class="stat"><div class="label">Lag</div><div class="val" id="lagLag" style="color:var(--accent-3)">0</div></div>
+        <div class="stat"><div class="label">ETA to catch up</div><div class="val" id="lagETA">—</div></div>
+      </div>
+      <div class="bar"><div id="barEnd" style="background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%"></div></div>
+      <div class="barlbl">log end (relative)</div>
+      <div class="bar"><div id="barCommit" style="background:linear-gradient(90deg,var(--ok),#22c55e);width:0%"></div></div>
+      <div class="barlbl">committed offset</div>
+      <div class="bar"><div id="barLag" style="background:linear-gradient(90deg,var(--accent-3),#b13838);width:0%"></div></div>
+      <div class="barlbl">lag (gap)</div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <h3>Message flow</h3>
+    <div class="desc">Producer → leader → followers (replication) → consumer.</div>
+    <svg class="msgflow" viewBox="0 0 700 220">
+      <rect class="node" x="20" y="80" width="120" height="60" rx="10"/>
+      <text x="80" y="115" text-anchor="middle">producer</text>
+
+      <rect class="node leader" x="240" y="40" width="120" height="60" rx="10"/>
+      <text x="300" y="75" text-anchor="middle">P0 leader</text>
+
+      <rect class="node follower" x="240" y="120" width="120" height="40" rx="10"/>
+      <text x="300" y="145" text-anchor="middle">follower</text>
+      <rect class="node follower" x="240" y="170" width="120" height="40" rx="10"/>
+      <text x="300" y="195" text-anchor="middle">follower</text>
+
+      <rect class="node" x="500" y="80" width="170" height="60" rx="10"/>
+      <text x="585" y="115" text-anchor="middle">consumer (group)</text>
+
+      <path class="edge" d="M 140 110 L 240 70" id="edge1"/>
+      <path class="edge" d="M 360 70  L 500 110" id="edge2"/>
+      <path class="edge" d="M 300 100 L 300 120" />
+      <path class="edge" d="M 300 100 L 300 170" />
+
+      <circle class="dot" id="flowDot" r="6" cx="-20" cy="-20"/>
+    </svg>
+  </div>
+
+  <h2>Consumer code</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Basic poll loop</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaConsumer
+
+c = KafkaConsumer(
+    <span class="tok-s">"orders"</span>,
+    bootstrap_servers=<span class="tok-s">"broker1:9092"</span>,
+    group_id=<span class="tok-s">"billing"</span>,
+    auto_offset_reset=<span class="tok-s">"earliest"</span>,   <span class="tok-c"># or "latest"</span>
+    enable_auto_commit=<span class="tok-k">False</span>,
+    isolation_level=<span class="tok-s">"read_committed"</span>,
+    max_poll_records=<span class="tok-n">500</span>,
+    session_timeout_ms=<span class="tok-n">10_000</span>,
+)
+<span class="tok-k">for</span> msg <span class="tok-k">in</span> c:
+    <span class="tok-f">handle</span>(msg.value)
+    c.<span class="tok-f">commit</span>()  <span class="tok-c"># sync commit</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Manual poll + offsets</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Commit only after successful processing → at-least-once.</div>
+      <pre><code><span class="tok-k">while</span> <span class="tok-k">True</span>:
+    batch = c.<span class="tok-f">poll</span>(timeout_ms=<span class="tok-n">1000</span>)
+    <span class="tok-k">for</span> tp, msgs <span class="tok-k">in</span> batch.items():
+        <span class="tok-k">for</span> m <span class="tok-k">in</span> msgs:
+            <span class="tok-f">handle</span>(m)
+        c.<span class="tok-f">commit</span>({tp: OffsetAndMetadata(msgs[-<span class="tok-n">1</span>].offset+<span class="tok-n">1</span>, <span class="tok-k">None</span>)})</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Rebalance listener</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Flush in-flight work before partitions are revoked.</div>
+      <pre><code><span class="tok-k">class</span> <span class="tok-f">L</span>(ConsumerRebalanceListener):
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_revoked</span>(self, revoked):
+        <span class="tok-f">flush_buffer</span>()
+        consumer.<span class="tok-f">commit</span>()
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_assigned</span>(self, assigned):
+        log.<span class="tok-f">info</span>(<span class="tok-s">"now own %s"</span>, assigned)
+
+c.<span class="tok-f">subscribe</span>([<span class="tok-s">"orders"</span>], listener=L())</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Seek to offset / time</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># by offset</span>
+c.<span class="tok-f">seek</span>(TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>), <span class="tok-n">12345</span>)
+
+<span class="tok-c"># by timestamp (ms since epoch)</span>
+ts = {TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>): <span class="tok-n">1714000000000</span>}
+offsets = c.<span class="tok-f">offsets_for_times</span>(ts)
+<span class="tok-k">for</span> tp, off <span class="tok-k">in</span> offsets.items():
+    c.<span class="tok-f">seek</span>(tp, off.offset)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Static membership</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">A stable group.instance.id avoids rebalances on rolling restarts.</div>
+      <pre><code>KafkaConsumer(
+  group_id=<span class="tok-s">"billing"</span>,
+  group_instance_id=<span class="tok-s">"billing-pod-7"</span>,
+  session_timeout_ms=<span class="tok-n">30_000</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Cooperative rebalance</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Incremental rebalance — only the partitions changing hands stop being processed, not all of them.</div>
+      <pre><code>partition_assignment_strategy=[
+  <span class="tok-s">"org.apache.kafka.clients.consumer.CooperativeStickyAssignor"</span>
+]</code></pre>
+    </div>
+  </div>
+
+  <h2>Commit semantics</h2>
+  <table class="ref">
+    <thead><tr><th>Mode</th><th>Guarantee</th><th>Risk</th></tr></thead>
+    <tbody>
+      <tr><td><code>enable_auto_commit=true</code> (default 5s)</td><td>At-most-once-ish</td><td>Crash after commit, before processing → record dropped.</td></tr>
+      <tr><td>Manual <code>commit()</code> after processing</td><td>At-least-once</td><td>Crash after processing, before commit → reprocess on restart. Make handlers idempotent.</td></tr>
+      <tr><td>Transactional <code>send_offsets_to_transaction()</code></td><td>Exactly-once (read-process-write inside Kafka)</td><td>Doesn't help when the side-effect is outside Kafka (e.g., a non-idempotent HTTP POST).</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pitfall"><strong>Pitfall:</strong> a long-running message handler that exceeds <code>max.poll.interval.ms</code> (default 5 min) gets kicked out of the group → rebalance storm. Either increase the limit, decrease <code>max.poll.records</code>, or move the work to a worker pool and use <code>pause()</code> / <code>resume()</code>.</div>
+</section>
+
+<!-- ========== CLI ========== -->
+<section class="tab-section" id="cli">
+  <h1>CLI</h1>
+  <p class="lead">The shell scripts under <code>$KAFKA_HOME/bin/</code> are your friend in production. Cheat-sheet below.</p>
+
+  <h2>Topics</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Create / list / describe</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># create</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic orders \
+  --partitions 12 --replication-factor 3 \
+  --config retention.ms=604800000 \
+  --config min.insync.replicas=2
+
+<span class="tok-c"># list / describe</span>
+kafka-topics.sh --bootstrap-server localhost:9092 --list
+kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Alter / delete</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c"># add partitions (cannot decrease!)</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --alter --topic orders --partitions 24
+
+<span class="tok-c"># change a config</span>
+kafka-configs.sh --bootstrap-server localhost:9092 \
+  --entity-type topics --entity-name orders \
+  --alter --add-config retention.ms=86400000
+
+<span class="tok-c"># delete</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --delete --topic orders</code></pre>
+    </div>
+  </div>
+
+  <h2>Console produce / consume</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Produce from stdin</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --property parse.key=true \
+  --property key.separator=:
+<span class="tok-c"># type:    user-42:{"sku":"X","qty":2}</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Consume from start</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --from-beginning \
+  --property print.key=true \
+  --property print.timestamp=true \
+  --max-messages 50</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Consume one partition / offset range</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --partition 3 \
+  --offset 1000 \
+  --max-messages 10</code></pre>
+    </div>
+  </div>
+
+  <h2>Consumer groups</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">List, describe lag</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --list
+
+kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe --group billing
+<span class="tok-c"># columns: TOPIC PARTITION CURRENT-OFFSET LOG-END-OFFSET LAG CONSUMER-ID HOST CLIENT-ID</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Reset offsets</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">--dry-run first. Reset only when the group is stopped.</div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --group billing \
+  --reset-offsets --to-earliest \
+  --topic orders --execute
+
+<span class="tok-c"># to a timestamp:</span>
+  --to-datetime 2026-05-01T00:00:00.000
+
+<span class="tok-c"># shift back 1000 records:</span>
+  --shift-by -1000</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Delete a group</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --delete --group billing</code></pre>
+    </div>
+  </div>
+
+  <h2>Misc useful</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Get earliest / latest offsets</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -1   <span class="tok-c"># latest</span>
+
+kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -2   <span class="tok-c"># earliest</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Dump a log segment</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-dump-log.sh \
+  --files /var/lib/kafka/orders-0/00000000000000000000.log \
+  --print-data-log</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Verify ACLs</div><button class="copy-btn">Copy</button></div>
+      <pre><code>kafka-acls.sh \
+  --bootstrap-server localhost:9092 \
+  --add --allow-principal User:billing \
+  --operation Read --topic orders \
+  --group billing</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== STREAMS ========== -->
+<section class="tab-section" id="streams">
+  <h1>Streams &amp; ksqlDB</h1>
+  <p class="lead">Kafka Streams: a Java/Scala library for transforming topics. ksqlDB: SQL on top of Streams.</p>
+
+  <h2>Streams DSL</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Word count (the "hello world")</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-t">StreamsBuilder</span> b = <span class="tok-k">new</span> <span class="tok-f">StreamsBuilder</span>();
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">String</span>&gt; src = b.<span class="tok-f">stream</span>(<span class="tok-s">"text-input"</span>);
+src.<span class="tok-f">flatMapValues</span>(v -&gt; Arrays.<span class="tok-f">asList</span>(v.<span class="tok-f">split</span>(<span class="tok-s">"\\W+"</span>)))
+   .<span class="tok-f">groupBy</span>((k,w) -&gt; w)
+   .<span class="tok-f">count</span>(Materialized.<span class="tok-f">as</span>(<span class="tok-s">"counts"</span>))
+   .<span class="tok-f">toStream</span>()
+   .<span class="tok-f">to</span>(<span class="tok-s">"word-counts"</span>, Produced.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()));</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Stream-table join</div><button class="copy-btn">Copy</button></div>
+      <div class="card-desc">Enrich an event stream with the latest state from a compacted topic.</div>
+      <pre><code><span class="tok-t">KTable</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">User</span>&gt; users = b.<span class="tok-f">table</span>(<span class="tok-s">"users"</span>);
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">Order</span>&gt; orders = b.<span class="tok-f">stream</span>(<span class="tok-s">"orders"</span>);
+
+orders.<span class="tok-f">join</span>(users,
+       (order, user) -&gt; <span class="tok-k">new</span> <span class="tok-f">EnrichedOrder</span>(order, user))
+      .<span class="tok-f">to</span>(<span class="tok-s">"orders-enriched"</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Windowed aggregation</div><button class="copy-btn">Copy</button></div>
+      <pre><code>orders.<span class="tok-f">groupByKey</span>()
+      .<span class="tok-f">windowedBy</span>(TimeWindows.<span class="tok-f">ofSizeAndGrace</span>(
+         Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">5</span>), Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">1</span>)))
+      .<span class="tok-f">aggregate</span>(() -&gt; <span class="tok-n">0L</span>,
+                 (k, v, sum) -&gt; sum + v.amount(),
+                 Materialized.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()))
+      .<span class="tok-f">toStream</span>()
+      .<span class="tok-f">to</span>(<span class="tok-s">"5min-totals"</span>);</code></pre>
+    </div>
+  </div>
+
+  <h2>ksqlDB</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">CREATE STREAM / TABLE</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> orders (
+  user_id <span class="tok-t">VARCHAR</span> KEY,
+  sku <span class="tok-t">VARCHAR</span>,
+  qty <span class="tok-t">INT</span>,
+  amount <span class="tok-t">DOUBLE</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'orders'</span>, value_format=<span class="tok-s">'JSON'</span>);
+
+<span class="tok-k">CREATE TABLE</span> users (
+  user_id <span class="tok-t">VARCHAR</span> PRIMARY KEY,
+  name <span class="tok-t">VARCHAR</span>, tier <span class="tok-t">VARCHAR</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'users'</span>, value_format=<span class="tok-s">'JSON'</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CSAS — derived stream</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> big_orders <span class="tok-k">AS</span>
+<span class="tok-k">SELECT</span> o.user_id, u.tier, o.amount
+<span class="tok-k">FROM</span> orders o
+<span class="tok-k">LEFT JOIN</span> users u <span class="tok-k">ON</span> o.user_id = u.user_id
+<span class="tok-k">WHERE</span> o.amount &gt; <span class="tok-n">100</span>
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CTAS — windowed table</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-k">CREATE TABLE</span> spend_5min <span class="tok-k">AS</span>
+<span class="tok-k">SELECT</span> user_id,
+       <span class="tok-f">SUM</span>(amount) <span class="tok-k">AS</span> total
+<span class="tok-k">FROM</span> orders
+<span class="tok-k">WINDOW TUMBLING</span> (<span class="tok-k">SIZE</span> <span class="tok-n">5</span> <span class="tok-k">MINUTES</span>)
+<span class="tok-k">GROUP BY</span> user_id
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pull query</div><button class="copy-btn">Copy</button></div>
+      <pre><code><span class="tok-c">-- point-in-time read of a table's latest state</span>
+<span class="tok-k">SELECT</span> total <span class="tok-k">FROM</span> spend_5min
+<span class="tok-k">WHERE</span> user_id = <span class="tok-s">'user-42'</span>;</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OPS ========== -->
+<section class="tab-section" id="ops">
+  <h1>Ops &amp; Tuning</h1>
+  <p class="lead">The knobs you'll actually turn in production, plus the alarms that wake you up.</p>
+
+  <h2>Replication &amp; durability</h2>
+  <table class="ref">
+    <thead><tr><th>Config</th><th>Default</th><th>What &amp; when</th></tr></thead>
+    <tbody>
+      <tr><td><code>replication.factor</code> (per topic)</td><td>—</td><td>3 in prod. Survives one broker loss with <code>min.insync.replicas=2</code>.</td></tr>
+      <tr><td><code>min.insync.replicas</code></td><td>1</td><td>Set 2 with RF=3. Combined with <code>acks=all</code> = no data loss on single-broker fault.</td></tr>
+      <tr><td><code>unclean.leader.election.enable</code></td><td>false</td><td>Keep false. Allowing it trades durability for availability.</td></tr>
+      <tr><td><code>replica.lag.time.max.ms</code></td><td>30000</td><td>Followers slower than this drop out of ISR.</td></tr>
+      <tr><td><code>auto.create.topics.enable</code></td><td>true</td><td>Set <code>false</code> in prod. Make topic creation an explicit step.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Retention &amp; storage</h2>
+  <table class="ref">
+    <thead><tr><th>Config</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>retention.ms</code></td><td>Delete records older than this. Default 7 days. Per-topic.</td></tr>
+      <tr><td><code>retention.bytes</code></td><td>Cap per-partition log size. Per-topic. Whichever (ms / bytes) hits first wins.</td></tr>
+      <tr><td><code>segment.bytes</code> / <code>segment.ms</code></td><td>Roll a new log segment every X bytes or X ms. Smaller segments = faster deletes/compaction, more file handles.</td></tr>
+      <tr><td><code>cleanup.policy=compact</code></td><td>Log compaction — keep latest value per key forever. Use for state topics, changelogs, <code>__consumer_offsets</code>.</td></tr>
+      <tr><td><code>cleanup.policy=delete,compact</code></td><td>Both: compact + drop old keys after retention.</td></tr>
+      <tr><td><code>min.cleanable.dirty.ratio</code></td><td>How dirty before the compactor runs (default 0.5).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Common alarms</h2>
+  <table class="ref">
+    <thead><tr><th>Symptom</th><th>What to check</th></tr></thead>
+    <tbody>
+      <tr><td>Under-replicated partitions &gt; 0</td><td>Broker down, slow disk, or network. <code>kafka-topics.sh --describe --under-replicated-partitions</code>.</td></tr>
+      <tr><td>Offline partitions &gt; 0</td><td>No leader available. Cluster is in trouble.</td></tr>
+      <tr><td>Consumer lag growing</td><td>Consumer slow / stuck. Check <code>max.poll.interval.ms</code>, GC pauses, downstream system.</td></tr>
+      <tr><td>Producer <code>RecordTooLargeException</code></td><td>Bump <code>max.request.size</code> on producer + <code>message.max.bytes</code> on broker + <code>max.partition.fetch.bytes</code> on consumer.</td></tr>
+      <tr><td>Group rebalance storm</td><td>Slow handlers, unstable members, GC. Use static membership + cooperative-sticky.</td></tr>
+      <tr><td>ISR shrinks frequently</td><td>Network or disk issue. Check <code>replica.lag.time.max.ms</code>, broker IO wait.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Cluster sizing rules of thumb</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Partitions per broker</div></div>
+      <div class="card-desc">Aim for &lt; 4000 partitions per broker. Each partition costs file handles, memory, and rebalance time.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Partition count per topic</div></div>
+      <div class="card-desc">≥ max parallelism you'll ever need. Pick a generous number up-front — increasing later breaks per-key ordering.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Disks</div></div>
+      <div class="card-desc">XFS, large sequential writes. Don't share with anything bursty. Plan on 50%+ free for log compaction.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Network</div></div>
+      <div class="card-desc">Replication is north-south traffic too. RF=3 means each produced byte traverses the network ~3×.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">JVM</div></div>
+      <div class="card-desc">6-8 GB heap is plenty. Most memory should go to the page cache.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">KRaft (no ZooKeeper)</div></div>
+      <div class="card-desc">3.3+ defaults to KRaft. ZooKeeper removed in 4.0. New clusters: KRaft only.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="footer">Single self-contained HTML cheatsheet. Match colors with PyTorch / Go / AWS pages in this directory. Press <code>/</code> to search, <code>1</code>–<code>6</code> to switch tabs.</div>
+
+<script>
+  // Tabs
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // Search
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); search.focus(); }
+    if (e.key === 'Escape') { search.value = ''; filter(); search.blur(); }
+    if (/^[1-6]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
+      const order = ['concepts','producers','consumers','cli','streams','ops'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // Copy buttons
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const code = card?.querySelector('pre code')?.innerText || '';
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      btn.textContent = 'Copied'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // Partition visualizer
+  const colors = ['#14e0c4','#0bb4ff','#a78bfa','#f472b6','#fbbf24','#34d399','#fb7185','#60a5fa'];
+  const vizParts = document.getElementById('vizParts');
+  const vizCons = document.getElementById('vizCons');
+  const vizStrat = document.getElementById('vizStrat');
+  const vizPartsVal = document.getElementById('vizPartsVal');
+  const vizConsVal = document.getElementById('vizConsVal');
+  const pviz = document.getElementById('pviz');
+  const vizNote = document.getElementById('vizNote');
+  function assign(parts, cons, strat) {
+    const owners = new Array(parts).fill(-1);
+    if (cons === 0) return owners;
+    if (strat === 'range') {
+      const per = Math.floor(parts / cons);
+      const rem = parts % cons;
+      let p = 0;
+      for (let c = 0; c < cons; c++) {
+        const take = per + (c < rem ? 1 : 0);
+        for (let i = 0; i < take; i++) owners[p++] = c;
+      }
+    } else if (strat === 'roundrobin' || strat === 'sticky') {
+      for (let p = 0; p < parts; p++) owners[p] = p % cons;
+    }
+    return owners;
+  }
+  function renderViz() {
+    const parts = parseInt(vizParts.value, 10);
+    const cons = parseInt(vizCons.value, 10);
+    vizPartsVal.textContent = parts;
+    vizConsVal.textContent = cons;
+    const owners = assign(parts, cons, vizStrat.value);
+    pviz.innerHTML = '';
+    if (cons === 0) {
+      pviz.innerHTML = '<div class="pempty">No consumers in group.</div>';
+      return;
+    }
+    for (let c = 0; c < cons; c++) {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('div'); lbl.className = 'clabel'; lbl.textContent = 'consumer-' + c;
+      const ps = document.createElement('div'); ps.className = 'parts';
+      const myParts = owners.map((o,i) => o === c ? i : -1).filter(x => x >= 0);
+      if (myParts.length === 0) {
+        const e = document.createElement('div'); e.className = 'pempty';
+        e.textContent = '— idle (no partitions assigned)';
+        ps.appendChild(e);
+      }
+      myParts.forEach(p => {
+        const d = document.createElement('div'); d.className = 'part assigned';
+        d.style.background = colors[c % colors.length];
+        d.style.color = '#052622';
+        d.textContent = 'P' + p;
+        ps.appendChild(d);
+      });
+      pviz.appendChild(lbl); pviz.appendChild(ps);
+    }
+    if (cons > parts) {
+      vizNote.textContent = 'More consumers than partitions: ' + (cons - parts) + ' consumer(s) sit idle. Partitions are the unit of parallelism.';
+    } else if (vizStrat.value === 'range') {
+      vizNote.textContent = 'Range: each consumer gets a contiguous slice. Uneven when partitions don\'t divide evenly.';
+    } else if (vizStrat.value === 'roundrobin') {
+      vizNote.textContent = 'RoundRobin: balanced fan-out. May reshuffle a lot of partitions on group changes.';
+    } else {
+      vizNote.textContent = 'CooperativeSticky: minimizes movement on rebalance. Only the partitions whose owner changed pause briefly.';
+    }
+  }
+  vizParts.addEventListener('input', renderViz);
+  vizCons.addEventListener('input', renderViz);
+  vizStrat.addEventListener('change', renderViz);
+  document.getElementById('vizDrop').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) > 1) { vizCons.value = parseInt(vizCons.value,10) - 1; renderViz(); }
+  });
+  document.getElementById('vizAdd').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) < 8) { vizCons.value = parseInt(vizCons.value,10) + 1; renderViz(); }
+  });
+  renderViz();
+
+  // Lag simulator
+  (function() {
+    const rateP = document.getElementById('rateP');
+    const rateC = document.getElementById('rateC');
+    const rateCV = document.getElementById('rateCV');
+    const ratePV = document.getElementById('ratePV');
+    const lagEnd = document.getElementById('lagEnd');
+    const lagCommit = document.getElementById('lagCommit');
+    const lagLag = document.getElementById('lagLag');
+    const lagETA = document.getElementById('lagETA');
+    const barEnd = document.getElementById('barEnd');
+    const barCommit = document.getElementById('barCommit');
+    const barLag = document.getElementById('barLag');
+    const lagToggle = document.getElementById('lagToggle');
+    const lagBurst = document.getElementById('lagBurst');
+    const lagReset = document.getElementById('lagReset');
+    let state = { end: 0, committed: 0, paused: false };
+    function syncLabels() { ratePV.textContent = rateP.value; rateCV.textContent = rateC.value; }
+    rateP.addEventListener('input', syncLabels); rateC.addEventListener('input', syncLabels); syncLabels();
+    lagToggle.addEventListener('click', () => { state.paused = !state.paused; lagToggle.textContent = state.paused ? 'Resume' : 'Pause'; });
+    lagBurst.addEventListener('click', () => { state.end += 10000; });
+    lagReset.addEventListener('click', () => { state.end = 0; state.committed = 0; });
+    function tick() {
+      if (!state.paused) {
+        const p = parseInt(rateP.value, 10) / 10; // per 100ms
+        const c = parseInt(rateC.value, 10) / 10;
+        state.end += p;
+        state.committed = Math.min(state.end, state.committed + c);
+      }
+      const lag = Math.max(0, state.end - state.committed);
+      lagEnd.textContent = Math.floor(state.end).toLocaleString();
+      lagCommit.textContent = Math.floor(state.committed).toLocaleString();
+      lagLag.textContent = Math.floor(lag).toLocaleString();
+      const cRate = parseInt(rateC.value, 10), pRate = parseInt(rateP.value, 10);
+      if (cRate <= pRate || lag <= 0) {
+        lagETA.textContent = lag <= 0 ? 'caught up' : '∞';
+      } else {
+        const eta = lag / (cRate - pRate);
+        lagETA.textContent = eta < 60 ? eta.toFixed(1) + 's' : (eta/60).toFixed(1) + 'm';
+      }
+      const max = Math.max(state.end, 1);
+      barEnd.style.width = '100%';
+      barCommit.style.width = (state.committed / max * 100) + '%';
+      barLag.style.width = (lag / max * 100) + '%';
+    }
+    setInterval(tick, 100);
+  })();
+
+  // Message flow animation
+  (function() {
+    const dot = document.getElementById('flowDot');
+    if (!dot) return;
+    // Path: producer (140,110) -> leader (300,70) -> back to leader after replication blink -> consumer (500,110)
+    const path = [
+      [140, 110], [300, 70], [300, 70], [500, 110]
+    ];
+    let t = 0;
+    function ease(x) { return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x+2, 2)/2; }
+    function frame() {
+      t = (t + 0.006) % 1;
+      const seg = Math.floor(t * 3);
+      const local = ease((t * 3) % 1);
+      const a = path[seg], b = path[seg+1];
+      const x = a[0] + (b[0]-a[0]) * local;
+      const y = a[1] + (b[1]-a[1]) * local;
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+</script>
+
+</body>
+</html>

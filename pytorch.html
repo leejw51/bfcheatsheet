@@ -315,9 +315,138 @@
     font-size: 14px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     outline: none;
-    transition: border-color 0.15s;
+    transition: border-color 0.15s, box-shadow 0.15s;
   }
   .lookup-input:focus, .quiz-input:focus { border-color: var(--accent); }
+  /* Quiz input wrapper hosts the spark layer */
+  .quiz-input-wrap { position: relative; }
+  .quiz-spark-layer {
+    position: absolute; inset: 0;
+    pointer-events: none; overflow: visible;
+  }
+  .quiz-spark {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff, var(--accent) 50%, rgba(238,76,44,0) 80%);
+    box-shadow: 0 0 8px var(--accent);
+    pointer-events: none;
+    opacity: 0;
+    animation: spark-up 700ms ease-out forwards;
+  }
+  @keyframes spark-up {
+    0%   { transform: translate(0, 0) scale(1);  opacity: 1; }
+    60%  { opacity: 0.9; }
+    100% { transform: translate(var(--dx, 0), -34px) scale(0.3); opacity: 0; }
+  }
+  .quiz-input.pulse {
+    animation: quiz-input-pulse 220ms ease-out;
+  }
+  @keyframes quiz-input-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(238, 76, 44, 0.55); border-color: var(--accent); }
+    100% { box-shadow: 0 0 0 8px rgba(238, 76, 44, 0);   border-color: var(--accent); }
+  }
+  .quiz-input.shake {
+    animation: quiz-input-shake 240ms ease-in-out;
+  }
+  @keyframes quiz-input-shake {
+    0%, 100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    50%      { transform: translateX(4px); }
+    75%      { transform: translateX(-2px); }
+  }
+  /* Live trace track */
+  .quiz-trace {
+    margin-top: 8px;
+    min-height: 22px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 2px;
+  }
+  .quiz-trace .trace-label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-right: 8px;
+    opacity: 0.7;
+  }
+  .quiz-trace .ch {
+    display: inline-block;
+    min-width: 9px; text-align: center;
+    padding: 1px 1px;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    transition: color 120ms, border-color 120ms, transform 120ms;
+  }
+  .quiz-trace .ch.space { border-bottom: none; min-width: 6px; }
+  .quiz-trace .ch.match {
+    color: #4ade80;
+    border-color: #4ade80;
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.55);
+    animation: ch-pop 180ms ease-out;
+  }
+  .quiz-trace .ch.miss {
+    color: #f87171;
+    border-color: #f87171;
+    text-shadow: 0 0 6px rgba(248, 113, 113, 0.55);
+    animation: ch-pop 180ms ease-out;
+  }
+  .quiz-trace .ch.revealed { /* shown after wrong / show-answer */
+    color: var(--text);
+  }
+  @keyframes ch-pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+  /* Recall ("lock it in") mode */
+  .quiz-recall {
+    display: none;
+    margin-top: 14px;
+    padding: 14px;
+    background: linear-gradient(135deg, rgba(238,76,44,0.08), rgba(249,115,22,0.04));
+    border: 1px dashed rgba(238, 76, 44, 0.5);
+    border-radius: 8px;
+  }
+  .quiz-recall.show { display: block; animation: fade 0.25s ease; }
+  .quiz-recall .recall-header {
+    font-size: 13px; font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .quiz-recall .recall-sub {
+    color: var(--muted); font-size: 12px; margin-bottom: 10px;
+  }
+  .quiz-recall .recall-target {
+    background: var(--code-bg);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 0 6px 6px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--string);
+    margin-bottom: 10px;
+    word-break: break-all;
+  }
+  .quiz-recall .recall-progress {
+    display: flex; gap: 6px; margin-top: 10px; align-items: center;
+    font-size: 13px;
+  }
+  .quiz-recall .flame {
+    font-size: 18px; filter: grayscale(1); opacity: 0.4;
+    transition: filter 0.3s, opacity 0.3s, transform 0.3s;
+  }
+  .quiz-recall .flame.on {
+    filter: none; opacity: 1; transform: scale(1.2);
+    animation: ch-pop 280ms ease-out;
+  }
+  .quiz-recall.locked {
+    border-color: #4ade80;
+    background: linear-gradient(135deg, rgba(74,222,128,0.10), rgba(74,222,128,0.03));
+  }
+  .quiz-recall.locked .recall-header { color: #4ade80; }
   .lookup-suggestions {
     margin-top: 6px;
     max-height: 180px;
@@ -523,6 +652,497 @@
     .grid { grid-template-columns: 1fr; }
     main { padding: 16px; }
   }
+
+  /* ============ VISUAL EFFECTS ENHANCEMENTS ============ */
+
+  /* Animated gradient header flame */
+  .logo .flame {
+    animation: flame-flicker 2.4s ease-in-out infinite;
+    text-shadow: 0 0 12px rgba(238, 76, 44, 0.6);
+  }
+  @keyframes flame-flicker {
+    0%, 100% { transform: translateY(0) scale(1); filter: brightness(1); }
+    25%      { transform: translateY(-1px) scale(1.04); filter: brightness(1.15); }
+    50%      { transform: translateY(0)    scale(0.98); filter: brightness(0.95); }
+    75%      { transform: translateY(-1px) scale(1.02); filter: brightness(1.1); }
+  }
+
+  /* Fancy hover glow on cards */
+  .card {
+    position: relative;
+    transition: border-color 0.2s, transform 0.2s, box-shadow 0.3s;
+  }
+  .card::before {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 10px;
+    pointer-events: none;
+    box-shadow: 0 0 0 0 rgba(238, 76, 44, 0);
+    transition: box-shadow 0.35s ease, opacity 0.35s ease;
+    opacity: 0;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(238, 76, 44, 0.18),
+                0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  .card:hover::before {
+    opacity: 1;
+    box-shadow: 0 0 0 1px rgba(238, 76, 44, 0.5),
+                0 0 24px rgba(238, 76, 44, 0.25);
+  }
+
+  /* Tab ripple/slide */
+  nav.tabs button {
+    position: relative; overflow: hidden;
+  }
+  nav.tabs button::after {
+    content: "";
+    position: absolute; bottom: 0; left: 50%;
+    width: 0; height: 2px;
+    background: var(--accent);
+    transform: translateX(-50%);
+    transition: width 0.25s ease;
+  }
+  nav.tabs button.active::after { width: 70%; }
+
+  section.tab-section.active {
+    animation: slide-in 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============ TENSOR 3D VISUALIZATION ============ */
+  .tensor-3d-wrap {
+    margin-top: 14px;
+    padding: 18px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+  .tensor-3d-wrap .tensor-info {
+    color: var(--muted);
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    margin-top: 14px;
+    text-align: center;
+  }
+  .tensor-3d-wrap .tensor-info strong { color: var(--accent); }
+  .tensor-stage {
+    perspective: 800px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 160px;
+    position: relative;
+  }
+  .tensor-scene {
+    transform-style: preserve-3d;
+    transform: rotateX(-22deg) rotateY(-30deg);
+    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+  }
+  .tensor-scene:hover { transform: rotateX(-18deg) rotateY(-15deg); }
+  .tcube {
+    position: absolute;
+    width: 18px; height: 18px;
+    background: linear-gradient(135deg, #ff6a40, #ee4c2c);
+    border: 1px solid rgba(0,0,0,0.5);
+    box-shadow: inset -2px -2px 4px rgba(0,0,0,0.35),
+                inset 2px 2px 3px rgba(255,255,255,0.2);
+    border-radius: 2px;
+    transform-style: preserve-3d;
+    animation: cube-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+  }
+  .tcube.t-vec  { background: linear-gradient(135deg, #fcd34d, #f97316); }
+  .tcube.t-mat  { background: linear-gradient(135deg, #ff6a40, #ee4c2c); }
+  .tcube.t-3d   { background: linear-gradient(135deg, #fb923c, #b13a1d); }
+  .tcube.t-4d   { background: linear-gradient(135deg, #fde047, #ee4c2c); }
+  @keyframes cube-pop {
+    0%   { transform: var(--cube-tf) scale(0.2); opacity: 0; }
+    60%  { opacity: 1; }
+    100% { transform: var(--cube-tf) scale(1); opacity: 1; }
+  }
+  .tensor-axes {
+    position: absolute;
+    bottom: 8px; left: 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .tensor-axes div { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .tensor-axes .ax-x { color: #fbbf24; }
+  .tensor-axes .ax-y { color: #ee4c2c; }
+  .tensor-axes .ax-z { color: #60a5fa; }
+  .tensor-axes .ax-b { color: #a78bfa; }
+
+  /* ============ AUTOGRAD GRADIENT FLOW ============ */
+  .autograd-vis {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 18px 0;
+    overflow: hidden;
+  }
+  .autograd-vis h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: var(--accent);
+  }
+  .autograd-vis p.sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 14px;
+  }
+  .autograd-svg {
+    width: 100%;
+    max-width: 720px;
+    display: block;
+    margin: 0 auto;
+    background: var(--code-bg);
+    border-radius: 8px;
+  }
+  .autograd-svg .graph-node circle {
+    fill: var(--panel);
+    stroke: var(--accent);
+    stroke-width: 2;
+    transition: fill 0.3s, stroke 0.3s;
+  }
+  .autograd-svg .graph-node text {
+    fill: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    text-anchor: middle;
+    dominant-baseline: middle;
+  }
+  .autograd-svg .graph-edge {
+    stroke: var(--border);
+    stroke-width: 2;
+    fill: none;
+  }
+  .autograd-svg .grad-pulse {
+    fill: var(--accent);
+    filter: drop-shadow(0 0 6px var(--accent));
+  }
+  .autograd-vis .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    font-size: 12px; color: var(--muted);
+    margin-top: 10px; justify-content: center;
+  }
+  .autograd-vis .legend span { display: flex; align-items: center; gap: 6px; }
+  .autograd-vis .legend .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .autograd-vis .legend .dot.fwd { background: #60a5fa; }
+
+  /* ============ LOSS CURVE ============ */
+  .loss-vis {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 18px 0;
+  }
+  .loss-vis h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: var(--accent);
+  }
+  .loss-vis p.sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 14px;
+  }
+  .loss-canvas {
+    width: 100%;
+    max-width: 700px;
+    display: block;
+    margin: 0 auto;
+    background: var(--code-bg);
+    border-radius: 8px;
+  }
+  .loss-controls {
+    display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap;
+    align-items: center;
+  }
+  .loss-controls .train-btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .loss-controls .train-btn:hover { filter: brightness(1.15); }
+  .loss-controls .train-btn:active { transform: scale(0.97); }
+  .loss-controls .train-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .loss-controls .reset-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .loss-controls .reset-btn:hover { color: var(--text); border-color: var(--accent); }
+  .loss-stats {
+    display: flex; gap: 16px; margin-left: auto;
+    font-family: ui-monospace, monospace; font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .loss-stats span strong { color: var(--accent); }
+
+  /* ============ COUNTER / PROGRESS BARS ============ */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+  }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: "";
+    position: absolute; left: 0; bottom: 0;
+    height: 3px; width: var(--bar, 0%);
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 1.5s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .stat-card .stat-num {
+    color: var(--accent);
+    font-size: 26px;
+    font-weight: 800;
+    font-family: ui-monospace, monospace;
+    display: block;
+    line-height: 1.1;
+  }
+  .stat-card .stat-lbl {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+    display: block;
+  }
+  .stat-card .stat-sub {
+    color: var(--muted); font-size: 11px;
+    margin-top: 6px;
+  }
+
+  /* ============ NEURAL NETWORK BUILDER ============ */
+  .nn-builder {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 18px 0;
+  }
+  .nn-builder h3 {
+    margin: 0 0 8px; font-size: 16px; color: var(--accent);
+  }
+  .nn-builder p.sub {
+    color: var(--muted); font-size: 13px; margin: 0 0 14px;
+  }
+  .nn-controls {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .nn-controls button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .nn-controls button:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+  .nn-controls button.danger:hover {
+    color: #f87171; border-color: #f87171;
+  }
+  .nn-controls .layer-add {
+    background: rgba(238, 76, 44, 0.12);
+    color: var(--accent);
+    border-color: rgba(238, 76, 44, 0.4);
+  }
+  .nn-controls .play-btn {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+    margin-left: auto;
+  }
+  .nn-canvas-wrap {
+    background: var(--code-bg);
+    border-radius: 8px;
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .nn-canvas {
+    display: block;
+    margin: 0 auto;
+    min-width: 400px;
+  }
+  .nn-code {
+    margin-top: 12px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--text);
+    white-space: pre-wrap;
+    border-left: 3px solid var(--accent);
+  }
+
+  /* ============ COPY BURST PARTICLES ============ */
+  .copy-particle {
+    position: fixed;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff, var(--accent) 60%, rgba(238,76,44,0));
+    pointer-events: none;
+    z-index: 9999;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  /* ============ PITFALL CALLOUT ============ */
+  .pitfall {
+    background: rgba(248, 113, 113, 0.08);
+    border-left: 3px solid #f87171;
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    margin: 14px 0;
+    position: relative;
+  }
+  .pitfall strong {
+    color: #f87171;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .pitfall code {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #fca5a5;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+
+  /* ============ SHORTCUTS OVERLAY ============ */
+  .shortcuts-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9998;
+    animation: fade 0.18s ease;
+  }
+  .shortcuts-overlay.show { display: flex; }
+  .shortcuts-card {
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    padding: 22px 26px;
+    max-width: 460px;
+    width: calc(100% - 32px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6),
+                0 0 0 1px rgba(238, 76, 44, 0.3);
+    animation: pop-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: scale(0.92); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .shortcuts-card h2 {
+    margin: 0 0 14px;
+    font-size: 17px;
+    color: var(--accent);
+  }
+  .shortcuts-card h2::before { content: none; }
+  .shortcuts-card .row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .shortcuts-card .row:last-child { border-bottom: none; }
+  .shortcuts-card kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    box-shadow: 0 1px 0 var(--border);
+  }
+  .shortcuts-card .close {
+    margin-top: 14px; text-align: center;
+    color: var(--muted); font-size: 11px;
+  }
+  .help-fab {
+    position: fixed;
+    bottom: 18px; right: 18px;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 49;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .help-fab:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(238, 76, 44, 0.4);
+  }
+
+  /* Reduce motion */
+  @media (prefers-reduced-motion: reduce) {
+    .logo .flame, .tcube, section.tab-section.active,
+    .grad-pulse, .copy-particle { animation: none !important; }
+    .card:hover { transform: none; }
+  }
 </style>
 </head>
 <body>
@@ -584,6 +1204,17 @@
     </div>
     <div class="pg-output" id="pg-out"></div>
     <div class="shape-vis" id="pg-shape-vis"></div>
+    <div class="tensor-3d-wrap">
+      <div class="tensor-stage">
+        <div class="tensor-scene" id="tensor-scene"></div>
+        <div class="tensor-axes" id="tensor-axes" aria-hidden="true"></div>
+      </div>
+      <div class="tensor-info" id="tensor-info"></div>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <strong>Pitfall</strong> &nbsp;<code>torch.tensor(x)</code> always copies; <code>torch.as_tensor(x)</code> avoids a copy when possible. And <code>torch.from_numpy(arr)</code> <em>shares memory</em> — modifying one mutates the other.
   </div>
 
   <h2>Creation</h2>
@@ -1416,6 +2047,20 @@ P, L, U = <span class="tok-t">torch</span>.linalg.<span class="tok-f">lu</span>(
 <section class="tab-section" id="autograd">
   <h1>Autograd</h1>
   <p class="lead">Automatic differentiation. The reason PyTorch exists.</p>
+
+  <div class="autograd-vis">
+    <h3>🔄 Gradient Flow</h3>
+    <p class="sub">Forward pass <span style="color:#60a5fa">→</span> computes outputs. Backward pass <span style="color:var(--accent)">←</span> propagates ∂L/∂x by chain rule.</p>
+    <svg class="autograd-svg" id="autograd-svg" viewBox="0 0 720 220" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend">
+      <span><span class="dot fwd"></span>forward activation</span>
+      <span><span class="dot"></span>gradient flowing back</span>
+    </div>
+  </div>
+
+  <div class="pitfall">
+    <strong>Pitfall</strong> &nbsp;Gradients <em>accumulate</em> across <code>backward()</code> calls. Always call <code>optimizer.zero_grad()</code> (or pass <code>set_to_none=True</code>) before each step, or your update will mix gradients from different batches.
+  </div>
 
   <div class="grid" data-section="autograd">
 
@@ -2270,6 +2915,68 @@ out = <span class="tok-t">F</span>.<span class="tok-f">grid_sample</span>(x, gri
   <h1>Training Loop</h1>
   <p class="lead">The standard recipe — copy, paste, tweak.</p>
 
+  <div class="loss-vis">
+    <h3>📉 Loss Curve Simulator</h3>
+    <p class="sub">Click <strong>Train</strong> to watch a fake training run descend with bouncy easing. Reset to start over.</p>
+    <canvas class="loss-canvas" id="loss-canvas" width="700" height="240"></canvas>
+    <div class="loss-controls">
+      <button class="train-btn" id="loss-train">▶ Train</button>
+      <button class="reset-btn" id="loss-reset">Reset</button>
+      <div class="loss-stats">
+        <span>epoch: <strong id="loss-epoch">0</strong></span>
+        <span>loss: <strong id="loss-current">—</strong></span>
+        <span>best: <strong id="loss-best">—</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card" data-target="1247392" data-bar="78" data-suffix="">
+      <span class="stat-num" data-counter>0</span>
+      <span class="stat-lbl">Trainable params</span>
+      <div class="stat-sub">≈ 1.2M · model: tiny-ViT</div>
+    </div>
+    <div class="stat-card" data-target="98" data-bar="98" data-suffix="%">
+      <span class="stat-num" data-counter>0</span>
+      <span class="stat-lbl">GPU utilization</span>
+      <div class="stat-sub">A100 — bf16 autocast</div>
+    </div>
+    <div class="stat-card" data-target="2048" data-bar="64" data-suffix="">
+      <span class="stat-num" data-counter>0</span>
+      <span class="stat-lbl">Effective batch</span>
+      <div class="stat-sub">256 × 8 grad accum</div>
+    </div>
+    <div class="stat-card" data-target="187" data-bar="42" data-suffix=" tok/s">
+      <span class="stat-num" data-counter>0</span>
+      <span class="stat-lbl">Throughput</span>
+      <div class="stat-sub">torch.compile ON</div>
+    </div>
+  </div>
+
+  <div class="nn-builder">
+    <h3>🧱 Mini Network Builder</h3>
+    <p class="sub">Click layer buttons to stack a network. Press ▶ <strong>Forward</strong> to watch data flow through.</p>
+    <div class="nn-controls">
+      <button class="layer-add" data-add="Linear">+ Linear</button>
+      <button class="layer-add" data-add="ReLU">+ ReLU</button>
+      <button class="layer-add" data-add="GELU">+ GELU</button>
+      <button class="layer-add" data-add="Dropout">+ Dropout</button>
+      <button class="layer-add" data-add="LayerNorm">+ LayerNorm</button>
+      <button class="layer-add" data-add="Softmax">+ Softmax</button>
+      <button class="danger" id="nn-pop">Undo</button>
+      <button class="danger" id="nn-clear">Clear</button>
+      <button class="play-btn" id="nn-play">▶ Forward</button>
+    </div>
+    <div class="nn-canvas-wrap">
+      <canvas class="nn-canvas" id="nn-canvas" width="700" height="200"></canvas>
+    </div>
+    <div class="nn-code" id="nn-code"></div>
+  </div>
+
+  <div class="pitfall">
+    <strong>Pitfall</strong> &nbsp;<code>model.eval()</code> only flips <code>Dropout</code> and <code>BatchNorm</code> — it does <em>not</em> disable autograd. Always wrap inference in <code>torch.no_grad()</code> (or <code>torch.inference_mode()</code> for max speed).
+  </div>
+
   <div class="grid" data-section="training">
 
     <div class="card" data-keywords="train loop epoch optimizer step">
@@ -2903,6 +3610,178 @@ ms = start.<span class="tok-f">elapsed_time</span>(end)</code></pre>
   <h1>Advanced</h1>
   <p class="lead">JIT, FX, export, quantization, pruning, FSDP — the production toolbox.</p>
 
+  <h2>torch.compile (PyTorch 2.x)</h2>
+  <div class="grid" data-section="advanced">
+
+    <div class="card" data-keywords="torch.compile dynamo inductor jit speedup">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">torch.compile basics</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">One-line JIT — TorchDynamo traces, Inductor codegens fused kernels. Often 1.5–2× on modern GPUs.</div>
+      <pre><code>model = <span class="tok-t">torch</span>.<span class="tok-f">compile</span>(model)         <span class="tok-c"># default</span>
+model = <span class="tok-t">torch</span>.<span class="tok-f">compile</span>(model, mode=<span class="tok-s">"reduce-overhead"</span>)   <span class="tok-c"># CUDA Graphs</span>
+model = <span class="tok-t">torch</span>.<span class="tok-f">compile</span>(model, mode=<span class="tok-s">"max-autotune"</span>)        <span class="tok-c"># slow first run</span>
+model = <span class="tok-t">torch</span>.<span class="tok-f">compile</span>(model, fullgraph=<span class="tok-k">True</span>)             <span class="tok-c"># error on graph break</span>
+model = <span class="tok-t">torch</span>.<span class="tok-f">compile</span>(model, dynamic=<span class="tok-k">True</span>)               <span class="tok-c"># dynamic shapes</span></code></pre>
+    </div>
+
+    <div class="card" data-keywords="compile function decorator inline">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">@torch.compile</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Compile any function — not just <code>nn.Module</code>.</div>
+      <pre><code><span class="tok-f">@torch.compile</span>
+<span class="tok-k">def</span> <span class="tok-f">step</span>(x, w, b):
+    <span class="tok-k">return</span> <span class="tok-t">torch</span>.<span class="tok-f">relu</span>(x @ w + b)
+
+<span class="tok-c"># Per-call options</span>
+<span class="tok-f">@torch.compile</span>(mode=<span class="tok-s">"reduce-overhead"</span>, fullgraph=<span class="tok-k">True</span>)
+<span class="tok-k">def</span> <span class="tok-f">loss_fn</span>(x, y):
+    <span class="tok-k">return</span> ((x - y) ** <span class="tok-n">2</span>).<span class="tok-f">mean</span>()</code></pre>
+    </div>
+
+    <div class="card" data-keywords="dynamo graph break debug compile log">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">debugging compile</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Graph breaks kill speedup — surface them.</div>
+      <pre><code><span class="tok-k">import</span> <span class="tok-t">torch._dynamo</span> <span class="tok-k">as</span> <span class="tok-t">dynamo</span>
+
+<span class="tok-c"># Print every graph break with reason</span>
+<span class="tok-t">dynamo</span>.<span class="tok-f">explain</span>(model, sample)
+
+<span class="tok-c"># Force errors instead</span>
+<span class="tok-t">dynamo</span>.config.suppress_errors = <span class="tok-k">False</span>
+
+<span class="tok-c"># Reset compile cache (after edits)</span>
+<span class="tok-t">dynamo</span>.<span class="tok-f">reset</span>()</code></pre>
+    </div>
+  </div>
+
+  <h2>Mixed Precision (AMP)</h2>
+  <div class="grid" data-section="advanced">
+
+    <div class="card" data-keywords="autocast amp bfloat16 fp16 mixed precision">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">autocast contexts</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Run matmul/conv in low precision automatically.</div>
+      <pre><code><span class="tok-c"># bfloat16 — recommended on Ampere+ / TPU (no scaler needed)</span>
+<span class="tok-k">with</span> <span class="tok-t">torch</span>.<span class="tok-f">autocast</span>(<span class="tok-s">"cuda"</span>, dtype=<span class="tok-t">torch</span>.bfloat16):
+    out = model(x)
+    loss = loss_fn(out, y)
+
+<span class="tok-c"># float16 — needs GradScaler to avoid underflow</span>
+<span class="tok-k">with</span> <span class="tok-t">torch</span>.<span class="tok-f">autocast</span>(<span class="tok-s">"cuda"</span>, dtype=<span class="tok-t">torch</span>.float16):
+    out = model(x)</code></pre>
+    </div>
+
+    <div class="card" data-keywords="gradscaler scaler scale unscale fp16 nan">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">GradScaler (fp16)</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Scales the loss so tiny gradients survive fp16 → unscales before <code>step()</code>.</div>
+      <pre><code>scaler = <span class="tok-t">torch</span>.amp.<span class="tok-f">GradScaler</span>(<span class="tok-s">"cuda"</span>)
+
+<span class="tok-k">for</span> x, y <span class="tok-k">in</span> loader:
+    optimizer.<span class="tok-f">zero_grad</span>(set_to_none=<span class="tok-k">True</span>)
+    <span class="tok-k">with</span> <span class="tok-t">torch</span>.<span class="tok-f">autocast</span>(<span class="tok-s">"cuda"</span>, dtype=<span class="tok-t">torch</span>.float16):
+        loss = loss_fn(model(x), y)
+    scaler.<span class="tok-f">scale</span>(loss).<span class="tok-f">backward</span>()
+    scaler.<span class="tok-f">unscale_</span>(optimizer)             <span class="tok-c"># for grad clipping</span>
+    <span class="tok-t">torch</span>.nn.utils.<span class="tok-f">clip_grad_norm_</span>(model.<span class="tok-f">parameters</span>(), <span class="tok-n">1.0</span>)
+    scaler.<span class="tok-f">step</span>(optimizer)
+    scaler.<span class="tok-f">update</span>()</code></pre>
+    </div>
+
+    <div class="card" data-keywords="bf16 fp16 choice when to use">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">bf16 vs fp16</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Same memory; very different numerics.</div>
+      <pre><code><span class="tok-c"># bfloat16: fp32 range, fp16 precision</span>
+<span class="tok-c"># → no GradScaler needed, less likely to NaN</span>
+<span class="tok-c"># → Ampere (A100, RTX 30xx)+ only on CUDA</span>
+
+<span class="tok-c"># float16: smaller range, finer precision</span>
+<span class="tok-c"># → ALWAYS use GradScaler</span>
+<span class="tok-c"># → Volta+ supported, more memory-bandwidth wins</span>
+
+<span class="tok-c"># Check support:</span>
+<span class="tok-t">torch</span>.cuda.<span class="tok-f">is_bf16_supported</span>()</code></pre>
+    </div>
+  </div>
+
+  <h2>Distributed: DDP vs FSDP</h2>
+  <div class="grid" data-section="advanced">
+
+    <div class="card" data-keywords="ddp distributeddataparallel multi gpu sync gradient">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">DDP — replicate everything</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Each rank holds full model + optimizer state. Gradients all-reduced. Best when model fits.</div>
+      <pre><code><span class="tok-k">import</span> <span class="tok-t">torch.distributed</span> <span class="tok-k">as</span> <span class="tok-t">dist</span>
+<span class="tok-k">from</span> <span class="tok-t">torch.nn.parallel</span> <span class="tok-k">import</span> DistributedDataParallel <span class="tok-k">as</span> DDP
+
+<span class="tok-t">dist</span>.<span class="tok-f">init_process_group</span>(<span class="tok-s">"nccl"</span>)
+local_rank = <span class="tok-f">int</span>(os.environ[<span class="tok-s">"LOCAL_RANK"</span>])
+<span class="tok-t">torch</span>.cuda.<span class="tok-f">set_device</span>(local_rank)
+
+model = <span class="tok-f">DDP</span>(model.<span class="tok-f">to</span>(local_rank), device_ids=[local_rank])
+sampler = <span class="tok-t">torch</span>.utils.data.distributed.<span class="tok-f">DistributedSampler</span>(ds)
+<span class="tok-c"># Launch:  torchrun --nproc_per_node=8 train.py</span></code></pre>
+    </div>
+
+    <div class="card" data-keywords="fsdp shard zero3 large model memory">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">FSDP — shard everything</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Shards params, grads, and optimizer state across ranks (ZeRO-3). For models too big for one GPU.</div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">torch.distributed.fsdp</span> <span class="tok-k">import</span> (
+    FullyShardedDataParallel <span class="tok-k">as</span> FSDP, MixedPrecision,
+)
+<span class="tok-k">from</span> <span class="tok-t">torch.distributed.fsdp.wrap</span> <span class="tok-k">import</span> size_based_auto_wrap_policy
+
+mp = <span class="tok-f">MixedPrecision</span>(
+    param_dtype=<span class="tok-t">torch</span>.bfloat16,
+    reduce_dtype=<span class="tok-t">torch</span>.float32,
+)
+model = <span class="tok-f">FSDP</span>(
+    model,
+    auto_wrap_policy=size_based_auto_wrap_policy,
+    mixed_precision=mp,
+    device_id=<span class="tok-t">torch</span>.cuda.<span class="tok-f">current_device</span>(),
+)</code></pre>
+    </div>
+
+    <div class="card" data-keywords="ddp fsdp comparison cheat sheet when">
+      <div class="card-head">
+        <div class="card-title"><span class="tag">when to pick which</span></div>
+        <button class="copy-btn">Copy</button>
+      </div>
+      <div class="card-desc">Quick decision rules.</div>
+      <pre><code><span class="tok-c"># DDP — model fits on 1 GPU.</span>
+<span class="tok-c">#   + simplest, fastest per-step</span>
+<span class="tok-c">#   + every rank has the full model (easy eval/save)</span>
+<span class="tok-c">#   - memory: O(model) per rank</span>
+
+<span class="tok-c"># FSDP — model too big for 1 GPU.</span>
+<span class="tok-c">#   + memory: O(model / world_size)</span>
+<span class="tok-c">#   + composes with bf16 / activation checkpointing</span>
+<span class="tok-c">#   - extra all-gather → slightly more comm</span>
+
+<span class="tok-c"># Tensor-parallel + FSDP for multi-billion-param models.</span></code></pre>
+    </div>
+  </div>
+
   <h2>JIT (TorchScript)</h2>
   <div class="grid" data-section="advanced">
 
@@ -3124,8 +4003,12 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
         <div class="quiz-prompt-label" id="quiz-label">Question</div>
         <div class="quiz-prompt" id="quiz-prompt">Click <span class="hint">New question</span> to begin.</div>
       </div>
-      <input id="quiz-input" class="quiz-input" type="text"
-             placeholder="Type your answer…" autocomplete="off" spellcheck="false" />
+      <div class="quiz-input-wrap">
+        <input id="quiz-input" class="quiz-input" type="text"
+               placeholder="Type your answer…" autocomplete="off" spellcheck="false" />
+        <div class="quiz-spark-layer" id="quiz-spark-layer" aria-hidden="true"></div>
+      </div>
+      <div id="quiz-trace" class="quiz-trace" aria-hidden="true"></div>
       <div class="quiz-controls">
         <button class="quiz-btn" id="quiz-check">Check answer</button>
         <button class="quiz-btn secondary" id="quiz-new">New question</button>
@@ -3133,6 +4016,24 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
         <button class="quiz-btn secondary" id="quiz-reset">Reset score</button>
       </div>
       <div id="quiz-feedback" class="quiz-feedback"></div>
+      <div id="quiz-recall" class="quiz-recall" aria-live="polite">
+        <div class="recall-header">
+          🔒 Lock it in — retype the answer to commit it to memory
+        </div>
+        <div class="recall-sub">Type it correctly <strong id="recall-need">3</strong> times. Each correct rep lights a 🔥.</div>
+        <div class="recall-target" id="recall-target"></div>
+        <div class="quiz-input-wrap">
+          <input id="recall-input" class="quiz-input" type="text"
+                 placeholder="Retype the answer exactly…" autocomplete="off" spellcheck="false" />
+          <div class="quiz-spark-layer" id="recall-spark-layer" aria-hidden="true"></div>
+        </div>
+        <div class="recall-progress">
+          <span class="flame" data-i="0">🔥</span>
+          <span class="flame" data-i="1">🔥</span>
+          <span class="flame" data-i="2">🔥</span>
+          <span style="margin-left:8px;color:var(--muted);" id="recall-status">0 / 3 reps</span>
+        </div>
+      </div>
       <div class="quiz-stats">
         <div class="quiz-stat"><span class="num" id="quiz-correct">0</span><span class="lbl">Correct</span></div>
         <div class="quiz-stat"><span class="num" id="quiz-wrong">0</span><span class="lbl">Wrong</span></div>
@@ -3201,6 +4102,20 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
 </section>
 
 </main>
+
+<!-- Keyboard shortcut overlay -->
+<div class="shortcuts-overlay" id="shortcuts-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="shortcuts-card">
+    <h2>⌨️  Keyboard Shortcuts</h2>
+    <div class="row"><span>Focus search</span><kbd>/</kbd></div>
+    <div class="row"><span>Switch tab (1–9)</span><kbd>1</kbd>…<kbd>9</kbd></div>
+    <div class="row"><span>Show this help</span><kbd>?</kbd></div>
+    <div class="row"><span>Close / clear</span><kbd>Esc</kbd></div>
+    <div class="row"><span>Copy focused card</span><kbd>c</kbd></div>
+    <div class="close">click anywhere outside or press Esc to close</div>
+  </div>
+</div>
+<button class="help-fab" id="help-fab" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">?</button>
 
 <footer>
   Quick reference for <a href="https://pytorch.org" target="_blank">PyTorch</a> · Click any code block's Copy button · Use the search above to filter cards
@@ -4436,6 +5351,17 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
   const quizWrongEl = document.getElementById('quiz-wrong');
   const quizStreakEl = document.getElementById('quiz-streak');
   const quizBestEl = document.getElementById('quiz-best');
+  const quizTrace = document.getElementById('quiz-trace');
+  const quizSparkLayer = document.getElementById('quiz-spark-layer');
+  const quizRecall = document.getElementById('quiz-recall');
+  const recallTarget = document.getElementById('recall-target');
+  const recallInput = document.getElementById('recall-input');
+  const recallStatus = document.getElementById('recall-status');
+  const recallNeedEl = document.getElementById('recall-need');
+  const recallSparkLayer = document.getElementById('recall-spark-layer');
+  const RECALL_TARGET = 3;
+  let recallProgress = 0;
+  let traceRevealed = false;
 
   function renderStats() {
     quizCorrectEl.textContent = stats.correct;
@@ -4458,6 +5384,7 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
   function newQuestion() {
     quizFeedback.classList.remove('show', 'correct', 'wrong');
     quizInput.value = '';
+    quizInput.disabled = false;
     quizFn = FUNCTIONS[Math.floor(Math.random() * FUNCTIONS.length)];
     if (quizMode === 'name') {
       quizLabel.textContent = 'Which function does this?';
@@ -4472,8 +5399,102 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
       quizPrompt.innerHTML = '<span class="hint">' + escapeHtml(quizFn.n) + '</span><br><br>'
         + '<span style="color:var(--muted)">Type the category (e.g. <code>Linalg</code>, <code>nn / Loss</code>, <code>Autograd</code>).</span>';
     }
+    traceRevealed = false;
+    hideRecall();
+    renderTrace();
     quizInput.focus();
   }
+
+  // Canonical answer used for the live trace track.
+  // Short and predictable per mode so the trace is meaningful.
+  function expectedTraceAnswer() {
+    if (!quizFn) return '';
+    if (quizMode === 'name') return quizFn.n.split('.').pop();
+    if (quizMode === 'category') return quizFn.c;
+    // signature: trim defaults so the trace is shorter / more learnable
+    return quizFn.s.replace(/=[^,)]+/g, '');
+  }
+
+  // Build the per-character trace row. Hidden chars are dots until typed/revealed.
+  function renderTrace() {
+    quizTrace.innerHTML = '';
+    if (!quizFn) return;
+    const expected = expectedTraceAnswer();
+    if (!expected) return;
+    const label = document.createElement('span');
+    label.className = 'trace-label';
+    label.textContent = 'Trace';
+    quizTrace.appendChild(label);
+
+    const userVal = quizInput.value;
+    for (let i = 0; i < expected.length; i++) {
+      const span = document.createElement('span');
+      const expCh = expected[i];
+      span.className = 'ch';
+      if (expCh === ' ') span.classList.add('space');
+      let displayCh = '·';
+      if (i < userVal.length) {
+        const u = userVal[i];
+        const match = u.toLowerCase() === expCh.toLowerCase();
+        span.classList.add(match ? 'match' : 'miss');
+        displayCh = u;
+      } else if (traceRevealed) {
+        span.classList.add('revealed');
+        displayCh = expCh === ' ' ? ' ' : expCh;
+      } else {
+        displayCh = expCh === ' ' ? ' ' : '·';
+      }
+      span.textContent = displayCh;
+      quizTrace.appendChild(span);
+    }
+  }
+
+  // Spawn a flame-spark above the input on each keystroke.
+  function spawnSpark(layer, originX) {
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const spark = document.createElement('span');
+    spark.className = 'quiz-spark';
+    const x = Math.max(8, Math.min(rect.width - 8, originX));
+    spark.style.left = x + 'px';
+    spark.style.top = (rect.height - 12) + 'px';
+    const drift = (Math.random() * 24 - 12).toFixed(1);
+    spark.style.setProperty('--dx', drift + 'px');
+    layer.appendChild(spark);
+    setTimeout(() => spark.remove(), 750);
+  }
+
+  // Best-effort cursor x-position inside the input.
+  function caretX(input) {
+    const rect = input.getBoundingClientRect();
+    const pos = input.selectionStart ?? input.value.length;
+    // Approximate using a hidden mirror (cheap heuristic: char width)
+    const charW = 8.2; // ui-monospace ~14px
+    return Math.min(rect.width - 14, 14 + pos * charW);
+  }
+
+  function pulseInput(input) {
+    input.classList.remove('pulse');
+    // force reflow so the animation restarts each keypress
+    void input.offsetWidth;
+    input.classList.add('pulse');
+  }
+
+  function celebrateBurst(layer) {
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => spawnSpark(layer, Math.random() * rect.width), i * 25);
+    }
+  }
+
+  quizInput.addEventListener('input', () => {
+    pulseInput(quizInput);
+    spawnSpark(quizSparkLayer, caretX(quizInput));
+    renderTrace();
+  });
 
   function hintName(name) {
     const parts = name.split('.');
@@ -4528,11 +5549,22 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
       quizFeedback.innerHTML = '✅ Correct!<span class="answer">' + escapeHtml(expected) + '</span>';
       stats.correct++; stats.streak++;
       if (stats.streak > stats.best) stats.best = stats.streak;
+      // Reveal the trace and fire a celebratory spark burst.
+      traceRevealed = true;
+      renderTrace();
+      celebrateBurst(quizSparkLayer);
     } else {
       quizFeedback.classList.add('wrong');
       quizFeedback.classList.remove('correct');
       quizFeedback.innerHTML = '❌ Not quite. Expected:<span class="answer">' + escapeHtml(expected) + '</span>';
       stats.wrong++; stats.streak = 0;
+      // Visual reaction + memory drill.
+      quizInput.classList.remove('shake');
+      void quizInput.offsetWidth;
+      quizInput.classList.add('shake');
+      traceRevealed = true;
+      renderTrace();
+      enterRecall(expected);
     }
     renderStats();
   }
@@ -4548,6 +5580,9 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
     quizFeedback.classList.remove('correct');
     quizFeedback.innerHTML = '👀 Answer:<span class="answer">' + escapeHtml(expected) + '</span>';
     stats.streak = 0; renderStats();
+    traceRevealed = true;
+    renderTrace();
+    enterRecall(expected);
   });
   document.getElementById('quiz-reset').addEventListener('click', () => {
     stats = { correct: 0, wrong: 0, streak: 0, best: 0 };
@@ -4557,12 +5592,801 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
     if (e.key === 'Enter') { e.preventDefault(); checkAnswer(); }
   });
 
+  // ----- Recall ("lock it in") drill -----
+  function enterRecall(answer) {
+    recallProgress = 0;
+    recallNeedEl.textContent = String(RECALL_TARGET);
+    recallTarget.textContent = answer;
+    recallTarget.dataset.answer = answer;
+    quizRecall.classList.add('show');
+    quizRecall.classList.remove('locked');
+    const header = quizRecall.querySelector('.recall-header');
+    if (header) header.innerHTML = '🔒 Lock it in — retype the answer to commit it to memory';
+    updateRecallProgress();
+    recallInput.disabled = false;
+    recallInput.value = '';
+    setTimeout(() => recallInput.focus(), 80);
+  }
+
+  function hideRecall() {
+    quizRecall.classList.remove('show', 'locked');
+    recallInput.value = '';
+    recallProgress = 0;
+    updateRecallProgress();
+  }
+
+  function updateRecallProgress() {
+    const flames = quizRecall.querySelectorAll('.flame');
+    flames.forEach((f, i) => {
+      f.classList.toggle('on', i < recallProgress);
+    });
+    recallStatus.textContent = recallProgress + ' / ' + RECALL_TARGET + ' reps';
+  }
+
+  function checkRecall() {
+    const target = recallTarget.dataset.answer || '';
+    const u = normalize(recallInput.value);
+    if (!u) return;
+    // Same loose match the main quiz uses for "name", but for category/signature
+    // we require closer-to-exact retyping so memory actually sticks.
+    let ok = false;
+    if (quizMode === 'name') {
+      const short = target.split('.').pop().toLowerCase();
+      ok = u === target.toLowerCase()
+        || u === short
+        || u === target.toLowerCase().replace(/^torch\./, '')
+        || u === ('torch.' + short);
+    } else if (quizMode === 'category') {
+      ok = u === normalize(target);
+    } else {
+      ok = normalize(u).replace(/\s+/g, '') === normalize(target).replace(/\s+/g, '');
+    }
+
+    if (ok) {
+      recallProgress = Math.min(RECALL_TARGET, recallProgress + 1);
+      updateRecallProgress();
+      celebrateBurst(recallSparkLayer);
+      recallInput.value = '';
+      if (recallProgress >= RECALL_TARGET) {
+        quizRecall.classList.add('locked');
+        const header = quizRecall.querySelector('.recall-header');
+        if (header) header.innerHTML = '🔒 Locked in! Press <kbd>Enter</kbd> or click <em>New question</em> to continue.';
+        recallInput.disabled = true;
+        // Auto-advance shortly after the third success.
+        setTimeout(() => { if (quizRecall.classList.contains('locked')) newQuestion(); }, 1100);
+      } else {
+        recallInput.focus();
+      }
+    } else {
+      recallInput.classList.remove('shake');
+      void recallInput.offsetWidth;
+      recallInput.classList.add('shake');
+    }
+  }
+
+  recallInput.addEventListener('input', () => {
+    pulseInput(recallInput);
+    spawnSpark(recallSparkLayer, caretX(recallInput));
+  });
+  recallInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); checkRecall(); }
+  });
+
   // Initialize on first practice-tab activation
   document.querySelectorAll('nav.tabs button[data-tab="practice"]').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!quizFn) newQuestion();
       setTimeout(() => lookupInput.focus(), 50);
     });
+  });
+
+  /* =========================================================
+   * VISUAL ENHANCEMENTS — added in upgrade
+   * ======================================================= */
+
+  // Helper: respect reduced motion
+  const REDUCED_MOTION = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- 3D tensor visualization ---------- */
+  const tensorScene = document.getElementById('tensor-scene');
+  const tensorAxes = document.getElementById('tensor-axes');
+  const tensorInfo = document.getElementById('tensor-info');
+
+  function buildTensor3D(shape) {
+    if (!tensorScene) return;
+    tensorScene.innerHTML = '';
+    if (!shape.length) {
+      tensorInfo.innerHTML = '<em>Pick a valid shape to see the tensor.</em>';
+      tensorAxes.innerHTML = '';
+      return;
+    }
+    // Cap visible cubes per dim so things stay snappy
+    const cap = (n) => Math.min(n, 6);
+    const capped = shape.map(cap);
+    const cubeSize = 22;
+    const gap = 4;
+    const step = cubeSize + gap;
+
+    let displayShape, klass;
+    if (shape.length === 1) {
+      displayShape = [1, 1, capped[0]];
+      klass = 't-vec';
+    } else if (shape.length === 2) {
+      displayShape = [1, capped[0], capped[1]];
+      klass = 't-mat';
+    } else if (shape.length === 3) {
+      displayShape = [capped[0], capped[1], capped[2]];
+      klass = 't-3d';
+    } else {
+      // 4D: collapse extra dim into colored "stacks" via opacity
+      displayShape = [capped[0] * Math.min(2, capped[1]), capped[2] || 1, capped[3] || 1];
+      klass = 't-4d';
+    }
+
+    const [D, H, W] = displayShape;
+    // center the lattice
+    const cx = -((W - 1) * step) / 2;
+    const cy = -((H - 1) * step) / 2;
+    const cz = -((D - 1) * step) / 2;
+
+    const total = D * H * W;
+    const maxCubes = 200;
+    let drawn = 0;
+    const skip = total > maxCubes ? Math.ceil(total / maxCubes) : 1;
+    let idx = 0;
+
+    for (let d = 0; d < D; d++) {
+      for (let h = 0; h < H; h++) {
+        for (let w = 0; w < W; w++) {
+          if (idx++ % skip !== 0) continue;
+          drawn++;
+          const cube = document.createElement('div');
+          cube.className = 'tcube ' + klass;
+          const x = cx + w * step;
+          const y = cy + h * step;
+          const z = cz + d * step;
+          const tf = `translate3d(${x}px, ${y}px, ${z}px)`;
+          cube.style.setProperty('--cube-tf', tf);
+          cube.style.transform = tf;
+          // staggered animation for the wave-in
+          const delay = REDUCED_MOTION ? 0 : (d * 30 + h * 12 + w * 6);
+          cube.style.animationDelay = delay + 'ms';
+          // A subtle alpha fade in the back to give depth
+          const depth = D > 1 ? 1 - (d / Math.max(1, D - 1)) * 0.35 : 1;
+          cube.style.opacity = depth.toFixed(2);
+          tensorScene.appendChild(cube);
+        }
+      }
+    }
+
+    const numel = shape.reduce((a, b) => a * b, 1);
+    const dims = shape.length;
+    const showAxes = (label, color) =>
+      `<div class="ax-${color}"><span style="opacity:.8">▣</span> ${label}</div>`;
+    let axesHtml = '';
+    if (dims >= 1) axesHtml += showAxes('dim −1 (last) → cols', 'x');
+    if (dims >= 2) axesHtml += showAxes('dim −2 → rows', 'y');
+    if (dims >= 3) axesHtml += showAxes('dim −3 → depth', 'z');
+    if (dims >= 4) axesHtml += showAxes('dim 0 → batch', 'b');
+    tensorAxes.innerHTML = axesHtml;
+
+    let rankWord = ['scalar','vector','matrix','3-tensor','4-tensor','N-tensor'][Math.min(dims, 5)];
+    tensorInfo.innerHTML =
+      `<strong>${rankWord}</strong> · shape <strong>(${shape.join(', ')})</strong> · ` +
+      `numel <strong>${numel.toLocaleString()}</strong> · ` +
+      `showing ${drawn}/${total} cubes`;
+  }
+
+  // Hook into existing playground render — listen on the same inputs
+  // (renderPlayground above already updates pg-out + shape-vis)
+  function syncTensor3D() {
+    buildTensor3D(parseShape(pgShape.value));
+  }
+  pgFn.addEventListener('change', syncTensor3D);
+  pgShape.addEventListener('input', syncTensor3D);
+  pgDtype.addEventListener('change', syncTensor3D);
+  // Re-run once at startup
+  syncTensor3D();
+
+  // Slow auto-rotate the tensor to make it feel alive
+  let tensorAngle = -30;
+  if (tensorScene && !REDUCED_MOTION) {
+    setInterval(() => {
+      tensorAngle = (tensorAngle + 0.4) % 360;
+      tensorScene.style.transform = `rotateX(-22deg) rotateY(${tensorAngle}deg)`;
+    }, 60);
+  }
+
+  /* ---------- Autograd gradient flow SVG ---------- */
+  function buildAutogradGraph() {
+    const svg = document.getElementById('autograd-svg');
+    if (!svg) return;
+    const NS = 'http://www.w3.org/2000/svg';
+    // Nodes: x → x² → sum → loss
+    const nodes = [
+      { id: 'x',   x:  60, y: 110, label: 'x' },
+      { id: 'sq',  x: 220, y: 110, label: 'x²' },
+      { id: 'sum', x: 380, y: 110, label: 'Σ' },
+      { id: 'l',   x: 540, y: 110, label: 'L' },
+    ];
+    const edges = [['x','sq'], ['sq','sum'], ['sum','l']];
+    svg.innerHTML = '';
+
+    // edges
+    edges.forEach(([a, b]) => {
+      const na = nodes.find(n => n.id === a);
+      const nb = nodes.find(n => n.id === b);
+      const path = document.createElementNS(NS, 'path');
+      const d = `M ${na.x + 28} ${na.y} L ${nb.x - 28} ${nb.y}`;
+      path.setAttribute('d', d);
+      path.setAttribute('class', 'graph-edge');
+      svg.appendChild(path);
+    });
+
+    // forward arrowheads (subtle blue)
+    edges.forEach(([a, b]) => {
+      const na = nodes.find(n => n.id === a);
+      const nb = nodes.find(n => n.id === b);
+      const arrow = document.createElementNS(NS, 'polygon');
+      const tx = nb.x - 28, ty = nb.y;
+      arrow.setAttribute('points', `${tx-6},${ty-4} ${tx},${ty} ${tx-6},${ty+4}`);
+      arrow.setAttribute('fill', '#60a5fa');
+      arrow.setAttribute('opacity', '0.65');
+      svg.appendChild(arrow);
+    });
+
+    // nodes
+    nodes.forEach(n => {
+      const g = document.createElementNS(NS, 'g');
+      g.setAttribute('class', 'graph-node');
+      g.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+      const circle = document.createElementNS(NS, 'circle');
+      circle.setAttribute('r', '26');
+      g.appendChild(circle);
+      const text = document.createElementNS(NS, 'text');
+      text.textContent = n.label;
+      g.appendChild(text);
+      svg.appendChild(g);
+    });
+
+    // edge labels (forward / backward)
+    const labels = [
+      { x: 140, y: 88,  text: 'forward', color: '#60a5fa', op: 0.6 },
+      { x: 140, y: 142, text: '∂L/∂x', color: '#ee4c2c', op: 0.85 },
+      { x: 300, y: 142, text: '∂L/∂(x²)', color: '#ee4c2c', op: 0.85 },
+      { x: 460, y: 142, text: '∂L/∂Σ = 1', color: '#ee4c2c', op: 0.85 },
+    ];
+    labels.forEach(l => {
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', l.x); t.setAttribute('y', l.y);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-size', '11');
+      t.setAttribute('font-family', 'ui-monospace, monospace');
+      t.setAttribute('fill', l.color);
+      t.setAttribute('opacity', l.op);
+      t.textContent = l.text;
+      svg.appendChild(t);
+    });
+
+    // animated pulse traveling backwards
+    if (REDUCED_MOTION) return;
+    const pulse = document.createElementNS(NS, 'circle');
+    pulse.setAttribute('r', '5');
+    pulse.setAttribute('class', 'grad-pulse');
+    pulse.setAttribute('cy', '110');
+    svg.appendChild(pulse);
+
+    // anim: travel from x=540 (loss) to x=60 (x), loop
+    const animate = document.createElementNS(NS, 'animate');
+    animate.setAttribute('attributeName', 'cx');
+    animate.setAttribute('values', '540;60');
+    animate.setAttribute('dur', '2.4s');
+    animate.setAttribute('repeatCount', 'indefinite');
+    pulse.appendChild(animate);
+
+    // forward pulse traveling forward (blue)
+    const fpulse = document.createElementNS(NS, 'circle');
+    fpulse.setAttribute('r', '4');
+    fpulse.setAttribute('cy', '110');
+    fpulse.setAttribute('fill', '#60a5fa');
+    fpulse.setAttribute('opacity', '0.85');
+    fpulse.style.filter = 'drop-shadow(0 0 4px #60a5fa)';
+    svg.appendChild(fpulse);
+    const fanim = document.createElementNS(NS, 'animate');
+    fanim.setAttribute('attributeName', 'cx');
+    fanim.setAttribute('values', '60;540');
+    fanim.setAttribute('dur', '2.4s');
+    fanim.setAttribute('begin', '1.2s');
+    fanim.setAttribute('repeatCount', 'indefinite');
+    fpulse.appendChild(fanim);
+  }
+  buildAutogradGraph();
+
+  /* ---------- Loss curve canvas ---------- */
+  (function lossCurveModule() {
+    const canvas = document.getElementById('loss-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const epochEl = document.getElementById('loss-epoch');
+    const curEl = document.getElementById('loss-current');
+    const bestEl = document.getElementById('loss-best');
+    const trainBtn = document.getElementById('loss-train');
+    const resetBtn = document.getElementById('loss-reset');
+
+    // High-DPI
+    function fitCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth || 700;
+      const h = 240;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    fitCanvas();
+    window.addEventListener('resize', () => { fitCanvas(); draw(); });
+
+    let losses = [];
+    let target = [];
+    let running = false;
+    let raf = null;
+    const TOTAL_EPOCHS = 60;
+
+    function drawAxes(W, H, padL, padR, padT, padB) {
+      ctx.strokeStyle = 'rgba(139,148,158,0.3)';
+      ctx.lineWidth = 1;
+      // grid
+      for (let i = 0; i <= 4; i++) {
+        const y = padT + (H - padT - padB) * (i / 4);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.fillText('loss', 8, padT + 4);
+      ctx.fillText('epoch →', W - padR - 50, H - 6);
+    }
+
+    function draw() {
+      const W = canvas.clientWidth || 700;
+      const H = 240;
+      const padL = 36, padR = 16, padT = 16, padB = 24;
+      ctx.clearRect(0, 0, W, H);
+      drawAxes(W, H, padL, padR, padT, padB);
+
+      if (losses.length < 2) return;
+      const minL = 0;
+      const maxL = Math.max(2.6, target[0] || 2.6);
+      const xAt = (i) => padL + (W - padL - padR) * (i / (TOTAL_EPOCHS - 1));
+      const yAt = (l) => padT + (H - padT - padB) * (1 - (l - minL) / (maxL - minL));
+
+      // glow underlay
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = 'rgba(238,76,44,0.18)';
+      ctx.beginPath();
+      losses.forEach((l, i) => {
+        const x = xAt(i), y = yAt(l);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Main line
+      ctx.lineWidth = 2;
+      const grad = ctx.createLinearGradient(padL, 0, W - padR, 0);
+      grad.addColorStop(0, '#fbbf24');
+      grad.addColorStop(0.5, '#ee4c2c');
+      grad.addColorStop(1, '#a855f7');
+      ctx.strokeStyle = grad;
+      ctx.beginPath();
+      losses.forEach((l, i) => {
+        const x = xAt(i), y = yAt(l);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // current point pulse
+      const i = losses.length - 1;
+      const cx = xAt(i), cy = yAt(losses[i]);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#ee4c2c';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    function generateTarget() {
+      // start ~2.4, decay with noise + slight bumpy plateau
+      const startL = 2.2 + Math.random() * 0.4;
+      const finalL = 0.08 + Math.random() * 0.12;
+      const arr = [];
+      for (let i = 0; i < TOTAL_EPOCHS; i++) {
+        const t = i / (TOTAL_EPOCHS - 1);
+        // exponential descent + small oscillation
+        const exp = startL * Math.pow(finalL / startL, t);
+        const noise = (Math.sin(i * 1.3 + Math.random() * 0.3) * 0.05);
+        const bump = i > 22 && i < 28 ? 0.18 : 0;
+        arr.push(Math.max(0.02, exp + noise + bump * Math.random()));
+      }
+      return arr;
+    }
+
+    function tick() {
+      if (!running) return;
+      if (losses.length < target.length) {
+        // ease-out: pick next target value but apply a small "bouncy" overshoot then settle
+        const next = target[losses.length];
+        // append with small bounce if descending
+        if (losses.length > 0) {
+          const prev = losses[losses.length - 1];
+          // small tween to make the line "bounce"
+          const overshoot = next + (Math.random() - 0.5) * 0.04;
+          losses.push(Math.max(0.01, overshoot));
+        } else {
+          losses.push(next);
+        }
+        const cur = losses[losses.length - 1];
+        const best = Math.min(...losses);
+        epochEl.textContent = losses.length;
+        curEl.textContent = cur.toFixed(3);
+        bestEl.textContent = best.toFixed(3);
+        draw();
+        const speed = REDUCED_MOTION ? 16 : 60;
+        setTimeout(() => { raf = requestAnimationFrame(tick); }, speed);
+      } else {
+        running = false;
+        trainBtn.disabled = false;
+        trainBtn.textContent = '✓ Done';
+        setTimeout(() => { trainBtn.textContent = '▶ Train again'; }, 800);
+      }
+    }
+
+    function startTraining() {
+      if (running) return;
+      losses = [];
+      target = generateTarget();
+      running = true;
+      trainBtn.disabled = true;
+      trainBtn.textContent = 'training…';
+      tick();
+    }
+    function reset() {
+      running = false;
+      if (raf) cancelAnimationFrame(raf);
+      losses = [];
+      target = [];
+      epochEl.textContent = '0';
+      curEl.textContent = '—';
+      bestEl.textContent = '—';
+      trainBtn.disabled = false;
+      trainBtn.textContent = '▶ Train';
+      draw();
+    }
+    trainBtn.addEventListener('click', startTraining);
+    resetBtn.addEventListener('click', reset);
+    draw();
+  })();
+
+  /* ---------- Animated counters + progress bars ---------- */
+  function animateCounters() {
+    document.querySelectorAll('.stat-card[data-target]').forEach(card => {
+      if (card.dataset.animated === '1') return;
+      const target = parseFloat(card.dataset.target);
+      const suffix = card.dataset.suffix || '';
+      const bar = card.dataset.bar || '0';
+      const num = card.querySelector('[data-counter]');
+      if (!num) return;
+
+      // animate progress bar
+      requestAnimationFrame(() => { card.style.setProperty('--bar', bar + '%'); });
+
+      const dur = REDUCED_MOTION ? 0 : 1300;
+      const start = performance.now();
+      const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+      function format(v) {
+        if (target >= 1000000) return (v / 1000000).toFixed(2) + 'M' + suffix;
+        if (target >= 1000)    return Math.round(v).toLocaleString() + suffix;
+        return Math.round(v) + suffix;
+      }
+      function tick(now) {
+        const t = Math.min(1, (now - start) / Math.max(1, dur));
+        const v = target * ease(t);
+        num.textContent = format(v);
+        if (t < 1) requestAnimationFrame(tick);
+        else num.textContent = format(target);
+      }
+      requestAnimationFrame(tick);
+      card.dataset.animated = '1';
+    });
+  }
+  // Animate when training tab activates (and once now if it's already active)
+  function maybeAnimateCounters() {
+    const trSec = document.getElementById('training');
+    if (trSec && trSec.classList.contains('active')) animateCounters();
+  }
+  // Hook into tab switching by re-using existing observer pattern
+  document.querySelectorAll('nav.tabs button[data-tab="training"]').forEach(btn => {
+    btn.addEventListener('click', () => setTimeout(maybeAnimateCounters, 100));
+  });
+  maybeAnimateCounters();
+
+  /* ---------- Neural network builder ---------- */
+  (function nnBuilder() {
+    const canvas = document.getElementById('nn-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const codeEl = document.getElementById('nn-code');
+
+    function fit() {
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.parentElement.clientWidth - 16;
+      const W = Math.max(400, w);
+      canvas.width = W * dpr;
+      canvas.height = 200 * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = '200px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    fit();
+    window.addEventListener('resize', () => { fit(); draw(); });
+
+    // default starting layers
+    let layers = [
+      { kind: 'Input', name: 'x', size: 4 },
+      { kind: 'Linear', size: 8 },
+      { kind: 'ReLU' },
+      { kind: 'Linear', size: 4 },
+      { kind: 'Softmax' },
+    ];
+
+    const COLORS = {
+      Input: '#60a5fa',
+      Linear: '#ee4c2c',
+      ReLU: '#fbbf24',
+      GELU: '#fb923c',
+      Dropout: '#a78bfa',
+      LayerNorm: '#34d399',
+      Softmax: '#f472b6',
+    };
+
+    let pulses = []; // {progress 0..1, layerIdx, y}
+
+    function layerLabel(l) {
+      if (l.kind === 'Linear') return `Linear(${l.size})`;
+      if (l.kind === 'Input')  return 'Input';
+      if (l.kind === 'Dropout') return 'Dropout(0.1)';
+      return l.kind;
+    }
+    function layerSize(l) {
+      // for "neurons" drawing
+      if (l.size) return Math.min(8, l.size);
+      return 4;
+    }
+
+    function draw() {
+      const W = canvas.clientWidth;
+      const H = 200;
+      ctx.clearRect(0, 0, W, H);
+      if (!layers.length) {
+        ctx.fillStyle = '#8b949e';
+        ctx.font = '13px ui-monospace, monospace';
+        ctx.fillText('No layers — click + Linear / + ReLU / etc. above.', 16, 100);
+        return;
+      }
+      const xs = layers.map((_, i) =>
+        40 + (W - 80) * (layers.length === 1 ? 0.5 : i / (layers.length - 1)));
+
+      // edges
+      for (let i = 0; i < layers.length - 1; i++) {
+        const a = layerSize(layers[i]);
+        const b = layerSize(layers[i + 1]);
+        const xa = xs[i], xb = xs[i + 1];
+        for (let p = 0; p < a; p++) {
+          for (let q = 0; q < b; q++) {
+            const ya = 28 + (H - 56) * (a === 1 ? 0.5 : p / (a - 1));
+            const yb = 28 + (H - 56) * (b === 1 ? 0.5 : q / (b - 1));
+            ctx.strokeStyle = 'rgba(238,76,44,0.10)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(xa + 14, ya);
+            ctx.lineTo(xb - 14, yb);
+            ctx.stroke();
+          }
+        }
+      }
+
+      // pulses on edges
+      pulses.forEach(p => {
+        if (p.layerIdx >= layers.length - 1) return;
+        const xa = xs[p.layerIdx], xb = xs[p.layerIdx + 1];
+        const a = layerSize(layers[p.layerIdx]);
+        const b = layerSize(layers[p.layerIdx + 1]);
+        for (let i = 0; i < Math.min(a, 4); i++) {
+          for (let j = 0; j < Math.min(b, 4); j++) {
+            const ya = 28 + (H - 56) * (a === 1 ? 0.5 : i / (a - 1));
+            const yb = 28 + (H - 56) * (b === 1 ? 0.5 : j / (b - 1));
+            const x = xa + 14 + (xb - 14 - (xa + 14)) * p.progress;
+            const y = ya + (yb - ya) * p.progress;
+            ctx.fillStyle = 'rgba(238,76,44,0.85)';
+            ctx.beginPath();
+            ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      });
+
+      // nodes
+      layers.forEach((l, i) => {
+        const sz = layerSize(l);
+        const x = xs[i];
+        for (let k = 0; k < sz; k++) {
+          const y = 28 + (H - 56) * (sz === 1 ? 0.5 : k / (sz - 1));
+          ctx.beginPath();
+          ctx.arc(x, y, 7, 0, Math.PI * 2);
+          ctx.fillStyle = COLORS[l.kind] || '#ee4c2c';
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#e6edf3';
+        ctx.font = 'bold 11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(layerLabel(l), x, H - 6);
+      });
+    }
+
+    function syncCode() {
+      const items = layers.map((l, i) => {
+        if (l.kind === 'Input') return null;
+        if (l.kind === 'Linear') {
+          const prev = layers.slice(0, i).reverse().find(x => x.size);
+          const inSz = prev ? prev.size : 'in_features';
+          return `nn.Linear(${inSz}, ${l.size})`;
+        }
+        if (l.kind === 'Dropout') return 'nn.Dropout(0.1)';
+        return `nn.${l.kind}()`;
+      }).filter(Boolean);
+      const txt = items.length
+        ? `model = nn.Sequential(\n    ` + items.join(',\n    ') + `\n)`
+        : '# (empty model — add layers above)';
+      codeEl.textContent = txt;
+    }
+
+    function render() { draw(); syncCode(); }
+    render();
+
+    document.querySelectorAll('.nn-controls .layer-add').forEach(b => {
+      b.addEventListener('click', () => {
+        const k = b.dataset.add;
+        if (k === 'Linear') {
+          // pick a size; alternate to make it interesting
+          const linearCount = layers.filter(l => l.kind === 'Linear').length;
+          const sizes = [16, 12, 8, 4];
+          layers.push({ kind: 'Linear', size: sizes[linearCount % sizes.length] });
+        } else {
+          layers.push({ kind: k });
+        }
+        render();
+      });
+    });
+    document.getElementById('nn-pop').addEventListener('click', () => {
+      // never pop the input
+      if (layers.length > 1) layers.pop();
+      render();
+    });
+    document.getElementById('nn-clear').addEventListener('click', () => {
+      layers = [{ kind: 'Input', name: 'x', size: 4 }];
+      render();
+    });
+    document.getElementById('nn-play').addEventListener('click', () => {
+      if (REDUCED_MOTION) return;
+      // launch a wave of pulses through layers
+      pulses = layers.slice(0, -1).map((_, i) => ({ layerIdx: i, progress: -i * 0.25 }));
+      const start = performance.now();
+      function step(now) {
+        const elapsed = (now - start) / 1500;
+        let alive = false;
+        pulses.forEach(p => {
+          p.progress = Math.min(1, -p.layerIdx * 0.25 + elapsed);
+          if (p.progress < 1) alive = true;
+        });
+        draw();
+        if (alive) requestAnimationFrame(step);
+        else { pulses = []; draw(); }
+      }
+      requestAnimationFrame(step);
+    });
+  })();
+
+  /* ---------- Copy-burst confetti on copy buttons ---------- */
+  function spawnCopyBurst(originX, originY) {
+    if (REDUCED_MOTION) return;
+    const N = 14;
+    for (let i = 0; i < N; i++) {
+      const p = document.createElement('div');
+      p.className = 'copy-particle';
+      p.style.left = (originX - 3) + 'px';
+      p.style.top = (originY - 3) + 'px';
+      const angle = (Math.PI * 2) * (i / N) + Math.random() * 0.5;
+      const dist = 30 + Math.random() * 50;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist - 20; // bias upward
+      const dur = 600 + Math.random() * 300;
+      p.animate([
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(0.3)`, opacity: 0 },
+      ], { duration: dur, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), dur + 50);
+    }
+  }
+  // Wrap existing copy buttons (re-bind by listening at container level)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    spawnCopyBurst(r.left + r.width / 2, r.top + r.height / 2);
+  });
+
+  /* ---------- Keyboard shortcuts overlay ---------- */
+  const overlay = document.getElementById('shortcuts-overlay');
+  const helpFab = document.getElementById('help-fab');
+  function showShortcuts() {
+    if (!overlay) return;
+    overlay.classList.add('show');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+  function hideShortcuts() {
+    if (!overlay) return;
+    overlay.classList.remove('show');
+    overlay.setAttribute('aria-hidden', 'true');
+  }
+  helpFab && helpFab.addEventListener('click', showShortcuts);
+  overlay && overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) hideShortcuts();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const tag = (e.target && e.target.tagName) || '';
+    const inField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+    // Esc: close overlay or blur search
+    if (e.key === 'Escape') {
+      if (overlay && overlay.classList.contains('show')) {
+        hideShortcuts(); return;
+      }
+      if (document.activeElement === searchInput) {
+        searchInput.blur();
+        searchInput.value = '';
+        filterCards('');
+        return;
+      }
+    }
+
+    if (inField) return; // don't hijack typing
+
+    if (e.key === '?') {
+      e.preventDefault();
+      showShortcuts();
+    } else if (e.key === '/') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    } else if (/^[1-9]$/.test(e.key)) {
+      const idx = parseInt(e.key, 10) - 1;
+      const allTabs = document.querySelectorAll('nav.tabs button');
+      if (allTabs[idx]) {
+        e.preventDefault();
+        allTabs[idx].click();
+      }
+    } else if (e.key === 'c' || e.key === 'C') {
+      // copy the first visible card's code
+      const first = Array.from(document.querySelectorAll('section.tab-section.active .card:not(.hidden) .copy-btn'))[0];
+      if (first) { e.preventDefault(); first.click(); }
+    }
   });
 </script>
 

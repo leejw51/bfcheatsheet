@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RabbitMQ Lab — Učte se psaním</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --bg-2:#161a22;
+    --panel:#1b212c;
+    --panel-2:#222a36;
+    --line:#2a3242;
+    --text:#e7ecf3;
+    --muted:#8a93a4;
+    --accent:#FF6600;
+    --accent-2:#ffb37a;
+    --good:#3fd17c;
+    --bad:#ff4d6d;
+    --warn:#ffd166;
+    --info:#4dd6ff;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --rounded:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;line-height:1.55}
+  a{color:var(--accent-2)}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:46px;height:46px;border-radius:12px;background:radial-gradient(circle at 30% 30%,#ffb37a,#FF6600 60%,#a93f00);display:grid;place-items:center;box-shadow:var(--shadow)}
+  .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
+  .brand small{color:var(--muted);font-weight:400}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .xpbar{width:170px;height:8px;background:#0b0e13;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,#ffb37a,#FF6600);width:0%}
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 18px}
+  nav.tabs button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px}
+  nav.tabs button.active{background:linear-gradient(180deg,#2a1407,#1d0e05);border-color:var(--accent);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .grid{display:grid;gap:14px}
+  .grid.cols-2{grid-template-columns:1fr 1fr}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:900px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rounded);padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 8px 0;font-size:18px}
+  .card h3{margin:18px 0 6px 0;font-size:15px;color:var(--accent-2)}
+  .card p{color:#cdd5e0;margin:6px 0}
+  .muted{color:var(--muted)}
+  .kbd{background:#0b0e13;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{background:var(--accent);color:#1a0a00;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input[type="text"], select, textarea{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  input[type="text"]:focus, select:focus, textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,102,0,.2)}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .tag{display:inline-block;background:#23170c;border:1px solid #4a2c12;color:#ffd0aa;border-radius:6px;padding:2px 8px;font-size:12px;margin-right:6px}
+  .tag.good{background:#0f2418;border-color:#1d4a30;color:#a8e6c1}
+  .tag.bad{background:#2b0e14;border-color:#5a1a26;color:#ffb1bd}
+  .tag.info{background:#0d1f2a;border-color:#1d4256;color:#a8dff5}
+  .tag.warn{background:#2a2110;border-color:#5a4720;color:#ffe5a3}
+  .step{padding:8px 10px;border-left:3px solid var(--accent);background:#1a1107;border-radius:0 8px 8px 0;margin:8px 0}
+  .scroll{max-height:340px;overflow:auto;padding-right:6px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;margin:3px}
+  .badge.unlocked{border-color:var(--accent);background:#22130a;color:#ffd0aa;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .badge .em{filter:saturate(.6) opacity(.6)}
+  .badge.unlocked .em{filter:none}
+  .progress{height:10px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--good),#7eebac)}
+  /* shake/confetti */
+  .shake{animation:shake .35s ease}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+  .pulse{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(255,102,0,0))}50%{filter:drop-shadow(0 0 6px rgba(255,102,0,.7))}}
+  .hidden{display:none !important}
+  .footer{color:var(--muted);font-size:12px;margin:30px 0 6px;text-align:center}
+  /* simulator */
+  .simwrap{position:relative;background:repeating-linear-gradient(45deg,#0d1118 0 10px,#0b0e13 10px 20px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line);background:#11151d}
+  .controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .legend{display:flex;gap:14px;color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--line);background:#11151d}
+  .log{font-family:ui-monospace,monospace;font-size:12px;background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:160px;overflow:auto;white-space:pre-wrap}
+  .log .ok{color:var(--good)}
+  .log .err{color:var(--bad)}
+  .log .info{color:var(--info)}
+  .log .warn{color:var(--warn)}
+  .log .acc{color:var(--accent-2)}
+  /* practice */
+  .ex-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+  .ex-card .q{font-size:16px;margin-bottom:8px}
+  .ex-card input[type=text]{width:100%}
+  .feedback{margin-top:8px;font-size:13px}
+  .feedback.ok{color:var(--good)}
+  .feedback.err{color:var(--bad)}
+  .feedback.hint{color:var(--muted)}
+  .stagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .timer{font-variant-numeric:tabular-nums;font-weight:700;color:var(--warn)}
+  /* boss */
+  .siren{color:var(--bad);animation:siren .8s linear infinite alternate}
+  @keyframes siren{0%{text-shadow:0 0 0 transparent}100%{text-shadow:0 0 12px rgba(255,77,109,.8)}}
+  /* canvas overlay for confetti */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:9999}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- rabbit silhouette -->
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <path d="M14 50c-2-10 0-22 6-28 1 6 4 8 8 8 1-7 4-12 8-15 1 6 3 9 6 11 5-3 9-3 12 0-2 4-6 6-6 12 0 6 4 8 4 14H14z" fill="#fff"/>
+          <circle cx="40" cy="42" r="2" fill="#1a0a00"/>
+          <circle cx="30" cy="42" r="2" fill="#1a0a00"/>
+          <path d="M34 47c1 1 3 1 4 0" stroke="#1a0a00" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>RabbitMQ Lab <small>— učte se psaním</small></h1>
+        <div class="muted" style="font-size:13px">Interaktivní gamifikovaný úvod do AMQP, exchanges, front a vzorců.</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="pill"><span class="dot"></span><span>Lvl <b id="hud-level">1</b></span></div>
+      <div class="pill">XP <b id="hud-xp">0</b><div class="xpbar" title="XP do další úrovně"><div id="hud-xpbar"></div></div></div>
+      <div class="pill">Combo <b id="hud-combo">0</b>x</div>
+      <div class="pill">Nej <b id="hud-best">0</b>x</div>
+      <button class="btn ghost small" id="btn-reset">Resetovat postup</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button data-tab="learn" class="active">1. Koncepty</button>
+    <button data-tab="exchanges">2. Exchanges</button>
+    <button data-tab="reliability">3. Spolehlivost</button>
+    <button data-tab="qos">4. QoS a cluster</button>
+    <button data-tab="patterns">5. Vzory</button>
+    <button data-tab="sim">Simulátor</button>
+    <button data-tab="practice">Procvičovat (psát!)</button>
+    <button data-tab="boss">Boss: produkční výpadek</button>
+    <button data-tab="badges">Odznaky</button>
+  </nav>
+
+  <!-- ========================== TAB: LEARN ========================== -->
+  <section data-panel="learn">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>1. Co je message broker?</h2>
+        <p>A <b>message broker</b> sedí mezi producenty a konzumenty. Producent hodí zprávu do brokera a vrátí se ke své práci. Konzument ji vyzvedne později, vlastním tempem. Ti dva nemusí být online ve stejnou chvíli, nemusí znát adresu jeden druhého a nemusí se shodnout na rychlosti zpracování.</p>
+        <h3>Proč fronty záleží</h3>
+        <ul>
+          <li><b>Decoupling</b>: měňte konzumenty bez změny producentů.</li>
+          <li><b>Buffering</b>: vyhlazení špiček; fronta absorbuje nárazy.</li>
+          <li><b>Spolehlivost</b>: pokud konzument spadne, zpráva tam pořád je.</li>
+          <li><b>Fan-out</b>: jedna událost spustí mnoho nezávislých reakcí.</li>
+        </ul>
+        <div class="step"><b>Mentální model:</b> producenti píší pohlednice, broker je pošta, fronty jsou poštovní schránky, konzumenti čtou ve volném čase.</div>
+      </div>
+
+      <div class="card">
+        <h2>2. Základní koncepty AMQP</h2>
+        <p>RabbitMQ implementuje <b>AMQP 0-9-1</b>. Slovník je malý, ale přesný.</p>
+        <ul>
+          <li><span class="tag">Producer</span> publikuje zprávy.</li>
+          <li><span class="tag">Consumer</span> přihlašuje se a zpracovává zprávy.</li>
+          <li><span class="tag">Queue</span> pojmenovaný buffer, který uchovává zprávy.</li>
+          <li><span class="tag">Exchange</span> router; producenti publikují do exchange, nikdy přímo do front.</li>
+          <li><span class="tag">Binding</span> pravidlo, které spojuje exchange s frontou (často s klíčem).</li>
+          <li><span class="tag">Routing Key</span> řetězec, který producent připojí ke zprávě; exchange ho použije k rozhodnutí, kam doručit.</li>
+          <li><span class="tag">Virtual host</span> (vhost) jmenný prostor rozdělující uživatele, exchanges a fronty; logická izolace.</li>
+          <li><span class="tag">Connection</span> TCP spojení. <span class="tag">Channel</span> multiplexované virtuální spojení uvnitř.</li>
+        </ul>
+        <h3>Tok ve zkratce</h3>
+        <pre>producer
+  └─ publish(routing_key) ─▶ exchange
+                              ├─ binding A ─▶ queue 1 ─▶ consumer
+                              └─ binding B ─▶ queue 2 ─▶ consumer</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: EXCHANGES ========================== -->
+  <section data-panel="exchanges" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>3. Typy exchange do hloubky</h2>
+        <h3>Direct</h3>
+        <p>Směruje zprávy, jejichž <b>klíč směrování přesně odpovídá</b> klíči vázání. Použití: cílené doručení, jednoduché pracovní fronty, směrování příkazů.</p>
+        <pre>vázání: queue.email  ⇐ key="email"
+publikuj key="email"  → queue.email
+publikuj key="sms"    → zahozeno (nebo nesměrováno)</pre>
+
+        <h3>Fanout</h3>
+        <p>Ignoruje klíč směrování. <b>Vysílá do každé navázané fronty.</b> Použití: pub/sub události, invalidace cache, notifikace „řekni všem“.</p>
+        <pre>publikuj LIBOVOLNÝ klíč → všechny vázané fronty zprávu dostanou</pre>
+
+        <h3>Topic</h3>
+        <p>Směruje podle vzoru. Klíče směrování jsou slova oddělená tečkou; vzory vázání mohou používat:</p>
+        <ul>
+          <li><code>*</code> odpovídá <b>právě jednomu</b> slovu.</li>
+          <li><code>#</code> odpovídá <b>nule nebo více</b> slovům.</li>
+        </ul>
+        <pre>vázání "orders.*.us"   odpovídá  orders.new.us, orders.cancel.us
+                       neodpovídá orders.us, orders.new.eu, orders.a.b.us
+vázání "orders.#"      odpovídá  orders, orders.new, orders.new.us
+vázání "*.error.*"     odpovídá  app.error.db, web.error.api</pre>
+
+        <h3>Headers</h3>
+        <p>Směruje podle hlaviček zprávy, ne podle klíče směrování. Režim <code>x-match: all</code> vyžaduje shodu všech hlaviček; <code>x-match: any</code> vyžaduje alespoň jednu.</p>
+        <pre>vázání headers: {format: pdf, type: report, x-match: all}
+header {format: pdf, type: report}     → shoda
+header {format: pdf}                    → neshoda</pre>
+      </div>
+
+      <div class="card">
+        <h2>Kdy který použít</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:6px 4px">Typ</th><th>Vyberte, když&hellip;</th>
+            </tr>
+          </thead>
+          <tbody style="vertical-align:top">
+            <tr><td style="padding:8px 4px"><span class="tag">direct</span></td><td>Chcete point-to-point nebo přesnou rovnost na jediném klíči.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">fanout</span></td><td>Každý odběratel potřebuje tutéž událost. Nejjednodušší na uvažování.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">topic</span></td><td>Hierarchické události: <code>region.service.severity</code>. Odběratelé chtějí podmnožiny.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">headers</span></td><td>Směrování závisí na více atributech, které se nevejdou do řetězcového klíče.</td></tr>
+          </tbody>
+        </table>
+        <h3>Výchozí exchange</h3>
+        <p>Nepojmenovaný <code>""</code> exchange je speciální <b>direct</b> exchange, kde je každá fronta implicitně navázána svým názvem. Proto <code>basic_publish(exchange='', routing_key='hello')</code> jde rovnou do fronty <code>hello</code>.</p>
+
+        <h3>Dead-letter exchange (DLX)</h3>
+        <p>Frontu lze nakonfigurovat s <code>x-dead-letter-exchange</code>. Zprávy, které jsou odmítnuty, vyprší nebo přetečou, jsou znovu publikovány do DLX, kde je další vázání zaparkuje do mrtvé fronty k inspekci či opakování.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: RELIABILITY ========================== -->
+  <section data-panel="reliability" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>4. Potvrzení (acknowledgments)</h2>
+        <h3>Auto-ack vs manuální ack</h3>
+        <ul>
+          <li><b>Auto-ack</b> (<code>auto_ack=True</code>): broker zprávu považuje za doručenou v okamžiku, kdy odejde. <b>Rychlé a nebezpečné.</b> Pokud konzument spadne uprostřed zpracování, zpráva je pryč.</li>
+          <li><b>Manuální ack</b> (<code>auto_ack=False</code>): konzument musí po úspěchu zavolat <code>basic_ack(delivery_tag)</code>. Pokud zemře dřív, broker při opětovném připojení <b>znovu doručí</b>.</li>
+        </ul>
+        <h3>nack a reject</h3>
+        <ul>
+          <li><code>basic_nack(requeue=true)</code> — vrať ji do fronty.</li>
+          <li><code>basic_nack(requeue=false)</code> — zahodit nebo poslat do DLX, pokud je nakonfigurováno.</li>
+          <li><code>basic_reject</code> je jednozprávová varianta nack.</li>
+        </ul>
+        <h3>Příznak redelivered</h3>
+        <p>Když je zpráva znovu doručena, broker nastaví <code>redelivered=true</code>. Konzumenti by to měli brát jako pokyn být opatrní: idempotence, deduplikační klíče, počítadla pokusů v hlavičkách.</p>
+      </div>
+
+      <div class="card">
+        <h2>5. Trvanlivost — co přežije restart</h2>
+        <p>Tři nezávislé věci musí být <b>všechny</b> nastaveny, aby zpráva přežila pád brokera:</p>
+        <ol>
+          <li><b>Trvanlivá fronta</b>: <code>queue_declare(durable=True)</code>. Jinak fronta sama zmizí.</li>
+          <li><b>Perzistentní zpráva</b>: <code>delivery_mode=2</code> (nebo <code>PERSISTENT_TEXT_PLAIN</code>). Bez toho zpráva žije jen v RAM.</li>
+          <li><b>Trvanlivý exchange</b> (pokud na něm závisíte): <code>exchange_declare(durable=True)</code>.</li>
+        </ol>
+        <div class="step"><b>Pozor:</b> persistence je best-effort, ne synchronní fsync na každou zprávu. Použijte <b>publisher confirms</b> (<code>confirm_delivery</code>), pokud potřebujete vědět, že zpráva je na disku, než potvrdíte výš v řetězci.</div>
+        <h3>Publisher confirms vs transakce</h3>
+        <p>AMQP transakce existují, ale jsou pomalé. <b>Publisher confirms</b> jsou asynchronní a o řády rychlejší: broker vám rámcem ack řekne „mám ji“.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: QoS / CLUSTER ========================== -->
+  <section data-panel="qos" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>6. Prefetch a QoS — fair dispatch</h2>
+        <p>Standardně RabbitMQ rozesílá zprávy konzumentům round-robin. Pokud je jeden konzument pomalý a druhý rychlý, pomalému se práce hromadí, zatímco rychlý se nudí. <b>Prefetch to řeší.</b></p>
+        <pre>channel.basic_qos(prefetch_count=1)</pre>
+        <p>Tím říkáte brokeru: „nedávej mi novou zprávu, dokud jsem nepotvrdil tu předchozí.“ Rychlý konzument si tahá víc práce, pomalý méně. Pro krátkou, uniformní práci nastavte výš (např. 10–50).</p>
+        <h3>Pravidlo palce na ladění</h3>
+        <ul>
+          <li>Dlouhé, nerovnoměrné úlohy → <code>prefetch=1</code>.</li>
+          <li>Krátké, uniformní úlohy → vyšší prefetch (méně round-trip režie).</li>
+          <li>Měřte přes <b>hloubku fronty</b> a <b>vytížení konzumenta</b>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>7. Clustering a quorum queues</h2>
+        <p>RabbitMQ <b>cluster</b> sdílí uživatele, vhosty, exchanges a vázání mezi uzly. Fronty jsou ve výchozím stavu single-master entitou; master žije na jednom uzlu a může být zrcadlen nebo nahrazen quorum frontou.</p>
+        <h3>Klasické zrcadlené fronty</h3>
+        <p>Legacy. Replikují stav na followery. V moderních nasazeních je nahradily quorum queues.</p>
+        <h3>Quorum queues</h3>
+        <ul>
+          <li>Postavené na konsensuálním protokolu <b>Raft</b>.</li>
+          <li><b>Silná konzistence</b>: zápis není potvrzen, dokud ho nemá většina replik.</li>
+          <li>Čistě přežijí výpadky uzlů. Doporučený výchozí stav pro důležitá data.</li>
+          <li>Kompromis: vyšší latence než klasické fronty, více diskového I/O.</li>
+        </ul>
+        <h3>Streams (bonus)</h3>
+        <p>Append fronty ve stylu logu pro vysoce propustné analytické zátěže. Jiný protokol, jiný přístupový vzor (offsety, ne destruktivní konzumace).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PATTERNS ========================== -->
+  <section data-panel="patterns" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>8. Časté vzory</h2>
+        <h3>Pracovní fronty (distribuce úloh)</h3>
+        <p>Jedna fronta, mnoho workerů, manuální ack, prefetch=1. Použití: zmenšování obrázků, posílání e-mailů, kódování videa.</p>
+        <pre>producent ─▶ "" ─▶ queue:tasks ─▶ worker1
+                              └▶ worker2
+                              └▶ worker3</pre>
+
+        <h3>Publish/Subscribe</h3>
+        <p>Fanout exchange, každý odběratel dostane každou zprávu vlastní frontou.</p>
+        <pre>producent ─▶ fanout:events ─┬─▶ queue:audit       ─▶ logger
+                            ├─▶ queue:cache_invl  ─▶ cache
+                            └─▶ queue:notify      ─▶ pusher</pre>
+      </div>
+
+      <div class="card">
+        <h2>Další vzory</h2>
+        <h3>Topic routing</h3>
+        <p>Hierarchické události. Různé fronty se přihlašují na různé tvary.</p>
+        <pre>topic:logs
+  vázání "*.error.*"  ─▶ queue:alerts
+  vázání "db.#"       ─▶ queue:dba
+  vázání "#"          ─▶ queue:audit</pre>
+
+        <h3>RPC (request/reply)</h3>
+        <p>Producent nastaví <code>reply_to</code> (dočasná, exkluzivní fronta) a <code>correlation_id</code>. Konzument publikuje odpověď do <code>reply_to</code>. Producent páruje odpovědi podle <code>correlation_id</code>.</p>
+        <pre>klient → publish(reply_to=Q1, correlation_id=abc)
+server → consume → publish(exchange='', routing_key=Q1, correlation_id=abc)
+klient → spáruje abc, vyřeší promise</pre>
+        <div class="step"><b>Tip:</b> nastavte TTL na reply frontu, aby vám uniklí klienti nehromadili sirotčí fronty.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: SIMULATOR ========================== -->
+  <section data-panel="sim" class="hidden">
+    <div class="card">
+      <h2>Interaktivní simulátor</h2>
+      <p class="muted">Vyberte typ exchange, deklarujte vázání a pak publikujte zprávy a sledujte je téct. Přepněte chování konzumenta, abyste viděli ack/nack a redelivery v akci. Za každý úspěšný publish získáte XP.</p>
+
+      <div class="simwrap">
+        <div class="controls">
+          <label>Typ exchange
+            <select id="sim-extype">
+              <option value="direct">direct</option>
+              <option value="fanout">fanout</option>
+              <option value="topic" selected>topic</option>
+              <option value="headers">headers</option>
+            </select>
+          </label>
+          <label>Klíč směrování
+            <input type="text" id="sim-rk" value="orders.new.us" style="width:160px"/>
+          </label>
+          <label>Hlavičky (k=v,k=v) <span class="muted">jen pro headers exch</span>
+            <input type="text" id="sim-headers" value="format=pdf,type=report" style="width:200px"/>
+          </label>
+          <label>Payload
+            <input type="text" id="sim-payload" value="hello-world" style="width:140px"/>
+          </label>
+          <button class="btn" id="sim-publish">Publikovat ▶</button>
+          <button class="btn ghost small" id="sim-add-binding">+ Vázání</button>
+          <button class="btn ghost small" id="sim-clear">Vyčistit log</button>
+        </div>
+
+        <svg id="sim-svg" viewBox="0 0 1000 360" style="display:block;width:100%;height:360px;background:#0a0d12">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#FF6600"/>
+            </marker>
+            <radialGradient id="g-prod" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd0aa"/>
+              <stop offset="100%" stop-color="#FF6600"/>
+            </radialGradient>
+            <radialGradient id="g-ex" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8dff5"/>
+              <stop offset="100%" stop-color="#1a6c95"/>
+            </radialGradient>
+            <radialGradient id="g-q" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8e6c1"/>
+              <stop offset="100%" stop-color="#1f7045"/>
+            </radialGradient>
+            <radialGradient id="g-c" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffe5a3"/>
+              <stop offset="100%" stop-color="#a07a14"/>
+            </radialGradient>
+          </defs>
+
+          <!-- producer -->
+          <g id="node-producer">
+            <rect x="20" y="140" width="140" height="80" rx="14" fill="url(#g-prod)" stroke="#FF6600"/>
+            <text x="90" y="175" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="14">Producent</text>
+            <text x="90" y="195" text-anchor="middle" fill="#1a0a00" font-size="11">basic_publish</text>
+          </g>
+
+          <!-- exchange -->
+          <g id="node-exchange">
+            <polygon points="380,180 440,140 500,180 440,220" fill="url(#g-ex)" stroke="#4dd6ff"/>
+            <text x="440" y="184" text-anchor="middle" fill="#062231" font-weight="700" font-size="13" id="sim-extype-label">topic</text>
+            <text x="440" y="200" text-anchor="middle" fill="#062231" font-size="10">exchange</text>
+          </g>
+
+          <!-- queues will be appended here -->
+          <g id="queues-layer"></g>
+          <g id="bindings-layer"></g>
+          <g id="consumers-layer"></g>
+
+          <!-- producer-to-exchange path -->
+          <path d="M160,180 L380,180" stroke="#FF6600" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        </svg>
+
+        <div class="legend">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#FF6600;border-radius:50%;margin-right:6px"></span>producent</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1a6c95;border-radius:2px;margin-right:6px"></span>exchange</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1f7045;border-radius:2px;margin-right:6px"></span>fronta</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#a07a14;border-radius:2px;margin-right:6px"></span>konzument</span>
+          <span class="muted">propad = nesměrováno (mandatory off → tiše ztraceno)</span>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">Vázání</h3>
+          <div id="bindings-list"></div>
+          <p class="muted" style="font-size:12px">Klikněte na vázání pro odebrání.</p>
+        </div>
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">Konzumenti</h3>
+          <div id="consumers-list"></div>
+          <button class="btn ghost small" id="sim-add-consumer">+ Přidat konzumenta</button>
+          <p class="muted" style="font-size:12px">Přepněte u každého konzumenta režim ack (auto / manual-ack / manual-nack-requeue / manual-nack-DLX).</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-top:0;color:var(--accent-2)">Log aktivit</h3>
+        <div class="log" id="sim-log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PRACTICE ========================== -->
+  <section data-panel="practice" class="hidden">
+    <div class="card">
+      <h2>Procvičovací režim — napište odpověď</h2>
+      <p class="muted">Žádné výběry z možností. Napište termín, příkaz, argument nebo <b>ano</b>/<b>ne</b>. Porovnání je case-insensitive a tolerantní k drobným překlepům u slovní zásoby/ano-ne otázek, ale příkazy a kód musí sedět přesně.</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">Etapa <b id="prac-i">1</b> / <b id="prac-n">18</b></span>
+          <span class="tag info" id="prac-kind">vocab</span>
+          <span class="tag good" id="prac-correct">0 správně</span>
+          <span class="tag bad" id="prac-wrong">0 špatně</span>
+        </div>
+        <div class="row">
+          <button class="btn ghost small" id="prac-skip">Přeskočit</button>
+          <button class="btn ghost small" id="prac-restart">Restartovat</button>
+        </div>
+      </div>
+      <div class="progress"><div id="prac-progress"></div></div>
+      <div id="prac-mount"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BOSS ========================== -->
+  <section data-panel="boss" class="hidden">
+    <div class="card">
+      <h2><span class="siren">●</span> Boss režim: produkční výpadek</h2>
+      <p>Pager právě zazvonil. Máte <b>30 sekund</b> na otázku, 10 otázek. Napište příkaz, termín nebo jednoslovnou odpověď. Správně = +50 XP. Špatně nebo timeout = combo přerušeno. Přežijte všech 10 a odemknete <b>Outage Crusher</b>.</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">Otázka <b id="boss-i">1</b> / 10</span>
+          <span class="tag warn">Čas <span class="timer" id="boss-timer">30</span>s</span>
+          <span class="tag good" id="boss-correct">0 správně</span>
+        </div>
+        <div class="row">
+          <button class="btn" id="boss-start">Spustit výpadek</button>
+          <button class="btn ghost small" id="boss-quit">Ukončit</button>
+        </div>
+      </div>
+      <div class="progress"><div id="boss-progress"></div></div>
+      <div id="boss-mount" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BADGES ========================== -->
+  <section data-panel="badges" class="hidden">
+    <div class="card">
+      <h2>Vitrína odznaků</h2>
+      <p class="muted">Odemkněte hraním simulátoru, dokončením procvičování a přežitím výpadku.</p>
+      <div id="badges-mount"></div>
+    </div>
+  </section>
+
+  <p class="footer">Postaveno pro učení. Postup se ukládá ve vašem prohlížeči. Resetujte kdykoliv.</p>
+</div>
+
+<script>
+/* =========================================================
+   STATE & PERSISTENCE
+   ========================================================= */
+const SAVE_KEY = 'rmq-lab-v1';
+const DEFAULT_STATE = {
+  xp: 0,
+  level: 1,
+  combo: 0,
+  bestCombo: 0,
+  badges: {},
+  practiceDone: false,
+  bossDone: false,
+  publishCount: 0,
+  ackCount: 0,
+  nackCount: 0,
+  topicMatchSolved: 0,
+  dlxRoutes: 0,
+};
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return structuredClone(DEFAULT_STATE);
+    return Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(raw));
+  }catch(e){ return structuredClone(DEFAULT_STATE); }
+}
+function saveState(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
+
+function xpForLevel(lvl){ return 100 + (lvl-1)*60; }
+function addXP(n, reason){
+  state.xp += n;
+  while(state.xp >= xpForLevel(state.level)){
+    state.xp -= xpForLevel(state.level);
+    state.level++;
+    toast(`Postup na vyšší úroveň! → Lvl ${state.level}`, 'good');
+    confettiBurst(140);
+  }
+  saveState(); renderHUD();
+  if(reason) flashLog(`+${n} XP — ${reason}`, 'acc');
+}
+function bumpCombo(){
+  state.combo++;
+  if(state.combo > state.bestCombo) state.bestCombo = state.combo;
+  if(state.combo===5) unlockBadge('combo5');
+  if(state.combo===10) unlockBadge('combo10');
+  if(state.combo===20) unlockBadge('combo20');
+  saveState(); renderHUD();
+}
+function breakCombo(){ state.combo = 0; saveState(); renderHUD(); }
+
+function renderHUD(){
+  document.getElementById('hud-level').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-combo').textContent = state.combo;
+  document.getElementById('hud-best').textContent = state.bestCombo;
+  const need = xpForLevel(state.level);
+  document.getElementById('hud-xpbar').style.width = Math.min(100, (state.xp/need)*100) + '%';
+}
+renderHUD();
+
+/* =========================================================
+   BADGES
+   ========================================================= */
+const BADGES = [
+  {id:'firstPublish', name:'První publikace', icon:'🚀', desc:'Publikujte svou první zprávu v simulátoru.'},
+  {id:'fanoutFan', name:'Fanout fanda', icon:'📡', desc:'Úspěšně publikujte do 3+ front najednou přes fanout.'},
+  {id:'topicMaster', name:'Mistr topiců', icon:'🧩', desc:'Vyřešte 5 topic-routing hádanek za sebou.'},
+  {id:'ackAttack', name:'Ack útok', icon:'✅', desc:'Manuálně potvrďte 5 zpráv.'},
+  {id:'dlxDefender', name:'Obránce DLX', icon:'🛡️', desc:'Směrujte 3 zprávy do dead-letter exchange.'},
+  {id:'durableDevotee', name:'Vyznavač trvanlivosti', icon:'💾', desc:'Projděte všechny otázky o durability v procvičování.'},
+  {id:'rpcRanger', name:'RPC strážce', icon:'📞', desc:'Napište správně odpovědi o reply_to/correlation_id v RPC.'},
+  {id:'practiceComplete', name:'Praxe dokonalá', icon:'🎓', desc:'Dokončete všech 18 procvičovacích cvičení.'},
+  {id:'outageCrusher', name:'Drtič výpadků', icon:'🔥', desc:'Přežijte boss režim produkčního výpadku.'},
+  {id:'combo5', name:'V proudu', icon:'🎯', desc:'5 správně za sebou.'},
+  {id:'combo10', name:'Žhavá série', icon:'⚡', desc:'10 správně za sebou.'},
+  {id:'combo20', name:'Nezastavitelný', icon:'🌟', desc:'20 správně za sebou.'},
+];
+function unlockBadge(id){
+  if(state.badges[id]) return;
+  state.badges[id] = Date.now();
+  const b = BADGES.find(x=>x.id===id);
+  if(b){ toast(`Odznak odemčen: ${b.icon} ${b.name}`, 'good'); confettiBurst(120); }
+  saveState(); renderBadges();
+}
+function renderBadges(){
+  const m = document.getElementById('badges-mount');
+  if(!m) return;
+  m.innerHTML = BADGES.map(b=>{
+    const on = !!state.badges[b.id];
+    return `<div class="badge ${on?'unlocked':''}" title="${b.desc}">
+      <span class="em">${b.icon}</span>
+      <span>${b.name}</span>
+      ${on?'<span style="color:var(--good);font-size:11px">odemčeno</span>':'<span class="muted" style="font-size:11px">zamčeno</span>'}
+    </div>`;
+  }).join('');
+}
+renderBadges();
+
+/* =========================================================
+   TOAST + FX
+   ========================================================= */
+const fx = document.getElementById('fx');
+const fctx = fx.getContext('2d');
+function resizeFX(){ fx.width = innerWidth; fx.height = innerHeight; }
+addEventListener('resize', resizeFX); resizeFX();
+let particles = [];
+function confettiBurst(n=80){
+  const colors = ['#FF6600','#ffb37a','#3fd17c','#4dd6ff','#ffd166','#ff4d6d'];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*120,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*8,
+      vy: (Math.random()-1.2)*9,
+      g: .25,
+      life: 90 + Math.random()*40,
+      c: colors[(Math.random()*colors.length)|0],
+      s: 4 + Math.random()*4,
+      r: Math.random()*Math.PI
+    });
+  }
+}
+function tickFX(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.life--; p.r += .15;
+    fctx.save(); fctx.translate(p.x,p.y); fctx.rotate(p.r);
+    fctx.fillStyle = p.c;
+    fctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*1.4);
+    fctx.restore();
+  });
+  requestAnimationFrame(tickFX);
+}
+tickFX();
+
+const toastBox = (function(){
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;right:18px;top:18px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:320px';
+  document.body.appendChild(el); return el;
+})();
+function toast(msg, kind='info'){
+  const t = document.createElement('div');
+  const c = kind==='good'?'#3fd17c':kind==='bad'?'#ff4d6d':kind==='warn'?'#ffd166':'#4dd6ff';
+  t.style.cssText = `background:#161a22;border:1px solid ${c}55;color:#e7ecf3;padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px;border-left:4px solid ${c};animation:slideIn .25s ease`;
+  t.textContent = msg;
+  toastBox.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 2400);
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function flashLog(msg, kind='info'){
+  const log = document.getElementById('sim-log');
+  if(!log) return;
+  const span = document.createElement('div');
+  span.className = kind;
+  const t = new Date().toLocaleTimeString();
+  span.textContent = `[${t}] ${msg}`;
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* =========================================================
+   TABS
+   ========================================================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('section[data-panel]').forEach(s=>{
+      s.classList.toggle('hidden', s.dataset.panel !== tab);
+    });
+  });
+});
+
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(confirm('Resetovat veškerý postup, odznaky a XP?')){
+    state = structuredClone(DEFAULT_STATE);
+    saveState(); renderHUD(); renderBadges();
+    toast('Uložení resetováno.', 'warn');
+  }
+});
+
+/* =========================================================
+   SIMULATOR
+   ========================================================= */
+const SIM = {
+  exchangeType: 'topic',
+  bindings: [], // {id, queue, key, headers:{}, xMatch:'all'}
+  consumers: [], // {id, queue, mode}
+  queueIds: 0,
+  consumerIds: 0,
+  bindingIds: 0,
+  // queueId -> [pending message ids]
+  pending: {},
+};
+
+function simAddBinding(queue, key, headers={}, xMatch='all'){
+  SIM.bindingIds++;
+  const id = 'b'+SIM.bindingIds;
+  // queue object created if not present
+  if(!queue) queue = `q.${SIM.queueIds+1}`;
+  SIM.bindings.push({id, queue, key, headers, xMatch});
+  // make sure queue has at least one consumer slot, optional
+  redrawSim();
+}
+
+function simRemoveBinding(id){
+  SIM.bindings = SIM.bindings.filter(b=>b.id!==id);
+  redrawSim();
+}
+
+function simAddConsumer(queue, mode='manual-ack'){
+  SIM.consumerIds++;
+  if(!queue){
+    // attach to first available queue
+    const queues = uniqueQueues();
+    queue = queues[0] || 'q.1';
+  }
+  const id = 'c'+SIM.consumerIds;
+  SIM.consumers.push({id, queue, mode});
+  redrawSim();
+}
+
+function uniqueQueues(){
+  const set = new Set();
+  SIM.bindings.forEach(b=>set.add(b.queue));
+  SIM.consumers.forEach(c=>set.add(c.queue));
+  return [...set];
+}
+
+function topicMatch(pattern, key){
+  // amqp topic: '*' = exactly one word, '#' = zero or more words
+  const pp = pattern.split('.');
+  const kk = key.split('.');
+  // dynamic programming
+  function rec(i,j){
+    if(i===pp.length && j===kk.length) return true;
+    if(i===pp.length) return false;
+    if(pp[i]==='#'){
+      // match zero or more words
+      for(let x=j;x<=kk.length;x++){
+        if(rec(i+1,x)) return true;
+      }
+      // also support trailing # at end
+      return rec(i+1,j) && j===kk.length;
+    }
+    if(j===kk.length) return false;
+    if(pp[i]==='*' || pp[i]===kk[j]) return rec(i+1,j+1);
+    return false;
+  }
+  return rec(0,0);
+}
+
+function headersMatch(bindHdr, msgHdr, xMatch){
+  const keys = Object.keys(bindHdr);
+  if(keys.length===0) return false;
+  if(xMatch==='any'){
+    return keys.some(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+  }
+  return keys.every(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+}
+
+function routeMessage(extype, key, headers){
+  const matched = new Set();
+  SIM.bindings.forEach(b=>{
+    if(extype==='fanout'){ matched.add(b.queue); return; }
+    if(extype==='direct'){ if(b.key===key) matched.add(b.queue); return; }
+    if(extype==='topic'){ if(topicMatch(b.key, key)) matched.add(b.queue); return; }
+    if(extype==='headers'){ if(headersMatch(b.headers||{}, headers||{}, b.xMatch||'all')) matched.add(b.queue); return; }
+  });
+  return [...matched];
+}
+
+function redrawSim(){
+  const extype = SIM.exchangeType;
+  document.getElementById('sim-extype-label').textContent = extype;
+  // queues layout
+  const queues = uniqueQueues();
+  if(queues.length===0){
+    // ensure at least one default
+  }
+  const qLayer = document.getElementById('queues-layer');
+  const cLayer = document.getElementById('consumers-layer');
+  const bLayer = document.getElementById('bindings-layer');
+  qLayer.innerHTML=''; cLayer.innerHTML=''; bLayer.innerHTML='';
+
+  const startY = 40, gap = (queues.length>0) ? Math.max(60, 280/queues.length) : 280;
+  queues.forEach((q,i)=>{
+    const y = startY + i*gap + 20;
+    // queue rect
+    qLayer.insertAdjacentHTML('beforeend',
+      `<g data-q="${q}">
+         <rect x="640" y="${y-22}" width="140" height="44" rx="8" fill="url(#g-q)" stroke="#3fd17c"/>
+         <text x="710" y="${y+5}" text-anchor="middle" fill="#06190f" font-weight="700" font-size="13">${q}</text>
+         <g class="q-msgs" data-q="${q}" transform="translate(648,${y-6})"></g>
+       </g>`);
+    // binding line(s)
+    SIM.bindings.filter(b=>b.queue===q).forEach((b,idx)=>{
+      const offset = (idx-(SIM.bindings.filter(bb=>bb.queue===q).length-1)/2)*8;
+      bLayer.insertAdjacentHTML('beforeend',
+        `<path d="M500,${180+offset} C570,${180+offset} 600,${y} 640,${y}" stroke="#FF6600" stroke-width="1.6" fill="none" opacity=".7"/>
+         <text x="555" y="${(180+y)/2 - 4 + offset}" text-anchor="middle" fill="#ffb37a" font-size="10">${escapeHtml(extype==='headers'? bindingHdrLabel(b) : b.key||'""')}</text>`);
+    });
+    // consumers for this queue
+    const cs = SIM.consumers.filter(c=>c.queue===q);
+    cs.forEach((c,j)=>{
+      const cx = 860, cy = y + (j-(cs.length-1)/2)*36;
+      cLayer.insertAdjacentHTML('beforeend',
+        `<g data-c="${c.id}">
+           <rect x="${cx}" y="${cy-18}" width="120" height="36" rx="8" fill="url(#g-c)" stroke="#ffd166"/>
+           <text x="${cx+60}" y="${cy+2}" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="12">${c.id}</text>
+           <text x="${cx+60}" y="${cy+14}" text-anchor="middle" fill="#1a0a00" font-size="9">${c.mode}</text>
+         </g>
+         <path d="M780,${y} L${cx},${cy}" stroke="#ffd166" stroke-width="1.4" fill="none" opacity=".7" marker-end="url(#arrow)"/>`);
+    });
+  });
+
+  // bindings list
+  const bl = document.getElementById('bindings-list');
+  if(SIM.bindings.length===0){
+    bl.innerHTML = '<p class="muted" style="font-size:13px">Zatím žádná vázání. Klikněte výše na <b>+ Vázání</b>.</p>';
+  } else {
+    bl.innerHTML = SIM.bindings.map(b=>{
+      const label = SIM.exchangeType==='headers' ? bindingHdrLabel(b) : (b.key||'""');
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag info">${b.queue}</span>
+        <span class="tag">${escapeHtml(label)}</span>
+        <button class="btn ghost small" data-rm-binding="${b.id}">odebrat</button>
+      </div>`;
+    }).join('');
+    bl.querySelectorAll('[data-rm-binding]').forEach(btn=>{
+      btn.addEventListener('click',()=>simRemoveBinding(btn.dataset.rmBinding));
+    });
+  }
+
+  // consumers list
+  const cl = document.getElementById('consumers-list');
+  if(SIM.consumers.length===0){
+    cl.innerHTML = '<p class="muted" style="font-size:13px">Zatím žádní konzumenti. Přidejte jednoho a uvidíte doručení.</p>';
+  } else {
+    cl.innerHTML = SIM.consumers.map(c=>{
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag warn">${c.id}</span>
+        <span class="tag">queue ${c.queue}</span>
+        <select data-c-mode="${c.id}">
+          ${['auto-ack','manual-ack','manual-nack-requeue','manual-nack-DLX'].map(m=>`<option ${c.mode===m?'selected':''} value="${m}">${m}</option>`).join('')}
+        </select>
+        <button class="btn ghost small" data-rm-c="${c.id}">odebrat</button>
+      </div>`;
+    }).join('');
+    cl.querySelectorAll('[data-c-mode]').forEach(sel=>{
+      sel.addEventListener('change',()=>{
+        const c = SIM.consumers.find(x=>x.id===sel.dataset.cMode);
+        c.mode = sel.value; redrawSim();
+      });
+    });
+    cl.querySelectorAll('[data-rm-c]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        SIM.consumers = SIM.consumers.filter(c=>c.id!==btn.dataset.rmC);
+        redrawSim();
+      });
+    });
+  }
+}
+
+function bindingHdrLabel(b){
+  const h = b.headers||{};
+  const inside = Object.entries(h).map(([k,v])=>`${k}=${v}`).join(',');
+  return `{${inside||'∅'}|x-match=${b.xMatch||'all'}}`;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* animate a publish: dot goes prod→exchange→queue(s)→consumer (or drops) */
+function animateFlow(matched, payload, key){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  // 1) producer to exchange
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 6);
+  dot.setAttribute('fill','#FF6600');
+  dot.setAttribute('cx', 160); dot.setAttribute('cy', 180);
+  svg.appendChild(dot);
+  const label = document.createElementNS(NS,'text');
+  label.setAttribute('fill','#ffd0aa'); label.setAttribute('font-size','10');
+  label.setAttribute('text-anchor','middle');
+  label.textContent = key;
+  label.setAttribute('x', 160); label.setAttribute('y', 170);
+  svg.appendChild(label);
+
+  let t = 0;
+  const dur1 = 30; // frames to exchange
+  function step1(){
+    t++;
+    const p = t/dur1;
+    const x = 160 + (380-160)*p;
+    dot.setAttribute('cx', x);
+    label.setAttribute('x', x);
+    if(t<dur1) requestAnimationFrame(step1);
+    else {
+      label.remove();
+      // pulse the exchange
+      const exNode = document.querySelector('#node-exchange polygon');
+      exNode.classList.add('pulse');
+      setTimeout(()=>exNode.classList.remove('pulse'), 700);
+      if(matched.length===0){
+        // drop
+        flashLog(`✗ nesměrováno: klíč="${key}" neměl odpovídající vázání (zpráva zahozena)`,'err');
+        // shake the canvas
+        shake(document.querySelector('.simwrap'));
+        // fade dot down
+        let a=1;
+        const fall = ()=>{
+          a-=.05;
+          dot.setAttribute('opacity', Math.max(0,a));
+          dot.setAttribute('cy', 180 + (1-a)*60);
+          if(a>0) requestAnimationFrame(fall);
+          else dot.remove();
+        };
+        fall();
+        breakCombo();
+        return;
+      }
+      // 2) exchange -> each matched queue
+      matched.forEach(q=>{
+        const dot2 = dot.cloneNode();
+        svg.appendChild(dot2);
+        const target = svg.querySelector(`g[data-q="${CSS.escape(q)}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+70;
+        const ty = parseFloat(target.getAttribute('y'))+22;
+        let s=0;
+        const dur2 = 26;
+        const cb = ()=>{
+          s++;
+          const p = s/dur2;
+          const cx = 440 + (tx-440)*p;
+          const cy = 180 + (ty-180)*p;
+          dot2.setAttribute('cx', cx);
+          dot2.setAttribute('cy', cy);
+          if(s<dur2) requestAnimationFrame(cb);
+          else { dot2.remove(); enqueueAndDeliver(q, payload); }
+        };
+        requestAnimationFrame(cb);
+      });
+      dot.remove();
+      bumpCombo();
+      addXP(10 + Math.min(20, matched.length*5), `publikováno do ${matched.length} fronty/front`);
+      flashLog(`✓ směrováno key="${key}" → ${matched.join(', ')}`,'ok');
+      if(matched.length>=3 && SIM.exchangeType==='fanout') unlockBadge('fanoutFan');
+    }
+  }
+  step1();
+}
+
+function enqueueAndDeliver(queue, payload){
+  // pick a consumer (round-robin) of that queue
+  const cs = SIM.consumers.filter(c=>c.queue===queue);
+  if(cs.length===0){
+    flashLog(`… fronta ${queue}: zařazeno, žádný konzument (zpráva zaparkována)`,'warn');
+    drawQMessage(queue, payload, false);
+    return;
+  }
+  const c = cs[Math.floor(Math.random()*cs.length)];
+  const dot = drawQMessage(queue, payload, true);
+  // animate to consumer
+  const svg = document.getElementById('sim-svg');
+  const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+  const tx = parseFloat(target.getAttribute('x'))+60;
+  const ty = parseFloat(target.getAttribute('y'))+18;
+  const startX = parseFloat(dot.getAttribute('cx'));
+  const startY = parseFloat(dot.getAttribute('cy'));
+  let s=0; const dur=22;
+  const cb = ()=>{
+    s++;
+    const p = s/dur;
+    dot.setAttribute('cx', startX + (tx-startX)*p);
+    dot.setAttribute('cy', startY + (ty-startY)*p);
+    if(s<dur) requestAnimationFrame(cb);
+    else { dot.remove(); handleConsumerOutcome(c, payload, queue); }
+  };
+  requestAnimationFrame(cb);
+}
+
+function drawQMessage(queue, payload, willMove){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const target = svg.querySelector(`g[data-q="${CSS.escape(queue)}"] rect`);
+  const cx = parseFloat(target.getAttribute('x')) + 70;
+  const cy = parseFloat(target.getAttribute('y')) + 22;
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 5);
+  dot.setAttribute('fill', '#FF6600');
+  dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','1');
+  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+  svg.appendChild(dot);
+  if(!willMove){
+    // small shake
+    let i=0;
+    const wob=()=>{
+      i++;
+      dot.setAttribute('cx', cx + Math.sin(i/3)*2);
+      if(i<300) requestAnimationFrame(wob);
+    };
+    wob();
+  }
+  return dot;
+}
+
+function handleConsumerOutcome(c, payload, queue){
+  switch(c.mode){
+    case 'auto-ack':
+      flashLog(`⇢ ${c.id} (auto-ack): zkonzumováno "${payload}" — rychle a nebezpečně`,'info');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-ack':
+      flashLog(`✓ ${c.id} (manual-ack): zpracováno "${payload}", basic_ack odeslán`,'ok');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-nack-requeue':
+      flashLog(`↺ ${c.id} (nack, requeue=true): "${payload}" se vrací do ${queue} jako redelivered`,'warn');
+      state.nackCount++;
+      // simulate redelivery after a delay
+      setTimeout(()=>{
+        flashLog(`↻ redelivery: ${queue} → ${c.id} (redelivered=true)`,'warn');
+        // re-deliver to same consumer
+        const dot = drawQMessage(queue, payload+'*', true);
+        const svg = document.getElementById('sim-svg');
+        const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+60;
+        const ty = parseFloat(target.getAttribute('y'))+18;
+        let s=0; const dur=22;
+        const startX = parseFloat(dot.getAttribute('cx'));
+        const startY = parseFloat(dot.getAttribute('cy'));
+        const cb=()=>{
+          s++;
+          const p=s/dur;
+          dot.setAttribute('cx', startX+(tx-startX)*p);
+          dot.setAttribute('cy', startY+(ty-startY)*p);
+          if(s<dur) requestAnimationFrame(cb);
+          else { dot.remove(); flashLog(`✓ ${c.id} zpracoval redelivery při novém pokusu`, 'ok'); }
+        };
+        requestAnimationFrame(cb);
+      }, 700);
+      break;
+    case 'manual-nack-DLX':
+      flashLog(`☠ ${c.id} (nack, requeue=false): "${payload}" → DLX (dead-letter exchange)`,'err');
+      state.dlxRoutes++;
+      if(state.dlxRoutes>=3) unlockBadge('dlxDefender');
+      break;
+  }
+  saveState();
+}
+
+/* simulator wiring */
+document.getElementById('sim-extype').addEventListener('change', e=>{
+  SIM.exchangeType = e.target.value;
+  redrawSim();
+});
+document.getElementById('sim-add-binding').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  let key = '';
+  let headers = {};
+  let xMatch = 'all';
+  let queue = prompt('Název fronty?', `q.${SIM.queueIds+1}`);
+  if(!queue) return;
+  SIM.queueIds++;
+  if(extype==='headers'){
+    const raw = prompt('Vázání podle hlaviček (k=v, oddělené čárkou)', 'format=pdf,type=report');
+    if(raw===null) return;
+    raw.split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+    xMatch = (prompt('x-match: all nebo any?','all')||'all').toLowerCase()==='any'?'any':'all';
+  } else if(extype==='fanout'){
+    key = ''; // ignored
+  } else {
+    key = prompt('Klíč vázání (např. orders.*.us)', 'orders.*.us') || '';
+  }
+  simAddBinding(queue, key, headers, xMatch);
+});
+document.getElementById('sim-add-consumer').addEventListener('click', ()=>{
+  const queues = uniqueQueues();
+  let queue;
+  if(queues.length===0){
+    queue = prompt('Zatím žádné fronty. Název fronty pro připojení konzumenta:', 'q.1');
+    if(!queue) return;
+    SIM.queueIds = Math.max(SIM.queueIds, 1);
+  } else if(queues.length===1){
+    queue = queues[0];
+  } else {
+    queue = prompt('K jaké frontě připojit konzumenta? '+queues.join(', '), queues[0]);
+    if(!queue) return;
+  }
+  simAddConsumer(queue, 'manual-ack');
+});
+document.getElementById('sim-publish').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  const key = document.getElementById('sim-rk').value || '';
+  const payload = document.getElementById('sim-payload').value || 'msg';
+  let headers = {};
+  if(extype==='headers'){
+    (document.getElementById('sim-headers').value||'').split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+  }
+  const matched = routeMessage(extype, key, headers);
+  state.publishCount++;
+  if(state.publishCount===1) unlockBadge('firstPublish');
+  saveState();
+  animateFlow(matched, payload, extype==='headers' ? JSON.stringify(headers) : key);
+});
+document.getElementById('sim-clear').addEventListener('click', ()=>{
+  document.getElementById('sim-log').innerHTML='';
+});
+
+// seed simulator with a topic example
+simAddBinding('q.alerts','*.error.*');
+simAddBinding('q.us-orders','orders.*.us');
+simAddBinding('q.audit','#');
+simAddConsumer('q.alerts','manual-ack');
+simAddConsumer('q.us-orders','manual-ack');
+simAddConsumer('q.audit','auto-ack');
+
+/* =========================================================
+   PRACTICE — typing exercises
+   ========================================================= */
+const PRACTICE = [
+  // VOCAB
+  { kind:'vocab', q:'Pojmenovaný buffer, který uchovává zprávy, dokud si je konzument nevyzvedne. Napište termín:', a:'queue', xp:15, accept:['fronta'] },
+  { kind:'vocab', q:'Router, kam producenti posílají; fronty se na něj vážou. Napište termín:', a:'exchange', xp:15, accept:['výměna'] },
+  { kind:'vocab', q:'Logická hranice izolace, která jmenuje uživatele, fronty a exchanges. Napište zkratku (3 znaky):', a:'vhost', xp:15, accept:['virtual host','virtuální hostitel'] },
+  { kind:'vocab', q:'Řetězec, který producent připojí ke zprávě a exchange ho použije k rozhodnutí o cíli. Dvě slova (anglicky):', a:'routing key', xp:15, accept:['klíč směrování'] },
+  { kind:'vocab', q:'Exchange, který přijímá zprávy odmítnuté, vypršené nebo přetečené z fronty. Třípísmenná zkratka:', a:'dlx', xp:20, accept:['dead letter exchange','dead-letter exchange'] },
+  // CLI
+  { kind:'cli', q:'Napište příkaz rabbitmqctl, který vypíše každou frontu:', a:'rabbitmqctl list_queues', xp:20, strict:true },
+  { kind:'cli', q:'Napište příkaz pro výpis každého exchange (rabbitmqctl):', a:'rabbitmqctl list_exchanges', xp:20, strict:true },
+  { kind:'cli', q:'Napište příkaz pro výpis každého vázání (rabbitmqctl):', a:'rabbitmqctl list_bindings', xp:20, strict:true },
+  { kind:'cli', q:'Přidejte nový vhost s názvem "billing". rabbitmqctl ___:', a:'rabbitmqctl add_vhost billing', xp:20, strict:true },
+  // CODE (pika)
+  { kind:'code', q:'pika: deklarujte trvanlivou frontu jménem "tasks". Doplňte název funkce:\nchannel.____(queue="tasks", durable=True)', a:'queue_declare', xp:20, strict:true },
+  { kind:'code', q:'pika: publikujte "hi" do výchozího exchange do fronty "tasks", označené jako persistentní.\nchannel.basic_publish(exchange="", routing_key="tasks", body="hi", properties=pika.BasicProperties(delivery_mode=__))\nNapište chybějící číslo:', a:'2', xp:20, strict:true, accept:['PERSISTENT_DELIVERY_MODE'] },
+  { kind:'code', q:'pika: potvrďte doručení (ack). Doplňte chybějící metodu:\nch.____(delivery_tag=method.delivery_tag)', a:'basic_ack', xp:20, strict:true },
+  { kind:'code', q:'pika: zapněte fair dispatch s jedním nedoručeným záznamem na konzumenta:\nchannel.____(prefetch_count=1)', a:'basic_qos', xp:20, strict:true },
+  { kind:'code', q:'pika: zaregistrujte callback pro konzumaci z "tasks" s manuálním ack. Doplňte:\nchannel.____(queue="tasks", on_message_callback=cb, auto_ack=False)', a:'basic_consume', xp:20, strict:true },
+  // TOPIC PUZZLES (yes/no)
+  { kind:'topic', q:'Vázání "orders.*.us"  vs  klíč směrování "orders.new.us". Shoda? (ano/ne)', a:'ano', xp:15, accept:['yes'] },
+  { kind:'topic', q:'Vázání "orders.*.us"  vs  klíč směrování "orders.us". Shoda? (ano/ne)', a:'ne', xp:15, accept:['no'] },
+  { kind:'topic', q:'Vázání "orders.#"  vs  klíč směrování "orders.new.us.express". Shoda? (ano/ne)', a:'ano', xp:15, accept:['yes'] },
+  { kind:'topic', q:'Vázání "*.error.*"  vs  klíč směrování "db.error". Shoda? (ano/ne)', a:'ne', xp:15, accept:['no'] },
+];
+
+const pracState = {
+  i: 0,
+  correct: 0,
+  wrong: 0,
+  topicStreak: 0,
+  durableStreak: 0,
+  rpcStreak: 0,
+};
+function normalize(s){ return String(s).trim().toLowerCase().replace(/\s+/g,' '); }
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function answerMatches(ex, input){
+  const v = normalize(input);
+  const accepts = [ex.a, ...(ex.accept||[])].map(normalize);
+  if(ex.strict){
+    return accepts.includes(v);
+  }
+  // tolerant: exact OR accept OR small distance for short answers
+  for(const a of accepts){
+    if(v===a) return true;
+    if(a.length<=8 && levenshtein(v,a)<=1) return true;
+    if(a.length<=14 && levenshtein(v,a)<=2) return true;
+  }
+  return false;
+}
+
+function renderPractice(){
+  const total = PRACTICE.length;
+  document.getElementById('prac-n').textContent = total;
+  const i = pracState.i;
+  document.getElementById('prac-i').textContent = Math.min(i+1, total);
+  document.getElementById('prac-correct').textContent = `${pracState.correct} správně`;
+  document.getElementById('prac-wrong').textContent = `${pracState.wrong} špatně`;
+  document.getElementById('prac-progress').style.width = (i/total*100)+'%';
+
+  const mount = document.getElementById('prac-mount');
+  if(i>=total){
+    mount.innerHTML = `<div class="ex-card">
+      <div class="q"><b>Hotovo!</b> Skončili jste s ${pracState.correct}/${total} správnými.</div>
+      <p class="muted">Restartujte kdykoli, nebo směle do boss režimu.</p>
+    </div>`;
+    if(pracState.correct === total){ unlockBadge('practiceComplete'); }
+    state.practiceDone = true; saveState();
+    return;
+  }
+  const ex = PRACTICE[i];
+  document.getElementById('prac-kind').textContent = ex.kind;
+  mount.innerHTML = `<div class="ex-card" id="ex-${i}">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="prac-input" autocomplete="off" spellcheck="false" placeholder="napište odpověď a stiskněte Enter…" style="flex:1;min-width:260px"/>
+      <button class="btn" id="prac-submit">Odeslat</button>
+    </div>
+    <div class="feedback hint" id="prac-feedback">Nápověda: ${ex.kind==='topic' ? 'odpovězte "ano" nebo "ne"' : ex.kind==='cli' ? 'vyžadována přesná shoda' : ex.kind==='code' ? 'vyžadována přesná shoda' : 'drobné překlepy se odpouštějí'}</div>
+  </div>`;
+  const input = document.getElementById('prac-input');
+  input.focus();
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter') submitPractice();
+  });
+  document.getElementById('prac-submit').addEventListener('click', submitPractice);
+}
+function linkifyHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+function submitPractice(){
+  const ex = PRACTICE[pracState.i];
+  const val = document.getElementById('prac-input').value;
+  const ok = answerMatches(ex, val);
+  const fb = document.getElementById('prac-feedback');
+  if(ok){
+    fb.className='feedback ok';
+    fb.textContent = `✓ Správně! +${ex.xp} XP`;
+    addXP(ex.xp, `procvičování ${ex.kind}`);
+    bumpCombo();
+    pracState.correct++;
+    if(ex.kind==='topic'){ pracState.topicStreak++; if(pracState.topicStreak>=5) unlockBadge('topicMaster'); state.topicMatchSolved++; }
+    else pracState.topicStreak=0;
+    confettiBurst(60);
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 500);
+  } else {
+    fb.className='feedback err';
+    fb.textContent = `✗ Téměř. Očekáváno: ${ex.a}`;
+    breakCombo();
+    pracState.wrong++;
+    pracState.topicStreak=0;
+    shake(document.getElementById('ex-'+pracState.i));
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 1100);
+  }
+}
+document.getElementById('prac-skip').addEventListener('click', ()=>{
+  pracState.wrong++; pracState.i++; breakCombo(); renderPractice();
+});
+document.getElementById('prac-restart').addEventListener('click', ()=>{
+  pracState.i=0; pracState.correct=0; pracState.wrong=0; pracState.topicStreak=0; renderPractice();
+});
+renderPractice();
+
+/* =========================================================
+   BOSS MODE — 10 timed scenario questions
+   ========================================================= */
+const BOSS_QUESTIONS = [
+  { q:'Workery padají uprostřed úlohy a zprávy mizí. Konzument byl spuštěn s auto_ack=True. Jaký jediný booleovský argument byste přepnuli na False?', a:'auto_ack' },
+  { q:'Restartovali jste broker a vaše fronta je pryč. Na jaký flag jste zapomněli při queue_declare?', a:'durable' },
+  { q:'Zprávy přežijí frontu, ale vypaří se při pádu brokeru. Jaká vlastnost zprávě chybí? (jedno číslo)', a:'2', accept:['delivery_mode=2','persistent'] },
+  { q:'Jeden pomalý worker hromadí práci, zatímco rychlý se nudí. Napište metodu pika, která řeší fair dispatch:', a:'basic_qos' },
+  { q:'Potřebujete frontu, která přežije výpadky uzlů se silnou konzistencí přes Raft. Jaký typ fronty? (jedno slovo)', a:'quorum' },
+  { q:'Otrávená zpráva (poison-pill) se navždy znovu řadí do fronty. Oprava je nack s requeue=false a směrování do speciálního exchange. Jaká je třípísmenná zkratka?', a:'dlx' },
+  { q:'Chcete každou událost doručit všem odběratelům bez ohledu na klíč směrování. Jaký typ exchange? (jedno slovo)', a:'fanout' },
+  { q:'Chcete, aby odběratelé filtrovali podle vzorů jako "*.error.*" nebo "db.#". Jaký typ exchange? (jedno slovo)', a:'topic' },
+  { q:'Potřebujete potvrdit, že broker skutečně přijal a uložil publikovanou zprávu. Jakou async funkci zapnete? (dvě slova anglicky)', a:'publisher confirms', accept:['publisher confirm','confirm select'] },
+  { q:'Reply fronty z RPC klientů unikají. Měli byste přidat argument fronty, aby auto-vypršely. Jaký argument? (3písmenná zkratka)', a:'ttl', accept:['x-message-ttl','x-expires'] },
+];
+const BOSS = { i:0, correct:0, timer:null, secs:30, active:false };
+function startBoss(){
+  if(BOSS.active) return;
+  BOSS.active = true; BOSS.i=0; BOSS.correct=0;
+  document.getElementById('boss-correct').textContent='0 správně';
+  document.getElementById('boss-progress').style.width='0%';
+  showBossQ();
+}
+function showBossQ(){
+  const total = BOSS_QUESTIONS.length;
+  if(BOSS.i>=total){
+    finishBoss(); return;
+  }
+  document.getElementById('boss-i').textContent = BOSS.i+1;
+  document.getElementById('boss-progress').style.width = (BOSS.i/total*100)+'%';
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const mount = document.getElementById('boss-mount');
+  mount.innerHTML = `<div class="ex-card" id="boss-card">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="boss-input" placeholder="napište a Enter…" autocomplete="off" spellcheck="false" style="flex:1;min-width:260px"/>
+      <button class="btn" id="boss-submit">Odeslat</button>
+    </div>
+    <div class="feedback hint" id="boss-feedback">Tip: krátké, přesné odpovědi. Překlepy do pár znaků se odpouštějí.</div>
+  </div>`;
+  const inp = document.getElementById('boss-input'); inp.focus();
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitBoss(); });
+  document.getElementById('boss-submit').addEventListener('click', submitBoss);
+  // timer
+  BOSS.secs = 30;
+  document.getElementById('boss-timer').textContent = BOSS.secs;
+  clearInterval(BOSS.timer);
+  BOSS.timer = setInterval(()=>{
+    BOSS.secs--;
+    document.getElementById('boss-timer').textContent = BOSS.secs;
+    if(BOSS.secs<=0){
+      clearInterval(BOSS.timer);
+      handleBossOutcome(false, ex);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const val = document.getElementById('boss-input').value;
+  const ok = answerMatches(ex, val);
+  clearInterval(BOSS.timer);
+  handleBossOutcome(ok, ex);
+}
+function handleBossOutcome(ok, ex){
+  const fb = document.getElementById('boss-feedback');
+  if(ok){
+    fb.className='feedback ok'; fb.textContent='✓ Správně! +50 XP';
+    addXP(50, 'boss správně'); bumpCombo();
+    BOSS.correct++;
+    document.getElementById('boss-correct').textContent = `${BOSS.correct} správně`;
+    confettiBurst(80);
+  } else {
+    fb.className='feedback err'; fb.textContent=`✗ Špatně. Očekáváno: ${ex.a}`;
+    breakCombo();
+    shake(document.getElementById('boss-card'));
+  }
+  setTimeout(()=>{ BOSS.i++; showBossQ(); }, 700);
+}
+function finishBoss(){
+  BOSS.active = false;
+  clearInterval(BOSS.timer);
+  const total = BOSS_QUESTIONS.length;
+  document.getElementById('boss-progress').style.width = '100%';
+  const survived = BOSS.correct >= total - 2; // allow 2 mistakes
+  const mount = document.getElementById('boss-mount');
+  if(survived){
+    unlockBadge('outageCrusher');
+    state.bossDone = true; saveState();
+    mount.innerHTML = `<div class="ex-card"><div class="q">🏆 Výpadek zvládnut — ${BOSS.correct}/${total}. Odemkli jste <b>Drtič výpadků</b>.</div></div>`;
+    confettiBurst(220);
+  } else {
+    mount.innerHTML = `<div class="ex-card"><div class="q">🚨 Výpadek se zhoršil — ${BOSS.correct}/${total}. Dosáhněte 8/10 pro odemčení odznaku.</div></div>`;
+  }
+}
+document.getElementById('boss-start').addEventListener('click', startBoss);
+document.getElementById('boss-quit').addEventListener('click', ()=>{
+  BOSS.active=false; clearInterval(BOSS.timer);
+  document.getElementById('boss-mount').innerHTML='';
+});
+
+/* =========================================================
+   INITIAL RENDER
+   ========================================================= */
+redrawSim();
+flashLog('Lab připraven. Tři vzorová vázání + tři konzumenti načteni. Zkuste publikovat key="orders.new.us" s topic exchange.','info');
+</script>
+</body>
+</html>

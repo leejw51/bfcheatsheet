@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Softmax · 인터랙티브 드릴</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root{
+    --bg:#0c0d12;
+    --panel:#13151d;
+    --panel2:#191c26;
+    --ink:#e8ecf3;
+    --ink-dim:#9aa3b2;
+    --line:#262a36;
+    --accent:#ff5d9e;     /* hot pink */
+    --accent2:#7c5cff;    /* violet */
+    --good:#3ddc97;
+    --bad:#ff6b6b;
+    --warn:#ffd166;
+    --bar1:#ff5d9e;
+    --bar2:#7c5cff;
+    --bar3:#3ddc97;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  code,kbd{font-family:var(--mono)}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 120px}
+  header.hero{position:relative;padding:48px 28px;border-radius:24px;background:
+    radial-gradient(900px 400px at 90% -10%,rgba(255,93,158,.18),transparent 60%),
+    radial-gradient(700px 300px at -10% 110%,rgba(124,92,255,.20),transparent 60%),
+    linear-gradient(135deg,#15171f,#0f1118);
+    border:1px solid var(--line);overflow:hidden}
+  header.hero h1{margin:0 0 6px;font-size:clamp(28px,4.4vw,46px);letter-spacing:-.02em;font-weight:800;background:linear-gradient(90deg,#fff 0%,#ffd6e7 60%,#bfb0ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header.hero p{margin:0;color:var(--ink-dim);max-width:64ch}
+  .sigma{position:absolute;right:18px;top:6px;font-size:160px;line-height:1;color:rgba(255,255,255,.04);font-family:Georgia,serif;pointer-events:none;user-select:none}
+
+  .hud{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 28px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--ink-dim)}
+  .chip b{color:var(--ink);font-weight:600}
+  .chip.lvl{background:linear-gradient(135deg,rgba(255,93,158,.15),rgba(124,92,255,.15));border-color:rgba(255,93,158,.4);color:#ffe1ee}
+  .chip.combo{background:linear-gradient(135deg,rgba(255,209,102,.12),rgba(255,93,158,.10));border-color:rgba(255,209,102,.35);color:#ffeec0}
+  .xpbar{flex:1;min-width:160px;height:10px;border-radius:999px;background:#1a1d27;border:1px solid var(--line);overflow:hidden;position:relative}
+  .xpbar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s ease}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);border-radius:10px;padding:8px 12px;font-size:12px;cursor:pointer}
+  button.ghost:hover{color:var(--ink);border-color:#3a3f4f}
+
+  nav.toc{position:sticky;top:8px;z-index:20;background:rgba(12,13,18,.78);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 22px;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{color:var(--ink-dim);text-decoration:none;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid transparent}
+  nav.toc a:hover{color:var(--ink);border-color:var(--line);background:var(--panel)}
+
+  section{margin:28px 0;padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
+  section h2{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+  section h2 .num{display:inline-block;min-width:34px;height:26px;padding:0 8px;line-height:26px;text-align:center;border-radius:8px;background:rgba(255,93,158,.12);color:var(--accent);font-size:12px;margin-right:10px;border:1px solid rgba(255,93,158,.3);font-weight:700}
+  section p{color:#cdd3df}
+  .lead{color:var(--ink-dim)}
+  .grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:22px}
+  @media (max-width:880px){.grid2{grid-template-columns:1fr}}
+  .card{background:#10131c;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h3{margin:0 0 8px;font-size:15px;color:#f3f5f9;letter-spacing:.01em}
+  .small{font-size:12.5px;color:var(--ink-dim)}
+
+  /* Centerpiece widget */
+  .widget{background:linear-gradient(180deg,#10131c,#0d1018);border:1px solid var(--line);border-radius:16px;padding:18px}
+  .sliderRow{display:grid;grid-template-columns:36px 1fr 70px;gap:12px;align-items:center;padding:8px 0}
+  .sliderRow label{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .sliderRow input[type=range]{width:100%;accent-color:var(--accent)}
+  .sliderRow .val{font-family:var(--mono);text-align:right;color:var(--ink)}
+  .barsBox{margin-top:14px;display:grid;grid-template-columns:1fr;gap:10px}
+  .barRow{display:grid;grid-template-columns:60px 1fr 90px;gap:10px;align-items:center}
+  .barRow .lbl{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .barTrack{height:22px;background:#191c26;border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+  .barFill{height:100%;width:0%;border-radius:7px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s cubic-bezier(.2,.7,.2,1.2)}
+  .barRow.b2 .barFill{background:linear-gradient(90deg,#7c5cff,#3ddc97)}
+  .barRow.b3 .barFill{background:linear-gradient(90deg,#3ddc97,#ffd166)}
+  .barRow .pv{font-family:var(--mono);text-align:right;color:#fff}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .btn{appearance:none;border:1px solid var(--line);background:#171a24;color:var(--ink);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;transition:transform .06s ease,border-color .15s,background .15s}
+  .btn:hover{border-color:#3b3f4f;background:#1c2030}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.good{border-color:rgba(61,220,151,.4);color:#bff5da}
+  .formulaBox{margin-top:12px;padding:14px;border:1px dashed var(--line);border-radius:12px;background:#0e111a;font-size:14px;overflow-x:auto}
+
+  /* Practice */
+  .drillCard{display:flex;flex-direction:column;gap:10px}
+  .prompt{font-size:15px;color:#eef1f7}
+  .prompt .ki{padding:2px 6px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:12.5px}
+  .answerRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  input.ti,textarea.ti{background:#0d1018;border:1px solid var(--line);color:var(--ink);padding:10px 12px;border-radius:10px;font-family:var(--mono);font-size:14px;outline:none;min-width:140px;transition:border-color .15s,box-shadow .15s}
+  input.ti:focus,textarea.ti:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,93,158,.18)}
+  textarea.ti{min-width:280px;min-height:54px;font-family:var(--sans)}
+  input.ti.tri{min-width:80px;text-align:right}
+  .feedback{font-size:13px;color:var(--ink-dim);min-height:18px}
+  .feedback.ok{color:var(--good)}
+  .feedback.no{color:var(--bad)}
+  .preview{padding:12px;border:1px dashed var(--line);border-radius:10px;background:#0d1018;min-height:44px;font-size:14px}
+  .qbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .qbar .qnum{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+  .qbar .qtag{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(124,92,255,.15);color:#cfc0ff;border:1px solid rgba(124,92,255,.35);text-transform:uppercase;letter-spacing:.08em}
+  .nav{display:flex;justify-content:space-between;gap:10px;margin-top:10px}
+  .progressDots{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#1a1d27;border:1px solid var(--line)}
+  .dot.done{background:var(--good);border-color:var(--good)}
+  .dot.cur{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,93,158,.25)}
+  .dot.miss{background:var(--bad);border-color:var(--bad)}
+
+  /* Boss */
+  .boss{padding:18px;border-radius:14px;border:1px solid rgba(255,93,158,.45);background:radial-gradient(800px 200px at 50% -50%,rgba(255,93,158,.18),transparent 60%),#10131c;text-align:center}
+  .boss .timer{font-family:var(--mono);font-size:42px;color:var(--accent);font-weight:800;letter-spacing:-.02em}
+  .boss .qbig{font-size:22px;margin:8px 0;color:#f6f8fc}
+  .boss input{font-size:18px;padding:12px;text-align:center;min-width:160px}
+
+  /* Achievements */
+  .achGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:8px}
+  .ach{padding:12px;border:1px solid var(--line);border-radius:12px;background:#10131c;display:flex;gap:10px;align-items:flex-start;opacity:.45;filter:grayscale(.6);transition:.25s}
+  .ach.unlocked{opacity:1;filter:none;border-color:rgba(255,209,102,.45);box-shadow:0 0 0 1px rgba(255,209,102,.25) inset}
+  .ach .em{font-size:22px;flex:none}
+  .ach .t{font-size:13.5px;font-weight:700}
+  .ach .d{font-size:12px;color:var(--ink-dim)}
+
+  /* Effects */
+  .shake{animation:shake .35s linear}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  .pulse{animation:pulse .45s ease}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 18px rgba(61,220,151,0)}}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+  /* Toast */
+  #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(20px);background:#1c2030;border:1px solid var(--line);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;z-index:60;max-width:80vw;text-align:center;font-size:14px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  details{margin-top:8px}
+  details>summary{cursor:pointer;color:var(--ink-dim)}
+  details>summary:hover{color:var(--ink)}
+  hr.sep{border:none;border-top:1px dashed var(--line);margin:14px 0}
+
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
+  .kbd{font-family:var(--mono);font-size:11.5px;padding:1px 6px;border-radius:5px;background:#1a1d27;border:1px solid var(--line);color:#dfe5ef}
+
+  footer{color:var(--ink-dim);text-align:center;padding:30px 0 0;font-size:12.5px}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+<div class="wrap">
+
+<header class="hero">
+  <div class="sigma">σ</div>
+  <h1>Softmax · 트랜스포머의 확률 기계</h1>
+  <p>슬라이더를 드래그하고, 드릴을 입력하고, 레벨을 올리세요. 로짓을 어텐션 가중치와 클래스 확률로 변환하는 함수에 대한 짧고 실습적인 투어입니다.</p>
+  <div class="hud">
+    <span class="chip lvl">LVL <b id="lvl">1</b></span>
+    <span class="chip">XP <b id="xp">0</b></span>
+    <div class="xpbar"><div id="xpfill"></div></div>
+    <span class="chip combo">콤보 <b id="combo">0</b></span>
+    <span class="chip">정확도 <b id="acc">—</b></span>
+    <button class="ghost" id="resetBtn">진행 상황 초기화</button>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1 · 무엇</a>
+  <a href="#s2">2 · 공식</a>
+  <a href="#s3">3 · 속성</a>
+  <a href="#s4">4 · 온도</a>
+  <a href="#s5">5 · 어텐션</a>
+  <a href="#s6">6 · 교차 엔트로피</a>
+  <a href="#s7">7 · 안정성</a>
+  <a href="#s8">8 · 대안</a>
+  <a href="#play">⌨ 연습</a>
+  <a href="#boss">★ 보스</a>
+  <a href="#ach">트로피</a>
+</nav>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">1</span>Softmax란 무엇인가</h2>
+  <p class="lead">신경망의 마지막 선형 계층은 <b>로짓(logits)</b>이라고 불리는 원시 점수를 출력합니다 — 양수든 음수든 임의의 실수입니다. Softmax는 이 벡터를 <b>확률 분포</b>로 변환합니다. 모든 항목이 $(0,1)$ 사이에 있고 전체 벡터의 합은 $1$이 됩니다.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>점수에서 확률로</h3>
+      <p>분류기가 $K$개 클래스에 대해 로짓 $\mathbf{z} = (z_1,\dots,z_K)$를 출력하면, softmax는 다음을 산출합니다</p>
+      $$\text{softmax}(\mathbf{z})_i \;=\; \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}.$$
+      <p>트랜스포머 내부에서는 어텐션 헤드가 보는 $K$개의 토큰에 대해 동일한 작업을 수행합니다. 즉, 원시 유사도 점수를 정규화된 <b>어텐션 가중치</b>로 변환합니다.</p>
+    </div>
+    <div class="card">
+      <h3>왜 부드러운(soft) <i>max</i>인가?</h3>
+      <p>하드 $\arg\max$는 그래디언트를 죽입니다 — 단 하나의 슬롯만 이기고, 패자 점수의 미세한 변화는 학습 신호가 0이 됩니다. Softmax는 부드럽고 미분 가능한 근사입니다. 가장 큰 로짓이 우세하지만, 모든 로짓은 여전히 (작은) 확률 질량과 사용 가능한 그래디언트를 얻습니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">2</span>공식, 유도하기</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>구성</h3>
+      <p>임의의 벡터를 받아 합이 1이 되는 음이 아닌 수를 만드는 함수가 필요합니다.</p>
+      <ol>
+        <li>점수를 양수로 만듭니다: 엄격히 양인 함수를 적용합니다. 자연 지수 $e^{z}$가 가장 깔끔한 선택입니다 — 부드럽고, 단조이며, 항상 $e^z>0$입니다.</li>
+        <li>정규화: 각 값을 합으로 나누어 총합을 1로 만듭니다.</li>
+      </ol>
+      $$\text{softmax}(\mathbf{z})_i = \frac{\exp(z_i)}{\sum_j \exp(z_j)}.$$
+    </div>
+    <div class="card">
+      <h3>왜 지수함수인가, $z_i^2$나 $|z_i|$가 아닌가?</h3>
+      <ul>
+        <li><b>모든 실수 입력에 대해 엄격히 양</b> (분모가 0이 되지 않고, 부호 게임 없음).</li>
+        <li><b>곱셈적 격차</b>: $e^{z_i}/e^{z_j} = e^{z_i - z_j}$는 차이에만 의존합니다. 모든 로짓에 상수를 더해도 아무것도 변하지 않습니다 — §3 참조.</li>
+        <li><b>최대 엔트로피</b>: 평균 에너지 $\mathbb{E}[z]$가 고정된 분포 중에서 지수 분포족이 가장 높은 엔트로피를 갖습니다. Softmax는 로짓과 일관된 가장 비편향적인 분포입니다.</li>
+        <li><b>로그 우도와 켤레</b>: 교차 엔트로피와 짝지으면 그래디언트가 한 줄로 단순화됩니다 — §6 참조.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3 + Centerpiece widget -->
+<section id="s3">
+  <h2><span class="num">3</span>속성 &amp; 라이브 위젯</h2>
+  <p class="lead">세 개의 로짓과 온도를 드래그하세요. 막대와 렌더링된 공식이 함께 변하는 것을 보세요.</p>
+  <div class="grid2">
+    <div class="widget">
+      <div class="sliderRow"><label>$z_1$</label><input id="z1" type="range" min="-5" max="5" step="0.05" value="2.0"><span class="val" id="z1v">2.00</span></div>
+      <div class="sliderRow"><label>$z_2$</label><input id="z2" type="range" min="-5" max="5" step="0.05" value="1.0"><span class="val" id="z2v">1.00</span></div>
+      <div class="sliderRow"><label>$z_3$</label><input id="z3" type="range" min="-5" max="5" step="0.05" value="0.1"><span class="val" id="z3v">0.10</span></div>
+      <div class="sliderRow"><label>τ</label><input id="tau" type="range" min="0.05" max="5" step="0.01" value="1.0"><span class="val" id="tauv">1.00</span></div>
+      <div class="barsBox">
+        <div class="barRow b1"><div class="lbl">p₁</div><div class="barTrack"><div id="bar1" class="barFill"></div></div><div class="pv" id="p1">0.000</div></div>
+        <div class="barRow b2"><div class="lbl">p₂</div><div class="barTrack"><div id="bar2" class="barFill"></div></div><div class="pv" id="p2">0.000</div></div>
+        <div class="barRow b3"><div class="lbl">p₃</div><div class="barTrack"><div id="bar3" class="barFill"></div></div><div class="pv" id="p3">0.000</div></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="lseBtn">log-sum-exp 트릭 적용 (최댓값 빼기)</button>
+        <button class="btn ghost" id="resetWidget">초기화</button>
+        <span class="small" id="sumLine">∑ p = 1.000</span>
+      </div>
+      <div class="formulaBox" id="formulaLive"></div>
+    </div>
+    <div class="card">
+      <h3>체화해야 할 세 가지 속성</h3>
+      <ul>
+        <li><b>합이 1.</b> 구성에 의해: 분자의 합 = 분모. 어떤 슬라이더든 드래그하세요 — 막대가 항상 행을 채웁니다.</li>
+        <li><b>각 입력에 대해 단조.</b> $z_i$를 증가시키면 $p_i$가 올라갑니다 (다른 것들은 내려감). 절대 교차하지 않습니다.</li>
+        <li><b>이동 불변성.</b> $\text{softmax}(\mathbf{z}+c\mathbf{1}) = \text{softmax}(\mathbf{z})$. 분자와 분모 모두 인수 $e^c$를 얻고 이는 상쇄됩니다. 이것이 수치적 안정성 트릭의 기초입니다: $c = -\max_i z_i$를 선택하면 가장 큰 지수가 $0$이 됩니다 — 오버플로 없음, 정보 손실 없음.</li>
+      </ul>
+      <p class="small"><span class="kbd">log-sum-exp 트릭 적용</span> 버튼을 눌러보세요: 로짓을 $-\max$만큼 이동합니다. 막대는 움직이지 않지만 (이동 불변성!) 보이는 지수들은 이제 모두 $\le 1$입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="num">4</span>온도</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>τ는 로짓을 스케일링합니다</h3>
+      $$\text{softmax}_\tau(\mathbf{z})_i = \frac{e^{z_i/\tau}}{\sum_j e^{z_j/\tau}}.$$
+      <ul>
+        <li>$\tau \to \infty$: 모든 $z_i/\tau \to 0$, 분포가 <b>균등</b> $1/K$가 됩니다. 최대 탐색.</li>
+        <li>$\tau \to 0^{+}$: 격차가 폭발적으로 커지고, 가장 큰 로짓이 이기며, 분포가 $\arg\max$의 원-핫으로 붕괴됩니다. 순수 그리디.</li>
+        <li>$\tau = 1$: 표준 softmax.</li>
+      </ul>
+      <p>LLM 샘플링에서 온도는 정확히 이 다이얼입니다. 높은 $\tau$는 다양하고 놀라운 토큰을 만들고, 낮은 $\tau$는 결정적이고 반복적인 토큰을 만듭니다.</p>
+    </div>
+    <div class="card">
+      <h3>시도해보기</h3>
+      <p>위의 위젯에서 τ를 $0.05$와 $5$ 사이로 슬라이드하세요:</p>
+      <ul>
+        <li>τ가 작을수록 → 승자의 막대가 1.0에 가까워집니다</li>
+        <li>τ = 1 → 일반 softmax</li>
+        <li>τ가 클수록 → 막대가 $1/3 \approx 0.333$ 쪽으로 평평해집니다</li>
+      </ul>
+      <p class="small">어닐링 — 학습이나 샘플링 중에 τ를 점차 낮추는 것 — 은 통계 물리학에서 빌려온 고전적인 기법입니다. 거기서 $\tau$는 문자 그대로 볼츠만 분포에서의 <i>온도</i>입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="num">5</span>왜 어텐션에 softmax가 있는가</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>스케일된 닷-프로덕트 어텐션</h3>
+      $$\text{Attn}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V.$$
+      <p>쿼리 토큰에 대해 $QK^\top$는 모든 키와의 유사도 점수를 산출합니다. Softmax는 이 점수를 <b>어텐션 가중치</b>로 변환합니다: 음이 아니고, 합이 1이며, 소스 토큰당 하나입니다.</p>
+      <p>그런 다음 출력은 $\sum_j w_j v_j$ — 값 벡터의 <b>가중 평균</b>입니다. $\sum w_j = 1$이므로 우리가 얼마나 많은 토큰에 어텐드하든 출력의 크기는 단일 $v_j$와 비교 가능하게 유지됩니다. 그래서 (예를 들어 ReLU 정규화가 아닌) softmax가 기본값입니다.</p>
+    </div>
+    <div class="card">
+      <h3>왜 softmax 전에 $1/\sqrt{d_k}$인가?</h3>
+      <p>쿼리와 키가 단위 분산 성분을 가지면, $QK^\top$의 분산은 $\propto d_k$입니다. $d_k$가 크면 로짓이 거대해지고, softmax가 포화되며, 그래디언트가 사라집니다. $\sqrt{d_k}$로 나누면 분산이 $\approx 1$로 유지됩니다 — softmax가 민감하고 학습 가능한 영역에 머무릅니다. 이것은 본질적으로 $\tau = \sqrt{d_k}$의 온도입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="num">6</span>Softmax + 교차 엔트로피: 그래디언트</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>설정</h3>
+      <p>$p_i = \text{softmax}(z)_i$, 타겟 원-핫 $y$, 교차 엔트로피라 하면</p>
+      $$L = -\sum_i y_i \log p_i.$$
+      <p>$\partial L/\partial z_i$를 원합니다. Softmax의 야코비안은 지저분합니다:</p>
+      $$\frac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j).$$
+      <p>하지만 $L$과 합성하면 모든 것이 아름답게 단순해집니다.</p>
+    </div>
+    <div class="card">
+      <h3>단순화</h3>
+      <p>연쇄 법칙:</p>
+      $$\frac{\partial L}{\partial z_i} = \sum_k \frac{\partial L}{\partial p_k}\frac{\partial p_k}{\partial z_i} = \sum_k \left(-\frac{y_k}{p_k}\right)\, p_k(\delta_{ki}-p_i).$$
+      <p>단순화:</p>
+      $$=\;-\sum_k y_k(\delta_{ki}-p_i) \;=\; -y_i + p_i\sum_k y_k \;=\; p_i - y_i.$$
+      <p>그래서 $\nabla_{z}L = \mathbf{p} - \mathbf{y}$. 그래디언트는 <b>오차 벡터</b>입니다: 예측 빼기 타겟. 깔끔하고, 저렴하며, 수치적으로 친숙합니다. <i>이것이</i> 어디서나 softmax + 교차 엔트로피가 짝지어지는 이유입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">7</span>수치적 안정성 — log-sum-exp 트릭</h2>
+  <div class="card">
+    <p>$e^{1000}$을 계산하면 64비트 부동소수점이 오버플로하고, $e^{-1000}$을 계산하면 $0$으로 언더플로하며 $\log 0 = -\infty$입니다. 단순한 softmax는 깨지기 쉽습니다. 이동 불변성이 우리를 구합니다.</p>
+    <p>$m = \max_i z_i$라 하자. 그러면</p>
+    $$\text{softmax}(\mathbf{z})_i = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}}.$$
+    <p>이제 가장 큰 지수는 $e^0 = 1$이고, 나머지는 모두 $(0,1]$입니다. 오버플로 없음, 가능한 가장 작은 반올림 오차.</p>
+    <p>$\log\,\text{softmax}$의 경우 <b>log-sum-exp</b> 항등식이 표준 형태입니다:</p>
+    $$\log\sum_j e^{z_j} = m + \log\sum_j e^{z_j - m}.$$
+    <p>모든 프레임워크의 <code>log_softmax</code>, <code>nll_loss</code>, 어텐션 커널에서 사용됩니다.</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2><span class="num">8</span>대안, 간단히</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Sparsemax</h3>
+      <p>로짓을 확률 심플렉스에 투영합니다. 출력은 진정으로 <b>희소</b>합니다 — 정확한 0이 허용됩니다. 어텐션이 대부분의 토큰을 완전히 무시하기를 원할 때 유용합니다 (해석가능성, 구조화된 예측). Softmax만큼 부드럽지는 않고 정렬 단계가 필요하지만 거의 모든 곳에서 미분 가능합니다.</p>
+    </div>
+    <div class="card">
+      <h3>Gumbel-softmax</h3>
+      <p>Gumbel 노이즈를 더한 다음 낮은 온도로 softmax를 취합니다: 범주형에서 <i>샘플링</i>하는 연속적이고 미분 가능한 완화. 역전파로 이산 잠재 변수를 학습할 수 있게 해줍니다 (예: 이산 VAE, 하드 어텐션).</p>
+    </div>
+  </div>
+  <details><summary class="small">기타 친척 (entmax-1.5, 구면 softmax, softmax 혼합…)</summary>
+    <p class="small">Entmax-α는 softmax (α=1)와 sparsemax (α=2) 사이를 보간합니다. Softmax 혼합은 언어 모델링의 &ldquo;softmax 병목&rdquo;을 다룹니다. 모두 일부 속성 — 희소성, 표현력, 계산 — 을 평범한 softmax와 맞바꿉니다.</p>
+  </details>
+</section>
+
+<!-- Practice -->
+<section id="play">
+  <h2><span class="num">⌨</span>연습 모드</h2>
+  <p class="lead">입력해서 답하세요. <span class="kbd">Enter</span>는 제출, <span class="kbd">→</span>는 다음. 콤보는 보너스 XP를 줍니다.</p>
+  <div id="dots" class="progressDots"></div>
+  <div id="drillHost"></div>
+</section>
+
+<!-- Boss -->
+<section id="boss">
+  <h2><span class="num">★</span>분포 보스</h2>
+  <p class="lead">속사 라운드: 60초에 8개의 빠른 질문. 3배 XP. 마지막 업적을 잠금 해제합니다.</p>
+  <div class="boss" id="bossBox">
+    <div class="timer" id="bossTimer">60</div>
+    <div class="qbig" id="bossQ">시작 버튼을 눌러 보스를 소환하세요.</div>
+    <input class="ti" id="bossA" placeholder="답…" />
+    <div style="margin-top:10px"><button class="btn primary" id="bossStart">보스 라운드 시작</button></div>
+    <div class="small" id="bossScore" style="margin-top:8px">점수: 0 / 8</div>
+  </div>
+</section>
+
+<!-- Achievements -->
+<section id="ach">
+  <h2><span class="num">♛</span>트로피</h2>
+  <div class="achGrid" id="achGrid"></div>
+</section>
+
+<footer>학습용으로 제작 · σ · 키보드 친화적</footer>
+</div>
+
+<script>
+/* ============================================================
+   STATE + PERSISTENCE
+   ============================================================ */
+const LS_KEY = "softmax-trainer-v1";
+const defaultState = {
+  xp: 0, lvl: 1, combo: 0, bestCombo: 0,
+  correct: 0, attempts: 0,
+  done: {},     // drillId -> "ok" | "miss"
+  ach: {},      // achId -> true
+  bossDone: false
+};
+let S = loadState();
+function loadState(){
+  try{ const v = JSON.parse(localStorage.getItem(LS_KEY)); return Object.assign({},defaultState,v||{},{done:Object.assign({},(v&&v.done)||{}),ach:Object.assign({},(v&&v.ach)||{})}); }
+  catch(_){ return JSON.parse(JSON.stringify(defaultState)); }
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function xpForLevel(l){ return 50 + (l-1)*30; }
+function addXP(n){
+  S.xp += n;
+  while(S.xp >= xpForLevel(S.lvl)){ S.xp -= xpForLevel(S.lvl); S.lvl++; toast(`레벨 업! → LVL ${S.lvl}`); }
+  refreshHUD(); saveState();
+}
+function refreshHUD(){
+  document.getElementById("lvl").textContent = S.lvl;
+  document.getElementById("xp").textContent  = S.xp;
+  document.getElementById("combo").textContent = S.combo;
+  const need = xpForLevel(S.lvl);
+  document.getElementById("xpfill").style.width = Math.min(100,(S.xp/need)*100)+"%";
+  const acc = S.attempts ? Math.round(100*S.correct/S.attempts) : null;
+  document.getElementById("acc").textContent = acc===null ? "—" : (acc+"%");
+}
+document.getElementById("resetBtn").onclick = ()=>{
+  if(!confirm("모든 XP, 콤보, 드릴 진행 상황, 트로피를 초기화하시겠습니까?")) return;
+  S = JSON.parse(JSON.stringify(defaultState));
+  saveState(); location.reload();
+};
+
+/* ============================================================
+   TOAST + EFFECTS
+   ============================================================ */
+const toastEl = document.getElementById("toast");
+let toastT;
+function toast(msg, ms=1800){
+  toastEl.textContent = msg; toastEl.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>toastEl.classList.remove("show"), ms);
+}
+
+const conf = document.getElementById("confetti");
+const cctx = conf.getContext("2d");
+function sizeConf(){ conf.width = innerWidth; conf.height = innerHeight; }
+sizeConf(); addEventListener("resize", sizeConf);
+let particles = [];
+function confetti(n=80){
+  const colors = ["#ff5d9e","#7c5cff","#3ddc97","#ffd166","#ffffff"];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*60,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*9,
+      vy: -Math.random()*9-3,
+      g: 0.28+Math.random()*0.15,
+      s: 4+Math.random()*5,
+      r: Math.random()*Math.PI,
+      vr: (Math.random()-.5)*0.3,
+      c: colors[(Math.random()*colors.length)|0],
+      life: 90+Math.random()*30
+    });
+  }
+}
+function tickConf(){
+  cctx.clearRect(0,0,conf.width,conf.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+    cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.r);
+    cctx.fillStyle = p.c; cctx.globalAlpha = Math.max(0,Math.min(1,p.life/40));
+    cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); cctx.restore();
+  }
+  requestAnimationFrame(tickConf);
+}
+tickConf();
+
+function shake(el){ el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+function pulse(el){ el.classList.remove("pulse"); void el.offsetWidth; el.classList.add("pulse"); }
+
+/* ============================================================
+   MATH HELPERS
+   ============================================================ */
+function softmax(z, tau=1){
+  const m = Math.max(...z);
+  const ex = z.map(v => Math.exp((v - m)/tau));
+  const s = ex.reduce((a,b)=>a+b,0);
+  return ex.map(v=>v/s);
+}
+function fmt(x, d=3){ return Number(x).toFixed(d); }
+function near(a,b,tol){ return Math.abs(a-b)<=tol; }
+function parseNum(s){ const x = parseFloat(String(s).trim()); return isNaN(x)?null:x; }
+function normSpaces(s){ return String(s).replace(/\s+/g,"").toLowerCase(); }
+/* LaTeX 형식의 공식 문자열을 느슨하게 비교합니다. */
+function eqTex(user, target){
+  const norm = s => s
+    .replace(/\\,|\\;|\\!|\\:/g,"")
+    .replace(/\\left|\\right/g,"")
+    .replace(/\\mathrm\{[^}]*\}/g,"")
+    .replace(/\s+/g,"")
+    .replace(/\\cdot/g,"*")
+    .replace(/\\times/g,"*")
+    .toLowerCase();
+  return norm(user) === norm(target);
+}
+
+/* ============================================================
+   CENTERPIECE WIDGET
+   ============================================================ */
+const z1=document.getElementById("z1"),z2=document.getElementById("z2"),z3=document.getElementById("z3"),tau=document.getElementById("tau");
+const z1v=document.getElementById("z1v"),z2v=document.getElementById("z2v"),z3v=document.getElementById("z3v"),tauv=document.getElementById("tauv");
+const bar1=document.getElementById("bar1"),bar2=document.getElementById("bar2"),bar3=document.getElementById("bar3");
+const p1e=document.getElementById("p1"),p2e=document.getElementById("p2"),p3e=document.getElementById("p3");
+const sumLine=document.getElementById("sumLine");
+const formulaLive=document.getElementById("formulaLive");
+let appliedLSE = false;
+function renderWidget(){
+  const a = +z1.value, b = +z2.value, c = +z3.value, t = +tau.value;
+  z1v.textContent = fmt(a,2); z2v.textContent = fmt(b,2); z3v.textContent = fmt(c,2); tauv.textContent = fmt(t,2);
+  let zs=[a,b,c], shifted=zs;
+  if(appliedLSE){ const m=Math.max(...zs); shifted = zs.map(v=>v-m); }
+  const p = softmax(shifted, t);
+  bar1.style.width=(p[0]*100).toFixed(1)+"%";
+  bar2.style.width=(p[1]*100).toFixed(1)+"%";
+  bar3.style.width=(p[2]*100).toFixed(1)+"%";
+  p1e.textContent=fmt(p[0],4); p2e.textContent=fmt(p[1],4); p3e.textContent=fmt(p[2],4);
+  sumLine.textContent = `∑ p = ${fmt(p[0]+p[1]+p[2],4)}` + (appliedLSE? "  (LSE 이동 활성: exp 전 최댓값 빼기)":"");
+  const num = shifted.map(v => `e^{${fmt(v/t,2)}}`).join(",\\;");
+  const den = `e^{${fmt(shifted[0]/t,2)}} + e^{${fmt(shifted[1]/t,2)}} + e^{${fmt(shifted[2]/t,2)}}`;
+  const tex = `\\displaystyle p_i = \\frac{e^{z_i/\\tau}}{\\sum_j e^{z_j/\\tau}} \\;=\\; \\Big(\\,${num}\\,\\Big)\\Big/\\big(${den}\\big)`;
+  try{ katex.render(tex, formulaLive, {displayMode:true,throwOnError:false}); }
+  catch(_){ formulaLive.textContent = "p = (" + p.map(v=>fmt(v,3)).join(", ") + ")"; }
+}
+[z1,z2,z3,tau].forEach(el=>el.addEventListener("input", renderWidget));
+document.getElementById("lseBtn").onclick = ()=>{
+  appliedLSE = !appliedLSE;
+  toast(appliedLSE? "LSE 이동 ON — 막대는 그대로, 지수는 1로 제한됩니다." : "LSE 이동 OFF.");
+  if(appliedLSE){ unlock("stability"); }
+  renderWidget();
+};
+document.getElementById("resetWidget").onclick = ()=>{
+  z1.value=2.0; z2.value=1.0; z3.value=0.1; tau.value=1.0; appliedLSE=false; renderWidget();
+};
+/* tau 극단값 -> 업적 */
+tau.addEventListener("input", ()=>{
+  const t=+tau.value;
+  if(t<=0.1) unlock("temptamerLow");
+  if(t>=4.5) unlock("temptamerHigh");
+  if(unlocked("temptamerLow") && unlocked("temptamerHigh")) unlock("temptamer");
+});
+/* KaTeX 대기 */
+const kxReady = setInterval(()=>{ if(window.katex){ clearInterval(kxReady); renderWidget(); } }, 60);
+
+/* ============================================================
+   PRACTICE DRILLS  (>=15)
+   ============================================================ */
+const drills = [
+  /* ---- 계산 드릴 ---- */
+  {
+    id:"c1", tag:"계산",
+    prompt: "softmax([0, 1, 2]) ≈ ?  (3개의 숫자를 입력, 각 소수점 2자리)",
+    inputs: 3, kind:"triple",
+    target: softmax([0,1,2]),
+    explain: "LSE 이동 사용: max=2 빼기 → [-2,-1,0] → exp → [0.135, 0.368, 1] → /sum(1.503)."
+  },
+  {
+    id:"c2", tag:"계산",
+    prompt: "softmax([2, 2, 2]) = ?",
+    inputs: 3, kind:"triple",
+    target: [1/3,1/3,1/3],
+    explain: "모든 로짓이 같음 → 균등. 각 항목 = 1/K = 1/3 ≈ 0.333."
+  },
+  {
+    id:"c3", tag:"계산",
+    prompt: "softmax([3, 0]) ≈ ? (두 값)",
+    inputs: 2, kind:"triple",
+    target: softmax([3,0]),
+    explain: "exp([3,0]) = [20.09, 1] → /21.09 ≈ [0.953, 0.047]."
+  },
+  {
+    id:"c4", tag:"계산",
+    prompt: "τ=2일 때, softmax([2, 0]) ≈ ?",
+    inputs: 2, kind:"triple",
+    target: softmax([2,0],2),
+    explain: "Logits/τ = [1, 0]. exp = [2.718, 1] → [0.731, 0.269]. 높은 τ는 평평하게 만듭니다."
+  },
+  {
+    id:"c5", tag:"계산",
+    prompt: "softmax([100, 99]) ≈ ? (예, 큰 숫자 — 트릭을 사용하세요)",
+    inputs: 2, kind:"triple",
+    target: softmax([100,99]),
+    explain: "max=100 빼기 → [0,-1]. exp = [1, 0.368]. /1.368 → [0.731, 0.269]. softmax([1,0])과 같은 답 — 이동 불변성!"
+  },
+
+  /* ---- 공식 입력 ---- */
+  {
+    id:"f1", tag:"공식",
+    prompt: "Softmax 공식을 LaTeX로 입력하세요 (분자/합). e^{x_i}와 \\sum_j e^{x_j}를 사용하세요.",
+    kind:"latex", target:"e^{x_i}/\\sum_je^{x_j}",
+    altTargets:["e^{x_i}/\\sum_{j}e^{x_j}", "\\frac{e^{x_i}}{\\sum_je^{x_j}}", "\\frac{e^{x_i}}{\\sum_{j}e^{x_j}}"],
+    explain: "softmax(x)_i = e^{x_i} / Σ_j e^{x_j}."
+  },
+  {
+    id:"f2", tag:"공식",
+    prompt: "Log-softmax를 LaTeX로 입력하세요 (\\log\\sum_j e^{x_j} 사용).",
+    kind:"latex", target:"x_i-\\log\\sum_je^{x_j}",
+    altTargets:["x_i-\\log\\sum_{j}e^{x_j}","x_{i}-\\log\\sum_je^{x_j}","x_{i}-\\log\\sum_{j}e^{x_{j}}"],
+    explain: "log softmax(x)_i = x_i - log Σ_j e^{x_j}. LSE 항이 정규화 항입니다."
+  },
+  {
+    id:"f3", tag:"공식",
+    prompt: "온도 τ가 있는 softmax를 LaTeX로 (분자).",
+    kind:"latex", target:"e^{x_i/\\tau}/\\sum_je^{x_j/\\tau}",
+    altTargets:["\\frac{e^{x_i/\\tau}}{\\sum_je^{x_j/\\tau}}","e^{x_i/\\tau}/\\sum_{j}e^{x_j/\\tau}","\\frac{e^{x_{i}/\\tau}}{\\sum_{j}e^{x_{j}/\\tau}}"],
+    explain: "지수화하기 전에 각 로짓을 τ로 나눕니다."
+  },
+
+  /* ---- 속성 드릴 ---- */
+  {
+    id:"p1", tag:"속성",
+    prompt: "참 또는 거짓: 임의의 스칼라 c에 대해 softmax(x) == softmax(x + c). (참 또는 거짓을 입력한 다음 한 줄 이유를 추가하세요.)",
+    kind:"tfReason", target:"true",
+    explain: "참. 분자와 분모 모두 인수 e^c를 얻고 이는 상쇄됩니다 — 이동 불변성."
+  },
+  {
+    id:"p2", tag:"속성",
+    prompt: "참 또는 거짓: 임의의 양의 스칼라 c에 대해 softmax(x) == softmax(c·x).",
+    kind:"tf", target:"false",
+    explain: "거짓. 곱셈적 스케일링 = 역온도. c=1만 항등. c→∞는 뾰족해지고, c→0은 평평해집니다."
+  },
+  {
+    id:"p3", tag:"속성",
+    prompt: "참 또는 거짓: softmax의 모든 출력은 엄격히 (0, 1)에 있습니다.",
+    kind:"tf", target:"true",
+    explain: "참. exp는 엄격히 양이고 분모도 양이므로, 각 비율은 (0,1)에 있습니다 — 정확히 0이나 1이 되지 않습니다."
+  },
+  {
+    id:"p4", tag:"속성",
+    prompt: "참 또는 거짓: softmax 출력의 합은 1입니다.",
+    kind:"tf", target:"true",
+    explain: "구성에 의해 참 — 분모가 분자의 합과 같습니다."
+  },
+
+  /* ---- 트릭 드릴 ---- */
+  {
+    id:"t1", tag:"안정성",
+    prompt: "수치적 안정성을 위해 모든 로짓에서 어떤 상수를 빼야 합니까? (x의 함수로 입력)",
+    kind:"text", target:"max(x)",
+    altTargets:["max x","\\max(x)","max_i x_i","max_i(x_i)","max(x_i)"],
+    explain: "max(x)를 뺍니다. 가장 큰 지수가 e^0=1이 되어 오버플로하지 않습니다."
+  },
+  {
+    id:"t2", tag:"안정성",
+    prompt: "항등식 log Σ e^{x_j} = m + log Σ e^{x_j - m}의 이름.",
+    kind:"text", target:"log-sum-exp",
+    altTargets:["logsumexp","log sum exp","lse","log-sum-exp trick","log-sum-exp 트릭"],
+    explain: "Log-sum-exp (LSE). 이동된 형태가 수치적으로 안정한 형태입니다."
+  },
+
+  /* ---- 그래디언트 드릴 ---- */
+  {
+    id:"g1", tag:"그래디언트",
+    prompt: "Softmax + 교차 엔트로피 손실에 대해, ∂L/∂z_i = ?  (p_i와 y_i에 대해)",
+    kind:"text", target:"p_i - y_i",
+    altTargets:["p_i-y_i","pi-yi","p-y","p_{i}-y_{i}"],
+    explain: "예측 빼기 타겟. 벡터 형태: ∇L = p − y."
+  },
+  {
+    id:"g2", tag:"그래디언트",
+    prompt: "Softmax 야코비안: ∂p_i/∂z_j = ? (δ_{ij} 사용)",
+    kind:"text", target:"p_i(\\delta_{ij}-p_j)",
+    altTargets:["p_i(delta_{ij}-p_j)","p_i*(delta_{ij}-p_j)","p_i(\\delta_{ij}-p_j)","p_i (\\delta_{ij}-p_j)"],
+    explain: "p_i (δ_{ij} − p_j). 대각 항 p_i(1−p_i); 비대각 −p_i p_j."
+  },
+
+  /* ---- 어텐션 드릴 ---- */
+  {
+    id:"a1", tag:"어텐션",
+    prompt: "스케일된 닷-프로덕트 어텐션에서, softmax 전에 무엇을 √d_k로 나눕니까? (한 짧은 구절)",
+    kind:"text", target:"QK^T",
+    altTargets:["q k^t","qk^t","q*k^t","q k^\\top","qk^\\top","query·key^t"],
+    explain: "QK^T — 원시 쿼리-키 유사도. √d_k로 나누면 softmax가 민감한 영역에 머무릅니다."
+  },
+  /* ---- 온도 드릴 ---- */
+  {
+    id:"tm1", tag:"온도",
+    prompt: "τ → ∞일 때, softmax는 어떤 분포에 접근합니까? (한 단어)",
+    kind:"text", target:"uniform",
+    altTargets:["uniform distribution","1/k","flat","균등","균등분포"],
+    explain: "균등: 모든 z_i/τ → 0, 모든 분자가 같음."
+  }
+];
+
+/* render the drill host */
+const host = document.getElementById("drillHost");
+const dotsBox = document.getElementById("dots");
+
+function renderDots(){
+  dotsBox.innerHTML="";
+  drills.forEach((d,i)=>{
+    const el = document.createElement("div");
+    el.className="dot";
+    if(S.done[d.id]==="ok") el.classList.add("done");
+    else if(S.done[d.id]==="miss") el.classList.add("miss");
+    if(i===curIdx) el.classList.add("cur");
+    el.title = d.tag+" — "+ (S.done[d.id]||"미응답");
+    el.onclick = ()=>{ curIdx=i; renderDrill(); renderDots(); };
+    dotsBox.appendChild(el);
+  });
+}
+
+let curIdx = 0;
+function renderDrill(){
+  const d = drills[curIdx];
+  host.innerHTML="";
+  const card = document.createElement("div");
+  card.className = "card drillCard";
+  card.id = "drillCard";
+
+  const qbar = document.createElement("div");
+  qbar.className = "qbar";
+  qbar.innerHTML = `<span class="qnum">드릴 ${curIdx+1} / ${drills.length}</span><span class="qtag">${d.tag}</span>`;
+  card.appendChild(qbar);
+
+  const prompt = document.createElement("div");
+  prompt.className = "prompt"; prompt.innerHTML = d.prompt;
+  card.appendChild(prompt);
+
+  const row = document.createElement("div");
+  row.className = "answerRow";
+  card.appendChild(row);
+
+  let inputs=[]; let preview=null; let reason=null;
+
+  if(d.kind==="triple"){
+    const n = d.inputs;
+    for(let i=0;i<n;i++){
+      const ip = document.createElement("input");
+      ip.className="ti tri"; ip.placeholder = `p${i+1}`; ip.inputMode="decimal";
+      row.appendChild(ip); inputs.push(ip);
+    }
+  } else if(d.kind==="latex"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.style.minWidth="320px";
+    ip.placeholder="e^{x_i}/\\sum_j e^{x_j}";
+    row.appendChild(ip); inputs.push(ip);
+    preview = document.createElement("div");
+    preview.className="preview"; preview.textContent="(여기에 라이브 미리보기가 표시됩니다)";
+    card.appendChild(preview);
+    ip.addEventListener("input",()=>{
+      try{ katex.render(ip.value||"\\;", preview, {displayMode:true,throwOnError:false}); }
+      catch(_){ preview.textContent = ip.value; }
+    });
+  } else if(d.kind==="tf"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.placeholder="참 / 거짓";
+    row.appendChild(ip); inputs.push(ip);
+  } else if(d.kind==="tfReason"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.placeholder="참 / 거짓";
+    row.appendChild(ip); inputs.push(ip);
+    reason = document.createElement("textarea");
+    reason.className="ti"; reason.placeholder="(선택사항) 한 줄 이유 — 콤보 보너스를 위해 최소 4자";
+    card.appendChild(reason);
+  } else { /* text */
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.style.minWidth="280px";
+    ip.placeholder="답";
+    row.appendChild(ip); inputs.push(ip);
+  }
+
+  const fb = document.createElement("div"); fb.className="feedback"; card.appendChild(fb);
+  const nav = document.createElement("div"); nav.className="nav";
+  const submit = document.createElement("button"); submit.className="btn primary"; submit.textContent="확인";
+  const next   = document.createElement("button"); next.className="btn"; next.textContent="다음 →";
+  const prev   = document.createElement("button"); prev.className="btn ghost"; prev.textContent="← 이전";
+  const reveal = document.createElement("button"); reveal.className="btn ghost"; reveal.textContent="공개";
+  const left = document.createElement("div"); left.append(prev);
+  const right = document.createElement("div"); right.append(reveal,submit,next);
+  nav.append(left,right); card.appendChild(nav);
+
+  prev.onclick = ()=>{ curIdx=(curIdx-1+drills.length)%drills.length; renderDrill(); renderDots(); };
+  next.onclick = ()=>{ curIdx=(curIdx+1)%drills.length; renderDrill(); renderDots(); };
+  reveal.onclick = ()=>{ fb.className="feedback"; fb.innerHTML = "<i>"+d.explain+"</i>"; };
+
+  function check(){
+    let ok=false;
+    if(d.kind==="triple"){
+      const vals = inputs.map(x=>parseNum(x.value));
+      if(vals.some(v=>v===null)){ fb.className="feedback no"; fb.textContent="각 칸에 숫자를 입력하세요."; return; }
+      ok = vals.length===d.target.length && vals.every((v,i)=>near(v,d.target[i],0.01));
+    } else if(d.kind==="latex"){
+      const u = inputs[0].value;
+      ok = eqTex(u,d.target) || (d.altTargets||[]).some(t=>eqTex(u,t));
+    } else if(d.kind==="tf"){
+      const u = normSpaces(inputs[0].value);
+      ok = (u===d.target) || (u==="t"&&d.target==="true") || (u==="f"&&d.target==="false") || (u==="yes"&&d.target==="true") || (u==="no"&&d.target==="false") || (u==="참"&&d.target==="true") || (u==="거짓"&&d.target==="false");
+    } else if(d.kind==="tfReason"){
+      const u = normSpaces(inputs[0].value);
+      const baseOK = (u===d.target)||(u==="t"&&d.target==="true")||(u==="f"&&d.target==="false")||(u==="참"&&d.target==="true")||(u==="거짓"&&d.target==="false");
+      ok = baseOK;
+      if(ok && reason && reason.value.trim().length>=4){ /* 작은 보너스 */ S.combo++; addXP(3); toast("이유 보너스 +3 XP"); }
+    } else { /* text */
+      const u = normSpaces(inputs[0].value);
+      const t = normSpaces(d.target);
+      ok = (u===t) || (d.altTargets||[]).some(a=>normSpaces(a)===u);
+    }
+    S.attempts++;
+    if(ok){
+      S.correct++; S.combo++; S.bestCombo = Math.max(S.bestCombo,S.combo);
+      const base = (d.tag==="계산"||d.tag==="그래디언트") ? 14 : 10;
+      const bonus = Math.min(20, Math.floor(S.combo/3)*3);
+      addXP(base+bonus);
+      S.done[d.id]="ok";
+      fb.className="feedback ok"; fb.textContent = `정답  +${base+bonus} XP  · 콤보 ×${S.combo}`;
+      pulse(card); confetti(60);
+      checkProgressAchievements();
+    } else {
+      S.combo=0;
+      S.done[d.id]="miss";
+      fb.className="feedback no"; fb.textContent="아쉽습니다. 풀이를 보려면 공개를 시도하세요.";
+      shake(card);
+    }
+    saveState(); refreshHUD(); renderDots();
+  }
+
+  submit.onclick = check;
+  inputs.forEach(ip=>{
+    ip.addEventListener("keydown",ev=>{
+      if(ev.key==="Enter"){ ev.preventDefault(); check(); }
+      else if(ev.key==="ArrowRight" && (ev.metaKey||ev.ctrlKey)){ next.click(); }
+    });
+  });
+  if(reason){
+    reason.addEventListener("keydown",ev=>{ if(ev.key==="Enter" && (ev.metaKey||ev.ctrlKey)){ check(); } });
+  }
+  host.appendChild(card);
+  setTimeout(()=>inputs[0]&&inputs[0].focus(), 30);
+}
+renderDrill(); renderDots();
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+const ACHIEVEMENTS = [
+  {id:"first",       em:"♟", t:"첫걸음",         d:"첫 드릴을 정확히 답하세요."},
+  {id:"probabilist", em:"π", t:"확률론자",        d:"모든 계산 드릴(c1–c5)을 풀어내세요."},
+  {id:"latexlord",   em:"∑", t:"LaTeX의 군주",    d:"세 가지 softmax 공식을 모두 정확히 입력하세요."},
+  {id:"propguru",    em:"⊨", t:"속성의 달인",     d:"모든 참/거짓 드릴을 맞히세요."},
+  {id:"stability",   em:"⚖", t:"안정성의 영웅",   d:"위젯에서 log-sum-exp 트릭을 적용하세요."},
+  {id:"temptamerLow",em:"❄", t:"동결",           d:"τ를 최솟값으로 밀어보세요."},
+  {id:"temptamerHigh",em:"🔥",t:"끓는점",         d:"τ를 최댓값으로 밀어보세요."},
+  {id:"temptamer",   em:"🌡", t:"온도 조련사",    d:"τ의 양 극단을 모두 방문하세요."},
+  {id:"combo10",     em:"⚡", t:"연속 ×10",       d:"콤보 10에 도달하세요."},
+  {id:"perfectish",  em:"♛", t:"거의 왕족",       d:"12개의 드릴을 정확히 풀어내세요."},
+  {id:"bossSlayer",  em:"☄", t:"분포 보스",       d:"보스 라운드에서 살아남으세요."},
+];
+function unlocked(id){ return !!S.ach[id]; }
+function unlock(id){
+  if(S.ach[id]) return;
+  S.ach[id] = true; saveState();
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  if(a){ toast(`트로피: ${a.em} ${a.t}`); confetti(40); }
+  renderAchievements();
+}
+function renderAchievements(){
+  const g = document.getElementById("achGrid"); g.innerHTML="";
+  for(const a of ACHIEVEMENTS){
+    const el = document.createElement("div");
+    el.className = "ach" + (unlocked(a.id)?" unlocked":"");
+    el.innerHTML = `<div class="em">${a.em}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div>`;
+    g.appendChild(el);
+  }
+}
+renderAchievements();
+
+function checkProgressAchievements(){
+  if(S.correct>=1) unlock("first");
+  if(["c1","c2","c3","c4","c5"].every(k=>S.done[k]==="ok")) unlock("probabilist");
+  if(["f1","f2","f3"].every(k=>S.done[k]==="ok")) unlock("latexlord");
+  if(["p1","p2","p3","p4"].every(k=>S.done[k]==="ok")) unlock("propguru");
+  if(S.combo>=10) unlock("combo10");
+  const okCount = Object.values(S.done).filter(v=>v==="ok").length;
+  if(okCount>=12) unlock("perfectish");
+}
+
+/* ============================================================
+   BOSS ROUND
+   ============================================================ */
+const bossBank = [
+  {q:"softmax([0,0,0])_1 = ?  (소수)", ans:"0.333", tol:0.01},
+  {q:"τ→0⁺일 때, softmax는 ___이 됩니다 (한 단어)", ans:"argmax", alts:["one-hot","onehot","arg max","원-핫"]},
+  {q:"τ→∞일 때, softmax는 ___이 됩니다 (한 단어)", ans:"uniform", alts:["flat","1/k","균등"]},
+  {q:"안정성을 위해 ___을 빼세요.", ans:"max", alts:["max(x)","maximum","\\max","최댓값"]},
+  {q:"Softmax+CE에 대한 ∂L/∂z_i = ?", ans:"p_i-y_i", alts:["pi-yi","p-y","p_{i}-y_{i}"]},
+  {q:"softmax([1,2])_2 ≈ ? (소수점 2자리)", ans:"0.73", tol:0.02},
+  {q:"합은 ___?", ans:"1", alts:["one","일"]},
+  {q:"Softmax 성분의 출력 범위?", ans:"(0,1)", alts:["0,1","(0, 1)","strictly between 0 and 1","strictly 0 to 1","엄격히 0과 1 사이"]},
+];
+const bossTimerEl = document.getElementById("bossTimer");
+const bossQEl = document.getElementById("bossQ");
+const bossAEl = document.getElementById("bossA");
+const bossScoreEl = document.getElementById("bossScore");
+const bossStartBtn = document.getElementById("bossStart");
+let bossIdx=0, bossScore=0, bossTimer=null, bossActive=false;
+
+function bossNext(){
+  if(bossIdx>=bossBank.length){ bossEnd(); return; }
+  bossQEl.textContent = bossBank[bossIdx].q;
+  bossAEl.value=""; bossAEl.focus();
+}
+function bossSubmit(){
+  if(!bossActive) return;
+  const cur = bossBank[bossIdx];
+  const u = bossAEl.value.trim();
+  let ok=false;
+  if(cur.tol!=null){ const v=parseNum(u); ok = v!==null && near(v,parseFloat(cur.ans),cur.tol); }
+  else { const n=normSpaces(u); ok = n===normSpaces(cur.ans) || (cur.alts||[]).some(a=>normSpaces(a)===n); }
+  if(ok){ bossScore++; addXP(15); confetti(30); pulse(document.getElementById("bossBox")); }
+  else { S.combo=0; saveState(); refreshHUD(); shake(document.getElementById("bossBox")); }
+  bossIdx++;
+  bossScoreEl.textContent = `점수: ${bossScore} / ${bossBank.length}`;
+  bossNext();
+}
+bossAEl.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); bossSubmit(); } });
+
+function bossEnd(){
+  bossActive=false; clearInterval(bossTimer);
+  bossQEl.textContent = `보스 처치. ${bossScore}/${bossBank.length} 정답.`;
+  if(bossScore>=Math.ceil(bossBank.length*0.6)) unlock("bossSlayer");
+  S.bossDone=true; saveState();
+}
+bossStartBtn.onclick = ()=>{
+  bossIdx=0; bossScore=0; bossActive=true;
+  bossScoreEl.textContent = `점수: 0 / ${bossBank.length}`;
+  let t=60; bossTimerEl.textContent=t;
+  clearInterval(bossTimer);
+  bossTimer = setInterval(()=>{
+    t--; bossTimerEl.textContent=t;
+    if(t<=0){ bossEnd(); }
+  },1000);
+  bossNext();
+};
+
+/* ============================================================
+   INIT
+   ============================================================ */
+refreshHUD();
+</script>
+</body>
+</html>

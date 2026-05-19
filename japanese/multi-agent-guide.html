@@ -1,0 +1,1237 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>マルチエージェント // Claude Codeのフィールドマニュアル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0a0d0b;
+    --bg-2:      #0f130f;
+    --ink:       #d6e1d3;
+    --ink-dim:   #8a988a;
+    --rule:      #1d241d;
+    --rule-2:    #2a342a;
+    --phosphor:  #5cffae;
+    --phosphor-deep: #18b072;
+    --amber:     #ffb547;
+    --crimson:   #ff5e6c;
+    --paper:     #f3eedf;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, rgba(92,255,174,0.06), transparent 55%),
+      radial-gradient(ellipse at 110% 30%, rgba(255,181,71,0.04), transparent 50%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 2px,
+        rgba(255,255,255,0.012) 2px,
+        rgba(255,255,255,0.012) 3px
+      );
+  }
+
+  ::selection { background: var(--phosphor); color: var(--bg); }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    opacity: 0.45; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.45 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* ───── layout ───── */
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 36px 96px;
+    position: relative;
+  }
+
+  /* ───── masthead ───── */
+  .masthead {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .masthead .meta {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .masthead .meta.right { text-align: right; }
+  .masthead .meta strong { color: var(--phosphor); font-weight: 500; }
+  .wordmark {
+    text-align: center;
+    line-height: 1;
+  }
+  .wordmark .kicker {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .wordmark h1 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-weight: 300;
+    font-size: clamp(54px, 8vw, 110px);
+    margin: 0;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+  }
+  .wordmark h1 em {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--phosphor);
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .wordmark .subline {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+  }
+
+  /* ───── hero terminal ───── */
+  .hero {
+    margin: 36px 0 56px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 28px;
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+
+  .terminal {
+    background: var(--bg-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 0 0 1px rgba(92,255,174,0.04) inset,
+      0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .terminal::before {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, rgba(92,255,174,0.03) 0 1px, transparent 1px 3px
+    );
+    opacity: 0.7;
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  }
+  .term-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--rule-2);
+  }
+  .term-dot.live { background: var(--phosphor); box-shadow: 0 0 8px var(--phosphor); }
+  .term-title {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+  .term-body {
+    padding: 22px 24px 26px;
+    font-size: 13px;
+    line-height: 1.7;
+    min-height: 280px;
+  }
+  .term-body .prompt { color: var(--phosphor); }
+  .term-body .out { color: var(--ink); }
+  .term-body .dim { color: var(--ink-dim); }
+  .term-body .amber { color: var(--amber); }
+  .term-body .crimson { color: var(--crimson); }
+  .term-body .bar {
+    color: var(--phosphor);
+    text-shadow: 0 0 8px rgba(92,255,174,0.4);
+  }
+  .cursor {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--phosphor);
+    vertical-align: -2px;
+    margin-left: 2px;
+    animation: blink 1.05s steps(2) infinite;
+    box-shadow: 0 0 6px var(--phosphor);
+  }
+  @keyframes blink { to { opacity: 0; } }
+
+  .lede {
+    align-self: end;
+    padding: 0 8px;
+  }
+  .lede .drop {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(22px, 2.4vw, 30px);
+    line-height: 1.25;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+  }
+  .lede .drop em { color: var(--amber); font-style: italic; }
+  .lede p {
+    color: var(--ink-dim);
+    font-size: 13px;
+    max-width: 44ch;
+  }
+  .lede .stamp {
+    margin-top: 22px;
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .stamp .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 6px var(--phosphor);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ───── section ruler ───── */
+  .ruler {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    margin: 64px 0 28px;
+    color: var(--ink-dim);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  .ruler hr {
+    border: none;
+    border-top: 1px dashed var(--rule-2);
+    margin: 0;
+  }
+  .ruler .num {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--amber);
+    text-transform: none;
+  }
+
+  /* ───── tabs ───── */
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule-2);
+    border-bottom: 1px solid var(--rule-2);
+  }
+  @media (max-width: 760px) { .tabs { grid-template-columns: repeat(2, 1fr); } }
+
+  .tab {
+    appearance: none;
+    background: transparent;
+    color: var(--ink-dim);
+    border: none;
+    border-right: 1px solid var(--rule-2);
+    text-align: left;
+    padding: 18px 18px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.25s ease, color 0.25s ease;
+    position: relative;
+  }
+  .tab:last-child { border-right: none; }
+  .tab .num {
+    display: block;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 28px;
+    color: var(--ink-dim);
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    transition: color 0.25s ease;
+  }
+  .tab .label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .tab .desc {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .tab:hover { background: rgba(92,255,174,0.04); color: var(--ink); }
+  .tab.active {
+    color: var(--ink);
+    background: linear-gradient(180deg, rgba(92,255,174,0.06), transparent);
+  }
+  .tab.active .num { color: var(--phosphor); }
+  .tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--phosphor);
+    box-shadow: 0 0 14px var(--phosphor);
+  }
+
+  /* ───── panels ───── */
+  .panels { margin-top: 32px; }
+  .panel {
+    display: none;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 32px;
+    animation: panelin 0.45s ease;
+  }
+  .panel.active { display: grid; }
+  @media (max-width: 900px) { .panel { grid-template-columns: 1fr; } }
+  @keyframes panelin {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .copy-card {
+    padding: 4px 4px 0;
+  }
+  .copy-card h2 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-weight: 400;
+    font-size: clamp(34px, 4vw, 52px);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .copy-card h2 em {
+    font-style: italic;
+    color: var(--phosphor);
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .copy-card .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 14px;
+  }
+  .copy-card p {
+    color: var(--ink);
+    font-size: 14px;
+    max-width: 56ch;
+  }
+  .copy-card p em {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .copy-card .pull {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--amber);
+    border-left: 2px solid var(--amber);
+    padding-left: 14px;
+    margin: 22px 0;
+    max-width: 50ch;
+  }
+  .meta-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--rule-2);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .meta-row span strong {
+    color: var(--phosphor);
+    font-weight: 500;
+  }
+
+  /* code block */
+  .codeblock {
+    position: relative;
+    background: var(--bg-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .code-head .lang { color: var(--phosphor); }
+  .copy-btn {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule-2);
+    color: var(--ink-dim);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+  }
+  .copy-btn:hover { color: var(--phosphor); border-color: var(--phosphor); }
+  .copy-btn.copied { color: var(--bg); background: var(--phosphor); border-color: var(--phosphor); }
+  pre.code {
+    margin: 0;
+    padding: 18px 20px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+  .tk-c  { color: var(--ink-dim); font-style: italic; }   /* comment */
+  .tk-k  { color: var(--phosphor); }                       /* keyword */
+  .tk-s  { color: var(--amber); }                          /* string */
+  .tk-p  { color: var(--crimson); }                        /* punct */
+  .tk-y  { color: #b6e8c4; }                               /* yaml key */
+  .tk-d  { color: var(--ink); }                            /* default */
+
+  /* ───── simulator ───── */
+  .sim-wrap {
+    margin-top: 28px;
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% -20%, rgba(92,255,174,0.05), transparent 60%),
+      var(--bg-2);
+  }
+  .sim-bar {
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .sim-bar .title {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .sim-bar .title em { color: var(--phosphor); }
+  .sim-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sim-btn {
+    appearance: none;
+    border: 1px solid var(--rule-2);
+    background: transparent;
+    color: var(--ink);
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .sim-btn.primary {
+    border-color: var(--phosphor);
+    color: var(--phosphor);
+  }
+  .sim-btn.primary:hover {
+    background: var(--phosphor);
+    color: var(--bg);
+    box-shadow: 0 0 18px rgba(92,255,174,0.4);
+  }
+  .sim-btn.ghost:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .sim-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .sim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    padding: 18px;
+    min-height: 220px;
+  }
+  .sim-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--ink-dim);
+    padding: 60px 20px;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 18px;
+  }
+  .sim-empty span {
+    display: block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-top: 8px;
+    font-style: normal;
+  }
+
+  .agent-card {
+    border: 1px solid var(--rule-2);
+    border-radius: 3px;
+    background: var(--bg);
+    padding: 12px 14px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    position: relative;
+    overflow: hidden;
+    animation: cardin 0.35s ease;
+  }
+  @keyframes cardin {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .agent-card .head {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px dashed var(--rule-2);
+    padding-bottom: 6px; margin-bottom: 8px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .agent-card .head .name { color: var(--phosphor); }
+  .agent-card .head.done .name { color: var(--amber); }
+  .agent-card .head.error .name { color: var(--crimson); }
+  .agent-card .head .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .agent-card .head .badge .blob {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 8px var(--phosphor);
+    animation: pulse 1s infinite;
+  }
+  .agent-card.done .blob { background: var(--amber); animation: none; box-shadow: none; }
+  .agent-card .stream {
+    color: var(--ink);
+    min-height: 60px;
+  }
+  .agent-card .stream .l { display: block; }
+  .agent-card .stream .l.p { color: var(--phosphor); }
+  .agent-card .stream .l.d { color: var(--ink-dim); }
+  .agent-card .stream .l.a { color: var(--amber); }
+  .agent-card .progress {
+    margin-top: 8px;
+    height: 2px;
+    background: var(--rule-2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .agent-card .progress > i {
+    display: block; height: 100%;
+    background: var(--phosphor);
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--phosphor);
+  }
+  .agent-card.done .progress > i { background: var(--amber); box-shadow: none; }
+
+  /* ───── comparison table ───── */
+  .compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 12.5px;
+  }
+  .compare th, .compare td {
+    text-align: left;
+    padding: 14px 14px;
+    border-bottom: 1px dashed var(--rule-2);
+    vertical-align: top;
+  }
+  .compare th {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--amber);
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .compare td:first-child {
+    color: var(--phosphor);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .compare tr:hover td { background: rgba(92,255,174,0.03); }
+
+  /* ───── footer ───── */
+  footer.foot {
+    margin-top: 80px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  footer.foot .ascii {
+    font-size: 10px;
+    line-height: 1.1;
+    color: var(--phosphor);
+    text-shadow: 0 0 8px rgba(92,255,174,0.3);
+    white-space: pre;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  footer.foot a { color: var(--ink); text-decoration: none; border-bottom: 1px dashed var(--rule-2); }
+  footer.foot a:hover { color: var(--phosphor); border-color: var(--phosphor); }
+
+  /* ───── small bits ───── */
+  .kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid var(--rule-2);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--phosphor);
+    background: var(--bg-2);
+  }
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="shell">
+
+  <!-- ═══════════ MASTHEAD ═══════════ -->
+  <header class="masthead">
+    <div class="meta">
+      VOL.&nbsp;01 &nbsp;/&nbsp; <strong>2026.05</strong><br/>
+      せっかちなオペレーターのためのフィールドマニュアル
+    </div>
+    <div class="wordmark">
+      <div class="kicker">— 起動 / 連携 / マージ —</div>
+      <h1>マルチ&shy;<em>エージェント</em>。</h1>
+      <div class="subline">Claude Codeを<em>並列</em>で動かす4つの方法。</div>
+    </div>
+    <div class="meta right">
+      FILE:&nbsp;<strong>multi-agent-guide.html</strong><br/>
+      RUNTIME:&nbsp;claude-code/cli
+    </div>
+  </header>
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <section class="hero">
+    <div class="terminal" aria-hidden="true">
+      <div class="term-bar">
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot live"></span>
+        <span class="term-title">~/repo — claude --multi-agent</span>
+      </div>
+      <div class="term-body" id="bootTerm"></div>
+    </div>
+
+    <div class="lede">
+      <p class="drop">
+        Claudeのウィンドウ1つで既に小さなチームです。<em>4つのウィンドウ</em>はスタジオです。
+        このガイドはそのチームが取り得る4つの形 — そしてどの形がいつ
+        正解なのかを示します。
+      </p>
+      <p>
+        人数ではなく協調方法で選びます。サイドタスク &rarr; サブエージェント。
+        独立 &rarr; エージェントビュー。協調 &rarr; チーム。完全な分離
+        &rarr; ターミナルごとのワークツリー。
+      </p>
+      <span class="stamp"><span class="pulse"></span>ライブ · インタラクティブ</span>
+    </div>
+  </section>
+
+  <!-- ═══════════ APPROACHES ═══════════ -->
+  <div class="ruler">
+    <span class="num">i.</span>
+    <hr/>
+    <span>4つのアプローチ · 1つ選ぶか重ねるか</span>
+  </div>
+
+  <nav class="tabs" id="tabs" role="tablist">
+    <button class="tab active" role="tab" data-panel="p-sub">
+      <span class="num">01</span>
+      <span class="label">サブエージェント</span>
+      <span class="desc">委譲されたサイドタスク</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-view">
+      <span class="num">02</span>
+      <span class="label">エージェントビュー</span>
+      <span class="desc">セッションのダッシュボード</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-team">
+      <span class="num">03</span>
+      <span class="label">エージェントチーム</span>
+      <span class="desc">協調するワーカー</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-term">
+      <span class="num">04</span>
+      <span class="label">マルチターミナル</span>
+      <span class="desc">タブとワークツリー</span>
+    </button>
+  </nav>
+
+  <div class="panels">
+
+    <!-- ───── 01 SUB-AGENTS ───── -->
+    <section id="p-sub" class="panel active" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">アプローチ 01 · セッション内委譲</div>
+        <h2>サブ<em>エージェント</em>。</h2>
+        <p>
+          <em>独自のコンテキストウィンドウ</em>で動作する専門ワーカー。集中したタスクを
+          完了させ、要約を呼び出し元のセッションに返します。メインスレッドを
+          きれいに保つために使います — 調査、検証、探索。
+        </p>
+        <div class="pull">
+          「ポイントは別のエージェントを増やすことではない。<em>メイン</em>の
+          会話を散らかさないことが目的だ。」
+        </div>
+        <p>
+          <span class="kbd">.claude/agents/</span>配下のMarkdownファイルとして定義します。
+          各エージェントは独自のシステムプロンプト、ツール許可リスト、(必要なら)
+          より小さなモデルを持つので作業が安く済みます。
+        </p>
+        <div class="meta-row">
+          <span>コンテキスト · <strong>分離</strong></span>
+          <span>並列 · <strong>はい</strong></span>
+          <span>ファイル衝突 · <strong>共有CWD</strong></span>
+          <span>適している · <strong>調査、監査</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">.claude/agents/researcher.md</span>
+            <button class="copy-btn" data-copy="sub">コピー</button>
+          </div>
+<pre class="code" id="code-sub"><span class="tk-p">---</span>
+<span class="tk-y">name</span><span class="tk-p">:</span> <span class="tk-d">Researcher</span>
+<span class="tk-y">description</span><span class="tk-p">:</span> <span class="tk-d">先行研究を調査し、出典を引用する</span>
+<span class="tk-y">model</span><span class="tk-p">:</span> <span class="tk-d">haiku</span>
+<span class="tk-y">tools</span><span class="tk-p">:</span>
+  <span class="tk-p">-</span> <span class="tk-d">bash</span>
+  <span class="tk-p">-</span> <span class="tk-d">read</span>
+  <span class="tk-p">-</span> <span class="tk-d">webfetch</span>
+<span class="tk-p">---</span>
+
+<span class="tk-c"># あなたは熟練したリサーチャーです。</span>
+<span class="tk-c"># 引用を箇条書きで返してください。</span>
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">プロンプト · メインセッション</span>
+            <button class="copy-btn" data-copy="sub2">コピー</button>
+          </div>
+<pre class="code" id="code-sub2"><span class="tk-c">$ /agents</span>
+<span class="tk-c">  → 定義を管理</span>
+
+<span class="tk-c">$ @Researcherにレートリミットの RFC を調査して要約させて。</span>
+<span class="tk-k">→</span> <span class="tk-d">分離コンテキストでResearcherを起動中…</span>
+<span class="tk-k">←</span> <span class="tk-s">"3つの出典を発見、notes/rfc-rate-limit.md参照"</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 02 AGENT VIEW ───── -->
+    <section id="p-view" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">アプローチ 02 · バックグラウンドダッシュボード</div>
+        <h2>エージェント<em>ビュー</em>。</h2>
+        <p>
+          独立したバックグラウンドセッションのダッシュボード。プロンプトを送信し、
+          離れて、後で出力を覗きます。各行が独立したプロセスで、
+          ターミナルを閉じても残ります。
+        </p>
+        <div class="pull">
+          「投げて後で確認。<em>5つの小さな仕事</em>と
+          脳1つしかない時に便利。」
+        </div>
+        <p>
+          <span class="kbd">claude agents</span>で開きます。ダッシュボード内では、
+          <span class="kbd">Space</span>で覗き見、<span class="kbd">Enter</span>でアタッチ、
+          <span class="kbd">←</span>でデタッチします。
+        </p>
+        <div class="meta-row">
+          <span>コンテキスト · <strong>セッションごと</strong></span>
+          <span>協調 · <strong>あなた</strong></span>
+          <span>永続性 · <strong>閉じても残る</strong></span>
+          <span>適している · <strong>並列雑務</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">shell</span>
+            <button class="copy-btn" data-copy="view">コピー</button>
+          </div>
+<pre class="code" id="code-view"><span class="tk-c"># バックグラウンドセッションを送信</span>
+<span class="tk-k">$</span> claude --bg <span class="tk-s">"不安定なe2eテストを調査"</span>
+
+<span class="tk-c"># カスタムエージェントで送信</span>
+<span class="tk-k">$</span> claude --agent code-reviewer --bg <span class="tk-s">"PR #1234をレビュー"</span>
+
+<span class="tk-c"># ダッシュボードを開く</span>
+<span class="tk-k">$</span> claude agents
+
+<span class="tk-c">┌─ active ───────────────────────────┐</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ flaky-e2e        running   2m 14s</span> <span class="tk-c">│</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ pr-1234-review   running     38s</span> <span class="tk-c">│</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ docs-cleanup     done      11m 02s</span> <span class="tk-c">│</span>
+<span class="tk-c">└────────────────────────────────────┘</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 03 AGENT TEAMS ───── -->
+    <section id="p-team" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">アプローチ 03 · 実験的 · 協調型</div>
+        <h2>エージェント<em>チーム</em>。</h2>
+        <p>
+          複数のセッションが<em>同じ目標</em>に向かって、共有タスクリスト、
+          エージェント間メッセージ、作業を統括するリードと共に動きます。
+          ワーカープールというよりスタジオに近いです。
+        </p>
+        <div class="pull">
+          「セキュリティ担当、パフォーマンス担当、テスト担当を1人ずつ —
+          彼らはお互いに<em>会話</em>する。」
+        </div>
+        <p>
+          実験的でデフォルトでは無効です。
+          <span class="kbd">settings.json</span>で有効化し、Claudeに目標のための
+          チームを編成するように依頼します。
+        </p>
+        <div class="meta-row">
+          <span>コンテキスト · <strong>メンバーごと</strong></span>
+          <span>協調 · <strong>組み込み</strong></span>
+          <span>ステータス · <strong>実験的</strong></span>
+          <span>適している · <strong>多軸レビュー</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">settings.json</span>
+            <button class="copy-btn" data-copy="team">コピー</button>
+          </div>
+<pre class="code" id="code-team">{
+  <span class="tk-y">"env"</span><span class="tk-p">:</span> {
+    <span class="tk-y">"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"</span><span class="tk-p">:</span> <span class="tk-s">"1"</span>
+  }
+}
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">プロンプト</span>
+            <button class="copy-btn" data-copy="team2">コピー</button>
+          </div>
+<pre class="code" id="code-team2"><span class="tk-c">$ PR #142レビューのためのチームを編成。</span>
+<span class="tk-c">  並列で動く3人のレビュアー:</span>
+<span class="tk-c">    1. security  — 認証、入力、シークレット</span>
+<span class="tk-c">    2. perf     — ホットパス、アロケーション、クエリ</span>
+<span class="tk-c">    3. tests    — カバレッジ、不安定性、モック</span>
+<span class="tk-c">  リードが集約して1つのレビューを投稿。</span>
+
+<span class="tk-k">→</span> <span class="tk-d">team:r142 が3人のメンバーで起動</span>
+<span class="tk-k">→</span> <span class="tk-d">共有タスクリスト作成 (12アイテム)</span>
+<span class="tk-k">←</span> <span class="tk-s">統合レビューを #142 に投稿しました</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 04 MULTI-TERMINAL ───── -->
+    <section id="p-term" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">アプローチ 04 · シンプルなやつ · 強く推奨</div>
+        <h2>たくさんの<em>ターミナル</em>。</h2>
+        <p>
+          別のターミナルタブを開きます。<span class="kbd">claude</span>を実行。完了 —
+          エージェントが2つになりました。これを<em>git ワークツリー</em>と組み合わせると
+          真の分離が得られます: 各エージェントが独自のブランチとワーキングツリーを持ち、
+          編集の衝突がありません。
+        </p>
+        <div class="pull">
+          「最もきれいなパターンは、最も間抜けなパターンでもある: <em>もっとタブを</em>。」
+        </div>
+        <p>
+          タスクが長時間で無関係で、各エージェントが何をしているか
+          完全に把握したいときに最適です。完了後はPRでマージします。
+        </p>
+        <div class="meta-row">
+          <span>セットアップ · <strong>ゼロ</strong></span>
+          <span>分離 · <strong>完全 (ワークツリー)</strong></span>
+          <span>可視性 · <strong>完全</strong></span>
+          <span>適している · <strong>並列の機能開発</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">shell · エージェントごとのワークツリー</span>
+            <button class="copy-btn" data-copy="term">コピー</button>
+          </div>
+<pre class="code" id="code-term"><span class="tk-c"># メインリポジトリから</span>
+<span class="tk-k">$</span> git worktree add ../repo-feat-a -b feat-a
+<span class="tk-k">$</span> git worktree add ../repo-feat-b -b feat-b
+
+<span class="tk-c"># ターミナル 1 — 機能 A</span>
+<span class="tk-k">$</span> cd ../repo-feat-a &amp;&amp; claude
+
+<span class="tk-c"># ターミナル 2 — 機能 B</span>
+<span class="tk-k">$</span> cd ../repo-feat-b &amp;&amp; claude
+
+<span class="tk-c"># 後でPRでマージ ─ 衝突なし</span>
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">tmux · ペイン分割版</span>
+            <button class="copy-btn" data-copy="term2">コピー</button>
+          </div>
+<pre class="code" id="code-term2"><span class="tk-k">$</span> tmux new -s squad
+<span class="tk-c">  ctrl-b "       水平分割</span>
+<span class="tk-c">  ctrl-b %       垂直分割</span>
+<span class="tk-c">  ctrl-b o       ペイン切り替え</span>
+
+<span class="tk-c"># 4ペイン · 4ワークツリー · 4 claude</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ═══════════ SIMULATOR ═══════════ -->
+  <div class="ruler">
+    <span class="num">ii.</span>
+    <hr/>
+    <span>シミュレーター · 並列エージェントを起動</span>
+  </div>
+
+  <div class="sim-wrap">
+    <div class="sim-bar">
+      <div class="title"><em>ブラウザ内</em>の小さなスタジオ</div>
+      <div class="sim-controls">
+        <button class="sim-btn primary" id="spawnBtn">+ エージェント起動</button>
+        <button class="sim-btn ghost" id="spawnAllBtn">+ 4つ起動</button>
+        <button class="sim-btn ghost" id="clearBtn">クリア</button>
+      </div>
+    </div>
+    <div class="sim-grid" id="simGrid">
+      <div class="sim-empty" id="simEmpty">
+        まだエージェントなし。
+        <span>&nbsp;+&nbsp; エージェント起動 &nbsp;を押して開始&nbsp;</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ COMPARE ═══════════ -->
+  <div class="ruler">
+    <span class="num">iii.</span>
+    <hr/>
+    <span>どれをいつ</span>
+  </div>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th style="width:18%">アプローチ</th>
+        <th>通信</th>
+        <th>分離</th>
+        <th>最適な用途</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>サブエージェント</td>
+        <td>呼び出し元への要約</td>
+        <td>独自コンテキスト · 共有CWD</td>
+        <td>調査、検証、探索</td>
+      </tr>
+      <tr>
+        <td>エージェントビュー</td>
+        <td>あなたが仲介</td>
+        <td>独自コンテキスト · 独自プロセス</td>
+        <td>独立した送信&確認タスク</td>
+      </tr>
+      <tr>
+        <td>エージェントチーム</td>
+        <td>直接メッセージング · 共有リスト</td>
+        <td>独自コンテキスト · 共有目標</td>
+        <td>多軸レビュー、複雑なリファクタリング</td>
+      </tr>
+      <tr>
+        <td>マルチターミナル</td>
+        <td>なし — あなたが配線</td>
+        <td>完全 · セッションごとのワークツリー</td>
+        <td>長時間の並列機能開発</td>
+      </tr>
+      <tr>
+        <td>/batch (ワークツリー)</td>
+        <td>PRレビュー経由</td>
+        <td>完全 · 5〜30ワークツリー</td>
+        <td>リポジトリ全体のマイグレーション</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="foot">
+    <div>
+      ファイル終端 · <strong style="color:var(--phosphor)">eof</strong> &nbsp;//&nbsp;
+      メインを清潔に保ち、残りは並列展開
+    </div>
+    <pre class="ascii">  ┌─┐ ┌─┐ ┌─┐ ┌─┐
+  │·│ │·│ │·│ │·│
+  └─┘ └─┘ └─┘ └─┘
+   01  02  03  04 </pre>
+    <div>
+      ドキュメント ·
+      <a href="https://code.claude.com/docs/en/agents.md" target="_blank" rel="noopener">code.claude.com/agents</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  /* ─────────── boot terminal ─────────── */
+  (function bootTerminal () {
+    const target = document.getElementById('bootTerm');
+    const lines = [
+      { d: 0,    cls: 'prompt', t: '$ claude --multi-agent' },
+      { d: 380,  cls: 'dim',    t: '› ハーネスを初期化中…' },
+      { d: 780,  cls: 'out',    t: '› .claude/agents/*.md を読み込み中' },
+      { d: 1080, cls: 'amber',  t: '› 4つの定義を発見' },
+      { d: 1380, cls: 'out',    t: '› ワーカーを起動中' },
+      { d: 1620, cls: 'bar',    t: '   [████████████░░░░] 75%' },
+      { d: 1920, cls: 'bar',    t: '   [████████████████] 100%' },
+      { d: 2200, cls: 'prompt', t: '✓ スタジオ稼働中 · 4エージェント待機中' },
+      { d: 2520, cls: 'dim',    t: '› プロンプト待機中' },
+    ];
+    target.innerHTML = '';
+    lines.forEach(l => {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = l.cls;
+        el.textContent = l.t;
+        target.appendChild(el);
+      }, l.d);
+    });
+    setTimeout(() => {
+      const c = document.createElement('span');
+      c.className = 'cursor';
+      target.appendChild(c);
+    }, lines[lines.length - 1].d + 200);
+  })();
+
+  /* ─────────── tabs ─────────── */
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.panel).classList.add('active');
+    });
+  });
+
+  /* ─────────── copy buttons ─────────── */
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = 'code-' + btn.dataset.copy;
+      const node = document.getElementById(id);
+      if (!node) return;
+      try {
+        await navigator.clipboard.writeText(node.innerText);
+        const old = btn.textContent;
+        btn.textContent = 'コピー済み ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = old; btn.classList.remove('copied'); }, 1400);
+      } catch (e) {
+        btn.textContent = 'クリップなし';
+      }
+    });
+  });
+
+  /* ─────────── simulator ─────────── */
+  const grid = document.getElementById('simGrid');
+  const empty = document.getElementById('simEmpty');
+  const spawnBtn = document.getElementById('spawnBtn');
+  const spawnAllBtn = document.getElementById('spawnAllBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const ROSTER = [
+    { name: 'researcher',  steps: [
+      { cls:'p', t: '$ webfetch rfc-7235' },
+      { cls:'d', t: '› 412行をパース中' },
+      { cls:'d', t: '› 引用を抽出中…' },
+      { cls:'a', t: '✓ 3出典、要約を返却' },
+    ]},
+    { name: 'reviewer',    steps: [
+      { cls:'p', t: '$ git diff main...HEAD' },
+      { cls:'d', t: '› 14ファイルを読み込み' },
+      { cls:'d', t: '› 認証境界をチェック中' },
+      { cls:'a', t: '✓ 細かい指摘 2件 · ブロッカー 0件' },
+    ]},
+    { name: 'tester',      steps: [
+      { cls:'p', t: '$ pnpm test --filter api' },
+      { cls:'d', t: '› 218件のテストを実行中' },
+      { cls:'d', t: '› 217件パス · 1件不安定' },
+      { cls:'a', t: '✓ リトライガードを追加' },
+    ]},
+    { name: 'docscribe',   steps: [
+      { cls:'p', t: '$ rg --type md TODO' },
+      { cls:'d', t: '› 9件の古いエントリ' },
+      { cls:'d', t: '› changelogを書き直し中' },
+      { cls:'a', t: '✓ docs/CHANGELOG.md 更新済み' },
+    ]},
+    { name: 'profiler',    steps: [
+      { cls:'p', t: '$ pprof -http 0.0.0.0:9000' },
+      { cls:'d', t: '› 30秒サンプリング中' },
+      { cls:'d', t: '› ホットパス: marshal()' },
+      { cls:'a', t: '✓ /v1/dashboard で-32%' },
+    ]},
+    { name: 'migrator',    steps: [
+      { cls:'p', t: '$ git worktree add ../mig' },
+      { cls:'d', t: '› ブランチ: chore/mig-022' },
+      { cls:'d', t: '› 47件のimportを書き換え中' },
+      { cls:'a', t: '✓ PR #220 オープン済み' },
+    ]},
+  ];
+
+  let spawnIdx = 0;
+  let liveCount = 0;
+
+  function spawnAgent () {
+    if (empty && empty.parentNode) empty.remove();
+    const spec = ROSTER[spawnIdx % ROSTER.length];
+    spawnIdx++;
+    const id = `${spec.name}-${spawnIdx}`;
+
+    const card = document.createElement('div');
+    card.className = 'agent-card';
+    card.innerHTML = `
+      <div class="head">
+        <span class="name">▸ ${id}</span>
+        <span class="badge"><span class="blob"></span>実行中</span>
+      </div>
+      <div class="stream"></div>
+      <div class="progress"><i></i></div>
+    `;
+    grid.appendChild(card);
+    liveCount++;
+
+    const stream = card.querySelector('.stream');
+    const bar = card.querySelector('.progress > i');
+    const head = card.querySelector('.head');
+    const badge = card.querySelector('.badge');
+
+    spec.steps.forEach((s, i) => {
+      setTimeout(() => {
+        const line = document.createElement('span');
+        line.className = `l ${s.cls}`;
+        line.textContent = s.t;
+        stream.appendChild(line);
+        bar.style.width = `${((i + 1) / spec.steps.length) * 100}%`;
+      }, 350 + i * (480 + Math.random() * 240));
+    });
+
+    setTimeout(() => {
+      card.classList.add('done');
+      head.classList.add('done');
+      badge.innerHTML = '<span class="blob"></span>完了';
+    }, 350 + spec.steps.length * 540 + 200);
+  }
+
+  spawnBtn.addEventListener('click', spawnAgent);
+  spawnAllBtn.addEventListener('click', () => {
+    for (let i = 0; i < 4; i++) setTimeout(spawnAgent, i * 220);
+  });
+  clearBtn.addEventListener('click', () => {
+    grid.innerHTML = '';
+    grid.appendChild(empty);
+    liveCount = 0;
+    spawnIdx = 0;
+  });
+</script>
+</body>
+</html>

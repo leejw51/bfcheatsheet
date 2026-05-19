@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafkaチートシート — インタラクティブ</title>
+<style>
+  :root {
+    --bg: #0b1418;
+    --panel: #0f1c22;
+    --panel-2: #14262e;
+    --border: #1f3640;
+    --text: #e6f1f5;
+    --muted: #7d97a1;
+    --accent: #14e0c4;       /* Kafka teal */
+    --accent-2: #0bb4ff;     /* cyan */
+    --accent-3: #ff6b6b;     /* alarm red */
+    --code-bg: #07101417;
+    --code-bg-2: #061015;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 0% -10%, rgba(20, 224, 196, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(11, 180, 255, 0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #0f1c22 0%, #0b1418 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; letter-spacing: 0.3px; }
+  .logo .mark {
+    width: 26px; height: 26px; display: inline-block;
+    background: radial-gradient(circle at 30% 30%, var(--accent) 0%, #0a8b7d 60%, #053b34 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(20, 224, 196, 0.45);
+    position: relative;
+  }
+  .logo .mark::after {
+    content: ""; position: absolute; inset: 5px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 50%;
+    border-right-color: transparent;
+    animation: spin 4s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #052622;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(20,224,196,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(20,224,196,0.10);
+    border-color: rgba(20,224,196,0.45);
+    box-shadow: 0 0 0 3px rgba(20,224,196,0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(20, 224, 196, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg-2);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 12px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 110px; }
+  .pg-row select, .pg-row input[type="number"], .pg-row input[type="text"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .pg-row input[type="range"] { accent-color: var(--accent); }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #0a8b7d);
+    color: #042622; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(20,224,196,0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Partition visualizer */
+  .pviz {
+    display: grid; grid-template-columns: 130px 1fr; gap: 10px;
+    align-items: center;
+  }
+  .pviz .row {
+    display: contents;
+  }
+  .pviz .clabel {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; color: var(--text);
+    padding: 6px 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .pviz .parts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pviz .part {
+    padding: 6px 10px; border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; font-weight: 700;
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border);
+    transition: all 0.18s;
+  }
+  .pviz .part.assigned {
+    color: #052622;
+    border-color: transparent;
+    box-shadow: 0 0 12px -2px currentColor;
+  }
+  .pviz .pempty { color: var(--muted); font-size: 12px; padding: 4px 8px; }
+
+  /* Lag simulator */
+  .lagsim {
+    background: var(--code-bg-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; margin-top: 10px;
+  }
+  .lagsim .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 12px;
+  }
+  .lagsim .stat { background: var(--panel-2); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+  .lagsim .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .lagsim .stat .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 18px; font-weight: 700; color: var(--accent); margin-top: 4px;
+  }
+  .lagsim .bar {
+    height: 18px; background: var(--panel-2); border-radius: 4px;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    margin-top: 4px;
+  }
+  .lagsim .bar > div {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+  .lagsim .barlbl { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+  /* Message flow */
+  .msgflow { width: 100%; height: 240px; }
+  .msgflow text { fill: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .msgflow .node { fill: var(--panel-2); stroke: var(--border); stroke-width: 1.5; }
+  .msgflow .leader { stroke: var(--accent); }
+  .msgflow .follower { stroke: var(--accent-2); stroke-dasharray: 4 4; }
+  .msgflow .edge { stroke: var(--border); stroke-width: 2; fill: none; }
+  .msgflow .dot { fill: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+
+  /* Architecture diagram */
+  .arch { width: 100%; height: 320px; }
+  .arch .topic { fill: var(--panel-2); stroke: var(--border); }
+  .arch .partition { fill: var(--panel-2); stroke: var(--accent); stroke-width: 1.5; }
+  .arch .arrow { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .arch text { fill: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+  .arch .lbl { fill: var(--muted); }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th { background: var(--panel-2); color: var(--accent-2); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .pviz { grid-template-columns: 90px 1fr; }
+    .lagsim .stats { grid-template-columns: repeat(2, 1fr); }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="mark"></span> Kafkaチートシート</div>
+    <div class="search">
+      <span class="icon">⌕</span>
+      <input id="searchInput" type="text" placeholder="トピック、コマンド、設定を検索… ( / )" />
+    </div>
+    <span class="badge">v3.7+</span>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="concepts">概念</button>
+    <button data-tab="producers">プロデューサー</button>
+    <button data-tab="consumers">コンシューマー</button>
+    <button data-tab="cli">CLI</button>
+    <button data-tab="streams">Streams &amp; ksqlDB</button>
+    <button data-tab="ops">運用 &amp; チューニング</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== CONCEPTS ========== -->
+<section class="tab-section active" id="concepts">
+  <h1>概念</h1>
+  <p class="lead">ブローカーがクラスタを形成。トピックはパーティションに分割。プロデューサーが追記、コンシューマーがオフセットで読み取り。それで全部です。</p>
+
+  <div class="playground">
+    <h3>クラスタ構造</h3>
+    <div class="desc">プロデューサーがトピックにレコードを書き込み。パーティショナーがどのパーティションかを選択。各パーティションは複製されます。グループ内のコンシューマーがパーティションを分け合います。</div>
+    <svg class="arch" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet">
+      <!-- Producers -->
+      <rect class="topic" x="10" y="120" width="120" height="60" rx="8"/>
+      <text x="70" y="155" text-anchor="middle">producer</text>
+
+      <!-- Topic = orders, 4 partitions -->
+      <rect class="topic" x="200" y="40" width="320" height="240" rx="10"/>
+      <text class="lbl" x="360" y="60" text-anchor="middle">topic: orders   (4 partitions, RF=3)</text>
+      <g>
+        <rect class="partition" x="220" y="80" width="80" height="40" rx="6"/>
+        <text x="260" y="105" text-anchor="middle">P0</text>
+        <rect class="partition" x="320" y="80" width="80" height="40" rx="6"/>
+        <text x="360" y="105" text-anchor="middle">P1</text>
+        <rect class="partition" x="420" y="80" width="80" height="40" rx="6"/>
+        <text x="460" y="105" text-anchor="middle">P2</text>
+        <rect class="partition" x="320" y="140" width="80" height="40" rx="6"/>
+        <text x="360" y="165" text-anchor="middle">P3</text>
+        <text class="lbl" x="360" y="200" text-anchor="middle">leader / 2 followers (ISR)</text>
+        <text class="lbl" x="360" y="220" text-anchor="middle">retention.ms = 7d · log compaction off</text>
+      </g>
+
+      <!-- Consumer groups -->
+      <rect class="topic" x="580" y="50" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="70" text-anchor="middle">group: billing  (2 consumers)</text>
+      <rect class="partition" x="600" y="90" width="120" height="40" rx="6"/>
+      <text x="660" y="115" text-anchor="middle">c1 → P0,P1</text>
+      <rect class="partition" x="740" y="90" width="120" height="40" rx="6"/>
+      <text x="800" y="115" text-anchor="middle">c2 → P2,P3</text>
+
+      <rect class="topic" x="580" y="170" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="190" text-anchor="middle">group: analytics  (1 consumer)</text>
+      <rect class="partition" x="600" y="210" width="260" height="40" rx="6"/>
+      <text x="730" y="235" text-anchor="middle">c1 → P0..P3</text>
+
+      <!-- Arrows -->
+      <path class="arrow" d="M 130 150 L 200 150" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 100 L 580 100" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 220 L 580 220" marker-end="url(#arrow)"/>
+
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d97a1"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <h2>用語</h2>
+  <table class="ref">
+    <thead><tr><th>用語</th><th>意味</th></tr></thead>
+    <tbody>
+      <tr><td><code>broker</code></td><td>Kafkaサーバー。クラスタ = 複数のブローカー。各ブローカーは数値の<code>broker.id</code>で識別されます。</td></tr>
+      <tr><td><code>topic</code></td><td>名前付きのレコードログ。パーティション数とレプリケーション係数で作成します。</td></tr>
+      <tr><td><code>partition</code></td><td>順序付きの追記専用コミットログ。パーティション内のレコードは厳密に順序付けられます。パーティション間: 順序保証なし。</td></tr>
+      <tr><td><code>offset</code></td><td>パーティション内の単調増加64ビット位置。コンシューマーは読み取ったオフセットを追跡します。</td></tr>
+      <tr><td><code>leader / follower</code></td><td>各パーティションについて、1つのブローカーがリーダー(読み書きを処理)、他がレプリカ。リーダー障害時はフォロワーが昇格。</td></tr>
+      <tr><td><code>ISR</code></td><td>In-Sync Replicas: <code>replica.lag.time.max.ms</code>以内に追いついているフォロワー。ISRメンバーのみがリーダーになる資格を持ちます。</td></tr>
+      <tr><td><code>consumer group</code></td><td><code>group.id</code>を共有するコンシューマーの集合。Kafkaは各パーティションを同時に1つのコンシューマーに割り当てます。</td></tr>
+      <tr><td><code>rebalance</code></td><td>グループメンバーシップが変わった時(コンシューマーが参加/離脱/死亡)のパーティション再割り当て。</td></tr>
+      <tr><td><code>__consumer_offsets</code></td><td>コミット済みオフセットが格納される内部compactedトピック(デフォルト50パーティション)。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>順序のルール</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">パーティション内のみ順序保証</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">1つのパーティション内のレコードは厳密に順序付けられます。パーティション間: 順序なし。同じキー → デフォルトで同じパーティション → そのキーは順序保証。</div>
+      <pre><code><span class="tok-c"># 順序の落とし穴</span>
+<span class="tok-c"># key=user-42 → partition hash(user-42) % N に行く</span>
+<span class="tok-c"># すべてのuser-42イベントは順序を保つ。user-99は割り込むかも。</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">acks &amp; 耐久性</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">acks=all + min.insync.replicas≥2 = 単一ブローカー障害でデータ損失なし。</div>
+      <pre><code><span class="tok-k">acks</span>=<span class="tok-s">0</span>    <span class="tok-c"># 投げっぱなし</span>
+<span class="tok-k">acks</span>=<span class="tok-s">1</span>    <span class="tok-c"># リーダーのみ待機</span>
+<span class="tok-k">acks</span>=<span class="tok-s">all</span>  <span class="tok-c"># 全ISRを待機</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">配信セマンティクス</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">at-least-onceがデフォルト。Exactly-onceには冪等プロデューサー + トランザクション + read_committedコンシューマーが必要。</div>
+      <pre><code><span class="tok-c"># exactly-onceのレシピ</span>
+<span class="tok-k">enable.idempotence</span>=<span class="tok-s">true</span>
+<span class="tok-k">transactional.id</span>=<span class="tok-s">order-app-1</span>
+<span class="tok-c"># コンシューマー:</span>
+<span class="tok-k">isolation.level</span>=<span class="tok-s">read_committed</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>落とし穴:</strong> 後でパーティションを増やしても既存データは移動しません。既存のキーは古いパーティションに残り、新しいキーは別の場所に着地するかも — そのキーの順序がしばらく2つのパーティションに分裂します。最初からパーティション数を計画するか、キー対応の再パーティショニングジョブを使ってください。</div>
+</section>
+
+<!-- ========== PRODUCERS ========== -->
+<section class="tab-section" id="producers">
+  <h1>プロデューサー</h1>
+  <p class="lead">プロデューサーはトピックにレコードを追記します。キー、ackポリシー、パーティショナーの選択が設計の80%です。</p>
+
+  <h2>クイックスタート (kafka-python)</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">基本のプロデューサー</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaProducer
+<span class="tok-k">import</span> <span class="tok-t">json</span>
+
+<span class="tok-f">p</span> = KafkaProducer(
+    bootstrap_servers=<span class="tok-s">"broker1:9092,broker2:9092"</span>,
+    value_serializer=<span class="tok-k">lambda</span> v: <span class="tok-t">json</span>.dumps(v).encode(),
+    key_serializer=<span class="tok-k">lambda</span> k: k.encode() <span class="tok-k">if</span> k <span class="tok-k">else</span> <span class="tok-k">None</span>,
+    acks=<span class="tok-s">"all"</span>,
+    enable_idempotence=<span class="tok-k">True</span>,
+    linger_ms=<span class="tok-n">5</span>,
+    compression_type=<span class="tok-s">"zstd"</span>,
+)
+<span class="tok-f">p</span>.send(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"user-42"</span>, value={<span class="tok-s">"sku"</span>: <span class="tok-s">"X"</span>, <span class="tok-s">"qty"</span>: <span class="tok-n">2</span>})
+<span class="tok-f">p</span>.flush()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">冪等 + リトライ</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">リトライ時に重複なし、max.in.flight ≤ 5なら順序の入れ替わりなし。</div>
+      <pre><code>KafkaProducer(
+    enable_idempotence=<span class="tok-k">True</span>,
+    acks=<span class="tok-s">"all"</span>,
+    retries=<span class="tok-t">2</span>**<span class="tok-n">31</span>-<span class="tok-n">1</span>,
+    max_in_flight_requests_per_connection=<span class="tok-n">5</span>,
+    delivery_timeout_ms=<span class="tok-n">120_000</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">トランザクションプロデューサー</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">複数のトピック+パーティションへのアトミックな書き込み。read-process-writeアプリやexactly-onceで使用。</div>
+      <pre><code><span class="tok-c"># confluent-kafka スタイル</span>
+<span class="tok-k">from</span> <span class="tok-t">confluent_kafka</span> <span class="tok-k">import</span> Producer
+p = Producer({
+  <span class="tok-s">"bootstrap.servers"</span>: <span class="tok-s">"broker1:9092"</span>,
+  <span class="tok-s">"transactional.id"</span>: <span class="tok-s">"order-app-1"</span>,
+  <span class="tok-s">"enable.idempotence"</span>: <span class="tok-k">True</span>,
+})
+p.<span class="tok-f">init_transactions</span>()
+p.<span class="tok-f">begin_transaction</span>()
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">produce</span>(<span class="tok-s">"audit"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">commit_transaction</span>()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">カスタムパーティショナー</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">デフォルトはキーありで murmur2(key) % N、キーがnullならsticky partitioner。</div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">tenant_partitioner</span>(key, all_parts, available):
+    <span class="tok-c"># tenant=premium を専用パーティション 0..3 にルーティング</span>
+    <span class="tok-k">if</span> key <span class="tok-k">and</span> key.startswith(<span class="tok-s">b"premium:"</span>):
+        <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-n">4</span>
+    <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-f">len</span>(all_parts)
+
+KafkaProducer(partitioner=tenant_partitioner, …)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ヘッダー + タイムスタンプ</div><button class="copy-btn">コピー</button></div>
+      <pre><code>p.send(
+  <span class="tok-s">"orders"</span>, key=<span class="tok-s">b"u1"</span>, value=<span class="tok-s">b"..."</span>,
+  headers=[(<span class="tok-s">"trace-id"</span>, <span class="tok-s">b"abc123"</span>),
+           (<span class="tok-s">"schema"</span>, <span class="tok-s">b"OrderV2"</span>)],
+  timestamp_ms=<span class="tok-f">int</span>(<span class="tok-t">time</span>.time()*<span class="tok-n">1000</span>),
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">非同期 + コールバック</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">on_delivery</span>(err, msg):
+    <span class="tok-k">if</span> err:
+        log.<span class="tok-f">error</span>(<span class="tok-s">"failed: %s"</span>, err)
+    <span class="tok-k">else</span>:
+        log.<span class="tok-f">debug</span>(<span class="tok-s">"%s[%d]@%d"</span>,
+                  msg.topic(), msg.partition(), msg.offset())
+
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, value=v, on_delivery=on_delivery)
+p.<span class="tok-f">poll</span>(<span class="tok-n">0</span>)  <span class="tok-c"># コールバックを駆動</span></code></pre>
+    </div>
+  </div>
+
+  <h2>acks vs 耐久性 vs レイテンシ</h2>
+  <table class="ref">
+    <thead><tr><th>acks</th><th>耐久性</th><th>レイテンシ</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>なし — 投げっぱなし</td><td>最低</td><td>メトリクス、完全に置換可能なテレメトリ。</td></tr>
+      <tr><td><code>1</code></td><td>リーダーが残れば生存</td><td>低</td><td>偶発的損失が許容できるホットパス。</td></tr>
+      <tr><td><code>all</code></td><td>min.insync.replicasブローカーが残れば生存</td><td>高め</td><td>重要なものすべてのデフォルト。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>圧縮 &amp; バッチング</h2>
+  <table class="ref">
+    <thead><tr><th>つまみ</th><th>効果</th></tr></thead>
+    <tbody>
+      <tr><td><code>linger.ms</code></td><td>バッチが満杯でなくてもこの時間待ってから送信。5〜20msでスループットが大幅に向上します。</td></tr>
+      <tr><td><code>batch.size</code></td><td>パーティションあたりのバッチバイト数(デフォルト16KB)。高スループットなプロデューサーは64KB以上が有利。</td></tr>
+      <tr><td><code>compression.type</code></td><td><code>none</code> · <code>gzip</code> · <code>snappy</code> · <code>lz4</code> · <code>zstd</code>。圧縮率とCPUのバランスは通常<strong>zstd</strong>が最適。</td></tr>
+      <tr><td><code>buffer.memory</code></td><td>クライアントが未送信レコードのバッファに使える総バイト数(デフォルト32MB)。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== CONSUMERS ========== -->
+<section class="tab-section" id="consumers">
+  <h1>コンシューマー</h1>
+  <p class="lead">トピックを購読、ポーリング、処理、オフセットをコミット。グループメンバーシップとリバランス挙動が悩みの種です。</p>
+
+  <div class="playground">
+    <h3>パーティション割り当てビジュアライザー</h3>
+    <div class="desc">パーティション、コンシューマー、割り当て戦略を選んでください。Kafkaがパーティションをグループ間でどう分けるかを観察できます。</div>
+    <div class="pg-row">
+      <label>パーティション</label>
+      <input type="range" id="vizParts" min="1" max="16" value="6">
+      <span id="vizPartsVal" class="clabel" style="min-width:32px;text-align:center">6</span>
+      <label>コンシューマー</label>
+      <input type="range" id="vizCons" min="1" max="8" value="3">
+      <span id="vizConsVal" class="clabel" style="min-width:32px;text-align:center">3</span>
+      <label>戦略</label>
+      <select id="vizStrat">
+        <option value="range">Range</option>
+        <option value="roundrobin" selected>RoundRobin</option>
+        <option value="sticky">CooperativeSticky</option>
+      </select>
+      <button class="btn ghost" id="vizDrop">コンシューマーを減らす</button>
+      <button class="btn ghost" id="vizAdd">コンシューマーを追加</button>
+    </div>
+    <div class="pviz" id="pviz"></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:10px" id="vizNote"></div>
+  </div>
+
+  <div class="playground">
+    <h3>オフセット / ラグシミュレーター</h3>
+    <div class="desc">プロデュース/コンシュームのレートをスライドしてください。コミット済みオフセットがログ末尾を追いかける様子が見えます。Lag = 末尾 - コミット済み。</div>
+    <div class="pg-row">
+      <label>プロデュース msg/s</label>
+      <input type="range" id="rateP" min="0" max="2000" value="500" step="50">
+      <span id="ratePV" class="clabel" style="min-width:60px;text-align:center">500</span>
+      <label>コンシューム msg/s</label>
+      <input type="range" id="rateC" min="0" max="2000" value="600" step="50">
+      <span id="rateCV" class="clabel" style="min-width:60px;text-align:center">600</span>
+      <button class="btn" id="lagToggle">一時停止</button>
+      <button class="btn ghost" id="lagBurst">+10kバースト</button>
+      <button class="btn ghost" id="lagReset">リセット</button>
+    </div>
+    <div class="lagsim">
+      <div class="stats">
+        <div class="stat"><div class="label">ログ末尾</div><div class="val" id="lagEnd">0</div></div>
+        <div class="stat"><div class="label">コミット済み</div><div class="val" id="lagCommit">0</div></div>
+        <div class="stat"><div class="label">ラグ</div><div class="val" id="lagLag" style="color:var(--accent-3)">0</div></div>
+        <div class="stat"><div class="label">追いつくETA</div><div class="val" id="lagETA">—</div></div>
+      </div>
+      <div class="bar"><div id="barEnd" style="background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%"></div></div>
+      <div class="barlbl">ログ末尾 (相対)</div>
+      <div class="bar"><div id="barCommit" style="background:linear-gradient(90deg,var(--ok),#22c55e);width:0%"></div></div>
+      <div class="barlbl">コミット済みオフセット</div>
+      <div class="bar"><div id="barLag" style="background:linear-gradient(90deg,var(--accent-3),#b13838);width:0%"></div></div>
+      <div class="barlbl">ラグ (差分)</div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <h3>メッセージフロー</h3>
+    <div class="desc">プロデューサー → リーダー → フォロワー (レプリケーション) → コンシューマー。</div>
+    <svg class="msgflow" viewBox="0 0 700 220">
+      <rect class="node" x="20" y="80" width="120" height="60" rx="10"/>
+      <text x="80" y="115" text-anchor="middle">producer</text>
+
+      <rect class="node leader" x="240" y="40" width="120" height="60" rx="10"/>
+      <text x="300" y="75" text-anchor="middle">P0 leader</text>
+
+      <rect class="node follower" x="240" y="120" width="120" height="40" rx="10"/>
+      <text x="300" y="145" text-anchor="middle">follower</text>
+      <rect class="node follower" x="240" y="170" width="120" height="40" rx="10"/>
+      <text x="300" y="195" text-anchor="middle">follower</text>
+
+      <rect class="node" x="500" y="80" width="170" height="60" rx="10"/>
+      <text x="585" y="115" text-anchor="middle">consumer (group)</text>
+
+      <path class="edge" d="M 140 110 L 240 70" id="edge1"/>
+      <path class="edge" d="M 360 70  L 500 110" id="edge2"/>
+      <path class="edge" d="M 300 100 L 300 120" />
+      <path class="edge" d="M 300 100 L 300 170" />
+
+      <circle class="dot" id="flowDot" r="6" cx="-20" cy="-20"/>
+    </svg>
+  </div>
+
+  <h2>コンシューマーのコード</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">基本のpollループ</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaConsumer
+
+c = KafkaConsumer(
+    <span class="tok-s">"orders"</span>,
+    bootstrap_servers=<span class="tok-s">"broker1:9092"</span>,
+    group_id=<span class="tok-s">"billing"</span>,
+    auto_offset_reset=<span class="tok-s">"earliest"</span>,   <span class="tok-c"># または "latest"</span>
+    enable_auto_commit=<span class="tok-k">False</span>,
+    isolation_level=<span class="tok-s">"read_committed"</span>,
+    max_poll_records=<span class="tok-n">500</span>,
+    session_timeout_ms=<span class="tok-n">10_000</span>,
+)
+<span class="tok-k">for</span> msg <span class="tok-k">in</span> c:
+    <span class="tok-f">handle</span>(msg.value)
+    c.<span class="tok-f">commit</span>()  <span class="tok-c"># 同期コミット</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">手動poll + オフセット</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">処理成功後にのみコミット → at-least-once。</div>
+      <pre><code><span class="tok-k">while</span> <span class="tok-k">True</span>:
+    batch = c.<span class="tok-f">poll</span>(timeout_ms=<span class="tok-n">1000</span>)
+    <span class="tok-k">for</span> tp, msgs <span class="tok-k">in</span> batch.items():
+        <span class="tok-k">for</span> m <span class="tok-k">in</span> msgs:
+            <span class="tok-f">handle</span>(m)
+        c.<span class="tok-f">commit</span>({tp: OffsetAndMetadata(msgs[-<span class="tok-n">1</span>].offset+<span class="tok-n">1</span>, <span class="tok-k">None</span>)})</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">リバランスリスナー</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">パーティション剥奪前に処理中の作業をフラッシュ。</div>
+      <pre><code><span class="tok-k">class</span> <span class="tok-f">L</span>(ConsumerRebalanceListener):
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_revoked</span>(self, revoked):
+        <span class="tok-f">flush_buffer</span>()
+        consumer.<span class="tok-f">commit</span>()
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_assigned</span>(self, assigned):
+        log.<span class="tok-f">info</span>(<span class="tok-s">"now own %s"</span>, assigned)
+
+c.<span class="tok-f">subscribe</span>([<span class="tok-s">"orders"</span>], listener=L())</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">オフセット / 時刻にseek</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-c"># オフセットで</span>
+c.<span class="tok-f">seek</span>(TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>), <span class="tok-n">12345</span>)
+
+<span class="tok-c"># タイムスタンプで (epochからのms)</span>
+ts = {TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>): <span class="tok-n">1714000000000</span>}
+offsets = c.<span class="tok-f">offsets_for_times</span>(ts)
+<span class="tok-k">for</span> tp, off <span class="tok-k">in</span> offsets.items():
+    c.<span class="tok-f">seek</span>(tp, off.offset)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">静的メンバーシップ</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">安定したgroup.instance.idでローリング再起動時のリバランスを回避。</div>
+      <pre><code>KafkaConsumer(
+  group_id=<span class="tok-s">"billing"</span>,
+  group_instance_id=<span class="tok-s">"billing-pod-7"</span>,
+  session_timeout_ms=<span class="tok-n">30_000</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">協調的リバランス</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">インクリメンタルなリバランス — 移動するパーティションのみ処理が止まり、全部ではありません。</div>
+      <pre><code>partition_assignment_strategy=[
+  <span class="tok-s">"org.apache.kafka.clients.consumer.CooperativeStickyAssignor"</span>
+]</code></pre>
+    </div>
+  </div>
+
+  <h2>コミットセマンティクス</h2>
+  <table class="ref">
+    <thead><tr><th>モード</th><th>保証</th><th>リスク</th></tr></thead>
+    <tbody>
+      <tr><td><code>enable_auto_commit=true</code> (デフォルト 5秒)</td><td>at-most-once的</td><td>コミット後・処理前にクラッシュ → レコード喪失。</td></tr>
+      <tr><td>処理後の手動<code>commit()</code></td><td>at-least-once</td><td>処理後・コミット前にクラッシュ → 再起動時に再処理。ハンドラを冪等に。</td></tr>
+      <tr><td>トランザクショナル<code>send_offsets_to_transaction()</code></td><td>Exactly-once (Kafka内のread-process-write)</td><td>副作用がKafka外(冪等でないHTTP POSTなど)では役に立ちません。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pitfall"><strong>落とし穴:</strong> <code>max.poll.interval.ms</code>(デフォルト5分)を超える長時間のメッセージハンドラはグループから蹴られる → リバランスストーム。制限を増やすか、<code>max.poll.records</code>を減らすか、作業をワーカープールに移して<code>pause()</code>/<code>resume()</code>を使ってください。</div>
+</section>
+
+<!-- ========== CLI ========== -->
+<section class="tab-section" id="cli">
+  <h1>CLI</h1>
+  <p class="lead"><code>$KAFKA_HOME/bin/</code>下のシェルスクリプトは本番運用で頼りになります。以下チートシート。</p>
+
+  <h2>トピック</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">作成 / 一覧 / 詳細</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-c"># 作成</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic orders \
+  --partitions 12 --replication-factor 3 \
+  --config retention.ms=604800000 \
+  --config min.insync.replicas=2
+
+<span class="tok-c"># 一覧 / 詳細</span>
+kafka-topics.sh --bootstrap-server localhost:9092 --list
+kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">変更 / 削除</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-c"># パーティション追加 (減らせない!)</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --alter --topic orders --partitions 24
+
+<span class="tok-c"># 設定変更</span>
+kafka-configs.sh --bootstrap-server localhost:9092 \
+  --entity-type topics --entity-name orders \
+  --alter --add-config retention.ms=86400000
+
+<span class="tok-c"># 削除</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --delete --topic orders</code></pre>
+    </div>
+  </div>
+
+  <h2>コンソールproduce / consume</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">stdinからproduce</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --property parse.key=true \
+  --property key.separator=:
+<span class="tok-c"># 入力例:    user-42:{"sku":"X","qty":2}</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">先頭から消費</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --from-beginning \
+  --property print.key=true \
+  --property print.timestamp=true \
+  --max-messages 50</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">1パーティション / オフセット範囲を消費</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --partition 3 \
+  --offset 1000 \
+  --max-messages 10</code></pre>
+    </div>
+  </div>
+
+  <h2>コンシューマーグループ</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">一覧、ラグ詳細</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --list
+
+kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe --group billing
+<span class="tok-c"># 列: TOPIC PARTITION CURRENT-OFFSET LOG-END-OFFSET LAG CONSUMER-ID HOST CLIENT-ID</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">オフセットをリセット</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">--dry-runを先に。グループ停止中のみリセット可能。</div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --group billing \
+  --reset-offsets --to-earliest \
+  --topic orders --execute
+
+<span class="tok-c"># タイムスタンプ指定:</span>
+  --to-datetime 2026-05-01T00:00:00.000
+
+<span class="tok-c"># 1000レコード前に戻す:</span>
+  --shift-by -1000</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">グループを削除</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --delete --group billing</code></pre>
+    </div>
+  </div>
+
+  <h2>その他便利</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">最古 / 最新オフセット取得</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -1   <span class="tok-c"># 最新</span>
+
+kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -2   <span class="tok-c"># 最古</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ログセグメントをダンプ</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-dump-log.sh \
+  --files /var/lib/kafka/orders-0/00000000000000000000.log \
+  --print-data-log</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ACLを確認</div><button class="copy-btn">コピー</button></div>
+      <pre><code>kafka-acls.sh \
+  --bootstrap-server localhost:9092 \
+  --add --allow-principal User:billing \
+  --operation Read --topic orders \
+  --group billing</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== STREAMS ========== -->
+<section class="tab-section" id="streams">
+  <h1>Streams &amp; ksqlDB</h1>
+  <p class="lead">Kafka Streams: トピックを変換するJava/Scalaライブラリ。ksqlDB: Streamsの上にSQL。</p>
+
+  <h2>Streams DSL</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">単語カウント (「ハローワールド」)</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-t">StreamsBuilder</span> b = <span class="tok-k">new</span> <span class="tok-f">StreamsBuilder</span>();
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">String</span>&gt; src = b.<span class="tok-f">stream</span>(<span class="tok-s">"text-input"</span>);
+src.<span class="tok-f">flatMapValues</span>(v -&gt; Arrays.<span class="tok-f">asList</span>(v.<span class="tok-f">split</span>(<span class="tok-s">"\\W+"</span>)))
+   .<span class="tok-f">groupBy</span>((k,w) -&gt; w)
+   .<span class="tok-f">count</span>(Materialized.<span class="tok-f">as</span>(<span class="tok-s">"counts"</span>))
+   .<span class="tok-f">toStream</span>()
+   .<span class="tok-f">to</span>(<span class="tok-s">"word-counts"</span>, Produced.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()));</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Stream-tableジョイン</div><button class="copy-btn">コピー</button></div>
+      <div class="card-desc">compactedトピックの最新状態でイベントストリームをエンリッチ。</div>
+      <pre><code><span class="tok-t">KTable</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">User</span>&gt; users = b.<span class="tok-f">table</span>(<span class="tok-s">"users"</span>);
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">Order</span>&gt; orders = b.<span class="tok-f">stream</span>(<span class="tok-s">"orders"</span>);
+
+orders.<span class="tok-f">join</span>(users,
+       (order, user) -&gt; <span class="tok-k">new</span> <span class="tok-f">EnrichedOrder</span>(order, user))
+      .<span class="tok-f">to</span>(<span class="tok-s">"orders-enriched"</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ウィンドウ集約</div><button class="copy-btn">コピー</button></div>
+      <pre><code>orders.<span class="tok-f">groupByKey</span>()
+      .<span class="tok-f">windowedBy</span>(TimeWindows.<span class="tok-f">ofSizeAndGrace</span>(
+         Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">5</span>), Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">1</span>)))
+      .<span class="tok-f">aggregate</span>(() -&gt; <span class="tok-n">0L</span>,
+                 (k, v, sum) -&gt; sum + v.amount(),
+                 Materialized.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()))
+      .<span class="tok-f">toStream</span>()
+      .<span class="tok-f">to</span>(<span class="tok-s">"5min-totals"</span>);</code></pre>
+    </div>
+  </div>
+
+  <h2>ksqlDB</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">CREATE STREAM / TABLE</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> orders (
+  user_id <span class="tok-t">VARCHAR</span> KEY,
+  sku <span class="tok-t">VARCHAR</span>,
+  qty <span class="tok-t">INT</span>,
+  amount <span class="tok-t">DOUBLE</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'orders'</span>, value_format=<span class="tok-s">'JSON'</span>);
+
+<span class="tok-k">CREATE TABLE</span> users (
+  user_id <span class="tok-t">VARCHAR</span> PRIMARY KEY,
+  name <span class="tok-t">VARCHAR</span>, tier <span class="tok-t">VARCHAR</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'users'</span>, value_format=<span class="tok-s">'JSON'</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CSAS — 派生ストリーム</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> big_orders <span class="tok-k">AS</span>
+<span class="tok-k">SELECT</span> o.user_id, u.tier, o.amount
+<span class="tok-k">FROM</span> orders o
+<span class="tok-k">LEFT JOIN</span> users u <span class="tok-k">ON</span> o.user_id = u.user_id
+<span class="tok-k">WHERE</span> o.amount &gt; <span class="tok-n">100</span>
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CTAS — ウィンドウテーブル</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-k">CREATE TABLE</span> spend_5min <span class="tok-k">AS</span>
+<span class="tok-k">SELECT</span> user_id,
+       <span class="tok-f">SUM</span>(amount) <span class="tok-k">AS</span> total
+<span class="tok-k">FROM</span> orders
+<span class="tok-k">WINDOW TUMBLING</span> (<span class="tok-k">SIZE</span> <span class="tok-n">5</span> <span class="tok-k">MINUTES</span>)
+<span class="tok-k">GROUP BY</span> user_id
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">プルクエリ</div><button class="copy-btn">コピー</button></div>
+      <pre><code><span class="tok-c">-- テーブルの最新状態をポイントインタイムで読み取り</span>
+<span class="tok-k">SELECT</span> total <span class="tok-k">FROM</span> spend_5min
+<span class="tok-k">WHERE</span> user_id = <span class="tok-s">'user-42'</span>;</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OPS ========== -->
+<section class="tab-section" id="ops">
+  <h1>運用 &amp; チューニング</h1>
+  <p class="lead">本番で実際にいじるつまみ、それと夜中に起こされるアラーム。</p>
+
+  <h2>レプリケーション &amp; 耐久性</h2>
+  <table class="ref">
+    <thead><tr><th>設定</th><th>デフォルト</th><th>内容と用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>replication.factor</code> (トピック単位)</td><td>—</td><td>本番では3。<code>min.insync.replicas=2</code>と組み合わせて1ブローカー喪失に耐える。</td></tr>
+      <tr><td><code>min.insync.replicas</code></td><td>1</td><td>RF=3で2にする。<code>acks=all</code>と組み合わせて単一ブローカー障害でデータ損失なし。</td></tr>
+      <tr><td><code>unclean.leader.election.enable</code></td><td>false</td><td>falseのまま。許可すると耐久性を可用性と引き換えにすることに。</td></tr>
+      <tr><td><code>replica.lag.time.max.ms</code></td><td>30000</td><td>これより遅いフォロワーはISRから外れる。</td></tr>
+      <tr><td><code>auto.create.topics.enable</code></td><td>true</td><td>本番では<code>false</code>に。トピック作成を明示的なステップにする。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>保持 &amp; ストレージ</h2>
+  <table class="ref">
+    <thead><tr><th>設定</th><th>役割</th></tr></thead>
+    <tbody>
+      <tr><td><code>retention.ms</code></td><td>これより古いレコードを削除。デフォルト7日。トピック単位。</td></tr>
+      <tr><td><code>retention.bytes</code></td><td>パーティションあたりのログサイズ上限。トピック単位。msとbytesのどちらか先に到達した方が勝ち。</td></tr>
+      <tr><td><code>segment.bytes</code> / <code>segment.ms</code></td><td>Xバイトまたはxミリ秒ごとに新セグメントへ。小さいセグメント = 削除/コンパクションが速い、ファイルハンドルが多い。</td></tr>
+      <tr><td><code>cleanup.policy=compact</code></td><td>ログコンパクション — キーごとに最新値を永続的に保持。状態トピック、changelog、<code>__consumer_offsets</code>に。</td></tr>
+      <tr><td><code>cleanup.policy=delete,compact</code></td><td>両方: コンパクト + 保持期間後の古いキー削除。</td></tr>
+      <tr><td><code>min.cleanable.dirty.ratio</code></td><td>コンパクターが動く前のdirty率(デフォルト0.5)。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>よくあるアラーム</h2>
+  <table class="ref">
+    <thead><tr><th>症状</th><th>確認すべきこと</th></tr></thead>
+    <tbody>
+      <tr><td>Under-replicated partitions &gt; 0</td><td>ブローカー停止、低速ディスク、ネットワーク。<code>kafka-topics.sh --describe --under-replicated-partitions</code>。</td></tr>
+      <tr><td>Offline partitions &gt; 0</td><td>リーダー不在。クラスタが危機。</td></tr>
+      <tr><td>コンシューマーラグ増加</td><td>コンシューマーが遅い/停止。<code>max.poll.interval.ms</code>、GCポーズ、下流システムを確認。</td></tr>
+      <tr><td>プロデューサー<code>RecordTooLargeException</code></td><td>プロデューサーの<code>max.request.size</code>、ブローカーの<code>message.max.bytes</code>、コンシューマーの<code>max.partition.fetch.bytes</code>を上げる。</td></tr>
+      <tr><td>グループリバランスストーム</td><td>遅いハンドラ、不安定なメンバー、GC。静的メンバーシップ + cooperative-stickyを使う。</td></tr>
+      <tr><td>ISRが頻繁に縮小</td><td>ネットワークまたはディスク問題。<code>replica.lag.time.max.ms</code>、ブローカーIO待機を確認。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>クラスタサイジングの目安</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">ブローカーあたりのパーティション</div></div>
+      <div class="card-desc">ブローカーあたり&lt; 4000パーティションを目指す。各パーティションがファイルハンドル、メモリ、リバランス時間を消費。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">トピックあたりのパーティション数</div></div>
+      <div class="card-desc">必要となる最大並列度以上。最初に大きめに設定 — 後で増やすとキーごとの順序が壊れる。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ディスク</div></div>
+      <div class="card-desc">XFS、大きなシーケンシャル書き込み。バースト的な処理と共有しない。ログコンパクションのために50%以上の空きを計画。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ネットワーク</div></div>
+      <div class="card-desc">レプリケーションも南北トラフィック。RF=3はプロデュースされた各バイトがネットワークを~3倍通過することを意味する。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">JVM</div></div>
+      <div class="card-desc">6〜8GBのヒープで十分。メモリの大半はページキャッシュに。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">KRaft (ZooKeeperなし)</div></div>
+      <div class="card-desc">3.3+はKRaftがデフォルト。ZooKeeperは4.0で削除。新クラスタはKRaftのみ。</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="footer">単一の自己完結型HTMLチートシート。このディレクトリのPyTorch / Go / AWSページと色を合わせています。<code>/</code>で検索、<code>1</code>〜<code>6</code>でタブ切り替え。</div>
+
+<script>
+  // Tabs
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // Search
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); search.focus(); }
+    if (e.key === 'Escape') { search.value = ''; filter(); search.blur(); }
+    if (/^[1-6]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
+      const order = ['concepts','producers','consumers','cli','streams','ops'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // Copy buttons
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const code = card?.querySelector('pre code')?.innerText || '';
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      btn.textContent = 'コピー済み'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // Partition visualizer
+  const colors = ['#14e0c4','#0bb4ff','#a78bfa','#f472b6','#fbbf24','#34d399','#fb7185','#60a5fa'];
+  const vizParts = document.getElementById('vizParts');
+  const vizCons = document.getElementById('vizCons');
+  const vizStrat = document.getElementById('vizStrat');
+  const vizPartsVal = document.getElementById('vizPartsVal');
+  const vizConsVal = document.getElementById('vizConsVal');
+  const pviz = document.getElementById('pviz');
+  const vizNote = document.getElementById('vizNote');
+  function assign(parts, cons, strat) {
+    const owners = new Array(parts).fill(-1);
+    if (cons === 0) return owners;
+    if (strat === 'range') {
+      const per = Math.floor(parts / cons);
+      const rem = parts % cons;
+      let p = 0;
+      for (let c = 0; c < cons; c++) {
+        const take = per + (c < rem ? 1 : 0);
+        for (let i = 0; i < take; i++) owners[p++] = c;
+      }
+    } else if (strat === 'roundrobin' || strat === 'sticky') {
+      for (let p = 0; p < parts; p++) owners[p] = p % cons;
+    }
+    return owners;
+  }
+  function renderViz() {
+    const parts = parseInt(vizParts.value, 10);
+    const cons = parseInt(vizCons.value, 10);
+    vizPartsVal.textContent = parts;
+    vizConsVal.textContent = cons;
+    const owners = assign(parts, cons, vizStrat.value);
+    pviz.innerHTML = '';
+    if (cons === 0) {
+      pviz.innerHTML = '<div class="pempty">グループにコンシューマーがいません。</div>';
+      return;
+    }
+    for (let c = 0; c < cons; c++) {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('div'); lbl.className = 'clabel'; lbl.textContent = 'consumer-' + c;
+      const ps = document.createElement('div'); ps.className = 'parts';
+      const myParts = owners.map((o,i) => o === c ? i : -1).filter(x => x >= 0);
+      if (myParts.length === 0) {
+        const e = document.createElement('div'); e.className = 'pempty';
+        e.textContent = '— アイドル (パーティション割り当てなし)';
+        ps.appendChild(e);
+      }
+      myParts.forEach(p => {
+        const d = document.createElement('div'); d.className = 'part assigned';
+        d.style.background = colors[c % colors.length];
+        d.style.color = '#052622';
+        d.textContent = 'P' + p;
+        ps.appendChild(d);
+      });
+      pviz.appendChild(lbl); pviz.appendChild(ps);
+    }
+    if (cons > parts) {
+      vizNote.textContent = 'パーティションよりコンシューマーが多い: ' + (cons - parts) + '個のコンシューマーがアイドル。パーティションが並列性の単位。';
+    } else if (vizStrat.value === 'range') {
+      vizNote.textContent = 'Range: 各コンシューマーが連続した区間を取得。パーティション数が均等に割り切れないと不均衡。';
+    } else if (vizStrat.value === 'roundrobin') {
+      vizNote.textContent = 'RoundRobin: バランスの取れたファンアウト。グループ変更時に多くのパーティションを再シャッフルすることがある。';
+    } else {
+      vizNote.textContent = 'CooperativeSticky: リバランス時の移動を最小化。所有者が変わるパーティションのみが一時停止。';
+    }
+  }
+  vizParts.addEventListener('input', renderViz);
+  vizCons.addEventListener('input', renderViz);
+  vizStrat.addEventListener('change', renderViz);
+  document.getElementById('vizDrop').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) > 1) { vizCons.value = parseInt(vizCons.value,10) - 1; renderViz(); }
+  });
+  document.getElementById('vizAdd').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) < 8) { vizCons.value = parseInt(vizCons.value,10) + 1; renderViz(); }
+  });
+  renderViz();
+
+  // Lag simulator
+  (function() {
+    const rateP = document.getElementById('rateP');
+    const rateC = document.getElementById('rateC');
+    const rateCV = document.getElementById('rateCV');
+    const ratePV = document.getElementById('ratePV');
+    const lagEnd = document.getElementById('lagEnd');
+    const lagCommit = document.getElementById('lagCommit');
+    const lagLag = document.getElementById('lagLag');
+    const lagETA = document.getElementById('lagETA');
+    const barEnd = document.getElementById('barEnd');
+    const barCommit = document.getElementById('barCommit');
+    const barLag = document.getElementById('barLag');
+    const lagToggle = document.getElementById('lagToggle');
+    const lagBurst = document.getElementById('lagBurst');
+    const lagReset = document.getElementById('lagReset');
+    let state = { end: 0, committed: 0, paused: false };
+    function syncLabels() { ratePV.textContent = rateP.value; rateCV.textContent = rateC.value; }
+    rateP.addEventListener('input', syncLabels); rateC.addEventListener('input', syncLabels); syncLabels();
+    lagToggle.addEventListener('click', () => { state.paused = !state.paused; lagToggle.textContent = state.paused ? '再開' : '一時停止'; });
+    lagBurst.addEventListener('click', () => { state.end += 10000; });
+    lagReset.addEventListener('click', () => { state.end = 0; state.committed = 0; });
+    function tick() {
+      if (!state.paused) {
+        const p = parseInt(rateP.value, 10) / 10; // per 100ms
+        const c = parseInt(rateC.value, 10) / 10;
+        state.end += p;
+        state.committed = Math.min(state.end, state.committed + c);
+      }
+      const lag = Math.max(0, state.end - state.committed);
+      lagEnd.textContent = Math.floor(state.end).toLocaleString();
+      lagCommit.textContent = Math.floor(state.committed).toLocaleString();
+      lagLag.textContent = Math.floor(lag).toLocaleString();
+      const cRate = parseInt(rateC.value, 10), pRate = parseInt(rateP.value, 10);
+      if (cRate <= pRate || lag <= 0) {
+        lagETA.textContent = lag <= 0 ? '追いつき済み' : '∞';
+      } else {
+        const eta = lag / (cRate - pRate);
+        lagETA.textContent = eta < 60 ? eta.toFixed(1) + 's' : (eta/60).toFixed(1) + 'm';
+      }
+      const max = Math.max(state.end, 1);
+      barEnd.style.width = '100%';
+      barCommit.style.width = (state.committed / max * 100) + '%';
+      barLag.style.width = (lag / max * 100) + '%';
+    }
+    setInterval(tick, 100);
+  })();
+
+  // Message flow animation
+  (function() {
+    const dot = document.getElementById('flowDot');
+    if (!dot) return;
+    // Path: producer (140,110) -> leader (300,70) -> back to leader after replication blink -> consumer (500,110)
+    const path = [
+      [140, 110], [300, 70], [300, 70], [500, 110]
+    ];
+    let t = 0;
+    function ease(x) { return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x+2, 2)/2; }
+    function frame() {
+      t = (t + 0.006) % 1;
+      const seg = Math.floor(t * 3);
+      const local = ease((t * 3) % 1);
+      const a = path[seg], b = path[seg+1];
+      const x = a[0] + (b[0]-a[0]) * local;
+      const y = a[1] + (b[1]-a[1]) * local;
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+</script>
+
+</body>
+</html>

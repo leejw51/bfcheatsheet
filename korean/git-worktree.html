@@ -1,0 +1,1648 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Worktree 도장 — git worktree 마스터하기</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#0e0a07;
+    --bg2:#171110;
+    --panel:#1d1614;
+    --panel2:#241b18;
+    --line:#2e231f;
+    --ink:#f3e9df;
+    --ink2:#c9b8aa;
+    --muted:#8a786c;
+    --orange:#f05133; /* git orange */
+    --orange2:#ff6f3d;
+    --red:#e02424;
+    --green:#3ddc97;
+    --yellow:#f5c451;
+    --blue:#4ea1ff;
+    --purple:#b685ff;
+    --shadow:0 10px 40px rgba(0,0,0,.5);
+    --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace;
+    --sans:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(240,81,51,.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(255,111,61,.10), transparent 60%),
+      var(--bg);
+    min-height:100vh;
+  }
+
+  /* ---------- Layout ---------- */
+  header.topbar{
+    position:sticky;top:0;z-index:40;
+    backdrop-filter:blur(12px);
+    background:rgba(14,10,7,.78);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1280px;margin:0 auto;padding:14px 22px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .logo{
+    display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:.2px;
+  }
+  .logo .mark{
+    width:30px;height:30px;border-radius:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    display:grid;place-items:center;color:#1a0f0a;font-weight:900;
+    box-shadow:0 6px 18px rgba(240,81,51,.45);
+  }
+  .nav{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+  .nav a{
+    color:var(--ink2);text-decoration:none;font-size:13px;
+    padding:7px 11px;border-radius:8px;border:1px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);background:rgba(255,255,255,.04);border-color:var(--line)}
+  .stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--line);
+    padding:6px 10px;border-radius:999px;font-size:12px;color:var(--ink2);font-family:var(--mono);
+  }
+  .chip b{color:var(--ink)}
+  .chip.lv{background:linear-gradient(135deg,rgba(240,81,51,.22),rgba(255,111,61,.12));border-color:rgba(240,81,51,.5);color:#ffd9cb}
+  .chip.combo{background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(245,196,81,.06));border-color:rgba(245,196,81,.45);color:#ffe4a0}
+  .chip.xp{background:linear-gradient(135deg,rgba(61,220,151,.16),rgba(61,220,151,.04));border-color:rgba(61,220,151,.4);color:#b9f5d8}
+
+  main{max-width:1280px;margin:0 auto;padding:30px 22px 90px}
+  .hero{
+    display:grid;grid-template-columns:1.05fr .95fr;gap:28px;margin-bottom:34px;
+  }
+  @media (max-width:980px){ .hero{grid-template-columns:1fr} }
+  .hero h1{
+    font-size:44px;line-height:1.05;margin:0 0 12px;letter-spacing:-.5px;
+  }
+  .hero h1 .accent{
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.sub{color:var(--ink2);font-size:17px;max-width:62ch;margin:0 0 18px}
+  .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    color:#fff;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;
+    box-shadow:0 8px 22px rgba(240,81,51,.35);
+  }
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--orange);color:#ffd2c5}
+  .btn:active{transform:translateY(1px)}
+
+  .hero-art{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:18px;
+    box-shadow:var(--shadow);
+    min-height:340px;display:flex;flex-direction:column;
+  }
+  .hero-art header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .hero-art header span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .hero-art .dots{display:flex;gap:6px}
+  .hero-art .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .hero-art .dots i:nth-child(1){background:#ff5f56}
+  .hero-art .dots i:nth-child(2){background:#ffbd2e}
+  .hero-art .dots i:nth-child(3){background:#27c93f}
+
+  /* ---------- Section ---------- */
+  section.card{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:26px;
+    box-shadow:var(--shadow);margin-bottom:24px;
+  }
+  section.card h2{
+    margin:0 0 6px;font-size:24px;letter-spacing:-.2px;display:flex;align-items:center;gap:10px;
+  }
+  section.card h2 .num{
+    width:30px;height:30px;border-radius:8px;background:rgba(240,81,51,.16);
+    color:var(--orange2);font-family:var(--mono);font-size:14px;display:grid;place-items:center;border:1px solid rgba(240,81,51,.35);
+  }
+  section.card .lede{color:var(--ink2);margin:0 0 18px;max-width:78ch}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media (max-width:880px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .pane{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;
+  }
+  .pane h3{margin:0 0 8px;font-size:16px}
+  .pane p{margin:0 0 8px;color:var(--ink2);font-size:14px}
+  .pane code, code.inline{
+    font-family:var(--mono);font-size:12.5px;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+
+  pre.code{
+    font-family:var(--mono);font-size:13px;line-height:1.55;
+    background:#0a0706;border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;margin:10px 0;color:#f3e9df;
+  }
+  pre.code .c{color:#7e6a5e}
+  pre.code .k{color:var(--orange2);font-weight:700}
+  pre.code .s{color:#ffd9a8}
+  pre.code .p{color:#9ad7ff}
+  pre.code .x{color:var(--red)}
+
+  .kbd{
+    font-family:var(--mono);font-size:11px;background:#1f1612;border:1px solid var(--line);border-bottom-width:2px;
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+  .pill{
+    display:inline-block;font-size:11px;letter-spacing:.4px;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:rgba(240,81,51,.18);color:#ffd2c5;
+    border:1px solid rgba(240,81,51,.35);
+  }
+  .pill.green{background:rgba(61,220,151,.14);color:#b9f5d8;border-color:rgba(61,220,151,.35)}
+  .pill.blue{background:rgba(78,161,255,.14);color:#b9d8ff;border-color:rgba(78,161,255,.35)}
+  .pill.purple{background:rgba(182,133,255,.14);color:#dec5ff;border-color:rgba(182,133,255,.35)}
+
+  /* ---------- Tree visual ---------- */
+  .stage{
+    display:grid;grid-template-columns:1fr 1.1fr;gap:16px;
+  }
+  @media (max-width:980px){.stage{grid-template-columns:1fr}}
+  .tree-wrap{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:340px;
+    position:relative;overflow:hidden;
+  }
+  .tree-title{
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .tree-title .badge{
+    color:var(--orange2);font-weight:700;
+  }
+  .tree{font-family:var(--mono);font-size:13.5px;line-height:1.7}
+  .tree .node{display:flex;align-items:center;gap:6px;transition:all .25s ease;border-radius:6px;padding:1px 6px}
+  .tree .node.dir{color:var(--ink)}
+  .tree .node.dir.main{color:#ffd2c5}
+  .tree .node.dir.wt{color:#ffe4a0}
+  .tree .node.file{color:var(--ink2)}
+  .tree .node.git{color:var(--blue)}
+  .tree .node .ico{width:14px;display:inline-block;text-align:center}
+  .tree .indent{display:inline-block;width:14px}
+  .tree .branch-tag{
+    margin-left:8px;font-size:11px;color:#1a0f0a;background:var(--orange2);padding:1px 6px;border-radius:5px;font-weight:700;
+  }
+  .tree .branch-tag.detached{background:#9ca0a6}
+  .tree .branch-tag.locked{background:var(--yellow)}
+  .tree .new{
+    animation:popIn .45s cubic-bezier(.2,1.4,.4,1.05) both;
+    background:rgba(240,81,51,.12);
+  }
+  .tree .removed{
+    animation:popOut .45s ease both;
+    background:rgba(224,36,36,.16);
+  }
+  @keyframes popIn{
+    0%{opacity:0;transform:translateX(-8px) scale(.92)}
+    100%{opacity:1;transform:translateX(0) scale(1)}
+  }
+  @keyframes popOut{
+    0%{opacity:1;transform:translateX(0)}
+    100%{opacity:0;transform:translateX(8px) scale(.96)}
+  }
+
+  /* ---------- Shell ---------- */
+  .shell{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;min-height:340px;overflow:hidden;
+  }
+  .shell-head{
+    display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#120c0a;
+  }
+  .shell-head .left{display:flex;gap:6px;align-items:center}
+  .shell-head .left i{width:11px;height:11px;border-radius:50%;display:block}
+  .shell-head .left i:nth-child(1){background:#ff5f56}
+  .shell-head .left i:nth-child(2){background:#ffbd2e}
+  .shell-head .left i:nth-child(3){background:#27c93f}
+  .shell-head .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .shell-body{
+    flex:1;padding:14px 16px;font-family:var(--mono);font-size:13px;color:var(--ink);overflow:auto;max-height:280px;
+  }
+  .shell-body .line{margin:0;white-space:pre-wrap;word-break:break-all}
+  .shell-body .prompt{color:var(--orange2)}
+  .shell-body .out{color:var(--ink2)}
+  .shell-body .err{color:#ff8a8a}
+  .shell-body .ok{color:var(--green)}
+  .shell-input{
+    display:flex;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line);background:#0e0907;
+  }
+  .shell-input .ps1{font-family:var(--mono);font-size:13px;color:var(--orange2);white-space:nowrap}
+  .shell-input input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--mono);font-size:13.5px;caret-color:var(--orange2);
+  }
+  .shell-input.shake{animation:shake .35s}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+
+  /* ---------- Practice ---------- */
+  .practice-head{
+    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px;
+  }
+  .practice-task{
+    flex:1;min-width:240px;background:rgba(240,81,51,.08);border:1px solid rgba(240,81,51,.35);
+    border-radius:12px;padding:14px 16px;
+  }
+  .practice-task .label{
+    font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--orange2);font-weight:800;
+  }
+  .practice-task .q{font-size:17px;margin:6px 0 0;color:var(--ink)}
+  .practice-task .hint{font-size:12.5px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  .practice-meta{
+    display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;min-width:280px;
+  }
+  .meter{
+    background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+  }
+  .meter .l{font-size:11px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .meter .v{font-size:18px;font-weight:800;font-family:var(--mono);color:var(--ink)}
+  .meter .v.orange{color:var(--orange2)}
+  .meter .v.green{color:var(--green)}
+  .meter .v.yellow{color:var(--yellow)}
+
+  .progress{
+    height:8px;background:#1a1310;border-radius:999px;overflow:hidden;border:1px solid var(--line);margin-top:10px;
+  }
+  .progress > div{
+    height:100%;background:linear-gradient(90deg,var(--orange),var(--orange2));
+    transition:width .35s ease;
+  }
+
+  .feedback{
+    margin-top:12px;font-family:var(--mono);font-size:13px;min-height:22px;
+  }
+  .feedback.ok{color:var(--green)}
+  .feedback.err{color:#ff8a8a}
+  .feedback.tip{color:var(--yellow)}
+
+  .practice-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  /* ---------- Achievements ---------- */
+  .achv-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;
+  }
+  .achv{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px;
+    display:flex;gap:10px;align-items:flex-start;opacity:.45;transition:all .25s ease;
+  }
+  .achv.unlocked{
+    opacity:1;border-color:rgba(240,81,51,.45);
+    background:linear-gradient(135deg,rgba(240,81,51,.12),rgba(255,111,61,.04));
+    box-shadow:0 6px 24px rgba(240,81,51,.18);
+  }
+  .achv .ico{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:18px;flex-shrink:0;
+  }
+  .achv.unlocked .ico{background:linear-gradient(135deg,var(--orange),var(--orange2));border-color:transparent}
+  .achv .t{font-weight:800;font-size:13px}
+  .achv .d{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* ---------- Toast ---------- */
+  .toasts{position:fixed;right:20px;bottom:20px;z-index:80;display:flex;flex-direction:column;gap:10px}
+  .toast{
+    background:linear-gradient(135deg,#221814,#2d201b);
+    border:1px solid rgba(240,81,51,.5);border-radius:12px;
+    padding:12px 14px;min-width:240px;max-width:340px;color:var(--ink);
+    box-shadow:0 12px 32px rgba(0,0,0,.5);
+    animation:slideIn .4s cubic-bezier(.2,1.4,.4,1.05);
+  }
+  .toast .t{font-weight:800;font-size:14px;color:#ffd9cb}
+  .toast .d{font-size:12.5px;color:var(--ink2);margin-top:2px}
+  @keyframes slideIn{
+    from{transform:translateX(20px);opacity:0}
+    to{transform:translateX(0);opacity:1}
+  }
+
+  /* ---------- Boss mode ---------- */
+  .boss{
+    background:radial-gradient(900px 420px at 70% 0%,rgba(224,36,36,.18),transparent 60%),
+               linear-gradient(180deg,#1a0e0a,#1a0a07);
+    border:1px solid rgba(224,36,36,.4);
+  }
+  .boss h2 .num{background:rgba(224,36,36,.22);color:#ff8a8a;border-color:rgba(224,36,36,.45)}
+  .boss .hp-bar{
+    height:14px;background:#1a0a07;border:1px solid var(--line);border-radius:999px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .boss .hp-bar > div{
+    height:100%;background:linear-gradient(90deg,#ff5f56,#ffbd2e);transition:width .35s ease;
+  }
+  .boss-art{
+    font-family:var(--mono);font-size:13px;color:#ffb088;white-space:pre;
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;line-height:1.4;
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+  .tab{
+    padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink2);
+  }
+  .tab.active{background:rgba(240,81,51,.18);color:#ffd2c5;border-color:rgba(240,81,51,.5)}
+
+  table.cmp{
+    width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px;
+  }
+  table.cmp th, table.cmp td{
+    padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;
+  }
+  table.cmp th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  table.cmp tr:last-child td{border-bottom:none}
+  table.cmp td.win{color:var(--green);font-weight:700}
+  table.cmp td.lose{color:#ff8a8a}
+
+  footer{
+    text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;
+  }
+
+  .scroll-fade{
+    opacity:0;transform:translateY(14px);transition:all .55s ease;
+  }
+  .scroll-fade.in{opacity:1;transform:translateY(0)}
+
+  /* ---------- SVG anim ---------- */
+  .wt-svg circle{transition:all .4s ease}
+  .wt-svg .pop{animation:pulseRing 1.4s ease infinite}
+  @keyframes pulseRing{
+    0%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+    50%{filter:drop-shadow(0 0 12px rgba(240,81,51,.6))}
+    100%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <div class="mark">⌥</div>
+      <div>Worktree 도장</div>
+    </div>
+    <nav class="nav">
+      <a href="#problem">문제</a>
+      <a href="#anatomy">해부</a>
+      <a href="#commands">명령어</a>
+      <a href="#patterns">패턴</a>
+      <a href="#gotchas">함정</a>
+      <a href="#vs">vs 스태시</a>
+      <a href="#bare">베어 리포지토리</a>
+      <a href="#practice">연습</a>
+      <a href="#boss">보스</a>
+    </nav>
+    <div class="stats">
+      <span class="chip lv">LV <b id="hud-lv">1</b></span>
+      <span class="chip xp">XP <b id="hud-xp">0</b>/<span id="hud-xpmax">100</span></span>
+      <span class="chip combo">x<b id="hud-combo">0</b></span>
+      <span class="chip">★ <b id="hud-achv">0</b>/12</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div>
+      <div class="pill">git 멀티 체크아웃 · 입력으로 배우기</div>
+      <h1>Stash 그만.<br/><span class="accent">병렬로 브랜치하기.</span></h1>
+      <p class="sub">
+        <code class="inline">git worktree</code>는 하나의 저장소가 여러 작업 디렉토리를 가질 수 있게 합니다 — 서로 다른 브랜치가 모두 동시에 체크아웃되어, 하나의 <code class="inline">.git</code>을 공유합니다.
+        XP, 업적, 최종 보스가 있는 타이핑 중심 도장으로 마스터하세요.
+      </p>
+      <div class="ctas">
+        <button class="btn" onclick="document.getElementById('practice').scrollIntoView({behavior:'smooth'})">연습 시작 →</button>
+        <button class="btn ghost" onclick="document.getElementById('commands').scrollIntoView({behavior:'smooth'})">매뉴얼 읽기</button>
+        <button class="btn ghost" onclick="resetProgress()">진행 초기화</button>
+      </div>
+    </div>
+    <div class="hero-art">
+      <header>
+        <div class="dots"><i></i><i></i><i></i></div>
+        <span>~/projects/cro-economy-service</span>
+      </header>
+      <div class="stage" style="grid-template-columns:1fr 1.05fr;flex:1">
+        <div class="tree-wrap">
+          <div class="tree-title"><span>파일시스템</span><span class="badge" id="hero-wtcount">1 워크트리</span></div>
+          <div class="tree" id="hero-tree"></div>
+        </div>
+        <div class="shell">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">데모 · zsh</div>
+          </div>
+          <div class="shell-body" id="hero-shell"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. PROBLEM -->
+  <section class="card scroll-fade" id="problem">
+    <h2><span class="num">01</span> Worktree가 해결하는 문제</h2>
+    <p class="lede">기능 작업에 깊이 빠져있습니다. 프로덕션이 불타오릅니다. 지금 당장 <code class="inline">main</code>을 고쳐야 합니다. Worktree 없이는 모든 선택이 고통스럽습니다.</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">고통 1</span> 컨텍스트 전환 비용</h3>
+        <p>stash하고, main으로 전환하고, 고치고, 푸시하고, 다시 전환하고, stash를 팝하고, 충돌이 없기를 바랍니다. stash pop의 WIP 머지 충돌은 특별한 종류의 고통입니다.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">고통 2</span> 병렬 작업</h3>
+        <p>빌드가 6분 걸립니다. CI가 브랜치 A에서 실행되는 동안, 다시 빌드하지 않고 브랜치 B에서 코드를 작성하고 싶습니다. 하나의 체크아웃 = 한 번에 하나의 브랜치.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">고통 3</span> PR 리뷰</h3>
+        <p><code class="inline">git checkout pr/42</code>를 실행해서 로컬에서 돌려보고 싶지만, 현재 브랜치에 진행 중인 변경사항을 날리고 싶지도 않습니다.</p>
+      </div>
+    </div>
+    <div class="pane" style="margin-top:14px">
+      <h3>Worktree의 해답</h3>
+      <p style="color:var(--ink2)">다른 브랜치에 고정된 두 번째 작업 디렉토리를 추가합니다. 둘 다 동일한 <code class="inline">.git</code> 객체 데이터베이스를 공유합니다 — fetch, ref, hook, config — 하지만 <em>디스크 상의 파일</em>은 독립적입니다. <code class="inline">checkout</code>이 아니라 <code class="inline">cd</code>로 전환합니다.</p>
+<pre class="code"><span class="c"># 이전: 스태시 댄스</span>
+<span class="k">git</span> stash push -m wip
+<span class="k">git</span> checkout main
+<span class="c"># ...수정, 커밋, 푸시...</span>
+<span class="k">git</span> checkout feature/long-thing
+<span class="k">git</span> stash pop   <span class="c"># 🤞</span>
+
+<span class="c"># 이후: 병렬 작업 디렉토리</span>
+<span class="k">git</span> worktree add ../hotfix main
+<span class="k">cd</span> ../hotfix
+<span class="c"># ...수정, 커밋, 푸시, 그리고:</span>
+<span class="k">cd</span> ../cro-economy-service
+<span class="k">git</span> worktree remove ../hotfix</pre>
+    </div>
+  </section>
+
+  <!-- 2. ANATOMY -->
+  <section class="card scroll-fade" id="anatomy">
+    <h2><span class="num">02</span> 해부: 공유된 <code class="inline">.git</code>, 별도의 작업 디렉토리</h2>
+    <p class="lede">워크트리는 메인 리포지토리 디렉토리 외부에 존재하지만 여전히 메인 리포지토리의 <code class="inline">.git</code>이 추적하는 체크아웃입니다.</p>
+    <div class="grid2">
+      <div>
+        <svg viewBox="0 0 520 320" class="wt-svg" width="100%" height="320" aria-hidden="true">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#f05133"/>
+              <stop offset="100%" stop-color="#ff6f3d"/>
+            </linearGradient>
+            <linearGradient id="g2" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#4ea1ff"/>
+              <stop offset="100%" stop-color="#b685ff"/>
+            </linearGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+
+          <!-- core .git -->
+          <circle cx="260" cy="160" r="58" fill="url(#g1)" filter="url(#glow)" class="pop"/>
+          <text x="260" y="156" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="900" font-size="14">.git</text>
+          <text x="260" y="174" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="700" font-size="11">objects · refs</text>
+
+          <!-- worktree nodes -->
+          <g>
+            <line x1="260" y1="160" x2="80" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="80" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+          </g>
+
+          <g>
+            <circle cx="80" cy="60" r="34" fill="url(#g2)"/>
+            <text x="80" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">메인 리포</text>
+            <text x="80" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">main</text>
+          </g>
+          <g>
+            <circle cx="440" cy="60" r="34" fill="url(#g2)"/>
+            <text x="440" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../hotfix</text>
+            <text x="440" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">hotfix-123</text>
+          </g>
+          <g>
+            <circle cx="80" cy="270" r="34" fill="url(#g2)"/>
+            <text x="80" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../review</text>
+            <text x="80" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">pr/42</text>
+          </g>
+          <g>
+            <circle cx="440" cy="270" r="34" fill="url(#g2)"/>
+            <text x="440" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../e2e</text>
+            <text x="440" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">release/v2</text>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="pane">
+          <h3>공유되는 것</h3>
+          <p><b>객체 데이터베이스</b> (<code class="inline">.git/objects</code>): 커밋, 트리, 블롭.</p>
+          <p><b>Ref</b>: 브랜치, 태그, 리모트 — 단일한 진실의 소스.</p>
+          <p><b>Config &amp; hook</b>: 메인 리포지토리에서 한 번만 정의됨.</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>분리되는 것</h3>
+          <p><b>작업 트리</b>: 디스크에 실제로 체크아웃된 파일.</p>
+          <p><b>Index</b>: 각 워크트리는 자체 스테이징 영역을 가집니다.</p>
+          <p><b>HEAD</b>: 각 워크트리는 자체 커밋/브랜치를 가리킵니다.</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>메타데이터의 위치</h3>
+          <p>메인 리포지토리는 연결된 각 워크트리를 <code class="inline">.git/worktrees/&lt;name&gt;/</code> 아래에 기록합니다. 연결된 각 워크트리는 <code class="inline">.git</code> <em>파일</em> (디렉토리가 아님)을 가지고, 이는 <code class="inline">gitdir:</code>을 통해 해당 메타데이터를 다시 가리킵니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. CORE COMMANDS -->
+  <section class="card scroll-fade" id="commands">
+    <h2><span class="num">03</span> 핵심 명령어</h2>
+    <p class="lede">실제로 자주 손이 가는 8개의 서브커맨드. 아래 샌드박스에서 바로 재생해 보려면 클릭하세요.</p>
+    <div class="tabs" id="cmd-tabs"></div>
+    <div class="stage">
+      <div class="tree-wrap">
+        <div class="tree-title"><span>프로젝트 트리</span><span class="badge" id="cmd-wtcount">1 워크트리</span></div>
+        <div class="tree" id="cmd-tree"></div>
+      </div>
+      <div class="shell">
+        <div class="shell-head">
+          <div class="left"><i></i><i></i><i></i></div>
+          <div class="title">샌드박스 · 워크트리로 놀기</div>
+        </div>
+        <div class="shell-body" id="cmd-shell"></div>
+        <div class="shell-input" id="cmd-input-row">
+          <span class="ps1" id="cmd-ps1">~/proj $</span>
+          <input id="cmd-input" placeholder="시도해 보세요: git worktree add ../feature feature-x" autocomplete="off" spellcheck="false"/>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin-top:10px">샌드박스가 인식하는 명령: <code class="inline">git worktree add|list|remove|prune|move|lock|unlock</code>, <code class="inline">git status</code>, <code class="inline">git branch</code>, <code class="inline">cd</code>, <code class="inline">ls</code>, <code class="inline">clear</code>, <code class="inline">reset</code>.</p>
+  </section>
+
+  <!-- 4. PATTERNS -->
+  <section class="card scroll-fade" id="patterns">
+    <h2><span class="num">04</span> 일반 패턴</h2>
+    <p class="lede">키 입력 비용이 즉시 회수되는 세 가지 워크플로우.</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">핫픽스</span> 모든 걸 던지고</h3>
+        <p>프로덕션이 다운됐습니다. 기능 작업에서 14커밋 깊이 들어가 있습니다.</p>
+<pre class="code"><span class="k">git</span> fetch origin
+<span class="k">git</span> worktree add -b hotfix/login \
+  ../hotfix origin/main
+<span class="k">cd</span> ../hotfix
+<span class="c"># 수정, 커밋, 푸시</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../hotfix</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill blue">리뷰</span> PR을 로컬에서 실행</h3>
+        <p>진행 중인 작업을 망가뜨리지 않고 PR #42를 리뷰합니다.</p>
+<pre class="code"><span class="k">git</span> fetch origin pull/42/head:pr/42
+<span class="k">git</span> worktree add ../review pr/42
+<span class="k">cd</span> ../review
+<span class="c"># 테스트 실행, 살펴보기</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../review</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill purple">긴 테스트</span> 옆에서 CI 실행</h3>
+        <p>코딩을 계속하면서 <code class="inline">release/v2</code>에서 통합 테스트 스위트를 실행합니다.</p>
+<pre class="code"><span class="k">git</span> worktree add ../e2e release/v2
+<span class="k">cd</span> ../e2e
+make integration-test &amp;
+<span class="k">cd</span> -
+<span class="c"># 메인 리포지토리에서 작업 계속</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. GOTCHAS -->
+  <section class="card scroll-fade" id="gotchas">
+    <h2><span class="num">05</span> 외울 가치 있는 함정</h2>
+    <p class="lede">실제로 부딪힐 워크트리 버그의 거의 전부가 이 다섯 가지 중 하나입니다.</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> add 시 Detached HEAD</h3>
+        <p>브랜치 대신 커밋/태그를 전달하면, 새 워크트리는 detached HEAD 상태가 됩니다. 새 브랜치를 만들려면 <code class="inline">-b</code>를 사용하세요.</p>
+<pre class="code"><span class="c"># detached:</span>
+<span class="k">git</span> worktree add ../tmp v1.4.0
+<span class="c"># 브랜치:</span>
+<span class="k">git</span> worktree add -b fix-1.4 ../tmp v1.4.0</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 브랜치가 이미 체크아웃됨</h3>
+        <p>Git은 다른 워크트리에 이미 체크아웃된 브랜치 체크아웃을 거부합니다 (그러면 두 HEAD가 하나의 ref를 짓밟게 됩니다). 다른 브랜치를 고르거나, 정말 확신이 있다면 <code class="inline">--force</code>를 사용하세요.</p>
+<pre class="code">fatal: 'feature-x' is already checked out at '/path/A'
+<span class="c"># 강제 (대개 좋은 생각이 아님):</span>
+<span class="k">git</span> worktree add --force ../B feature-x</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 수동 rm은 메타데이터를 남깁니다</h3>
+        <p>워크트리 디렉토리를 <code class="inline">rm -rf</code>로 지우면 <code class="inline">.git/worktrees/&lt;name&gt;</code>이 남습니다. <code class="inline">git worktree list</code>는 그것을 여전히 <em>prunable</em>로 표시합니다. <code class="inline">git worktree prune</code>을 실행하세요.</p>
+<pre class="code"><span class="k">git</span> worktree list
+<span class="c"># 표시: ../old  (prunable: gitdir is missing)</span>
+<span class="k">git</span> worktree prune -v</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 서브모듈 &amp; 워크트리별 config</h3>
+        <p>서브모듈은 워크트리 간에 자동으로 init되지 않습니다 — 각각에서 <code class="inline">git submodule update --init</code>을 실행하세요. 일부 config (sparse-checkout, hook)는 <code class="inline">--worktree</code>로 옵트인할 때만 워크트리별로 적용됩니다.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 잘못된 것을 제거하기</h3>
+        <p><code class="inline">remove</code>는 워크트리에 커밋되지 않은 변경사항이 있으면 거부합니다. 반사적으로 <code class="inline">--force</code>로 손이 가지 않게 하세요 — 먼저 <code class="inline">cd</code>해서 들어가 확인하세요.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.4);color:#ffe4a0">·</span> Lock으로 보호하기</h3>
+        <p>워크트리가 분리 가능한 디스크나 느린 NFS 마운트에 있다면, <code class="inline">git worktree lock</code>으로 git에게 경로가 도달 불가능하다는 이유만으로 prune하지 말라고 알리세요.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. VS STASH -->
+  <section class="card scroll-fade" id="vs">
+    <h2><span class="num">06</span> Worktree vs stash vs 다중 클론</h2>
+    <p class="lede">작업을 저글링하는 세 가지 방법. 서로 교환 가능하지 않습니다.</p>
+    <table class="cmp">
+      <tr>
+        <th></th><th>git stash</th><th>다중 클론</th><th>git worktree</th>
+      </tr>
+      <tr>
+        <td>설정 비용</td>
+        <td class="win">즉시</td>
+        <td class="lose">재클론, 재페치, 재구성</td>
+        <td>한 번의 명령, 재페치 불필요</td>
+      </tr>
+      <tr>
+        <td>디스크: 객체 데이터베이스</td>
+        <td>공유</td>
+        <td class="lose">클론마다 중복</td>
+        <td class="win">공유</td>
+      </tr>
+      <tr>
+        <td>Ref / fetch 동기화</td>
+        <td>해당 없음</td>
+        <td class="lose">각각 fetch 필요</td>
+        <td class="win">한 번 fetch, 모든 워크트리가 인지</td>
+      </tr>
+      <tr>
+        <td>두 브랜치를 동시에 실행</td>
+        <td class="lose">불가</td>
+        <td>가능</td>
+        <td class="win">가능</td>
+      </tr>
+      <tr>
+        <td>작업 손실 위험</td>
+        <td class="lose">스태시 목록, pop 시 충돌</td>
+        <td>낮음</td>
+        <td class="win">파일은 디스크에 그대로</td>
+      </tr>
+      <tr>
+        <td>적합한 상황</td>
+        <td>아주 짧은 즉석 전환 (&lt; 1분)</td>
+        <td>복사본마다 진짜로 다른 SDK / 툴링</td>
+        <td class="win">병렬 브랜치, 동일한 툴체인</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 7. BARE -->
+  <section class="card scroll-fade" id="bare">
+    <h2><span class="num">07</span> Bare 저장소 + worktree: 모노레포 트릭</h2>
+    <p class="lede">일부 팀은 "메인 체크아웃"을 완전히 건너뛰고, 리포지토리를 워크트리 폴더 모음으로 취급합니다.</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3>설정 방법</h3>
+<pre class="code"><span class="k">git</span> clone --bare git@github.com:org/repo.git repo.git
+<span class="k">cd</span> repo.git
+<span class="k">git</span> worktree add ../repo/main main
+<span class="k">git</span> worktree add ../repo/feature-x feature-x
+<span class="k">git</span> worktree add ../repo/release release/v2</pre>
+        <p style="margin-top:8px">레이아웃:</p>
+<pre class="code">repo.git/        <span class="c"># 공유 객체 DB</span>
+repo/
+  main/          <span class="c"># main 브랜치의 워크트리</span>
+  feature-x/     <span class="c"># feature-x 브랜치의 워크트리</span>
+  release/       <span class="c"># release/v2의 워크트리</span></pre>
+      </div>
+      <div class="pane">
+        <h3>사람들이 좋아하는 이유</h3>
+        <p>혼란을 줄 "메인" 워크트리가 없습니다 — 모든 브랜치가 동등한 형제 디렉토리입니다. 툴링 (IDE, devcontainer, 브랜치별 빌드 캐시)이 폴더에 깔끔하게 매핑됩니다.</p>
+        <p>트레이드오프: 베어 리포지토리 안에서는 일부 git 명령이 약간 어색하게 느껴집니다. 대부분은 <code class="inline">cd repo/main</code>을 별칭으로 두고 베어가 존재한다는 사실을 잊어버립니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. PRACTICE -->
+  <section class="card scroll-fade" id="practice">
+    <h2><span class="num">08</span> 연습 모드 <span class="pill" style="margin-left:8px">입력하여 학습</span></h2>
+    <p class="lede">프롬프트를 읽고, 명령을 입력하고, <span class="kbd">Enter</span>를 누르세요. 콤보를 쌓고, XP를 얻고, 업적을 잠금 해제합니다.</p>
+
+    <div class="practice-head">
+      <div class="practice-task" id="practice-task">
+        <div class="label">드릴 <span id="p-idx">1</span> / <span id="p-total">15</span></div>
+        <div class="q" id="p-q">로딩 중…</div>
+        <div class="hint" id="p-hint"></div>
+      </div>
+      <div class="practice-meta">
+        <div class="meter"><div class="l">XP</div><div class="v orange" id="p-xp">0</div></div>
+        <div class="meter"><div class="l">콤보</div><div class="v yellow" id="p-combo">0</div></div>
+        <div class="meter"><div class="l">정확도</div><div class="v green" id="p-acc">100%</div></div>
+      </div>
+    </div>
+
+    <div class="progress"><div id="p-bar" style="width:0%"></div></div>
+
+    <div class="shell" style="margin-top:14px">
+      <div class="shell-head">
+        <div class="left"><i></i><i></i><i></i></div>
+        <div class="title">드릴 · 명령을 입력하세요</div>
+      </div>
+      <div class="shell-body" id="p-shell"></div>
+      <div class="shell-input" id="p-input-row">
+        <span class="ps1" id="p-ps1">~/proj $</span>
+        <input id="p-input" placeholder="git worktree …" autocomplete="off" spellcheck="false"/>
+      </div>
+    </div>
+    <div class="feedback" id="p-feedback"></div>
+    <div class="practice-controls">
+      <button class="btn ghost" onclick="practice.skip()">건너뛰기 <span class="kbd">→</span></button>
+      <button class="btn ghost" onclick="practice.peek()">정답 보기</button>
+      <button class="btn ghost" onclick="practice.restart()">드릴 재시작</button>
+    </div>
+  </section>
+
+  <!-- ACHIEVEMENTS -->
+  <section class="card scroll-fade" id="achv-section">
+    <h2><span class="num">09</span> 업적</h2>
+    <p class="lede">드릴, 콤보, 보스전을 가로질러 모을 12개의 업적.</p>
+    <div class="achv-grid" id="achv-grid"></div>
+  </section>
+
+  <!-- BOSS -->
+  <section class="card boss scroll-fade" id="boss">
+    <h2><span class="num">10</span> 보스: <span style="color:#ff8a8a">브랜치 저글러</span></h2>
+    <p class="lede">7라운드 속사 시나리오 건틀릿. 라운드당 <b id="boss-timer">12.0s</b>가 주어집니다. 정답마다 데미지를 줍니다. 오답은 보스를 회복시킵니다. 처치하면 <code class="inline">Branch Juggler</code> 업적을 얻습니다.</p>
+    <div class="grid2">
+      <div>
+        <div class="boss-art" id="boss-art">
+            ╔══════════════════════════╗
+            ║   B R A N C H            ║
+            ║      J U G G L E R       ║
+            ║                          ║
+            ║   ╲   |   /              ║
+            ║    ╲  |  /  ← 워크트리   ║
+            ║     ╲ | /                ║
+            ║   [  ⚡  ]                ║
+            ╚══════════════════════════╝
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:4px">HP</div>
+          <div class="hp-bar"><div id="boss-hp" style="width:100%"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="practice-task" style="background:rgba(224,36,36,.08);border-color:rgba(224,36,36,.4)">
+          <div class="label" style="color:#ff8a8a">라운드 <span id="boss-round">–</span> / 7</div>
+          <div class="q" id="boss-q"><b>Engage</b>를 눌러 전투를 시작하세요.</div>
+          <div class="hint" id="boss-hint"></div>
+        </div>
+        <div class="shell" style="margin-top:12px">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">보스 · 흔들리지 마세요</div>
+          </div>
+          <div class="shell-input" id="boss-input-row">
+            <span class="ps1" id="boss-ps1">~/proj $</span>
+            <input id="boss-input" placeholder="여기에 답을 입력하세요" autocomplete="off" spellcheck="false" disabled/>
+          </div>
+        </div>
+        <div class="feedback" id="boss-feedback"></div>
+        <div class="practice-controls">
+          <button class="btn" id="boss-engage" onclick="boss.start()">Engage</button>
+          <button class="btn ghost" onclick="boss.reset()">보스 리셋</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Worktree 도장 · 다중 우주를 만들고, 하나의 <code class="inline">.git</code>을 공유하세요.
+  </footer>
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+ * STATE + PERSISTENCE
+ * ============================================================ */
+const SAVE_KEY = 'worktree-dojo-v1';
+const State = {
+  xp:0, level:1, combo:0, bestCombo:0,
+  totalAttempts:0, correctAttempts:0,
+  achv:{}, drillIdx:0, bossDefeated:false,
+};
+function xpForLevel(l){ return 100 + (l-1)*60; }
+
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(State)); }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    Object.assign(State, JSON.parse(raw));
+  }catch(e){}
+}
+function resetProgress(){
+  if(!confirm('XP, 업적, 드릴 진행 상황을 모두 초기화하시겠습니까?')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+
+/* ============================================================
+ * TOASTS + CONFETTI
+ * ============================================================ */
+function toast(title, desc){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="t">${title}</div><div class="d">${desc||''}</div>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>{
+    t.style.transition='opacity .4s, transform .4s';
+    t.style.opacity='0';
+    t.style.transform='translateX(20px)';
+    setTimeout(()=>t.remove(), 420);
+  }, 3200);
+}
+function fireConfetti(intensity=1){
+  if(typeof confetti !== 'function') return;
+  confetti({
+    particleCount: 60*intensity,
+    spread: 70,
+    origin:{y:0.7},
+    colors:['#f05133','#ff6f3d','#f5c451','#3ddc97','#4ea1ff'],
+  });
+}
+
+/* ============================================================
+ * HUD
+ * ============================================================ */
+function refreshHUD(){
+  const need = xpForLevel(State.level);
+  document.getElementById('hud-lv').textContent = State.level;
+  document.getElementById('hud-xp').textContent = State.xp;
+  document.getElementById('hud-xpmax').textContent = need;
+  document.getElementById('hud-combo').textContent = State.combo;
+  const unlocked = Object.values(State.achv).filter(Boolean).length;
+  document.getElementById('hud-achv').textContent = unlocked;
+
+  document.getElementById('p-xp').textContent = State.xp;
+  document.getElementById('p-combo').textContent = State.combo;
+  const acc = State.totalAttempts ? Math.round(100*State.correctAttempts/State.totalAttempts) : 100;
+  document.getElementById('p-acc').textContent = acc + '%';
+}
+
+function gainXP(amount, reason){
+  State.xp += amount;
+  while(State.xp >= xpForLevel(State.level)){
+    State.xp -= xpForLevel(State.level);
+    State.level += 1;
+    toast(`레벨 업 → ${State.level}`, '계속 입력하세요, 사범님.');
+    fireConfetti(1.4);
+  }
+  save(); refreshHUD();
+  if(reason) toast(`+${amount} XP`, reason);
+}
+
+/* ============================================================
+ * ACHIEVEMENTS
+ * ============================================================ */
+const ACHIEVEMENTS = [
+  { id:'first',   t:'첫 워크트리',         d:'첫 워크트리를 추가하세요.',                ico:'🌱' },
+  { id:'lister',  t:'점호',                d:'git worktree list를 실행하세요.',          ico:'📋' },
+  { id:'pruner',  t:'가지치기 장인',       d:'오래된 워크트리를 회수하세요.',            ico:'✂️' },
+  { id:'mover',   t:'가구 운반자',         d:'워크트리를 이동하세요.',                   ico:'📦' },
+  { id:'locker',  t:'자물쇠 따기 명수',    d:'워크트리를 잠그고 풀어보세요.',            ico:'🔒' },
+  { id:'force',   t:'강행돌파',            d:'정당하게 --force를 사용하세요.',           ico:'💥' },
+  { id:'hotfix',  t:'소방관',              d:'핫픽스 워크트리를 만들어보세요.',          ico:'🚒' },
+  { id:'review',  t:'리뷰어',              d:'PR 리뷰 워크트리를 띄워보세요.',           ico:'🔍' },
+  { id:'combo5',  t:'5연속',               d:'5연속 정답 콤보를 달성하세요.',            ico:'🔥' },
+  { id:'combo10', t:'다중 우주의 마스터',  d:'10연속 정답 콤보를 달성하세요.',           ico:'🌌' },
+  { id:'level5',  t:'견습생',              d:'레벨 5에 도달하세요.',                     ico:'⭐' },
+  { id:'boss',    t:'브랜치 저글러',       d:'보스를 처치하세요.',                       ico:'🏆' },
+];
+
+function unlockAchv(id){
+  if(State.achv[id]) return;
+  State.achv[id] = true;
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  toast(`★ 업적: ${a.t}`, a.d);
+  fireConfetti(1.1);
+  save(); refreshHUD(); renderAchv();
+}
+function renderAchv(){
+  const grid = document.getElementById('achv-grid');
+  grid.innerHTML = ACHIEVEMENTS.map(a=>`
+    <div class="achv ${State.achv[a.id]?'unlocked':''}">
+      <div class="ico">${a.ico}</div>
+      <div>
+        <div class="t">${a.t}</div>
+        <div class="d">${a.d}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+ * SHARED FAKE GIT ENGINE
+ *
+ * Each "world" has:
+ *   cwd: string ('main' | a wt name)
+ *   wts: array of {name,path,branch,detached?,locked?,prunable?,bare?}
+ *   branches: Set of strings (branch names that exist)
+ * ============================================================ */
+function newWorld(){
+  return {
+    cwd:'main',
+    wts:[
+      {name:'main', path:'~/proj', branch:'main', primary:true},
+    ],
+    branches:new Set(['main','develop','feature-x','release/v2','hotfix-123','pr/42']),
+    history:[],
+  };
+}
+
+function fmtPath(w){
+  if(w.cwd==='main') return '~/proj';
+  const wt = w.wts.find(x=>x.name===w.cwd);
+  return wt ? wt.path : '~/proj';
+}
+
+function findByPath(world, p){
+  return world.wts.find(w=>w.path===p);
+}
+function findByName(world, n){
+  return world.wts.find(w=>w.name===n);
+}
+function branchTaken(world, b){
+  return world.wts.some(w=>w.branch===b && !w.detached);
+}
+
+function runFakeGit(world, raw){
+  const tokens = raw.trim().split(/\s+/);
+  // CD
+  if(tokens[0]==='cd'){
+    const t = tokens[1]||'~';
+    if(t==='~' || t==='~/proj' || t==='-' || t==='/' ){
+      world.cwd='main'; return {ok:true, out:''};
+    }
+    const wt = world.wts.find(w=>w.path===t || ('../'+w.name)===t);
+    if(wt){ world.cwd = wt.name; return {ok:true,out:''}; }
+    return {err:`cd: no such directory: ${t}`};
+  }
+  if(tokens[0]==='ls'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    return {ok:true, out:`README.md  src/  package.json   .git${wt && !wt.primary?' -> '+wt.path+'/.git/worktrees/'+wt.name:''}`};
+  }
+  if(tokens[0]==='clear'){
+    return {ok:true, clear:true};
+  }
+  if(tokens[0]==='reset'){
+    Object.assign(world, newWorld());
+    return {ok:true, out:'샌드박스를 초기화했습니다.'};
+  }
+  if(tokens[0]==='git'){
+    return runGit(world, tokens.slice(1));
+  }
+  return {err:`zsh: command not found: ${tokens[0]}`};
+}
+
+function runGit(world, args){
+  if(args[0]==='status'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    if(!wt) return {err:'not a git repo'};
+    const head = wt.detached ? `HEAD detached at ${wt.branch}` : `On branch ${wt.branch}`;
+    return {ok:true, out:`${head}\nnothing to commit, working tree clean`};
+  }
+  if(args[0]==='branch'){
+    return {ok:true, out:[...world.branches].map(b=>(world.wts.find(w=>w.branch===b)?'+ ':'  ')+b).join('\n')};
+  }
+  if(args[0]!=='worktree') return {err:`git: '${args.join(' ')}' is not a git command`};
+
+  const sub = args[1];
+  const rest = args.slice(2);
+
+  // ---- ADD
+  if(sub==='add'){
+    let force=false, asBranch=null, hasB=false;
+    const positional=[];
+    for(let i=0;i<rest.length;i++){
+      const t=rest[i];
+      if(t==='--force'||t==='-f'){ force=true; }
+      else if(t==='-b'){ hasB=true; asBranch=rest[++i]; }
+      else if(t==='--detach'){ /* allowed */ }
+      else positional.push(t);
+    }
+    const path = positional[0];
+    const ref  = positional[1]; // can be branch, commit, tag
+    if(!path) return {err:`usage: git worktree add [-b new-branch] <path> [<commit-ish>]`};
+
+    let branch;
+    let detached = false;
+    if(hasB){
+      branch = asBranch;
+      if(world.branches.has(branch) && !force){
+        return {err:`fatal: a branch named '${branch}' already exists`};
+      }
+      world.branches.add(branch);
+    } else if(ref){
+      if(world.branches.has(ref)){
+        if(branchTaken(world, ref) && !force){
+          return {err:`fatal: '${ref}' is already checked out at another worktree`};
+        }
+        branch = ref;
+      } else {
+        // commit-ish / tag — detached HEAD
+        branch = ref;
+        detached = true;
+      }
+    } else {
+      // no ref: create a new branch named after the basename
+      const base = path.split('/').pop();
+      if(world.branches.has(base) && branchTaken(world, base) && !force){
+        return {err:`fatal: '${base}' is already checked out at another worktree`};
+      }
+      branch = base;
+      world.branches.add(branch);
+    }
+    if(findByPath(world, path)) return {err:`fatal: '${path}' already exists`};
+    const name = path.replace(/^\.\.?\//,'').replace(/\//g,'-');
+    world.wts.push({name, path, branch, detached, primary:false, _new:true});
+    return {ok:true, out:`Preparing worktree (${detached?'detached HEAD':'new branch '+branch}) at ${path}`};
+  }
+
+  // ---- LIST
+  if(sub==='list'){
+    return {ok:true, out: world.wts.map(w=>{
+      const sha = Math.random().toString(16).slice(2,9);
+      const head = w.detached ? `(detached HEAD)` : `[${w.branch}]`;
+      const tags = [];
+      if(w.locked) tags.push('locked');
+      if(w.prunable) tags.push('prunable');
+      const tagstr = tags.length?'  '+tags.map(t=>`(${t})`).join(' '):'';
+      return `${w.path.padEnd(20,' ')} ${sha} ${head}${tagstr}`;
+    }).join('\n')};
+  }
+
+  // ---- REMOVE
+  if(sub==='remove'){
+    let force=false; const pos=[];
+    rest.forEach(t=>t==='--force'||t==='-f'?force=true:pos.push(t));
+    const path = pos[0];
+    if(!path) return {err:'usage: git worktree remove <path>'};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' is not a working tree`};
+    if(wt.primary) return {err:`fatal: cannot remove the main worktree`};
+    if(wt.locked && !force) return {err:`fatal: cannot remove a locked working tree`};
+    if(world.cwd===wt.name) world.cwd='main';
+    wt._removed=true;
+    setTimeout(()=>{ world.wts = world.wts.filter(x=>x!==wt); renderAllTrees(); }, 380);
+    return {ok:true, out:`removed ${path}`};
+  }
+
+  // ---- PRUNE
+  if(sub==='prune'){
+    const before = world.wts.filter(w=>w.prunable).length;
+    world.wts = world.wts.filter(w=>!w.prunable);
+    return {ok:true, out:`pruned ${before} worktree${before===1?'':'s'}`};
+  }
+
+  // ---- MOVE
+  if(sub==='move'){
+    const [from,to] = rest;
+    if(!from||!to) return {err:'usage: git worktree move <from> <to>'};
+    const wt = findByPath(world, from);
+    if(!wt) return {err:`fatal: '${from}' is not a working tree`};
+    if(wt.primary) return {err:`fatal: cannot move the main worktree`};
+    wt.path = to;
+    wt._new = true;
+    return {ok:true, out:`moved ${from} → ${to}`};
+  }
+
+  // ---- LOCK / UNLOCK
+  if(sub==='lock' || sub==='unlock'){
+    const path = rest[0];
+    if(!path) return {err:`usage: git worktree ${sub} <path>`};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' is not a working tree`};
+    wt.locked = (sub==='lock');
+    return {ok:true, out:`${sub}ed ${path}`};
+  }
+
+  return {err:`git worktree: unknown subcommand '${sub}'`};
+}
+
+/* ============================================================
+ * RENDERERS
+ * ============================================================ */
+function renderTree(targetId, world, badgeId){
+  const tgt = document.getElementById(targetId);
+  if(!tgt) return;
+  const main = world.wts.find(w=>w.primary);
+  const linked = world.wts.filter(w=>!w.primary);
+
+  // Build node array
+  const nodes = [];
+  nodes.push({ico:'📁', label:'~/proj/', cls:'dir main', tag:main?.branch, tagCls:'', _new:false, _removed:false});
+  nodes.push({ico:'📂', label:'.git/', cls:'git', indent:1});
+  nodes.push({ico:'·', label:'objects/  refs/  worktrees/', cls:'file muted', indent:2, dim:true});
+  nodes.push({ico:'📄', label:'README.md', cls:'file', indent:1});
+  nodes.push({ico:'📁', label:'src/', cls:'dir', indent:1});
+
+  linked.forEach(w=>{
+    nodes.push({
+      ico:'🪐', label:`${w.path}/`, cls:'dir wt', tag:w.detached?'detached':w.branch,
+      tagCls: w.locked?'locked':(w.detached?'detached':''),
+      _new:w._new, _removed:w._removed, locked:w.locked, prunable:w.prunable,
+    });
+    nodes.push({ico:'·', label:'.git → '+(w.path)+'/.git/worktrees/'+w.name, cls:'file muted', indent:1, dim:true});
+  });
+
+  tgt.innerHTML = nodes.map(n=>{
+    const indent = '<span class="indent"></span>'.repeat(n.indent||0);
+    const dim = n.dim?'opacity:.55;':'';
+    const newClass = n._new?'new':'';
+    const remClass = n._removed?'removed':'';
+    const tag = n.tag?` <span class="branch-tag ${n.tagCls}">${n.tag}${n.locked?' 🔒':''}${n.prunable?' (prunable)':''}</span>`:'';
+    return `<div class="node ${n.cls} ${newClass} ${remClass}" style="${dim}">
+      ${indent}<span class="ico">${n.ico}</span><span>${n.label}</span>${tag}
+    </div>`;
+  }).join('');
+
+  // clear flags after animation
+  setTimeout(()=>{ world.wts.forEach(w=>{ w._new=false; }); }, 500);
+
+  if(badgeId){
+    const c = world.wts.length;
+    const b = document.getElementById(badgeId);
+    if(b) b.textContent = `${c} 워크트리`;
+  }
+}
+
+function appendShellLine(shellId, text, cls){
+  const sh = document.getElementById(shellId);
+  if(!sh) return;
+  const div = document.createElement('div');
+  div.className='line '+(cls||'');
+  div.textContent = text;
+  sh.appendChild(div);
+  sh.scrollTop = sh.scrollHeight;
+}
+function clearShell(shellId){
+  document.getElementById(shellId).innerHTML='';
+}
+
+/* ============================================================
+ * HERO ANIMATION
+ * ============================================================ */
+const heroWorld = newWorld();
+const heroSequence = [
+  {cmd:'git worktree add ../hotfix hotfix-123', wait:1700},
+  {cmd:'git worktree add ../review pr/42',      wait:1700},
+  {cmd:'git worktree list',                      wait:1700},
+  {cmd:'git worktree remove ../review',          wait:1700},
+  {cmd:'git worktree add ../e2e release/v2',     wait:1700},
+  {cmd:'git worktree remove ../hotfix',          wait:1700},
+  {cmd:'git worktree remove ../e2e',             wait:1700},
+];
+let heroIdx = 0;
+function heroTick(){
+  const step = heroSequence[heroIdx % heroSequence.length];
+  appendShellLine('hero-shell', `${fmtPath(heroWorld)} $ ${step.cmd}`, 'prompt');
+  const res = runFakeGit(heroWorld, step.cmd);
+  if(res.ok && res.out) appendShellLine('hero-shell', res.out, 'out');
+  if(res.err) appendShellLine('hero-shell', res.err, 'err');
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  heroIdx++;
+  setTimeout(heroTick, step.wait);
+}
+
+/* ============================================================
+ * COMMAND SANDBOX
+ * ============================================================ */
+const cmdWorld = newWorld();
+function cmdRender(){ renderTree('cmd-tree', cmdWorld, 'cmd-wtcount'); document.getElementById('cmd-ps1').textContent = fmtPath(cmdWorld)+' $'; }
+function cmdRun(line){
+  appendShellLine('cmd-shell', `${fmtPath(cmdWorld)} $ ${line}`, 'prompt');
+  if(!line.trim()){ return; }
+  const res = runFakeGit(cmdWorld, line);
+  if(res.clear){ clearShell('cmd-shell'); cmdRender(); return; }
+  if(res.ok && res.out) appendShellLine('cmd-shell', res.out, 'out');
+  if(res.ok && !res.out) {/* silent */}
+  if(res.err) appendShellLine('cmd-shell', res.err, 'err');
+  cmdRender();
+}
+
+const CMD_TABS = [
+  { id:'add',    label:'add',    desc:'<path>에 <branch>를 위한 새 워크트리를 추가합니다.',
+    demo:['git worktree add ../feature feature-x','git worktree add -b new-fix ../fix main'] },
+  { id:'list',   label:'list',   desc:'모든 워크트리와 그들의 HEAD를 표시합니다.',
+    demo:['git worktree list'] },
+  { id:'remove', label:'remove', desc:'워크트리를 삭제합니다 (커밋되지 않은 변경사항이 없어야 함).',
+    demo:['git worktree remove ../feature'] },
+  { id:'prune',  label:'prune',  desc:'더 이상 존재하지 않는 경로의 오래된 .git/worktrees/* 메타데이터를 제거합니다.',
+    demo:['git worktree prune -v'] },
+  { id:'move',   label:'move',   desc:'워크트리를 새 경로로 이동합니다.',
+    demo:['git worktree move ../feature ../feat-x'] },
+  { id:'lock',   label:'lock',   desc:'자동 prune되지 않도록 워크트리를 잠금 상태로 표시합니다.',
+    demo:['git worktree lock ../feature'] },
+  { id:'unlock', label:'unlock', desc:'잠금을 해제합니다.',
+    demo:['git worktree unlock ../feature'] },
+];
+function renderCmdTabs(){
+  const t = document.getElementById('cmd-tabs');
+  t.innerHTML = CMD_TABS.map((c,i)=>`<div class="tab ${i===0?'active':''}" data-id="${c.id}">${c.label}</div>`).join('');
+  t.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      t.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      tab.classList.add('active');
+      const cfg = CMD_TABS.find(c=>c.id===tab.dataset.id);
+      appendShellLine('cmd-shell', `# ${cfg.desc}`, 'out');
+      cfg.demo.forEach(d => setTimeout(()=>cmdRun(d), 250));
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  load();
+  refreshHUD();
+  renderAchv();
+
+  // Start hero loop
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  setTimeout(heroTick, 800);
+
+  // Sandbox
+  cmdRender();
+  appendShellLine('cmd-shell', '# 샌드박스 준비 완료 · 시도해 보세요 `git worktree add ../feature feature-x`','out');
+  renderCmdTabs();
+
+  document.getElementById('cmd-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      cmdRun(e.target.value);
+      e.target.value='';
+    }
+  });
+
+  // Practice
+  practice.start();
+
+  // Boss input
+  document.getElementById('boss-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter') boss.submit();
+  });
+
+  // Scroll fade
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
+  },{threshold:.12});
+  document.querySelectorAll('.scroll-fade').forEach(el=>obs.observe(el));
+});
+
+function renderAllTrees(){
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  renderTree('cmd-tree', cmdWorld, 'cmd-wtcount');
+  renderTree('p-tree', practice.world, 'p-wtcount');
+}
+
+/* ============================================================
+ * PRACTICE DRILLS
+ * ============================================================ */
+const DRILLS = [
+  {
+    q:'<code class="inline">../hotfix</code>에 <code class="inline">hotfix-123</code> 브랜치를 추적하는 워크트리를 만드세요.',
+    answers:['git worktree add ../hotfix hotfix-123'],
+    hint:'`git worktree add <path> <branch>`',
+    achv:['first'],
+  },
+  {
+    q:'이 리포지토리에 연결된 모든 워크트리를 표시하세요.',
+    answers:['git worktree list'],
+    hint:'짧은 서브커맨드 하나',
+    achv:['lister'],
+  },
+  {
+    q:'<code class="inline">main</code> 기반으로 <code class="inline">../fix</code>에 새 브랜치 <code class="inline">fix-42</code>를 가진 새 워크트리를 만드세요.',
+    answers:['git worktree add -b fix-42 ../fix main'],
+    hint:'`-b <new-branch>`로 브랜치를 생성합니다',
+  },
+  {
+    q:'<code class="inline">../review</code>에 (이미 로컬에 존재하는) <code class="inline">pr/42</code> 브랜치를 위한 워크트리를 추가하세요.',
+    answers:['git worktree add ../review pr/42'],
+    hint:'표준 add',
+    achv:['review'],
+  },
+  {
+    q:'<code class="inline">../review</code> 워크트리를 깔끔하게 제거하세요.',
+    answers:['git worktree remove ../review'],
+    hint:'깔끔하면 플래그가 필요 없습니다',
+  },
+  {
+    q:'누군가 <code class="inline">rm -rf</code>로 <code class="inline">../old</code>를 삭제했습니다. 메타데이터를 회수하세요.',
+    answers:['git worktree prune','git worktree prune -v'],
+    hint:'이 서브커맨드가 오래된 항목을 정리합니다',
+    achv:['pruner'],
+  },
+  {
+    q:'<code class="inline">feature-x</code> 브랜치가 다른 곳에 이미 체크아웃되어 있습니다. <code class="inline">../alt</code>에 강제로 추가하세요.',
+    answers:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x'],
+    hint:'`--force` (또는 `-f`)가 "이미 체크아웃됨" 가드를 우회합니다',
+    achv:['force'],
+  },
+  {
+    q:'<code class="inline">../feat</code>의 워크트리를 <code class="inline">../feat-x</code>로 이동하세요.',
+    answers:['git worktree move ../feat ../feat-x'],
+    hint:'move로 이름 변경',
+    achv:['mover'],
+  },
+  {
+    q:'prune이 건드리지 않도록 <code class="inline">../usb-build</code>의 워크트리를 잠그세요.',
+    answers:['git worktree lock ../usb-build'],
+    hint:'pruning으로부터 보호',
+  },
+  {
+    q:'<code class="inline">../usb-build</code>의 잠금을 해제하세요.',
+    answers:['git worktree unlock ../usb-build'],
+    hint:'lock의 반대',
+    achv:['locker'],
+  },
+  {
+    q:'핫픽스 시나리오: <code class="inline">origin/main</code>에서 시작하는 새 브랜치 <code class="inline">hotfix/login</code>으로 <code class="inline">../hotfix</code>에 워크트리를 만드세요.',
+    answers:['git worktree add -b hotfix/login ../hotfix origin/main'],
+    hint:'`-b <new-branch> <path> <start-point>`',
+    achv:['hotfix'],
+  },
+  {
+    q:'현재 워크트리 레이아웃을 살핀 다음, <code class="inline">../hotfix</code>로 이동하세요.',
+    answers:['cd ../hotfix'],
+    hint:'단순 셸 `cd`',
+  },
+  {
+    q:'<code class="inline">../hotfix</code>의 핫픽스 워크트리에서의 작업이 끝났고 커밋되지 않은 변경사항도 없습니다 — 제거하세요.',
+    answers:['git worktree remove ../hotfix'],
+    hint:'기본 remove',
+  },
+  {
+    q:'형제 디렉토리 <code class="inline">../e2e</code>에서 <code class="inline">release/v2</code>에 대한 긴 통합 테스트를 실행하세요.',
+    answers:['git worktree add ../e2e release/v2'],
+    hint:'기존 브랜치를 위한 표준 add',
+  },
+  {
+    q:'통합 테스트 워크트리가 레지스트리에 표시되는지 확인하세요.',
+    answers:['git worktree list'],
+    hint:'동일한 list 명령',
+  },
+  {
+    q:'<code class="inline">../tmp</code>를 태그 <code class="inline">v1.4.0</code>로 추가했더니 detached 상태가 되었습니다. 다음 번에는 <code class="inline">../tmp</code>에 진짜 브랜치 <code class="inline">fix-1.4</code>를 만드세요.',
+    answers:['git worktree add -b fix-1.4 ../tmp v1.4.0'],
+    hint:'`-b`로 detached HEAD를 피할 수 있습니다',
+  },
+  {
+    q:'장황하게 prune하세요 (정리된 항목 표시).',
+    answers:['git worktree prune -v','git worktree prune --verbose'],
+    hint:'장황 플래그를 추가하세요',
+  },
+];
+
+const practice = {
+  world: newWorld(),
+  start(){
+    if(State.drillIdx>=DRILLS.length) State.drillIdx = 0;
+    document.getElementById('p-total').textContent = DRILLS.length;
+    this.render();
+
+    document.getElementById('p-input').addEventListener('keydown', e=>{
+      if(e.key==='Enter') this.submit();
+    });
+  },
+  current(){ return DRILLS[State.drillIdx]; },
+  render(){
+    const d = this.current();
+    if(!d){
+      document.getElementById('p-q').innerHTML = `드릴 완료. 보스를 향해 →`;
+      document.getElementById('p-hint').textContent = '';
+      document.getElementById('p-idx').textContent = DRILLS.length;
+      document.getElementById('p-bar').style.width = '100%';
+      return;
+    }
+    document.getElementById('p-q').innerHTML = d.q;
+    document.getElementById('p-hint').innerHTML = '힌트: '+d.hint;
+    document.getElementById('p-idx').textContent = State.drillIdx+1;
+    document.getElementById('p-bar').style.width = (100*State.drillIdx/DRILLS.length)+'%';
+    document.getElementById('p-feedback').className='feedback';
+    document.getElementById('p-feedback').textContent='';
+    document.getElementById('p-input').value='';
+    document.getElementById('p-input').focus();
+    document.getElementById('p-ps1').textContent = '~/proj $';
+  },
+  submit(){
+    const d = this.current();
+    if(!d) return;
+    const inputEl = document.getElementById('p-input');
+    const val = inputEl.value.trim().replace(/\s+/g,' ');
+    State.totalAttempts++;
+    appendShellLine('p-shell', `~/proj $ ${val}`, 'prompt');
+
+    const ok = d.answers.some(a=>a.replace(/\s+/g,' ').toLowerCase()===val.toLowerCase());
+    const fb = document.getElementById('p-feedback');
+    if(ok){
+      State.correctAttempts++;
+      State.combo++;
+      State.bestCombo = Math.max(State.bestCombo, State.combo);
+      const reward = 12 + Math.min(State.combo,10)*2;
+      gainXP(reward);
+      fb.className='feedback ok';
+      fb.textContent = `정답. +${reward} XP. (콤보 ×${State.combo})`;
+      appendShellLine('p-shell', '✓ 통과', 'ok');
+      fireConfetti(0.6);
+      if(d.achv) d.achv.forEach(unlockAchv);
+      if(State.combo===5) unlockAchv('combo5');
+      if(State.combo>=10) unlockAchv('combo10');
+      if(State.level>=5) unlockAchv('level5');
+      State.drillIdx++;
+      save();
+      setTimeout(()=>this.render(), 500);
+    } else {
+      State.combo = 0;
+      fb.className='feedback err';
+      fb.textContent = `아닙니다. 힌트: ${d.hint}`;
+      appendShellLine('p-shell', '✗ 다시 시도하세요', 'err');
+      const row = document.getElementById('p-input-row');
+      row.classList.add('shake');
+      setTimeout(()=>row.classList.remove('shake'), 400);
+      save();
+    }
+    refreshHUD();
+  },
+  skip(){
+    State.drillIdx++;
+    State.combo=0;
+    save();
+    this.render();
+    refreshHUD();
+  },
+  peek(){
+    const d = this.current();
+    if(!d) return;
+    const fb = document.getElementById('p-feedback');
+    fb.className='feedback tip';
+    fb.textContent = '정답: '+d.answers[0];
+  },
+  restart(){
+    if(!confirm('드릴을 #1부터 다시 시작하시겠습니까? (XP와 업적은 유지됨)')) return;
+    State.drillIdx=0; State.combo=0; save();
+    this.render(); refreshHUD();
+    clearShell('p-shell');
+  },
+};
+
+/* ============================================================
+ * BOSS: Branch Juggler
+ * ============================================================ */
+const BOSS_ROUNDS = [
+  {q:'팀원이 워크트리 디렉토리를 `rm -rf`했습니다. 정리 명령을 실행하세요.',  ans:['git worktree prune','git worktree prune -v']},
+  {q:'이 리포지토리가 알고 있는 모든 워크트리를 나열하세요.',                 ans:['git worktree list']},
+  {q:'`feature-x` 브랜치가 다른 곳에 이미 체크아웃되어 있어도 `../alt`에 추가하세요.', ans:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x']},
+  {q:'`origin/main`에서 새 브랜치 `hot/2026`을 가진 새 워크트리를 `../hot`에 만드세요.', ans:['git worktree add -b hot/2026 ../hot origin/main']},
+  {q:'`../slow-disk`를 잠가서 prune에서 살아남게 하세요.',                     ans:['git worktree lock ../slow-disk']},
+  {q:'`../wip`을 `../wip-old`로 이동하세요.',                                  ans:['git worktree move ../wip ../wip-old']},
+  {q:'`../alt`를 깔끔하게 철거하세요.',                                        ans:['git worktree remove ../alt']},
+];
+
+const boss = {
+  round:0, hp:100, dmg:18, heal:8, perRound:12.0,
+  timerId:null, deadline:0,
+
+  start(){
+    if(State.bossDefeated){
+      if(!confirm('이미 보스를 처치했습니다. 다시 싸우시겠습니까?')) return;
+    }
+    this.round=0; this.hp=100;
+    document.getElementById('boss-input').disabled=false;
+    document.getElementById('boss-engage').textContent='교전 중…';
+    document.getElementById('boss-engage').disabled=true;
+    this.next();
+  },
+  next(){
+    if(this.round>=BOSS_ROUNDS.length || this.hp<=0){
+      this.finish();
+      return;
+    }
+    const r = BOSS_ROUNDS[this.round];
+    document.getElementById('boss-round').textContent = (this.round+1);
+    document.getElementById('boss-q').innerHTML = r.q;
+    document.getElementById('boss-hint').innerHTML = '';
+    document.getElementById('boss-feedback').textContent = '';
+    document.getElementById('boss-feedback').className='feedback';
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-input').focus();
+    this.deadline = Date.now() + this.perRound*1000;
+    this.tick();
+  },
+  tick(){
+    clearTimeout(this.timerId);
+    const remain = (this.deadline - Date.now())/1000;
+    document.getElementById('boss-timer').textContent = Math.max(remain,0).toFixed(1)+'s';
+    if(remain<=0){
+      this.miss('시간 초과');
+      return;
+    }
+    this.timerId = setTimeout(()=>this.tick(), 100);
+  },
+  submit(){
+    const r = BOSS_ROUNDS[this.round];
+    const v = document.getElementById('boss-input').value.trim().replace(/\s+/g,' ').toLowerCase();
+    State.totalAttempts++;
+    if(r.ans.some(a=>a.toLowerCase()===v)){
+      this.hit();
+    } else {
+      this.miss('잘못된 명령');
+    }
+  },
+  hit(){
+    State.correctAttempts++;
+    State.combo++;
+    State.bestCombo = Math.max(State.bestCombo, State.combo);
+    this.hp = Math.max(0, this.hp - this.dmg);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback ok';
+    document.getElementById('boss-feedback').textContent = `명중! −${this.dmg} HP.`;
+    fireConfetti(0.5);
+    gainXP(20);
+    this.round++;
+    setTimeout(()=>this.next(), 500);
+  },
+  miss(reason){
+    State.combo = 0;
+    this.hp = Math.min(100, this.hp + this.heal);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback err';
+    document.getElementById('boss-feedback').textContent = `빗나감 (${reason}). 보스 회복 +${this.heal}.`;
+    const row = document.getElementById('boss-input-row');
+    row.classList.add('shake');
+    setTimeout(()=>row.classList.remove('shake'), 400);
+    refreshHUD();
+    save();
+    this.round++;
+    setTimeout(()=>this.next(), 600);
+  },
+  finish(){
+    clearTimeout(this.timerId);
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='Engage';
+    if(this.hp<=0){
+      document.getElementById('boss-q').innerHTML = `브랜치 저글러를 처치했습니다. 다중 우주는 당신의 것입니다.`;
+      document.getElementById('boss-feedback').className='feedback ok';
+      document.getElementById('boss-feedback').textContent = '승리.';
+      State.bossDefeated = true;
+      unlockAchv('boss');
+      gainXP(100, '보스 보너스');
+      fireConfetti(2.0);
+      setTimeout(()=>fireConfetti(2.0), 400);
+    } else {
+      document.getElementById('boss-q').innerHTML = `라운드가 끝났습니다. 보스 HP: ${this.hp}. 다시 시도하세요.`;
+      document.getElementById('boss-feedback').className='feedback err';
+      document.getElementById('boss-feedback').textContent = '패배. Engage를 눌러 재도전하세요.';
+    }
+    save();
+    refreshHUD();
+  },
+  reset(){
+    clearTimeout(this.timerId);
+    this.round=0; this.hp=100;
+    document.getElementById('boss-hp').style.width='100%';
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='Engage';
+    document.getElementById('boss-q').innerHTML = `<b>Engage</b>를 눌러 전투를 시작하세요.`;
+    document.getElementById('boss-feedback').textContent='';
+    document.getElementById('boss-timer').textContent='12.0s';
+  },
+};
+</script>
+</body>
+</html>

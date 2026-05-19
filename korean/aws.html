@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS CLI &amp; S3 치트시트 — 인터랙티브</title>
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a26;
+    --panel-2: #1a2436;
+    --border: #2a3754;
+    --text: #ecf1f8;
+    --muted: #8a95a8;
+    --navy: #232f3e;
+    --accent: #ff9900;
+    --accent-2: #ffb547;
+    --accent-3: #ff6b6b;
+    --code-bg: #060a12;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, rgba(255, 153, 0, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 0% 5%, rgba(255, 181, 71, 0.05), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, #161e2a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo .cube {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), #c0660d);
+    border-radius: 5px; position: relative;
+    box-shadow: 0 0 16px rgba(255,153,0,0.5);
+    transform: rotate(45deg);
+  }
+  .logo .cube::after {
+    content: ""; position: absolute; inset: 6px;
+    border: 2px solid #052622; border-radius: 2px;
+    transform: rotate(-45deg);
+  }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #1c1303;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(255,153,0,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(255, 153, 0, 0.10);
+    border-color: rgba(255, 153, 0, 0.45);
+    box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(255, 153, 0, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .playground .sandbox-tag {
+    position: absolute; top: 10px; right: 14px;
+    font-size: 10.5px; color: var(--accent-3);
+    border: 1px solid var(--accent-3);
+    padding: 2px 8px; border-radius: 999px;
+    font-weight: 700; letter-spacing: 0.4px;
+    background: rgba(255, 107, 107, 0.08);
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 10px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 100px; }
+  .pg-row select, .pg-row input[type="text"], .pg-row input[type="number"], .pg-row input[type="search"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    min-width: 160px;
+  }
+  .pg-out {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--accent-2);
+    word-break: break-all; white-space: pre-wrap;
+    margin-top: 8px; min-height: 36px;
+  }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #c0660d);
+    color: #1c1303; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(255, 153, 0, 0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Mock S3 bucket */
+  .bucket {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 180px;
+    margin-top: 10px;
+  }
+  .bucket-header {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--accent); font-weight: 700; font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 8px; margin-bottom: 10px;
+  }
+  .bucket-header .icon {
+    width: 22px; height: 22px;
+    background: linear-gradient(180deg, var(--accent) 0%, #c0660d 100%);
+    border-radius: 0 0 6px 6px;
+    position: relative;
+  }
+  .bucket-header .icon::before {
+    content: ""; position: absolute; top: -3px; left: 0; right: 0;
+    height: 3px; background: var(--accent-2); border-radius: 6px 6px 0 0;
+  }
+  .file-row {
+    display: grid; grid-template-columns: 24px 1fr 100px 80px;
+    gap: 10px; align-items: center;
+    padding: 6px 8px; border-radius: 5px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    transition: background 0.15s, transform 0.2s;
+  }
+  .file-row:hover { background: var(--panel-2); }
+  .file-row.added { animation: slidein 0.4s ease; }
+  .file-row.removing { animation: slideout 0.3s ease forwards; }
+  @keyframes slidein {
+    from { opacity: 0; transform: translateX(-12px); background: rgba(255,153,0,0.15); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes slideout {
+    to { opacity: 0; transform: translateX(12px); height: 0; padding: 0; }
+  }
+  .file-row .ico { color: var(--accent-2); }
+  .file-row .name { color: var(--text); }
+  .file-row .size { color: var(--muted); text-align: right; }
+  .file-row .cls { color: var(--accent-2); text-align: right; font-size: 11px; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+
+  .uri-display {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-top: 10px;
+  }
+  .uri-part {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .uri-part .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .uri-part .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; color: var(--accent); margin-top: 4px;
+    word-break: break-all;
+  }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 153, 0, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    font-size: 13px; margin: 12px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    cursor: pointer; user-select: none;
+    transition: all 0.15s;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    color: #1c1303; background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Help overlay */
+  .help-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .help-overlay.open { display: flex; }
+  .help-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px; max-width: 380px;
+    box-shadow: 0 20px 50px -10px rgba(0,0,0,0.6);
+  }
+  .help-card h3 { margin: 0 0 12px; color: var(--accent); }
+  .help-card kbd {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 2px 6px; border-radius: 4px; font-size: 11px;
+    color: var(--text); font-family: ui-monospace, monospace;
+  }
+  .help-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: var(--muted); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .uri-display { grid-template-columns: 1fr; }
+    .file-row { grid-template-columns: 24px 1fr 80px; }
+    .file-row .cls { display: none; }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="cube"></span> AWS CLI &amp; S3</div>
+    <div class="search">
+      <span class="icon">⌕</span>
+      <input id="searchInput" type="search" placeholder="명령어, 설정 검색… ( / )" />
+    </div>
+    <span class="badge">CLI v2</span>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="setup">설정</button>
+    <button data-tab="iam">IAM</button>
+    <button data-tab="s3">S3</button>
+    <button data-tab="s3adv">S3 고급</button>
+    <button data-tab="hello">Hello World</button>
+    <button data-tab="other">기타 서비스</button>
+    <button data-tab="trouble">문제 해결</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== SETUP ========== -->
+<section class="tab-section active" id="setup">
+  <h1>설정</h1>
+  <p class="lead">AWS CLI v2 설치, 자격 증명 구성, 계정 접근 확인. 5분.</p>
+
+  <h2>설치</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">macOS</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># pkg 설치 프로그램</span>
+curl <span class="tok-s">"https://awscli.amazonaws.com/AWSCLIV2.pkg"</span> -o <span class="tok-s">"AWSCLIV2.pkg"</span>
+sudo installer -pkg AWSCLIV2.pkg -target /
+
+<span class="tok-c"># 또는 Homebrew 사용</span>
+brew install awscli
+
+aws --version
+<span class="tok-c"># aws-cli/2.15.x Python/3.x Darwin/24.x</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Linux</div><button class="copy-btn">복사</button></div>
+      <pre><code>curl <span class="tok-s">"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"</span> -o <span class="tok-s">"awscliv2.zip"</span>
+unzip awscliv2.zip
+sudo ./aws/install
+
+<span class="tok-c"># Apple Silicon / ARM</span>
+curl <span class="tok-s">"https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"</span> -o <span class="tok-s">"awscliv2.zip"</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Windows</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># MSI 설치 프로그램</span>
+msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
+
+<span class="tok-c"># 또는 Powershell에서:</span>
+winget install -e --id Amazon.AWSCLI</code></pre>
+    </div>
+  </div>
+
+  <h2>구성</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">aws configure (default 프로필)</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws configure
+<span class="tok-c"># AWS Access Key ID: AKIA...</span>
+<span class="tok-c"># AWS Secret Access Key: ...</span>
+<span class="tok-c"># 기본 리전: us-east-1</span>
+<span class="tok-c"># 기본 출력 형식: json</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">이름이 지정된 프로필</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">대부분의 팀은 여러 계정 (dev, staging, prod)을 가집니다. 계정마다 프로필을 사용하세요.</div>
+      <pre><code>aws configure --profile prod
+<span class="tok-c"># 모든 명령에서:</span>
+aws s3 ls --profile prod
+<span class="tok-c"># 또는 환경 변수로:</span>
+<span class="tok-k">export</span> AWS_PROFILE=prod</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">디스크 상의 파일</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># ~/.aws/credentials</span>
+[default]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+[prod]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+<span class="tok-c"># ~/.aws/config</span>
+[default]
+region = us-east-1
+output = json
+
+[profile prod]
+region = us-west-2
+output = json</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSO (사람에게 권장)</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">노트북에 장기 키가 없습니다. 페더레이션, 시간 제한 자격 증명.</div>
+      <pre><code>aws configure sso
+aws sso login --profile prod
+
+<span class="tok-c"># ~/.aws/config 안에서:</span>
+[profile prod]
+sso_session = my-sso
+sso_account_id = 123456789012
+sso_role_name = PowerUser
+region = us-west-2</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">환경 변수 (CI / 스크립트)</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">export</span> AWS_ACCESS_KEY_ID=AKIA...
+<span class="tok-k">export</span> AWS_SECRET_ACCESS_KEY=...
+<span class="tok-k">export</span> AWS_SESSION_TOKEN=...        <span class="tok-c"># STS용</span>
+<span class="tok-k">export</span> AWS_REGION=us-east-1
+<span class="tok-k">export</span> AWS_PROFILE=prod              <span class="tok-c"># 또는 프로필 사용</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">확인</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws sts get-caller-identity
+<span class="tok-c"># {</span>
+<span class="tok-c">#   "UserId": "AIDA...",</span>
+<span class="tok-c">#   "Account": "123456789012",</span>
+<span class="tok-c">#   "Arn": "arn:aws:iam::123...:user/jane"</span>
+<span class="tok-c"># }</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>금지:</strong> <code>~/.aws/credentials</code>를 커밋하지 말고, Slack에 키를 붙여넣지 말고, Docker 이미지에 굽지 말고, Lambda 환경 변수에 체크인하지 마세요. IAM 역할 (EC2 인스턴스 역할, Lambda 실행 역할, EKS IRSA)을 우선하세요 — 단기 자격 증명을 자동으로 발급해 줍니다.</div>
+</section>
+
+<!-- ========== IAM ========== -->
+<section class="tab-section" id="iam">
+  <h1>IAM 기초</h1>
+  <p class="lead">Identity (누가) + Policy (무엇을) + Resource (어디서). 모든 API 호출은 정책에 대해 권한 부여됩니다.</p>
+
+  <h2>개념</h2>
+  <table class="ref">
+    <thead><tr><th>대상</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td><code>User</code></td><td>사람 (또는 서비스)에 묶인 장기 ID. 액세스 키, 콘솔 비밀번호, MFA를 가질 수 있습니다.</td></tr>
+      <tr><td><code>Role</code></td><td><em>맡을 수 있는</em> ID. 단기 자격 증명 (STS)을 반환합니다. EC2, Lambda, EKS, 교차 계정 접근, 페더레이션이 사용합니다.</td></tr>
+      <tr><td><code>Policy</code></td><td>JSON 문서. <em>Identity 정책</em>은 user/role에 연결합니다. <em>Resource 정책</em>은 리소스 (예: S3 버킷 정책)에 연결합니다.</td></tr>
+      <tr><td><code>Group</code></td><td>정책을 공유하는 사용자 묶음. 중첩 불가.</td></tr>
+      <tr><td><code>STS</code></td><td>Security Token Service. <code>AssumeRole</code>, <code>AssumeRoleWithWebIdentity</code> 등을 통해 단기 자격 증명을 발급합니다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>최소 S3 정책</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">단일 버킷에 대한 읽기 전용</div><button class="copy-btn">복사</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Action"</span>: [<span class="tok-s">"s3:GetObject"</span>, <span class="tok-s">"s3:ListBucket"</span>],
+    <span class="tok-s">"Resource"</span>: [
+      <span class="tok-s">"arn:aws:s3:::my-bucket"</span>,
+      <span class="tok-s">"arn:aws:s3:::my-bucket/*"</span>
+    ]
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">단일 prefix에 쓰기</div><button class="copy-btn">복사</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Action"</span>: [<span class="tok-s">"s3:PutObject"</span>, <span class="tok-s">"s3:DeleteObject"</span>],
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-bucket/uploads/*"</span>
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">신뢰 정책 (EC2가 맡는 역할)</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">역할에 연결됩니다; <em>누가 나를 맡을 수 있는가</em>를 명시합니다.</div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: {<span class="tok-s">"Service"</span>: <span class="tok-s">"ec2.amazonaws.com"</span>},
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"sts:AssumeRole"</span>
+  }]
+}</code></pre>
+    </div>
+  </div>
+
+  <h2>IAM CLI 명령어</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">역할 맡기 (assume)</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws sts assume-role \
+  --role-arn arn:aws:iam::123456789012:role/Deploy \
+  --role-session-name deploy-$(date +%s)
+
+<span class="tok-c"># 또는 ~/.aws/config 안에서:</span>
+[profile prod-deploy]
+role_arn = arn:aws:iam::123456789012:role/Deploy
+source_profile = default
+region = us-west-2</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">사용자 / 역할 관리</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws iam list-users
+aws iam list-roles
+aws iam get-role --role-name Deploy
+aws iam list-attached-role-policies --role-name Deploy
+aws iam list-access-keys --user-name jane</code></pre>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">생성기</span>
+    <h3>정책 빌더</h3>
+    <div class="desc">액션과 리소스 ARN을 고르세요. 페이지가 콘솔에 붙여넣거나 CLI로 연결할 수 있는 JSON 정책을 생성합니다.</div>
+    <div class="pg-row" style="align-items:flex-start">
+      <label style="margin-top:6px">액션</label>
+      <div class="chips" id="iamActions">
+        <span class="chip active" data-a="s3:GetObject">s3:GetObject</span>
+        <span class="chip active" data-a="s3:ListBucket">s3:ListBucket</span>
+        <span class="chip" data-a="s3:PutObject">s3:PutObject</span>
+        <span class="chip" data-a="s3:DeleteObject">s3:DeleteObject</span>
+        <span class="chip" data-a="s3:GetObjectVersion">s3:GetObjectVersion</span>
+        <span class="chip" data-a="s3:ListAllMyBuckets">s3:ListAllMyBuckets</span>
+      </div>
+    </div>
+    <div class="pg-row">
+      <label>리소스 (버킷)</label>
+      <input id="iamBucket" type="text" value="my-app-data" />
+      <label style="min-width:80px">Prefix</label>
+      <input id="iamPrefix" type="text" value="uploads/" placeholder="uploads/  또는 *" />
+    </div>
+    <div class="pg-row">
+      <button class="btn" id="iamGen">생성</button>
+      <button class="btn ghost" id="iamCopy">JSON 복사</button>
+    </div>
+    <pre id="iamOut" style="background:var(--code-bg);padding:14px;border-radius:6px;border:1px solid var(--border)"></pre>
+  </div>
+</section>
+
+<!-- ========== S3 ========== -->
+<section class="tab-section" id="s3">
+  <h1>S3 기본</h1>
+  <p class="lead">버킷은 리전 안의 평면 네임스페이스입니다. 키는 경로처럼 보이지만 폴더가 아닙니다. 아래는 매주 실행할 명령들입니다.</p>
+
+  <h2>버킷</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">생성 / 목록 / 삭제</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># 생성 — 버킷 이름은 전역</span>
+aws s3 mb s3://my-bucket --region us-east-1
+
+aws s3 ls
+aws s3 ls s3://my-bucket
+aws s3 ls s3://my-bucket --recursive --human-readable --summarize
+
+<span class="tok-c"># 삭제 (비어 있어야 함)</span>
+aws s3 rb s3://my-bucket
+<span class="tok-c"># 또는 강제로 비우고 삭제:</span>
+aws s3 rb s3://my-bucket --force</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">cp — 단일 파일</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3 cp ./report.csv s3://my-bucket/reports/
+
+<span class="tok-c"># 다운로드</span>
+aws s3 cp s3://my-bucket/reports/report.csv ./
+
+<span class="tok-c"># 버킷 간</span>
+aws s3 cp s3://src/key s3://dst/key
+
+<span class="tok-c"># 메타데이터 + 스토리지 클래스 포함</span>
+aws s3 cp ./big.tgz s3://my-bucket/ \
+  --storage-class STANDARD_IA \
+  --metadata "team=ml,owner=jane" \
+  --content-type application/gzip</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">sync — 디렉토리</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">달라진 파일만 복사합니다. 기본적으로 로컬에 없는 원격 파일을 삭제하지 않습니다 — 그러려면 --delete를 전달하세요.</div>
+      <pre><code>aws s3 sync ./build/ s3://my-bucket/v1/ \
+  --exclude "*.tmp" \
+  --exclude ".git/*" \
+  --include "*.html" \
+  --delete \
+  --dryrun</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">rm</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3 rm s3://my-bucket/old.csv
+
+<span class="tok-c"># 전체 prefix (재귀)</span>
+aws s3 rm s3://my-bucket/tmp/ --recursive
+
+<span class="tok-c"># 필터 사용</span>
+aws s3 rm s3://my-bucket/ --recursive \
+  --exclude "*" --include "*.log"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">사전 서명된 URL</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">AWS 자격 증명 없이 누구나 사용할 수 있는 시간 제한 서명 URL. 기본 만료는 3600초.</div>
+      <pre><code>aws s3 presign s3://my-bucket/report.csv \
+  --expires-in 900
+
+<span class="tok-c"># 업로드 (PUT)용 — s3api가 필요합니다:</span>
+aws s3 presign s3://my-bucket/upload.bin \
+  --expires-in 600
+<span class="tok-c"># 참고: aws s3 presign은 GET URL을 발급합니다.</span>
+<span class="tok-c"># PUT 사전 서명에는 SDK 또는 s3api 명령을 사용하세요.</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">자주 쓰는 플래그</div><button class="copy-btn">복사</button></div>
+      <pre><code>--storage-class  STANDARD | STANDARD_IA | INTELLIGENT_TIERING |
+                 ONEZONE_IA | GLACIER_IR | GLACIER | DEEP_ARCHIVE
+--exclude PATTERN     <span class="tok-c"># 반복 가능</span>
+--include PATTERN     <span class="tok-c"># exclude를 덮어씀</span>
+--dryrun              <span class="tok-c"># 어떤 일이 일어날지 표시</span>
+--quiet               <span class="tok-c"># 파일별 출력 없음</span>
+--no-progress
+--cache-control "max-age=3600"
+--content-encoding gzip
+--metadata "k1=v1,k2=v2"
+--profile prod
+--region us-west-2</code></pre>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">빌더</span>
+    <h3>명령어 빌더</h3>
+    <div class="desc">작업 + 플래그를 고르세요. 페이지가 정확한 <code>aws s3</code> 명령을 생성합니다. AWS와 통신하지 않습니다.</div>
+    <div class="pg-row">
+      <label>작업</label>
+      <select id="cbOp">
+        <option value="cp">cp</option>
+        <option value="sync">sync</option>
+        <option value="ls">ls</option>
+        <option value="rm">rm</option>
+        <option value="presign">presign</option>
+        <option value="mb">mb</option>
+        <option value="rb">rb</option>
+      </select>
+    </div>
+    <div class="pg-row">
+      <label>소스</label>
+      <input id="cbSrc" type="text" value="./build/" />
+      <label>대상</label>
+      <input id="cbDst" type="text" value="s3://my-bucket/v1/" />
+    </div>
+    <div class="pg-row">
+      <label>스토리지 클래스</label>
+      <select id="cbCls">
+        <option>(기본 STANDARD)</option>
+        <option>STANDARD_IA</option>
+        <option>INTELLIGENT_TIERING</option>
+        <option>GLACIER_IR</option>
+        <option>GLACIER</option>
+      </select>
+      <label>리전</label>
+      <input id="cbRegion" type="text" value="us-east-1" style="min-width:120px" />
+    </div>
+    <div class="pg-row">
+      <label>추가 플래그</label>
+      <span class="chips" id="cbFlags">
+        <span class="chip" data-f="--recursive">--recursive</span>
+        <span class="chip" data-f="--delete">--delete</span>
+        <span class="chip" data-f="--dryrun">--dryrun</span>
+        <span class="chip" data-f="--quiet">--quiet</span>
+        <span class="chip" data-f='--exclude "*.tmp"'>--exclude "*.tmp"</span>
+        <span class="chip" data-f="--profile prod">--profile prod</span>
+      </span>
+    </div>
+    <div class="pg-row">
+      <button class="btn" id="cbBuild">빌드</button>
+      <button class="btn ghost" id="cbCopy">복사</button>
+    </div>
+    <div class="pg-out" id="cbOut">aws s3 cp ./build/ s3://my-bucket/v1/ --region us-east-1</div>
+  </div>
+
+  <div class="playground">
+    <h3>S3 URI 파서</h3>
+    <div class="desc">S3 URI를 붙여넣으세요; 페이지가 버킷, prefix, key로 분리합니다.</div>
+    <div class="pg-row">
+      <input id="uriIn" type="text" value="s3://my-bucket/data/2026/05/orders.parquet" style="flex:1;min-width:280px" />
+      <button class="btn" id="uriParse">파싱</button>
+    </div>
+    <div class="uri-display">
+      <div class="uri-part"><div class="lbl">버킷</div><div class="val" id="uriBucket">—</div></div>
+      <div class="uri-part"><div class="lbl">Prefix</div><div class="val" id="uriPrefix">—</div></div>
+      <div class="uri-part"><div class="lbl">Key (basename)</div><div class="val" id="uriKey">—</div></div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">샌드박스 · 실제 AWS 아님</span>
+    <h3>모의 S3 탐색기</h3>
+    <div class="desc">가상 버킷. 버튼은 로컬 상태에 대해 가짜 명령을 실행합니다. 어떤 것도 브라우저를 떠나지 않습니다.</div>
+    <div class="pg-row">
+      <input id="mockKey" type="text" placeholder="key 예: data/orders.csv" value="reports/jan.csv" style="flex:1;min-width:200px" />
+      <input id="mockSize" type="number" placeholder="크기 KB" value="42" style="max-width:90px" />
+      <button class="btn" id="mockCp">cp</button>
+      <button class="btn ghost" id="mockLs">ls</button>
+      <button class="btn ghost" id="mockSync">sync ./build/</button>
+      <button class="btn danger" id="mockRm">rm</button>
+      <button class="btn ghost" id="mockClear">버킷 비우기</button>
+    </div>
+    <div class="bucket">
+      <div class="bucket-header"><div class="icon"></div><span>s3://my-bucket</span><span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:11px" id="mockCount">0 객체</span></div>
+      <div id="mockFiles"></div>
+    </div>
+    <div class="pg-out" id="mockOut" style="margin-top:8px"># 시도해 보세요: key를 입력하고 cp를 클릭. 그 다음 ls.</div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">생성기</span>
+    <h3>사전 서명된 URL 데모</h3>
+    <div class="desc">올바른 <em>형태</em>의 URL을 생성합니다 (SigV4 쿼리 매개변수를 볼 수 있도록). 진짜 서명은 아닙니다.</div>
+    <div class="pg-row">
+      <label>버킷</label>
+      <input id="psBucket" type="text" value="my-bucket" />
+      <label>리전</label>
+      <input id="psRegion" type="text" value="us-east-1" />
+    </div>
+    <div class="pg-row">
+      <label>Key</label>
+      <input id="psKey" type="text" value="reports/q1.csv" style="flex:1;min-width:200px" />
+      <label style="min-width:80px">만료 (초)</label>
+      <input id="psExp" type="number" value="3600" style="max-width:120px" />
+      <button class="btn" id="psGen">생성</button>
+    </div>
+    <div class="pg-out" id="psOut"></div>
+  </div>
+</section>
+
+<!-- ========== S3 ADVANCED ========== -->
+<section class="tab-section" id="s3adv">
+  <h1>S3 고급</h1>
+  <p class="lead">버전 관리, 암호화, 라이프사이클, 호스팅. 버킷을 단순 저장소에서 인프라로 바꿔주는 기능들.</p>
+
+  <h2>버전 관리</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">활성화 / 목록 / 삭제</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3api put-bucket-versioning \
+  --bucket my-bucket \
+  --versioning-configuration Status=Enabled
+
+<span class="tok-c"># 버전 목록</span>
+aws s3api list-object-versions --bucket my-bucket --prefix reports/
+
+<span class="tok-c"># 특정 버전 삭제</span>
+aws s3api delete-object \
+  --bucket my-bucket --key reports/q1.csv \
+  --version-id 3HL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY+MTRCxf3vjVBH40Nrjfkd</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">MFA Delete</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">객체 버전을 삭제하거나 버전 관리를 비활성화하려면 MFA 토큰을 강제합니다. 루트 계정만 가능.</div>
+      <pre><code>aws s3api put-bucket-versioning \
+  --bucket my-bucket \
+  --versioning-configuration Status=Enabled,MFADelete=Enabled \
+  --mfa "arn:aws:iam::123456789012:mfa/root 123456"</code></pre>
+    </div>
+  </div>
+
+  <h2>암호화</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">기본 버킷 암호화</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># SSE-S3 (AES256, AWS 관리)</span>
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules":[{"ApplyServerSideEncryptionByDefault":{
+      "SSEAlgorithm":"AES256"}}]}'
+
+<span class="tok-c"># SSE-KMS (고객 관리 키)</span>
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules":[{"ApplyServerSideEncryptionByDefault":{
+      "SSEAlgorithm":"aws:kms",
+      "KMSMasterKeyID":"alias/my-key"}}]}'</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSE-S3 vs SSE-KMS</div></div>
+      <div class="card-desc"><strong>SSE-S3</strong>: 무설정, AWS가 키를 소유. 무료. 키 사용에 대한 감사/IAM 제어가 필요하지 않으면 사용하세요.<br><strong>SSE-KMS</strong>: 키별 감사 로그, 키 회전, 교차 계정 부여. $0.03/10k 요청 + KMS 키 요금.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">객체별 암호화</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3 cp file.txt s3://my-bucket/ \
+  --sse aws:kms \
+  --sse-kms-key-id alias/my-key</code></pre>
+    </div>
+  </div>
+
+  <h2>버킷 정책 &amp; 공개 접근</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">공개 접근 차단 (켜두는 게 좋습니다)</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3api put-public-access-block \
+  --bucket my-bucket \
+  --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">버킷 정책: CloudFront만 허용</div><button class="copy-btn">복사</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: {<span class="tok-s">"Service"</span>: <span class="tok-s">"cloudfront.amazonaws.com"</span>},
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"s3:GetObject"</span>,
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-bucket/*"</span>,
+    <span class="tok-s">"Condition"</span>: {<span class="tok-s">"StringEquals"</span>:{
+      <span class="tok-s">"AWS:SourceArn"</span>: <span class="tok-s">"arn:aws:cloudfront::123:distribution/E1ABC..."</span>}}
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">정책 적용</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3api put-bucket-policy \
+  --bucket my-bucket \
+  --policy file://policy.json
+
+aws s3api get-bucket-policy --bucket my-bucket
+aws s3api delete-bucket-policy --bucket my-bucket</code></pre>
+    </div>
+  </div>
+
+  <h2>라이프사이클, CORS, 웹사이트</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">라이프사이클: 자동 티어링 &amp; 만료</div><button class="copy-btn">복사</button></div>
+      <pre><code>{
+  <span class="tok-s">"Rules"</span>: [{
+    <span class="tok-s">"ID"</span>: <span class="tok-s">"logs-tiering"</span>,
+    <span class="tok-s">"Status"</span>: <span class="tok-s">"Enabled"</span>,
+    <span class="tok-s">"Filter"</span>: {<span class="tok-s">"Prefix"</span>: <span class="tok-s">"logs/"</span>},
+    <span class="tok-s">"Transitions"</span>: [
+      {<span class="tok-s">"Days"</span>: <span class="tok-n">30</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"STANDARD_IA"</span>},
+      {<span class="tok-s">"Days"</span>: <span class="tok-n">90</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"GLACIER_IR"</span>}
+    ],
+    <span class="tok-s">"Expiration"</span>: {<span class="tok-s">"Days"</span>: <span class="tok-n">365</span>}
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CORS</div><button class="copy-btn">복사</button></div>
+      <pre><code>{
+  <span class="tok-s">"CORSRules"</span>: [{
+    <span class="tok-s">"AllowedOrigins"</span>: [<span class="tok-s">"https://app.example.com"</span>],
+    <span class="tok-s">"AllowedMethods"</span>: [<span class="tok-s">"GET"</span>, <span class="tok-s">"PUT"</span>, <span class="tok-s">"POST"</span>],
+    <span class="tok-s">"AllowedHeaders"</span>: [<span class="tok-s">"*"</span>],
+    <span class="tok-s">"ExposeHeaders"</span>: [<span class="tok-s">"ETag"</span>],
+    <span class="tok-s">"MaxAgeSeconds"</span>: <span class="tok-n">3000</span>
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">정적 웹사이트 호스팅</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3 website s3://my-bucket/ \
+  --index-document index.html \
+  --error-document 404.html
+
+<span class="tok-c"># 엔드포인트:</span>
+<span class="tok-c"># http://my-bucket.s3-website-us-east-1.amazonaws.com</span></code></pre>
+    </div>
+  </div>
+
+  <div class="note"><strong>오늘날:</strong> 프로덕션 사이트는 공개 접근이 차단된 S3 버킷 앞에 CloudFront를 두고, Origin Access Control (OAC)을 사용하세요. 단순 s3-website 엔드포인트는 HTTP 전용이고 엣지 캐싱이 없습니다.</div>
+</section>
+
+<!-- ========== HELLO WORLD ========== -->
+<section class="tab-section" id="hello">
+  <h1>Hello World 워크플로우</h1>
+  <p class="lead">오늘 바로 실행할 수 있는 세 가지 엔드 투 엔드 레시피.</p>
+
+  <h2>① S3 + CloudFront로 정적 사이트 호스팅</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">1. 버킷 만들기</div><button class="copy-btn">복사</button></div>
+      <pre><code>BUCKET=my-site-$(uuidgen | tr A-Z a-z)
+REGION=us-east-1
+
+aws s3 mb s3://$BUCKET --region $REGION
+
+<span class="tok-c"># 공개 접근은 차단된 채로 둡니다 — 콘텐츠는 CloudFront가 제공합니다</span>
+aws s3api put-public-access-block \
+  --bucket $BUCKET \
+  --public-access-block-configuration \
+   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">2. 사이트 동기화</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3 sync ./site/ s3://$BUCKET/ \
+  --delete \
+  --cache-control "public,max-age=3600" \
+  --exclude "*.html" \
+  --exclude "service-worker.js"
+
+<span class="tok-c"># HTML은 짧게 캐시해서 배포가 빠르게 보이도록 합니다</span>
+aws s3 sync ./site/ s3://$BUCKET/ \
+  --exclude "*" --include "*.html" \
+  --cache-control "public,max-age=60"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">3. CloudFront를 앞에 두기</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws cloudfront create-distribution \
+  --origin-domain-name $BUCKET.s3.$REGION.amazonaws.com
+<span class="tok-c"># 콘솔에서: OAC를 켜고, CloudFront SourceArn을</span>
+<span class="tok-c"># 허용하는 버킷 정책을 연결하세요 ("버킷 정책" 카드 참조).</span>
+
+<span class="tok-c"># 배포 후 캐시 무효화</span>
+aws cloudfront create-invalidation \
+  --distribution-id E1ABC... --paths "/*"</code></pre>
+    </div>
+  </div>
+
+  <h2>② 사전 서명된 업로드 + 다운로드</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">백엔드가 PUT URL 발급</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># Python (boto3) — API 서버 안에서:</span>
+<span class="tok-k">import</span> <span class="tok-t">boto3</span>
+s3 = boto3.<span class="tok-f">client</span>(<span class="tok-s">"s3"</span>, region_name=<span class="tok-s">"us-east-1"</span>)
+url = s3.<span class="tok-f">generate_presigned_url</span>(
+  <span class="tok-s">"put_object"</span>,
+  Params={<span class="tok-s">"Bucket"</span>: <span class="tok-s">"my-bucket"</span>,
+          <span class="tok-s">"Key"</span>: <span class="tok-s">f"uploads/{uid}.bin"</span>,
+          <span class="tok-s">"ContentType"</span>: <span class="tok-s">"application/octet-stream"</span>},
+  ExpiresIn=<span class="tok-n">600</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">브라우저가 업로드</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">await</span> <span class="tok-f">fetch</span>(presignedUrl, {
+  method: <span class="tok-s">"PUT"</span>,
+  headers: {<span class="tok-s">"Content-Type"</span>: <span class="tok-s">"application/octet-stream"</span>},
+  body: file,
+});</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">다운로드 URL 발급</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># GET URL을 위한 CLI 단축:</span>
+aws s3 presign s3://my-bucket/uploads/$uid.bin \
+  --expires-in 900</code></pre>
+    </div>
+  </div>
+
+  <h2>③ S3 → Lambda 트리거</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">신뢰 + 실행 역할</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws iam create-role \
+  --role-name lambda-thumb \
+  --assume-role-policy-document '{
+    "Version":"2012-10-17",
+    "Statement":[{"Effect":"Allow",
+      "Principal":{"Service":"lambda.amazonaws.com"},
+      "Action":"sts:AssumeRole"}]}'
+
+aws iam attach-role-policy \
+  --role-name lambda-thumb \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+aws iam put-role-policy --role-name lambda-thumb \
+  --policy-name s3rw --policy-document '{
+    "Version":"2012-10-17",
+    "Statement":[{"Effect":"Allow",
+      "Action":["s3:GetObject","s3:PutObject"],
+      "Resource":"arn:aws:s3:::my-bucket/*"}]}'</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">함수 생성</div><button class="copy-btn">복사</button></div>
+      <pre><code>zip thumb.zip lambda_function.py
+
+aws lambda create-function \
+  --function-name thumb \
+  --runtime python3.12 \
+  --handler lambda_function.handler \
+  --role arn:aws:iam::123:role/lambda-thumb \
+  --zip-file fileb://thumb.zip</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">S3 → Lambda 연결</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws lambda add-permission \
+  --function-name thumb --statement-id s3 \
+  --action lambda:InvokeFunction \
+  --principal s3.amazonaws.com \
+  --source-arn arn:aws:s3:::my-bucket
+
+aws s3api put-bucket-notification-configuration \
+  --bucket my-bucket \
+  --notification-configuration '{
+    "LambdaFunctionConfigurations":[{
+      "LambdaFunctionArn":"arn:aws:lambda:us-east-1:123:function:thumb",
+      "Events":["s3:ObjectCreated:*"],
+      "Filter":{"Key":{"FilterRules":[
+        {"Name":"prefix","Value":"uploads/"},
+        {"Name":"suffix","Value":".jpg"}]}}
+    }]}'</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OTHER ========== -->
+<section class="tab-section" id="other">
+  <h1>기타 서비스</h1>
+  <p class="lead">앞으로 만질 다음 5개 서비스를 위한 빠른 포켓 카드.</p>
+
+  <h2>EC2</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">인스턴스 목록</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws ec2 describe-instances \
+  --filters "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].[InstanceId,InstanceType,PublicIpAddress,Tags[?Key==`Name`]|[0].Value]' \
+  --output table</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">실행 / 중지 / 종료</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws ec2 run-instances \
+  --image-id ami-0abcd1234 \
+  --instance-type t3.micro \
+  --key-name my-key \
+  --security-group-ids sg-0abc \
+  --subnet-id subnet-0abc \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jumpbox}]'
+
+aws ec2 stop-instances --instance-ids i-0abc
+aws ec2 terminate-instances --instance-ids i-0abc</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSM 세션 (SSH 없음)</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws ssm start-session --target i-0abc</code></pre>
+    </div>
+  </div>
+
+  <h2>Lambda</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">호출 + 로그 추적</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws lambda invoke \
+  --function-name thumb \
+  --payload '{"key":"uploads/x.jpg"}' \
+  --cli-binary-format raw-in-base64-out \
+  out.json
+
+aws logs tail /aws/lambda/thumb --follow</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">코드 업데이트</div><button class="copy-btn">복사</button></div>
+      <pre><code>zip -r thumb.zip .
+aws lambda update-function-code \
+  --function-name thumb \
+  --zip-file fileb://thumb.zip
+
+aws lambda update-function-configuration \
+  --function-name thumb \
+  --memory-size 512 --timeout 30 \
+  --environment "Variables={LOG_LEVEL=info}"</code></pre>
+    </div>
+  </div>
+
+  <h2>CloudWatch 로그</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">추적 / 필터</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># 라이브 추적</span>
+aws logs tail /aws/lambda/thumb --follow --since 10m
+
+<span class="tok-c"># 필터</span>
+aws logs tail /aws/lambda/thumb --since 1h \
+  --filter-pattern '"ERROR" -InvalidArgument'
+
+<span class="tok-c"># Insights 쿼리</span>
+aws logs start-query \
+  --log-group-name /aws/lambda/thumb \
+  --start-time $(date -u -v-1H +%s) \
+  --end-time   $(date -u +%s) \
+  --query-string 'fields @timestamp, @message | filter @message like /ERROR/ | limit 50'</code></pre>
+    </div>
+  </div>
+
+  <h2>Secrets Manager &amp; SSM Parameter Store</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Secrets Manager</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws secretsmanager create-secret \
+  --name prod/db/password \
+  --secret-string '{"user":"app","pass":"…"}'
+
+aws secretsmanager get-secret-value \
+  --secret-id prod/db/password \
+  --query SecretString --output text</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSM Parameter Store</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">무료 티어 (Standard, 4 KB). 비밀에는 <code>SecureString</code>을 사용하세요 — KMS로 암호화됩니다.</div>
+      <pre><code>aws ssm put-parameter \
+  --name /prod/api/URL \
+  --value https://api.example.com \
+  --type String --overwrite
+
+aws ssm get-parameter \
+  --name /prod/api/URL \
+  --with-decryption \
+  --query Parameter.Value --output text
+
+<span class="tok-c"># 트리 전체 나열</span>
+aws ssm get-parameters-by-path \
+  --path /prod/ --recursive --with-decryption</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TROUBLESHOOTING ========== -->
+<section class="tab-section" id="trouble">
+  <h1>문제 해결</h1>
+  <p class="lead">CLI 호출이 불행하다면, 이 페이지를 먼저 읽으세요.</p>
+
+  <h2>일반 오류</h2>
+  <table class="ref">
+    <thead><tr><th>증상</th><th>원인 &amp; 해결</th></tr></thead>
+    <tbody>
+      <tr><td><code>An error occurred (AccessDenied)</code></td><td>IAM 정책이 해당 액션을 허용하지 않습니다. identity 정책과 버킷/리소스 정책을 모두 확인하세요. 어느 ID인지 먼저 <code>aws sts get-caller-identity</code>로 확인하세요. IAM Policy Simulator를 사용하세요.</td></tr>
+      <tr><td><code>NoSuchBucket</code></td><td>버킷 이름 오타이거나, 잘못된 리전/계정에 있습니다. 버킷 이름은 전역입니다; <code>aws s3 ls</code>는 <em>당신의</em> 계정이 소유한 버킷만 나열합니다.</td></tr>
+      <tr><td><code>The bucket you are attempting to access must be addressed using the specified endpoint</code></td><td>리전 불일치. <code>--region us-west-2</code>를 전달하거나 <code>AWS_REGION</code>을 설정하세요.</td></tr>
+      <tr><td><code>ExpiredToken</code> / <code>InvalidToken</code></td><td>SSO/STS 자격 증명이 만료됐습니다. <code>aws sso login --profile foo</code>를 실행하거나 역할을 다시 맡으세요.</td></tr>
+      <tr><td><code>Could not connect to the endpoint URL</code></td><td>잘못된 리전 (해당 리전에 S3 없음), VPC 엔드포인트 정책, 또는 프록시. <code>--debug</code>를 시도하세요.</td></tr>
+      <tr><td><code>RequestTimeTooSkewed</code></td><td>시계가 어긋났습니다. 시간을 동기화하세요 (NTP).</td></tr>
+      <tr><td><code>An error occurred (SlowDown) when calling …</code></td><td>S3가 prefix별로 속도 제한 중입니다. 키를 더 많은 prefix로 분산시키세요; 백오프 후 재시도. Prefix별 한계: 3500 PUT/COPY/POST/DELETE 및 5500 GET req/s.</td></tr>
+      <tr><td><code>InvalidAccessKeyId</code></td><td>잘못된 키, 비활성화된 키, 또는 키가 다른 계정 소유입니다. <code>~/.aws/credentials</code>와 <code>$AWS_PROFILE</code>을 다시 확인하세요.</td></tr>
+      <tr><td>버킷 생성 시 <code>EntityAlreadyExists</code></td><td>버킷 이름은 전역입니다. 다른 이름을 고르세요.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>디버깅 도구</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">--debug</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">서명된 모든 요청, 헤더, 재시도 횟수, 응답 본문을 출력합니다. 권한/리전 문제에 좋습니다. 매우 장황.</div>
+      <pre><code>aws s3 ls s3://my-bucket --debug 2&gt;&amp;1 | tee aws-debug.log</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">나는 어떤 ID인가?</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws sts get-caller-identity --output table
+
+<span class="tok-c"># 환경:</span>
+env | grep AWS_
+
+<span class="tok-c"># 구성:</span>
+aws configure list
+aws configure list-profiles</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Dry-run (S3 sync/cp/rm)</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws s3 sync ./build/ s3://my-bucket/v1/ \
+  --delete --dryrun
+<span class="tok-c"># 출력 (dryrun) upload: ... → s3://...</span>
+<span class="tok-c"># 출력 (dryrun) delete: s3://...</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">출력 형식</div><button class="copy-btn">복사</button></div>
+      <pre><code>--output  json | yaml | yaml-stream | text | table
+
+aws ec2 describe-instances \
+  --query 'Reservations[].Instances[].InstanceId' \
+  --output text</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">페이지네이션</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># CLI는 기본적으로 자동 페이지네이션합니다. 재정의:</span>
+--max-items 50          <span class="tok-c"># 총 반환 개수</span>
+--page-size 200         <span class="tok-c"># 호출당</span>
+--no-paginate           <span class="tok-c"># 단일 응답 그대로</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">엔드포인트 재정의 (LocalStack, MinIO)</div><button class="copy-btn">복사</button></div>
+      <pre><code>aws --endpoint-url http://localhost:4566 \
+    s3 ls
+
+<span class="tok-c"># CLI v2: 서비스별 엔드포인트</span>
+[profile local]
+endpoint_url = http://localhost:4566</code></pre>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="help-overlay" id="helpOverlay">
+  <div class="help-card">
+    <h3>키보드 단축키</h3>
+    <div class="row"><span>검색 포커스</span><kbd>/</kbd></div>
+    <div class="row"><span>탭 전환</span><kbd>1</kbd>–<kbd>7</kbd></div>
+    <div class="row"><span>도움말</span><kbd>?</kbd></div>
+    <div class="row"><span>닫기 / 지우기</span><kbd>Esc</kbd></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn ghost" id="helpClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer">단일 자체 포함 HTML 치트시트. 샌드박스 상호작용은 절대 브라우저를 떠나지 않습니다. 단축키는 <code>?</code>를 누르세요.</div>
+
+<script>
+  // --- Tabs
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // --- Search
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall, .note');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+
+  // --- Help overlay
+  const help = document.getElementById('helpOverlay');
+  document.getElementById('helpClose').addEventListener('click', () => help.classList.remove('open'));
+  help.addEventListener('click', (e) => { if (e.target === help) help.classList.remove('open'); });
+
+  // --- Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    const inField = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+    if (e.key === '/' && !inField) { e.preventDefault(); search.focus(); }
+    if (e.key === '?' && !inField) { help.classList.toggle('open'); }
+    if (e.key === 'Escape') { help.classList.remove('open'); search.value=''; filter(); search.blur(); }
+    if (/^[1-7]$/.test(e.key) && !inField) {
+      const order = ['setup','iam','s3','s3adv','hello','other','trouble'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // --- Copy buttons
+  function copy(text) {
+    return navigator.clipboard ? navigator.clipboard.writeText(text) : new Promise((res) => {
+      const ta = document.createElement('textarea'); ta.value = text;
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      res();
+    });
+  }
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const text = card?.querySelector('pre code')?.innerText || '';
+      await copy(text);
+      btn.textContent = '복사됨'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // --- Chip toggling helper
+  function bindChips(rootId) {
+    document.querySelectorAll('#' + rootId + ' .chip').forEach(ch => {
+      ch.addEventListener('click', () => ch.classList.toggle('active'));
+    });
+  }
+  bindChips('iamActions'); bindChips('cbFlags');
+
+  // --- IAM policy generator
+  const iamGen = document.getElementById('iamGen');
+  const iamCopy = document.getElementById('iamCopy');
+  const iamOut = document.getElementById('iamOut');
+  function buildIamPolicy() {
+    const actions = [...document.querySelectorAll('#iamActions .chip.active')].map(c => c.dataset.a);
+    const bucket = document.getElementById('iamBucket').value.trim() || 'my-bucket';
+    const prefix = document.getElementById('iamPrefix').value.trim();
+    const bucketArn = `arn:aws:s3:::${bucket}`;
+    const objArn = prefix && prefix !== '*' ? `${bucketArn}/${prefix}*` : `${bucketArn}/*`;
+    const bucketActions = actions.filter(a => /ListBucket|ListAllMyBuckets/.test(a));
+    const objActions = actions.filter(a => !bucketActions.includes(a));
+    const stmts = [];
+    if (bucketActions.length) stmts.push({ Effect:'Allow', Action: bucketActions.length===1?bucketActions[0]:bucketActions, Resource: bucketActions.includes('s3:ListAllMyBuckets')?'*':bucketArn });
+    if (objActions.length) stmts.push({ Effect:'Allow', Action: objActions.length===1?objActions[0]:objActions, Resource: objArn });
+    if (!stmts.length) stmts.push({ Effect:'Allow', Action:[], Resource:[] });
+    const policy = { Version: '2012-10-17', Statement: stmts };
+    return JSON.stringify(policy, null, 2);
+  }
+  function renderIam() { iamOut.textContent = buildIamPolicy(); }
+  iamGen.addEventListener('click', renderIam);
+  iamCopy.addEventListener('click', async () => {
+    await copy(iamOut.textContent);
+    iamCopy.textContent = '복사됨'; setTimeout(() => iamCopy.textContent = 'JSON 복사', 1100);
+  });
+  document.querySelectorAll('#iamActions .chip').forEach(c => c.addEventListener('click', renderIam));
+  ['iamBucket','iamPrefix'].forEach(id => document.getElementById(id).addEventListener('input', renderIam));
+  renderIam();
+
+  // --- Command builder
+  const cb = {
+    op: document.getElementById('cbOp'),
+    src: document.getElementById('cbSrc'),
+    dst: document.getElementById('cbDst'),
+    cls: document.getElementById('cbCls'),
+    region: document.getElementById('cbRegion'),
+    out: document.getElementById('cbOut'),
+  };
+  function buildCmd() {
+    const op = cb.op.value;
+    let cmd = `aws s3 ${op}`;
+    if (op === 'cp' || op === 'sync') cmd += ` ${cb.src.value} ${cb.dst.value}`;
+    else if (op === 'ls' || op === 'rm' || op === 'presign' || op === 'mb' || op === 'rb') cmd += ` ${cb.dst.value}`;
+    if (cb.cls.value && !/default/.test(cb.cls.value) && (op === 'cp' || op === 'sync')) cmd += ` --storage-class ${cb.cls.value}`;
+    if (cb.region.value) cmd += ` --region ${cb.region.value}`;
+    document.querySelectorAll('#cbFlags .chip.active').forEach(c => { cmd += ` ${c.dataset.f}`; });
+    cb.out.textContent = cmd;
+  }
+  document.getElementById('cbBuild').addEventListener('click', buildCmd);
+  document.getElementById('cbCopy').addEventListener('click', async () => {
+    await copy(cb.out.textContent);
+    document.getElementById('cbCopy').textContent = '복사됨';
+    setTimeout(() => document.getElementById('cbCopy').textContent = '복사', 1100);
+  });
+  Object.values(cb).forEach(el => { if (el && el.addEventListener && el !== cb.out) el.addEventListener('input', buildCmd); });
+  document.querySelectorAll('#cbFlags .chip').forEach(c => c.addEventListener('click', buildCmd));
+  buildCmd();
+
+  // --- URI parser
+  function parseUri() {
+    const v = document.getElementById('uriIn').value.trim();
+    const m = v.match(/^s3:\/\/([^/]+)\/?(.*)$/);
+    if (!m) {
+      document.getElementById('uriBucket').textContent = '잘못된 형식';
+      document.getElementById('uriPrefix').textContent = '—';
+      document.getElementById('uriKey').textContent = '—';
+      return;
+    }
+    const bucket = m[1];
+    const path = m[2] || '';
+    const slashAt = path.lastIndexOf('/');
+    const prefix = slashAt >= 0 ? path.slice(0, slashAt + 1) : '';
+    const key = slashAt >= 0 ? path.slice(slashAt + 1) : path;
+    document.getElementById('uriBucket').textContent = bucket;
+    document.getElementById('uriPrefix').textContent = prefix || '(없음)';
+    document.getElementById('uriKey').textContent = key || '(없음)';
+  }
+  document.getElementById('uriParse').addEventListener('click', parseUri);
+  document.getElementById('uriIn').addEventListener('input', parseUri);
+  parseUri();
+
+  // --- Mock S3 explorer
+  const mock = { files: [{ key:'reports/q1.csv', size:84, cls:'STANDARD' }] };
+  const mockFiles = document.getElementById('mockFiles');
+  const mockOut = document.getElementById('mockOut');
+  const mockCount = document.getElementById('mockCount');
+  function renderMock() {
+    mockFiles.innerHTML = '';
+    if (!mock.files.length) {
+      const e = document.createElement('div'); e.className = 'empty'; e.textContent = '비어 있는 버킷';
+      mockFiles.appendChild(e);
+    } else {
+      mock.files.forEach(f => {
+        const row = document.createElement('div'); row.className = 'file-row';
+        row.innerHTML = `<span class="ico">⬢</span><span class="name">${f.key}</span><span class="size">${f.size} KB</span><span class="cls">${f.cls}</span>`;
+        mockFiles.appendChild(row);
+      });
+    }
+    mockCount.textContent = mock.files.length + '개 객체';
+  }
+  function logMock(line) { mockOut.textContent = line; }
+  document.getElementById('mockCp').addEventListener('click', () => {
+    const k = document.getElementById('mockKey').value.trim();
+    const s = parseInt(document.getElementById('mockSize').value || '1', 10);
+    if (!k) return logMock('# key가 필요합니다, 예: data/orders.csv');
+    const idx = mock.files.findIndex(f => f.key === k);
+    if (idx >= 0) mock.files[idx].size = s;
+    else mock.files.push({ key:k, size:s, cls:'STANDARD' });
+    renderMock();
+    [...mockFiles.children].forEach(r => { if (r.querySelector('.name')?.textContent === k) r.classList.add('added'); });
+    logMock(`upload: ./${k} → s3://my-bucket/${k}`);
+  });
+  document.getElementById('mockLs').addEventListener('click', () => {
+    if (!mock.files.length) return logMock('# (비어 있음)');
+    logMock(mock.files.map(f => `${f.cls.padEnd(8)}  ${String(f.size).padStart(6)} KB  s3://my-bucket/${f.key}`).join('\n'));
+  });
+  document.getElementById('mockSync').addEventListener('click', () => {
+    const incoming = [
+      { key:'index.html', size:6 },
+      { key:'app.js', size:48 },
+      { key:'styles/main.css', size:12 },
+      { key:'img/hero.jpg', size:240 },
+    ];
+    incoming.forEach(f => {
+      if (!mock.files.find(m => m.key === f.key)) mock.files.push({ ...f, cls:'STANDARD' });
+    });
+    renderMock();
+    logMock(`upload: ./build/index.html → s3://my-bucket/index.html\nupload: ./build/app.js → s3://my-bucket/app.js\n... (+ 2개 더)`);
+  });
+  document.getElementById('mockRm').addEventListener('click', () => {
+    const k = document.getElementById('mockKey').value.trim();
+    const idx = mock.files.findIndex(f => f.key === k);
+    if (idx < 0) return logMock(`# 찾을 수 없음: ${k}`);
+    mock.files.splice(idx, 1);
+    renderMock();
+    logMock(`delete: s3://my-bucket/${k}`);
+  });
+  document.getElementById('mockClear').addEventListener('click', () => {
+    mock.files = []; renderMock(); logMock('# 버킷 비움');
+  });
+  renderMock();
+
+  // --- Presigned URL fake
+  document.getElementById('psGen').addEventListener('click', () => {
+    const b = document.getElementById('psBucket').value.trim() || 'my-bucket';
+    const r = document.getElementById('psRegion').value.trim() || 'us-east-1';
+    const k = document.getElementById('psKey').value.trim() || 'object.bin';
+    const e = parseInt(document.getElementById('psExp').value || '3600', 10);
+    const now = new Date();
+    const date = now.toISOString().replace(/[-:]|\.\d+/g, '').slice(0,15) + 'Z';
+    const cred = `AKIA${Math.random().toString(36).toUpperCase().slice(2,10)}/` +
+                 `${date.slice(0,8)}/${r}/s3/aws4_request`;
+    const sig = Array.from({length:64}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+    const url =
+      `https://${b}.s3.${r}.amazonaws.com/${k}?` +
+      `X-Amz-Algorithm=AWS4-HMAC-SHA256&` +
+      `X-Amz-Credential=${encodeURIComponent(cred)}&` +
+      `X-Amz-Date=${date}&` +
+      `X-Amz-Expires=${e}&` +
+      `X-Amz-SignedHeaders=host&` +
+      `X-Amz-Signature=${sig}`;
+    document.getElementById('psOut').textContent = url;
+  });
+  document.getElementById('psGen').click();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS CLI 與 S3 速查表 —— 互動式</title>
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a26;
+    --panel-2: #1a2436;
+    --border: #2a3754;
+    --text: #ecf1f8;
+    --muted: #8a95a8;
+    --navy: #232f3e;
+    --accent: #ff9900;
+    --accent-2: #ffb547;
+    --accent-3: #ff6b6b;
+    --code-bg: #060a12;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 100% -10%, rgba(255, 153, 0, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 0% 5%, rgba(255, 181, 71, 0.05), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, #161e2a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo .cube {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), #c0660d);
+    border-radius: 5px; position: relative;
+    box-shadow: 0 0 16px rgba(255,153,0,0.5);
+    transform: rotate(45deg);
+  }
+  .logo .cube::after {
+    content: ""; position: absolute; inset: 6px;
+    border: 2px solid #052622; border-radius: 2px;
+    transform: rotate(-45deg);
+  }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #1c1303;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(255,153,0,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(255, 153, 0, 0.10);
+    border-color: rgba(255, 153, 0, 0.45);
+    box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(255, 153, 0, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .playground .sandbox-tag {
+    position: absolute; top: 10px; right: 14px;
+    font-size: 10.5px; color: var(--accent-3);
+    border: 1px solid var(--accent-3);
+    padding: 2px 8px; border-radius: 999px;
+    font-weight: 700; letter-spacing: 0.4px;
+    background: rgba(255, 107, 107, 0.08);
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    margin-bottom: 10px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 100px; }
+  .pg-row select, .pg-row input[type="text"], .pg-row input[type="number"], .pg-row input[type="search"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    min-width: 160px;
+  }
+  .pg-out {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    color: var(--accent-2);
+    word-break: break-all; white-space: pre-wrap;
+    margin-top: 8px; min-height: 36px;
+  }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #c0660d);
+    color: #1c1303; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(255, 153, 0, 0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Mock S3 bucket */
+  .bucket {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 180px;
+    margin-top: 10px;
+  }
+  .bucket-header {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--accent); font-weight: 700; font-size: 13px;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 8px; margin-bottom: 10px;
+  }
+  .bucket-header .icon {
+    width: 22px; height: 22px;
+    background: linear-gradient(180deg, var(--accent) 0%, #c0660d 100%);
+    border-radius: 0 0 6px 6px;
+    position: relative;
+  }
+  .bucket-header .icon::before {
+    content: ""; position: absolute; top: -3px; left: 0; right: 0;
+    height: 3px; background: var(--accent-2); border-radius: 6px 6px 0 0;
+  }
+  .file-row {
+    display: grid; grid-template-columns: 24px 1fr 100px 80px;
+    gap: 10px; align-items: center;
+    padding: 6px 8px; border-radius: 5px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    transition: background 0.15s, transform 0.2s;
+  }
+  .file-row:hover { background: var(--panel-2); }
+  .file-row.added { animation: slidein 0.4s ease; }
+  .file-row.removing { animation: slideout 0.3s ease forwards; }
+  @keyframes slidein {
+    from { opacity: 0; transform: translateX(-12px); background: rgba(255,153,0,0.15); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes slideout {
+    to { opacity: 0; transform: translateX(12px); height: 0; padding: 0; }
+  }
+  .file-row .ico { color: var(--accent-2); }
+  .file-row .name { color: var(--text); }
+  .file-row .size { color: var(--muted); text-align: right; }
+  .file-row .cls { color: var(--accent-2); text-align: right; font-size: 11px; }
+  .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+
+  .uri-display {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    margin-top: 10px;
+  }
+  .uri-part {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px;
+  }
+  .uri-part .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .uri-part .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; color: var(--accent); margin-top: 4px;
+    word-break: break-all;
+  }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    background: rgba(255, 153, 0, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    font-size: 13px; margin: 12px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    cursor: pointer; user-select: none;
+    transition: all 0.15s;
+  }
+  .chip:hover { color: var(--text); }
+  .chip.active {
+    color: #1c1303; background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* Help overlay */
+  .help-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    display: none; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .help-overlay.open { display: flex; }
+  .help-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 22px; max-width: 380px;
+    box-shadow: 0 20px 50px -10px rgba(0,0,0,0.6);
+  }
+  .help-card h3 { margin: 0 0 12px; color: var(--accent); }
+  .help-card kbd {
+    background: var(--panel-2); border: 1px solid var(--border);
+    padding: 2px 6px; border-radius: 4px; font-size: 11px;
+    color: var(--text); font-family: ui-monospace, monospace;
+  }
+  .help-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: var(--muted); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .uri-display { grid-template-columns: 1fr; }
+    .file-row { grid-template-columns: 24px 1fr 80px; }
+    .file-row .cls { display: none; }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="cube"></span> AWS CLI 與 S3</div>
+    <div class="search">
+      <span class="icon">⌕</span>
+      <input id="searchInput" type="search" placeholder="搜尋指令、設定…(按 / )" />
+    </div>
+    <span class="badge">CLI v2</span>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="setup">安裝</button>
+    <button data-tab="iam">IAM</button>
+    <button data-tab="s3">S3</button>
+    <button data-tab="s3adv">S3 進階</button>
+    <button data-tab="hello">Hello World</button>
+    <button data-tab="other">其他服務</button>
+    <button data-tab="trouble">疑難排解</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== SETUP ========== -->
+<section class="tab-section active" id="setup">
+  <h1>安裝</h1>
+  <p class="lead">安裝 AWS CLI v2、設定憑證,並驗證能正常打到你的帳號。五分鐘搞定。</p>
+
+  <h2>安裝</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">macOS</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># pkg 安裝程式</span>
+curl <span class="tok-s">"https://awscli.amazonaws.com/AWSCLIV2.pkg"</span> -o <span class="tok-s">"AWSCLIV2.pkg"</span>
+sudo installer -pkg AWSCLIV2.pkg -target /
+
+<span class="tok-c"># 或透過 Homebrew</span>
+brew install awscli
+
+aws --version
+<span class="tok-c"># aws-cli/2.15.x Python/3.x Darwin/24.x</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Linux</div><button class="copy-btn">複製</button></div>
+      <pre><code>curl <span class="tok-s">"https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"</span> -o <span class="tok-s">"awscliv2.zip"</span>
+unzip awscliv2.zip
+sudo ./aws/install
+
+<span class="tok-c"># Apple Silicon / ARM</span>
+curl <span class="tok-s">"https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip"</span> -o <span class="tok-s">"awscliv2.zip"</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Windows</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># MSI 安裝程式</span>
+msiexec.exe /i https://awscli.amazonaws.com/AWSCLIV2.msi
+
+<span class="tok-c"># 或於 Powershell:</span>
+winget install -e --id Amazon.AWSCLI</code></pre>
+    </div>
+  </div>
+
+  <h2>設定</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">aws configure(預設 profile)</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws configure
+<span class="tok-c"># AWS Access Key ID: AKIA...</span>
+<span class="tok-c"># AWS Secret Access Key: ...</span>
+<span class="tok-c"># Default region name: us-east-1</span>
+<span class="tok-c"># Default output format: json</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">具名 profile</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">大多數團隊都有多個帳號(dev、staging、prod),每個帳號用一個 profile。</div>
+      <pre><code>aws configure --profile prod
+<span class="tok-c"># 每個指令都加:</span>
+aws s3 ls --profile prod
+<span class="tok-c"># 或用環境變數:</span>
+<span class="tok-k">export</span> AWS_PROFILE=prod</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">磁碟上的設定檔</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># ~/.aws/credentials</span>
+[default]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+[prod]
+aws_access_key_id = AKIA...
+aws_secret_access_key = ...
+
+<span class="tok-c"># ~/.aws/config</span>
+[default]
+region = us-east-1
+output = json
+
+[profile prod]
+region = us-west-2
+output = json</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSO(建議真人使用)</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">筆電上不放長期金鑰。透過聯邦驗證取得有效期短的憑證。</div>
+      <pre><code>aws configure sso
+aws sso login --profile prod
+
+<span class="tok-c"># 在 ~/.aws/config 中:</span>
+[profile prod]
+sso_session = my-sso
+sso_account_id = 123456789012
+sso_role_name = PowerUser
+region = us-west-2</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">環境變數(CI / 腳本)</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-k">export</span> AWS_ACCESS_KEY_ID=AKIA...
+<span class="tok-k">export</span> AWS_SECRET_ACCESS_KEY=...
+<span class="tok-k">export</span> AWS_SESSION_TOKEN=...        <span class="tok-c"># 給 STS 使用</span>
+<span class="tok-k">export</span> AWS_REGION=us-east-1
+<span class="tok-k">export</span> AWS_PROFILE=prod              <span class="tok-c"># 或改用 profile</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">驗證</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws sts get-caller-identity
+<span class="tok-c"># {</span>
+<span class="tok-c">#   "UserId": "AIDA...",</span>
+<span class="tok-c">#   "Account": "123456789012",</span>
+<span class="tok-c">#   "Arn": "arn:aws:iam::123...:user/jane"</span>
+<span class="tok-c"># }</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>千萬別這樣做:</strong>把 <code>~/.aws/credentials</code> commit 進版本庫、把金鑰貼到 Slack、烤進 Docker image,或塞到 Lambda 環境變數。請改用 IAM 角色(EC2 instance role、Lambda execution role、EKS IRSA),它們會自動發放有效期短的憑證。</div>
+</section>
+
+<!-- ========== IAM ========== -->
+<section class="tab-section" id="iam">
+  <h1>IAM 基礎</h1>
+  <p class="lead">身分(誰)+ 政策(可做什麼)+ 資源(在哪)。每個 API 呼叫都會根據政策授權。</p>
+
+  <h2>概念</h2>
+  <table class="ref">
+    <thead><tr><th>名稱</th><th>說明</th></tr></thead>
+    <tbody>
+      <tr><td><code>User</code></td><td>長期身分,綁定到一個人(或服務)。可有 access key、主控台密碼、MFA。</td></tr>
+      <tr><td><code>Role</code></td><td>可被<em>承擔</em>(assume)的身分,會回傳短效憑證(STS)。EC2、Lambda、EKS、跨帳號存取、聯邦驗證都會用。</td></tr>
+      <tr><td><code>Policy</code></td><td>JSON 文件。<em>身分政策</em>掛在使用者/角色上;<em>資源政策</em>掛在資源上(例如 S3 桶政策)。</td></tr>
+      <tr><td><code>Group</code></td><td>共享政策的使用者集合,不可巢狀。</td></tr>
+      <tr><td><code>STS</code></td><td>Security Token Service。透過 <code>AssumeRole</code>、<code>AssumeRoleWithWebIdentity</code> 等核發短效憑證。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>最小可用 S3 政策</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">對單一桶唯讀</div><button class="copy-btn">複製</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Action"</span>: [<span class="tok-s">"s3:GetObject"</span>, <span class="tok-s">"s3:ListBucket"</span>],
+    <span class="tok-s">"Resource"</span>: [
+      <span class="tok-s">"arn:aws:s3:::my-bucket"</span>,
+      <span class="tok-s">"arn:aws:s3:::my-bucket/*"</span>
+    ]
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">寫入單一前綴</div><button class="copy-btn">複製</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Action"</span>: [<span class="tok-s">"s3:PutObject"</span>, <span class="tok-s">"s3:DeleteObject"</span>],
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-bucket/uploads/*"</span>
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">信任政策(角色由 EC2 承擔)</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">附加在角色上,用來宣告<em>誰可以承擔我</em>。</div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: {<span class="tok-s">"Service"</span>: <span class="tok-s">"ec2.amazonaws.com"</span>},
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"sts:AssumeRole"</span>
+  }]
+}</code></pre>
+    </div>
+  </div>
+
+  <h2>IAM CLI 指令</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">承擔角色</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws sts assume-role \
+  --role-arn arn:aws:iam::123456789012:role/Deploy \
+  --role-session-name deploy-$(date +%s)
+
+<span class="tok-c"># 或在 ~/.aws/config:</span>
+[profile prod-deploy]
+role_arn = arn:aws:iam::123456789012:role/Deploy
+source_profile = default
+region = us-west-2</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">管理使用者 / 角色</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws iam list-users
+aws iam list-roles
+aws iam get-role --role-name Deploy
+aws iam list-attached-role-policies --role-name Deploy
+aws iam list-access-keys --user-name jane</code></pre>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">產生器</span>
+    <h3>政策建構器</h3>
+    <div class="desc">挑選動作與資源 ARN,本頁會產生 JSON 政策,可貼到主控台或用 CLI 附加。</div>
+    <div class="pg-row" style="align-items:flex-start">
+      <label style="margin-top:6px">動作</label>
+      <div class="chips" id="iamActions">
+        <span class="chip active" data-a="s3:GetObject">s3:GetObject</span>
+        <span class="chip active" data-a="s3:ListBucket">s3:ListBucket</span>
+        <span class="chip" data-a="s3:PutObject">s3:PutObject</span>
+        <span class="chip" data-a="s3:DeleteObject">s3:DeleteObject</span>
+        <span class="chip" data-a="s3:GetObjectVersion">s3:GetObjectVersion</span>
+        <span class="chip" data-a="s3:ListAllMyBuckets">s3:ListAllMyBuckets</span>
+      </div>
+    </div>
+    <div class="pg-row">
+      <label>資源(桶)</label>
+      <input id="iamBucket" type="text" value="my-app-data" />
+      <label style="min-width:80px">前綴</label>
+      <input id="iamPrefix" type="text" value="uploads/" placeholder="uploads/  或 *" />
+    </div>
+    <div class="pg-row">
+      <button class="btn" id="iamGen">產生</button>
+      <button class="btn ghost" id="iamCopy">複製 JSON</button>
+    </div>
+    <pre id="iamOut" style="background:var(--code-bg);padding:14px;border-radius:6px;border:1px solid var(--border)"></pre>
+  </div>
+</section>
+
+<!-- ========== S3 ========== -->
+<section class="tab-section" id="s3">
+  <h1>S3 入門精華</h1>
+  <p class="lead">桶(bucket)是 region 內的扁平命名空間。鍵(key)看起來像路徑,但其實不是資料夾。下面是你每週都會用到的指令。</p>
+
+  <h2>桶</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">建立 / 列出 / 刪除</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># 建立 —— 桶名是全球性的</span>
+aws s3 mb s3://my-bucket --region us-east-1
+
+aws s3 ls
+aws s3 ls s3://my-bucket
+aws s3 ls s3://my-bucket --recursive --human-readable --summarize
+
+<span class="tok-c"># 刪除(必須是空的)</span>
+aws s3 rb s3://my-bucket
+<span class="tok-c"># 或強制清空後再刪:</span>
+aws s3 rb s3://my-bucket --force</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">cp —— 單一檔案</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3 cp ./report.csv s3://my-bucket/reports/
+
+<span class="tok-c"># 下載</span>
+aws s3 cp s3://my-bucket/reports/report.csv ./
+
+<span class="tok-c"># 跨桶</span>
+aws s3 cp s3://src/key s3://dst/key
+
+<span class="tok-c"># 加上 metadata 與 storage class</span>
+aws s3 cp ./big.tgz s3://my-bucket/ \
+  --storage-class STANDARD_IA \
+  --metadata "team=ml,owner=jane" \
+  --content-type application/gzip</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">sync —— 整個目錄</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">只複製內容不同的檔案。預設不會刪除遠端有但本地缺的檔案 —— 要刪請加 --delete。</div>
+      <pre><code>aws s3 sync ./build/ s3://my-bucket/v1/ \
+  --exclude "*.tmp" \
+  --exclude ".git/*" \
+  --include "*.html" \
+  --delete \
+  --dryrun</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">rm</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3 rm s3://my-bucket/old.csv
+
+<span class="tok-c"># 整個前綴(遞迴)</span>
+aws s3 rm s3://my-bucket/tmp/ --recursive
+
+<span class="tok-c"># 加上篩選條件</span>
+aws s3 rm s3://my-bucket/ --recursive \
+  --exclude "*" --include "*.log"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">預先簽署 URL(presigned URL)</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">不需 AWS 憑證、有時效的簽署 URL。預設有效期是 3600 秒。</div>
+      <pre><code>aws s3 presign s3://my-bucket/report.csv \
+  --expires-in 900
+
+<span class="tok-c"># 用於上傳(PUT) —— 需要 s3api:</span>
+aws s3 presign s3://my-bucket/upload.bin \
+  --expires-in 600
+<span class="tok-c"># 注意:aws s3 presign 只發 GET 形式的 URL。</span>
+<span class="tok-c"># 要做 PUT 預簽請改用 SDK 或 s3api 指令。</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">常用旗標</div><button class="copy-btn">複製</button></div>
+      <pre><code>--storage-class  STANDARD | STANDARD_IA | INTELLIGENT_TIERING |
+                 ONEZONE_IA | GLACIER_IR | GLACIER | DEEP_ARCHIVE
+--exclude PATTERN     <span class="tok-c"># 可重複</span>
+--include PATTERN     <span class="tok-c"># 覆蓋 exclude</span>
+--dryrun              <span class="tok-c"># 顯示會做什麼</span>
+--quiet               <span class="tok-c"># 不顯示每檔輸出</span>
+--no-progress
+--cache-control "max-age=3600"
+--content-encoding gzip
+--metadata "k1=v1,k2=v2"
+--profile prod
+--region us-west-2</code></pre>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">建構器</span>
+    <h3>指令建構器</h3>
+    <div class="desc">挑選操作與旗標,本頁會產生對應的 <code>aws s3</code> 指令。不會真的呼叫 AWS。</div>
+    <div class="pg-row">
+      <label>操作</label>
+      <select id="cbOp">
+        <option value="cp">cp</option>
+        <option value="sync">sync</option>
+        <option value="ls">ls</option>
+        <option value="rm">rm</option>
+        <option value="presign">presign</option>
+        <option value="mb">mb</option>
+        <option value="rb">rb</option>
+      </select>
+    </div>
+    <div class="pg-row">
+      <label>來源</label>
+      <input id="cbSrc" type="text" value="./build/" />
+      <label>目的地</label>
+      <input id="cbDst" type="text" value="s3://my-bucket/v1/" />
+    </div>
+    <div class="pg-row">
+      <label>儲存類別</label>
+      <select id="cbCls">
+        <option>(預設 STANDARD)</option>
+        <option>STANDARD_IA</option>
+        <option>INTELLIGENT_TIERING</option>
+        <option>GLACIER_IR</option>
+        <option>GLACIER</option>
+      </select>
+      <label>區域</label>
+      <input id="cbRegion" type="text" value="us-east-1" style="min-width:120px" />
+    </div>
+    <div class="pg-row">
+      <label>額外旗標</label>
+      <span class="chips" id="cbFlags">
+        <span class="chip" data-f="--recursive">--recursive</span>
+        <span class="chip" data-f="--delete">--delete</span>
+        <span class="chip" data-f="--dryrun">--dryrun</span>
+        <span class="chip" data-f="--quiet">--quiet</span>
+        <span class="chip" data-f='--exclude "*.tmp"'>--exclude "*.tmp"</span>
+        <span class="chip" data-f="--profile prod">--profile prod</span>
+      </span>
+    </div>
+    <div class="pg-row">
+      <button class="btn" id="cbBuild">建立</button>
+      <button class="btn ghost" id="cbCopy">複製</button>
+    </div>
+    <div class="pg-out" id="cbOut">aws s3 cp ./build/ s3://my-bucket/v1/ --region us-east-1</div>
+  </div>
+
+  <div class="playground">
+    <h3>S3 URI 解析器</h3>
+    <div class="desc">貼上 S3 URI,本頁會將它拆成桶、前綴與鍵(basename)。</div>
+    <div class="pg-row">
+      <input id="uriIn" type="text" value="s3://my-bucket/data/2026/05/orders.parquet" style="flex:1;min-width:280px" />
+      <button class="btn" id="uriParse">解析</button>
+    </div>
+    <div class="uri-display">
+      <div class="uri-part"><div class="lbl">桶</div><div class="val" id="uriBucket">—</div></div>
+      <div class="uri-part"><div class="lbl">前綴</div><div class="val" id="uriPrefix">—</div></div>
+      <div class="uri-part"><div class="lbl">鍵(檔名)</div><div class="val" id="uriKey">—</div></div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">沙盒 · 非真實 AWS</span>
+    <h3>模擬 S3 檔案總管</h3>
+    <div class="desc">假的桶。按鈕會對本機狀態執行假指令,任何資料都不會離開你的瀏覽器。</div>
+    <div class="pg-row">
+      <input id="mockKey" type="text" placeholder="鍵名,例如 data/orders.csv" value="reports/jan.csv" style="flex:1;min-width:200px" />
+      <input id="mockSize" type="number" placeholder="大小 KB" value="42" style="max-width:90px" />
+      <button class="btn" id="mockCp">cp</button>
+      <button class="btn ghost" id="mockLs">ls</button>
+      <button class="btn ghost" id="mockSync">sync ./build/</button>
+      <button class="btn danger" id="mockRm">rm</button>
+      <button class="btn ghost" id="mockClear">清空桶</button>
+    </div>
+    <div class="bucket">
+      <div class="bucket-header"><div class="icon"></div><span>s3://my-bucket</span><span style="margin-left:auto;color:var(--muted);font-weight:400;font-size:11px" id="mockCount">0 個物件</span></div>
+      <div id="mockFiles"></div>
+    </div>
+    <div class="pg-out" id="mockOut" style="margin-top:8px"># 試試:輸入鍵名,點 cp,然後 ls。</div>
+  </div>
+
+  <div class="playground">
+    <span class="sandbox-tag">產生器</span>
+    <h3>預先簽署 URL 範例</h3>
+    <div class="desc">產生格式正確(可看到 SigV4 查詢參數)的 URL,但<em>不是</em>真實簽章。</div>
+    <div class="pg-row">
+      <label>桶</label>
+      <input id="psBucket" type="text" value="my-bucket" />
+      <label>區域</label>
+      <input id="psRegion" type="text" value="us-east-1" />
+    </div>
+    <div class="pg-row">
+      <label>鍵</label>
+      <input id="psKey" type="text" value="reports/q1.csv" style="flex:1;min-width:200px" />
+      <label style="min-width:80px">有效期(秒)</label>
+      <input id="psExp" type="number" value="3600" style="max-width:120px" />
+      <button class="btn" id="psGen">產生</button>
+    </div>
+    <div class="pg-out" id="psOut"></div>
+  </div>
+</section>
+
+<!-- ========== S3 ADVANCED ========== -->
+<section class="tab-section" id="s3adv">
+  <h1>S3 進階</h1>
+  <p class="lead">版本、加密、生命週期、靜態網站。把桶從堆棧空間升級成基礎設施。</p>
+
+  <h2>版本控制</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">啟用 / 列出 / 刪除</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3api put-bucket-versioning \
+  --bucket my-bucket \
+  --versioning-configuration Status=Enabled
+
+<span class="tok-c"># 列出版本</span>
+aws s3api list-object-versions --bucket my-bucket --prefix reports/
+
+<span class="tok-c"># 刪除指定版本</span>
+aws s3api delete-object \
+  --bucket my-bucket --key reports/q1.csv \
+  --version-id 3HL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY+MTRCxf3vjVBH40Nrjfkd</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">MFA Delete</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">強制要求 MFA token 才能刪除物件版本或關閉版本控制。僅 root 帳號可用。</div>
+      <pre><code>aws s3api put-bucket-versioning \
+  --bucket my-bucket \
+  --versioning-configuration Status=Enabled,MFADelete=Enabled \
+  --mfa "arn:aws:iam::123456789012:mfa/root 123456"</code></pre>
+    </div>
+  </div>
+
+  <h2>加密</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">桶預設加密</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># SSE-S3(AES256,由 AWS 託管)</span>
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules":[{"ApplyServerSideEncryptionByDefault":{
+      "SSEAlgorithm":"AES256"}}]}'
+
+<span class="tok-c"># SSE-KMS(客戶自管金鑰)</span>
+aws s3api put-bucket-encryption \
+  --bucket my-bucket \
+  --server-side-encryption-configuration '{
+    "Rules":[{"ApplyServerSideEncryptionByDefault":{
+      "SSEAlgorithm":"aws:kms",
+      "KMSMasterKeyID":"alias/my-key"}}]}'</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSE-S3 vs SSE-KMS</div></div>
+      <div class="card-desc"><strong>SSE-S3</strong>:零設定,AWS 自管金鑰。免費。除非需要對金鑰使用做稽核或 IAM 控制,否則用它就好。<br><strong>SSE-KMS</strong>:每把金鑰有稽核紀錄、可輪替、可跨帳號授權。每 1 萬請求 $0.03 + KMS 金鑰費用。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">逐物件加密</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3 cp file.txt s3://my-bucket/ \
+  --sse aws:kms \
+  --sse-kms-key-id alias/my-key</code></pre>
+    </div>
+  </div>
+
+  <h2>桶政策與公開存取</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">公開存取封鎖(建議開啟)</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3api put-public-access-block \
+  --bucket my-bucket \
+  --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">桶政策:只允許 CloudFront</div><button class="copy-btn">複製</button></div>
+      <pre><code>{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: {<span class="tok-s">"Service"</span>: <span class="tok-s">"cloudfront.amazonaws.com"</span>},
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"s3:GetObject"</span>,
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-bucket/*"</span>,
+    <span class="tok-s">"Condition"</span>: {<span class="tok-s">"StringEquals"</span>:{
+      <span class="tok-s">"AWS:SourceArn"</span>: <span class="tok-s">"arn:aws:cloudfront::123:distribution/E1ABC..."</span>}}
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">套用政策</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3api put-bucket-policy \
+  --bucket my-bucket \
+  --policy file://policy.json
+
+aws s3api get-bucket-policy --bucket my-bucket
+aws s3api delete-bucket-policy --bucket my-bucket</code></pre>
+    </div>
+  </div>
+
+  <h2>生命週期、CORS、靜態網站</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">生命週期:自動分層與過期</div><button class="copy-btn">複製</button></div>
+      <pre><code>{
+  <span class="tok-s">"Rules"</span>: [{
+    <span class="tok-s">"ID"</span>: <span class="tok-s">"logs-tiering"</span>,
+    <span class="tok-s">"Status"</span>: <span class="tok-s">"Enabled"</span>,
+    <span class="tok-s">"Filter"</span>: {<span class="tok-s">"Prefix"</span>: <span class="tok-s">"logs/"</span>},
+    <span class="tok-s">"Transitions"</span>: [
+      {<span class="tok-s">"Days"</span>: <span class="tok-n">30</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"STANDARD_IA"</span>},
+      {<span class="tok-s">"Days"</span>: <span class="tok-n">90</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"GLACIER_IR"</span>}
+    ],
+    <span class="tok-s">"Expiration"</span>: {<span class="tok-s">"Days"</span>: <span class="tok-n">365</span>}
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CORS</div><button class="copy-btn">複製</button></div>
+      <pre><code>{
+  <span class="tok-s">"CORSRules"</span>: [{
+    <span class="tok-s">"AllowedOrigins"</span>: [<span class="tok-s">"https://app.example.com"</span>],
+    <span class="tok-s">"AllowedMethods"</span>: [<span class="tok-s">"GET"</span>, <span class="tok-s">"PUT"</span>, <span class="tok-s">"POST"</span>],
+    <span class="tok-s">"AllowedHeaders"</span>: [<span class="tok-s">"*"</span>],
+    <span class="tok-s">"ExposeHeaders"</span>: [<span class="tok-s">"ETag"</span>],
+    <span class="tok-s">"MaxAgeSeconds"</span>: <span class="tok-n">3000</span>
+  }]
+}</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">靜態網站托管</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3 website s3://my-bucket/ \
+  --index-document index.html \
+  --error-document 404.html
+
+<span class="tok-c"># endpoint:</span>
+<span class="tok-c"># http://my-bucket.s3-website-us-east-1.amazonaws.com</span></code></pre>
+    </div>
+  </div>
+
+  <div class="note"><strong>當前建議:</strong>正式網站請在 S3 桶前面放 CloudFront,封鎖公開存取,並使用 Origin Access Control(OAC)。光是 s3-website endpoint 只支援 HTTP,而且沒有邊緣快取。</div>
+</section>
+
+<!-- ========== HELLO WORLD ========== -->
+<section class="tab-section" id="hello">
+  <h1>Hello World 範本</h1>
+  <p class="lead">三條今天就能跑起來的端到端流程。</p>
+
+  <h2>① 用 S3 + CloudFront 托管靜態網站</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">1. 建立桶</div><button class="copy-btn">複製</button></div>
+      <pre><code>BUCKET=my-site-$(uuidgen | tr A-Z a-z)
+REGION=us-east-1
+
+aws s3 mb s3://$BUCKET --region $REGION
+
+<span class="tok-c"># 維持公開存取封鎖 —— 由 CloudFront 來提供內容</span>
+aws s3api put-public-access-block \
+  --bucket $BUCKET \
+  --public-access-block-configuration \
+   "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">2. 同步網站內容</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3 sync ./site/ s3://$BUCKET/ \
+  --delete \
+  --cache-control "public,max-age=3600" \
+  --exclude "*.html" \
+  --exclude "service-worker.js"
+
+<span class="tok-c"># HTML 用短時快取,讓部署能很快被看見</span>
+aws s3 sync ./site/ s3://$BUCKET/ \
+  --exclude "*" --include "*.html" \
+  --cache-control "public,max-age=60"</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">3. 在前面放 CloudFront</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws cloudfront create-distribution \
+  --origin-domain-name $BUCKET.s3.$REGION.amazonaws.com
+<span class="tok-c"># 在主控台:啟用 OAC,並附上一條桶政策,</span>
+<span class="tok-c"># 允許 CloudFront 的 SourceArn(參考「桶政策」卡片)。</span>
+
+<span class="tok-c"># 部署後使快取失效</span>
+aws cloudfront create-invalidation \
+  --distribution-id E1ABC... --paths "/*"</code></pre>
+    </div>
+  </div>
+
+  <h2>② 預先簽署上傳 + 下載</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">後端發 PUT URL</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># Python(boto3)—— 在你的 API server 內:</span>
+<span class="tok-k">import</span> <span class="tok-t">boto3</span>
+s3 = boto3.<span class="tok-f">client</span>(<span class="tok-s">"s3"</span>, region_name=<span class="tok-s">"us-east-1"</span>)
+url = s3.<span class="tok-f">generate_presigned_url</span>(
+  <span class="tok-s">"put_object"</span>,
+  Params={<span class="tok-s">"Bucket"</span>: <span class="tok-s">"my-bucket"</span>,
+          <span class="tok-s">"Key"</span>: <span class="tok-s">f"uploads/{uid}.bin"</span>,
+          <span class="tok-s">"ContentType"</span>: <span class="tok-s">"application/octet-stream"</span>},
+  ExpiresIn=<span class="tok-n">600</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">瀏覽器上傳</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-k">await</span> <span class="tok-f">fetch</span>(presignedUrl, {
+  method: <span class="tok-s">"PUT"</span>,
+  headers: {<span class="tok-s">"Content-Type"</span>: <span class="tok-s">"application/octet-stream"</span>},
+  body: file,
+});</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">發下載 URL</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># GET URL 的 CLI 捷徑:</span>
+aws s3 presign s3://my-bucket/uploads/$uid.bin \
+  --expires-in 900</code></pre>
+    </div>
+  </div>
+
+  <h2>③ S3 → Lambda 觸發</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">信任政策 + 執行角色</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws iam create-role \
+  --role-name lambda-thumb \
+  --assume-role-policy-document '{
+    "Version":"2012-10-17",
+    "Statement":[{"Effect":"Allow",
+      "Principal":{"Service":"lambda.amazonaws.com"},
+      "Action":"sts:AssumeRole"}]}'
+
+aws iam attach-role-policy \
+  --role-name lambda-thumb \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+aws iam put-role-policy --role-name lambda-thumb \
+  --policy-name s3rw --policy-document '{
+    "Version":"2012-10-17",
+    "Statement":[{"Effect":"Allow",
+      "Action":["s3:GetObject","s3:PutObject"],
+      "Resource":"arn:aws:s3:::my-bucket/*"}]}'</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">建立函式</div><button class="copy-btn">複製</button></div>
+      <pre><code>zip thumb.zip lambda_function.py
+
+aws lambda create-function \
+  --function-name thumb \
+  --runtime python3.12 \
+  --handler lambda_function.handler \
+  --role arn:aws:iam::123:role/lambda-thumb \
+  --zip-file fileb://thumb.zip</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">把 S3 接到 Lambda</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws lambda add-permission \
+  --function-name thumb --statement-id s3 \
+  --action lambda:InvokeFunction \
+  --principal s3.amazonaws.com \
+  --source-arn arn:aws:s3:::my-bucket
+
+aws s3api put-bucket-notification-configuration \
+  --bucket my-bucket \
+  --notification-configuration '{
+    "LambdaFunctionConfigurations":[{
+      "LambdaFunctionArn":"arn:aws:lambda:us-east-1:123:function:thumb",
+      "Events":["s3:ObjectCreated:*"],
+      "Filter":{"Key":{"FilterRules":[
+        {"Name":"prefix","Value":"uploads/"},
+        {"Name":"suffix","Value":".jpg"}]}}
+    }]}'</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OTHER ========== -->
+<section class="tab-section" id="other">
+  <h1>其他服務</h1>
+  <p class="lead">下次最可能碰到的 5 個服務的口袋小卡。</p>
+
+  <h2>EC2</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">列出實例</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws ec2 describe-instances \
+  --filters "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].[InstanceId,InstanceType,PublicIpAddress,Tags[?Key==`Name`]|[0].Value]' \
+  --output table</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">啟動 / 停止 / 刪除</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws ec2 run-instances \
+  --image-id ami-0abcd1234 \
+  --instance-type t3.micro \
+  --key-name my-key \
+  --security-group-ids sg-0abc \
+  --subnet-id subnet-0abc \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=jumpbox}]'
+
+aws ec2 stop-instances --instance-ids i-0abc
+aws ec2 terminate-instances --instance-ids i-0abc</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSM session(免 SSH)</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws ssm start-session --target i-0abc</code></pre>
+    </div>
+  </div>
+
+  <h2>Lambda</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Invoke 與 tail logs</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws lambda invoke \
+  --function-name thumb \
+  --payload '{"key":"uploads/x.jpg"}' \
+  --cli-binary-format raw-in-base64-out \
+  out.json
+
+aws logs tail /aws/lambda/thumb --follow</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">更新程式碼</div><button class="copy-btn">複製</button></div>
+      <pre><code>zip -r thumb.zip .
+aws lambda update-function-code \
+  --function-name thumb \
+  --zip-file fileb://thumb.zip
+
+aws lambda update-function-configuration \
+  --function-name thumb \
+  --memory-size 512 --timeout 30 \
+  --environment "Variables={LOG_LEVEL=info}"</code></pre>
+    </div>
+  </div>
+
+  <h2>CloudWatch Logs</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Tail 與篩選</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># 即時 tail</span>
+aws logs tail /aws/lambda/thumb --follow --since 10m
+
+<span class="tok-c"># 篩選</span>
+aws logs tail /aws/lambda/thumb --since 1h \
+  --filter-pattern '"ERROR" -InvalidArgument'
+
+<span class="tok-c"># Insights 查詢</span>
+aws logs start-query \
+  --log-group-name /aws/lambda/thumb \
+  --start-time $(date -u -v-1H +%s) \
+  --end-time   $(date -u +%s) \
+  --query-string 'fields @timestamp, @message | filter @message like /ERROR/ | limit 50'</code></pre>
+    </div>
+  </div>
+
+  <h2>Secrets Manager 與 SSM Parameter Store</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Secrets Manager</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws secretsmanager create-secret \
+  --name prod/db/password \
+  --secret-string '{"user":"app","pass":"…"}'
+
+aws secretsmanager get-secret-value \
+  --secret-id prod/db/password \
+  --query SecretString --output text</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SSM Parameter Store</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">免費層(Standard、4 KB)。需要儲存機密時用 <code>SecureString</code> —— 由 KMS 加密。</div>
+      <pre><code>aws ssm put-parameter \
+  --name /prod/api/URL \
+  --value https://api.example.com \
+  --type String --overwrite
+
+aws ssm get-parameter \
+  --name /prod/api/URL \
+  --with-decryption \
+  --query Parameter.Value --output text
+
+<span class="tok-c"># 列出整棵樹</span>
+aws ssm get-parameters-by-path \
+  --path /prod/ --recursive --with-decryption</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TROUBLESHOOTING ========== -->
+<section class="tab-section" id="trouble">
+  <h1>疑難排解</h1>
+  <p class="lead">CLI 不順手時,先看這頁。</p>
+
+  <h2>常見錯誤</h2>
+  <table class="ref">
+    <thead><tr><th>症狀</th><th>常見原因與修法</th></tr></thead>
+    <tbody>
+      <tr><td><code>An error occurred (AccessDenied)</code></td><td>IAM 政策沒有授權該動作。請同時檢查身分政策與桶/資源政策。先用 <code>aws sts get-caller-identity</code> 確認<em>是哪個</em>身分發出請求,並善用 IAM Policy Simulator。</td></tr>
+      <tr><td><code>NoSuchBucket</code></td><td>桶名打錯,或你在錯誤的 region/帳號。桶名是全域的;<code>aws s3 ls</code> 只列出<em>你</em>帳號擁有的桶。</td></tr>
+      <tr><td><code>The bucket you are attempting to access must be addressed using the specified endpoint</code></td><td>region 對不上。請加 <code>--region us-west-2</code> 或設定 <code>AWS_REGION</code>。</td></tr>
+      <tr><td><code>ExpiredToken</code> / <code>InvalidToken</code></td><td>SSO/STS 憑證過期。請執行 <code>aws sso login --profile foo</code> 或重新承擔角色。</td></tr>
+      <tr><td><code>Could not connect to the endpoint URL</code></td><td>region 錯誤(該 region 沒有 S3)、VPC endpoint 政策、或代理設定。試試 <code>--debug</code>。</td></tr>
+      <tr><td><code>RequestTimeTooSkewed</code></td><td>系統時鐘偏移。請同步 NTP。</td></tr>
+      <tr><td><code>An error occurred (SlowDown) when calling …</code></td><td>S3 對單一前綴限速。請把鍵分散到更多前綴、退避後重試。每前綴上限:3500 PUT/COPY/POST/DELETE 與 5500 GET req/s。</td></tr>
+      <tr><td><code>InvalidAccessKeyId</code></td><td>金鑰錯誤、已停用,或屬於另一個帳號。請重新檢查 <code>~/.aws/credentials</code> 與 <code>$AWS_PROFILE</code>。</td></tr>
+      <tr><td><code>EntityAlreadyExists</code> 在建桶時</td><td>桶名是全域的,請挑一個沒被人用的。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>除錯工具</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">--debug</div><button class="copy-btn">複製</button></div>
+      <div class="card-desc">會印出每個簽署過的請求、標頭、重試次數與回應內容。權限/region 問題的良伴。輸出非常多。</div>
+      <pre><code>aws s3 ls s3://my-bucket --debug 2&gt;&amp;1 | tee aws-debug.log</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">我是哪個身分?</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws sts get-caller-identity --output table
+
+<span class="tok-c"># 環境變數:</span>
+env | grep AWS_
+
+<span class="tok-c"># 設定:</span>
+aws configure list
+aws configure list-profiles</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Dry-run(S3 sync/cp/rm)</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws s3 sync ./build/ s3://my-bucket/v1/ \
+  --delete --dryrun
+<span class="tok-c"># 印出 (dryrun) upload: ... → s3://...</span>
+<span class="tok-c"># 印出 (dryrun) delete: s3://...</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">輸出格式</div><button class="copy-btn">複製</button></div>
+      <pre><code>--output  json | yaml | yaml-stream | text | table
+
+aws ec2 describe-instances \
+  --query 'Reservations[].Instances[].InstanceId' \
+  --output text</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">分頁</div><button class="copy-btn">複製</button></div>
+      <pre><code><span class="tok-c"># CLI 預設會自動分頁。可覆寫:</span>
+--max-items 50          <span class="tok-c"># 累計回傳的筆數</span>
+--page-size 200         <span class="tok-c"># 每次呼叫的筆數</span>
+--no-paginate           <span class="tok-c"># 直接拿一次原始回應</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Endpoint 覆寫(LocalStack、MinIO)</div><button class="copy-btn">複製</button></div>
+      <pre><code>aws --endpoint-url http://localhost:4566 \
+    s3 ls
+
+<span class="tok-c"># CLI v2:逐服務的 endpoint</span>
+[profile local]
+endpoint_url = http://localhost:4566</code></pre>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="help-overlay" id="helpOverlay">
+  <div class="help-card">
+    <h3>鍵盤快速鍵</h3>
+    <div class="row"><span>聚焦搜尋</span><kbd>/</kbd></div>
+    <div class="row"><span>切換分頁</span><kbd>1</kbd>–<kbd>7</kbd></div>
+    <div class="row"><span>說明</span><kbd>?</kbd></div>
+    <div class="row"><span>關閉 / 清除</span><kbd>Esc</kbd></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn ghost" id="helpClose">關閉</button>
+    </div>
+  </div>
+</div>
+
+<div class="footer">單檔自包含的速查表。沙盒互動完全不離開你的瀏覽器。按 <code>?</code> 看快速鍵。</div>
+
+<script>
+  // --- 分頁切換
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // --- 搜尋
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall, .note');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+
+  // --- 說明覆蓋層
+  const help = document.getElementById('helpOverlay');
+  document.getElementById('helpClose').addEventListener('click', () => help.classList.remove('open'));
+  help.addEventListener('click', (e) => { if (e.target === help) help.classList.remove('open'); });
+
+  // --- 鍵盤快速鍵
+  document.addEventListener('keydown', (e) => {
+    const inField = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName);
+    if (e.key === '/' && !inField) { e.preventDefault(); search.focus(); }
+    if (e.key === '?' && !inField) { help.classList.toggle('open'); }
+    if (e.key === 'Escape') { help.classList.remove('open'); search.value=''; filter(); search.blur(); }
+    if (/^[1-7]$/.test(e.key) && !inField) {
+      const order = ['setup','iam','s3','s3adv','hello','other','trouble'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // --- 複製按鈕
+  function copy(text) {
+    return navigator.clipboard ? navigator.clipboard.writeText(text) : new Promise((res) => {
+      const ta = document.createElement('textarea'); ta.value = text;
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      res();
+    });
+  }
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const text = card?.querySelector('pre code')?.innerText || '';
+      await copy(text);
+      btn.textContent = '已複製'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '複製'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // --- chip 切換工具
+  function bindChips(rootId) {
+    document.querySelectorAll('#' + rootId + ' .chip').forEach(ch => {
+      ch.addEventListener('click', () => ch.classList.toggle('active'));
+    });
+  }
+  bindChips('iamActions'); bindChips('cbFlags');
+
+  // --- IAM 政策產生器
+  const iamGen = document.getElementById('iamGen');
+  const iamCopy = document.getElementById('iamCopy');
+  const iamOut = document.getElementById('iamOut');
+  function buildIamPolicy() {
+    const actions = [...document.querySelectorAll('#iamActions .chip.active')].map(c => c.dataset.a);
+    const bucket = document.getElementById('iamBucket').value.trim() || 'my-bucket';
+    const prefix = document.getElementById('iamPrefix').value.trim();
+    const bucketArn = `arn:aws:s3:::${bucket}`;
+    const objArn = prefix && prefix !== '*' ? `${bucketArn}/${prefix}*` : `${bucketArn}/*`;
+    const bucketActions = actions.filter(a => /ListBucket|ListAllMyBuckets/.test(a));
+    const objActions = actions.filter(a => !bucketActions.includes(a));
+    const stmts = [];
+    if (bucketActions.length) stmts.push({ Effect:'Allow', Action: bucketActions.length===1?bucketActions[0]:bucketActions, Resource: bucketActions.includes('s3:ListAllMyBuckets')?'*':bucketArn });
+    if (objActions.length) stmts.push({ Effect:'Allow', Action: objActions.length===1?objActions[0]:objActions, Resource: objArn });
+    if (!stmts.length) stmts.push({ Effect:'Allow', Action:[], Resource:[] });
+    const policy = { Version: '2012-10-17', Statement: stmts };
+    return JSON.stringify(policy, null, 2);
+  }
+  function renderIam() { iamOut.textContent = buildIamPolicy(); }
+  iamGen.addEventListener('click', renderIam);
+  iamCopy.addEventListener('click', async () => {
+    await copy(iamOut.textContent);
+    iamCopy.textContent = '已複製'; setTimeout(() => iamCopy.textContent = '複製 JSON', 1100);
+  });
+  document.querySelectorAll('#iamActions .chip').forEach(c => c.addEventListener('click', renderIam));
+  ['iamBucket','iamPrefix'].forEach(id => document.getElementById(id).addEventListener('input', renderIam));
+  renderIam();
+
+  // --- 指令建構器
+  const cb = {
+    op: document.getElementById('cbOp'),
+    src: document.getElementById('cbSrc'),
+    dst: document.getElementById('cbDst'),
+    cls: document.getElementById('cbCls'),
+    region: document.getElementById('cbRegion'),
+    out: document.getElementById('cbOut'),
+  };
+  function buildCmd() {
+    const op = cb.op.value;
+    let cmd = `aws s3 ${op}`;
+    if (op === 'cp' || op === 'sync') cmd += ` ${cb.src.value} ${cb.dst.value}`;
+    else if (op === 'ls' || op === 'rm' || op === 'presign' || op === 'mb' || op === 'rb') cmd += ` ${cb.dst.value}`;
+    if (cb.cls.value && !/default/.test(cb.cls.value) && (op === 'cp' || op === 'sync')) cmd += ` --storage-class ${cb.cls.value}`;
+    if (cb.region.value) cmd += ` --region ${cb.region.value}`;
+    document.querySelectorAll('#cbFlags .chip.active').forEach(c => { cmd += ` ${c.dataset.f}`; });
+    cb.out.textContent = cmd;
+  }
+  document.getElementById('cbBuild').addEventListener('click', buildCmd);
+  document.getElementById('cbCopy').addEventListener('click', async () => {
+    await copy(cb.out.textContent);
+    document.getElementById('cbCopy').textContent = '已複製';
+    setTimeout(() => document.getElementById('cbCopy').textContent = '複製', 1100);
+  });
+  Object.values(cb).forEach(el => { if (el && el.addEventListener && el !== cb.out) el.addEventListener('input', buildCmd); });
+  document.querySelectorAll('#cbFlags .chip').forEach(c => c.addEventListener('click', buildCmd));
+  buildCmd();
+
+  // --- URI 解析器
+  function parseUri() {
+    const v = document.getElementById('uriIn').value.trim();
+    const m = v.match(/^s3:\/\/([^/]+)\/?(.*)$/);
+    if (!m) {
+      document.getElementById('uriBucket').textContent = '無效';
+      document.getElementById('uriPrefix').textContent = '—';
+      document.getElementById('uriKey').textContent = '—';
+      return;
+    }
+    const bucket = m[1];
+    const path = m[2] || '';
+    const slashAt = path.lastIndexOf('/');
+    const prefix = slashAt >= 0 ? path.slice(0, slashAt + 1) : '';
+    const key = slashAt >= 0 ? path.slice(slashAt + 1) : path;
+    document.getElementById('uriBucket').textContent = bucket;
+    document.getElementById('uriPrefix').textContent = prefix || '(無)';
+    document.getElementById('uriKey').textContent = key || '(無)';
+  }
+  document.getElementById('uriParse').addEventListener('click', parseUri);
+  document.getElementById('uriIn').addEventListener('input', parseUri);
+  parseUri();
+
+  // --- 模擬 S3 檔案總管
+  const mock = { files: [{ key:'reports/q1.csv', size:84, cls:'STANDARD' }] };
+  const mockFiles = document.getElementById('mockFiles');
+  const mockOut = document.getElementById('mockOut');
+  const mockCount = document.getElementById('mockCount');
+  function renderMock() {
+    mockFiles.innerHTML = '';
+    if (!mock.files.length) {
+      const e = document.createElement('div'); e.className = 'empty'; e.textContent = '空桶';
+      mockFiles.appendChild(e);
+    } else {
+      mock.files.forEach(f => {
+        const row = document.createElement('div'); row.className = 'file-row';
+        row.innerHTML = `<span class="ico">⬢</span><span class="name">${f.key}</span><span class="size">${f.size} KB</span><span class="cls">${f.cls}</span>`;
+        mockFiles.appendChild(row);
+      });
+    }
+    mockCount.textContent = mock.files.length + ' 個物件';
+  }
+  function logMock(line) { mockOut.textContent = line; }
+  document.getElementById('mockCp').addEventListener('click', () => {
+    const k = document.getElementById('mockKey').value.trim();
+    const s = parseInt(document.getElementById('mockSize').value || '1', 10);
+    if (!k) return logMock('# 需要鍵名,例如 data/orders.csv');
+    const idx = mock.files.findIndex(f => f.key === k);
+    if (idx >= 0) mock.files[idx].size = s;
+    else mock.files.push({ key:k, size:s, cls:'STANDARD' });
+    renderMock();
+    [...mockFiles.children].forEach(r => { if (r.querySelector('.name')?.textContent === k) r.classList.add('added'); });
+    logMock(`upload: ./${k} → s3://my-bucket/${k}`);
+  });
+  document.getElementById('mockLs').addEventListener('click', () => {
+    if (!mock.files.length) return logMock('# (空桶)');
+    logMock(mock.files.map(f => `${f.cls.padEnd(8)}  ${String(f.size).padStart(6)} KB  s3://my-bucket/${f.key}`).join('\n'));
+  });
+  document.getElementById('mockSync').addEventListener('click', () => {
+    const incoming = [
+      { key:'index.html', size:6 },
+      { key:'app.js', size:48 },
+      { key:'styles/main.css', size:12 },
+      { key:'img/hero.jpg', size:240 },
+    ];
+    incoming.forEach(f => {
+      if (!mock.files.find(m => m.key === f.key)) mock.files.push({ ...f, cls:'STANDARD' });
+    });
+    renderMock();
+    logMock(`upload: ./build/index.html → s3://my-bucket/index.html\nupload: ./build/app.js → s3://my-bucket/app.js\n... (再 2 個)`);
+  });
+  document.getElementById('mockRm').addEventListener('click', () => {
+    const k = document.getElementById('mockKey').value.trim();
+    const idx = mock.files.findIndex(f => f.key === k);
+    if (idx < 0) return logMock(`# 找不到: ${k}`);
+    mock.files.splice(idx, 1);
+    renderMock();
+    logMock(`delete: s3://my-bucket/${k}`);
+  });
+  document.getElementById('mockClear').addEventListener('click', () => {
+    mock.files = []; renderMock(); logMock('# 桶已清空');
+  });
+  renderMock();
+
+  // --- 假的預先簽署 URL
+  document.getElementById('psGen').addEventListener('click', () => {
+    const b = document.getElementById('psBucket').value.trim() || 'my-bucket';
+    const r = document.getElementById('psRegion').value.trim() || 'us-east-1';
+    const k = document.getElementById('psKey').value.trim() || 'object.bin';
+    const e = parseInt(document.getElementById('psExp').value || '3600', 10);
+    const now = new Date();
+    const date = now.toISOString().replace(/[-:]|\.\d+/g, '').slice(0,15) + 'Z';
+    const cred = `AKIA${Math.random().toString(36).toUpperCase().slice(2,10)}/` +
+                 `${date.slice(0,8)}/${r}/s3/aws4_request`;
+    const sig = Array.from({length:64}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
+    const url =
+      `https://${b}.s3.${r}.amazonaws.com/${k}?` +
+      `X-Amz-Algorithm=AWS4-HMAC-SHA256&` +
+      `X-Amz-Credential=${encodeURIComponent(cred)}&` +
+      `X-Amz-Date=${date}&` +
+      `X-Amz-Expires=${e}&` +
+      `X-Amz-SignedHeaders=host&` +
+      `X-Amz-Signature=${sig}`;
+    document.getElementById('psOut').textContent = url;
+  });
+  document.getElementById('psGen').click();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>tmux dojo — mistrovství terminálového multiplexeru</title>
+<style>
+  /* ---------- root tokens ---------- */
+  :root{
+    --bg: #0b0f0a;
+    --bg-soft:#0f1410;
+    --panel:#0d1410;
+    --panel-2:#101a13;
+    --ink:#cfeed1;
+    --ink-dim:#7da37e;
+    --phos:#39ff7a;       /* phosphor green */
+    --phos-soft:#2bd463;
+    --amber:#ffb454;
+    --magenta:#ff5dc8;
+    --cyan:#5dd6ff;
+    --red:#ff6b6b;
+    --line: #1c2a1f;
+    --shadow: 0 0 24px rgba(57,255,122,.18), 0 0 2px rgba(57,255,122,.6) inset;
+    --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,"JetBrains Mono","Fira Code",monospace;
+  }
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--mono);margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+  a{color:var(--phos)}
+  ::selection{background:var(--phos);color:#031}
+
+  /* ---------- CRT effect (toggleable) ---------- */
+  body.crt::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9000;
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;
+  }
+  body.crt::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9001;
+    background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0,0,0,.55) 100%);
+  }
+  body.crt .term, body.crt .panel, body.crt h1, body.crt h2, body.crt h3{
+    text-shadow: 0 0 6px rgba(57,255,122,.45);
+  }
+
+  /* ---------- layout ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;gap:12px;
+    padding:10px 18px;
+    background:linear-gradient(180deg, rgba(15,20,16,.95), rgba(15,20,16,.78));
+    border-bottom:1px solid var(--line);
+    backdrop-filter:blur(8px);
+  }
+  .brand{font-weight:700;letter-spacing:.04em;color:var(--phos)}
+  .brand .blink{animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .top-spacer{flex:1}
+  .badges{display:flex;gap:8px;flex-wrap:wrap}
+  .badge{
+    border:1px solid var(--line);background:var(--panel);padding:4px 10px;border-radius:6px;font-size:12px;color:var(--ink-dim)
+  }
+  .badge.on{border-color:var(--phos);color:var(--phos);box-shadow:0 0 0 1px rgba(57,255,122,.25)}
+  .btn{
+    appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    padding:6px 12px;border-radius:6px;font-family:var(--mono);cursor:pointer;font-size:12px;
+    transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .btn:hover{border-color:var(--phos);color:var(--phos)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:#0e2a18;border-color:var(--phos);color:var(--phos)}
+  .btn.warn{background:#2a160e;border-color:var(--amber);color:var(--amber)}
+  .btn.danger{background:#2a0e0e;border-color:var(--red);color:var(--red)}
+
+  main{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+
+  h1{font-size:34px;margin:8px 0 6px;color:var(--phos);letter-spacing:.02em}
+  h1 .slash{color:var(--amber)}
+  h2{margin-top:36px;color:var(--phos-soft);border-left:3px solid var(--phos);padding-left:10px}
+  h3{color:var(--cyan);margin-bottom:6px}
+  p{line-height:1.6;color:var(--ink)}
+  code, kbd{
+    font-family:var(--mono);background:#0a140d;color:var(--phos);border:1px solid var(--line);
+    padding:1px 6px;border-radius:4px;font-size:.92em
+  }
+  kbd{background:#0e1a12;color:var(--amber);border-color:#26341d;font-weight:600}
+
+  .lead{color:var(--ink-dim)}
+  .grid{display:grid;gap:16px}
+  .grid-2{grid-template-columns: 1fr 1fr}
+  .grid-3{grid-template-columns: repeat(3,1fr)}
+  @media (max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+  .panel{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:10px;padding:16px;
+    box-shadow: var(--shadow);
+  }
+
+  /* ---------- HUD ---------- */
+  .hud{
+    display:grid;grid-template-columns: 1.4fr 1fr 1fr 1fr;gap:14px;margin:18px 0 8px;
+  }
+  .hud .stat{
+    background:linear-gradient(180deg,#0d1410,#0c120e);
+    border:1px solid var(--line);border-radius:10px;padding:10px 14px;position:relative;overflow:hidden;
+  }
+  .hud .label{font-size:11px;color:var(--ink-dim);letter-spacing:.18em;text-transform:uppercase}
+  .hud .val{font-size:22px;color:var(--phos);font-weight:700;margin-top:2px}
+  .hud .sub{font-size:11px;color:var(--ink-dim)}
+  .xpbar{height:6px;background:#0a140d;border-radius:3px;margin-top:10px;overflow:hidden;border:1px solid #14241a}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,var(--phos),var(--amber));width:0%;transition:width .35s ease}
+  .combo-flame{display:inline-block;transition:transform .15s ease}
+  .combo-on .combo-flame{transform:scale(1.4) rotate(-8deg);filter:drop-shadow(0 0 4px var(--amber))}
+
+  /* ---------- terminal simulator ---------- */
+  .term-wrap{position:relative}
+  .term{
+    background:#06100a;border:1px solid #16241a;border-radius:10px;overflow:hidden;
+    box-shadow: 0 0 0 1px rgba(57,255,122,.06), 0 12px 40px rgba(0,0,0,.5);
+  }
+  .term-bar{
+    display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0a140d;border-bottom:1px solid #16241a;
+    font-size:12px;color:var(--ink-dim)
+  }
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.r{background:#ff5f56}.dot.y{background:#ffbd2e}.dot.g{background:#27c93f}
+  .term-title{flex:1;text-align:center}
+  .tmux-status{
+    display:flex;align-items:center;gap:6px;padding:6px 10px;background:#0a140d;border-bottom:1px solid #16241a;
+    font-size:12px;color:var(--ink-dim);
+  }
+  .tmux-status .session{color:var(--amber)}
+  .tmux-status .window{padding:2px 8px;border-radius:4px;background:#0e1a12;color:var(--ink-dim);border:1px solid #142119}
+  .tmux-status .window.active{background:#0e2a18;color:var(--phos);border-color:var(--phos)}
+  .tmux-status .right{margin-left:auto;color:var(--ink-dim)}
+
+  .term-body{
+    position:relative;
+    display:grid;grid-template-columns:1fr;grid-template-rows:1fr;
+    min-height:280px;background:#06100a;
+  }
+  .term-body.split-h{grid-template-columns:1fr 1fr}
+  .term-body.split-v{grid-template-rows:1fr 1fr}
+  .term-body.split-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .pane{
+    border:1px solid #16241a;margin:6px;border-radius:6px;background:#06100a;
+    padding:10px 12px;font-size:13px;color:var(--ink);overflow:hidden;position:relative;min-height:120px;
+    transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
+  }
+  .pane.active{border-color:var(--phos);box-shadow:0 0 0 1px rgba(57,255,122,.25), 0 0 24px rgba(57,255,122,.15) inset}
+  .pane.zoomed{position:absolute;inset:0;z-index:5;margin:0;border-radius:0}
+  .pane .ps1{color:var(--phos)}
+  .pane .ps1 b{color:var(--amber)}
+  .pane .out{color:var(--ink-dim);white-space:pre-wrap}
+  .pane .cursor{display:inline-block;width:8px;height:14px;background:var(--phos);vertical-align:middle;animation:blink 1s steps(1) infinite;margin-left:2px}
+  .pane.killed{opacity:.25;filter:grayscale(.6)}
+
+  .term-footer{
+    display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a140d;border-top:1px solid #16241a;font-size:12px;color:var(--ink-dim)
+  }
+  .chord{
+    font-family:var(--mono);background:#0e2a18;color:var(--phos);
+    padding:2px 8px;border-radius:4px;border:1px solid var(--phos);
+    box-shadow:0 0 12px rgba(57,255,122,.25);
+  }
+  .keyhint{color:var(--ink-dim)}
+
+  .sim-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+  /* ---------- practice mode ---------- */
+  .practice{
+    display:grid;grid-template-columns: 1.3fr 1fr;gap:18px;
+  }
+  @media (max-width:1000px){.practice{grid-template-columns:1fr}}
+  .quest{
+    background:linear-gradient(180deg,#0d1410,#0a120d);
+    border:1px solid var(--line);border-radius:10px;padding:16px;position:relative;overflow:hidden
+  }
+  .quest::before{
+    content:"";position:absolute;inset:-1px;border-radius:10px;pointer-events:none;
+    background:linear-gradient(140deg, rgba(57,255,122,.15), transparent 30%, rgba(255,180,84,.12) 70%, transparent);
+    opacity:.6;
+  }
+  .quest .tag{display:inline-block;font-size:11px;letter-spacing:.18em;color:var(--ink-dim);text-transform:uppercase;margin-bottom:8px}
+  .quest .prompt{font-size:18px;color:var(--ink);margin:4px 0 12px;line-height:1.5}
+  .quest .hint{color:var(--ink-dim);font-size:12px;margin-top:10px}
+  .quest .input-row{display:flex;gap:8px;align-items:center}
+  .quest input[type=text]{
+    flex:1;background:#06100a;border:1px solid #1c2a1f;color:var(--phos);
+    padding:10px 12px;border-radius:6px;font-family:var(--mono);font-size:15px;outline:none;
+    transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .quest input[type=text]:focus{border-color:var(--phos);box-shadow:0 0 0 2px rgba(57,255,122,.18)}
+  .quest .feedback{margin-top:10px;min-height:20px;font-size:13px}
+  .quest .feedback.ok{color:var(--phos)}
+  .quest .feedback.bad{color:var(--red)}
+  .shake{animation:shake .35s}
+  @keyframes shake{
+    0%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}80%{transform:translateX(3px)}100%{transform:translateX(0)}
+  }
+  .glow-ok{animation:glowok .8s}
+  @keyframes glowok{
+    0%{box-shadow:0 0 0 0 rgba(57,255,122,.0)}
+    30%{box-shadow:0 0 0 4px rgba(57,255,122,.4)}
+    100%{box-shadow:0 0 0 0 rgba(57,255,122,0)}
+  }
+
+  .pquest-list{max-height:520px;overflow:auto;padding-right:4px}
+  .pq{
+    display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:8px;margin-bottom:8px;background:#0b120e;cursor:pointer;
+  }
+  .pq:hover{border-color:var(--phos)}
+  .pq .num{color:var(--ink-dim);font-size:12px;width:26px}
+  .pq .ttl{flex:1;font-size:13px}
+  .pq .st{font-size:11px;color:var(--ink-dim)}
+  .pq.done{border-color:#1f3a26}
+  .pq.done .ttl{color:var(--phos)}
+  .pq.cur{border-color:var(--amber);box-shadow:0 0 0 1px rgba(255,180,84,.25)}
+
+  /* ---------- bindings table ---------- */
+  table.bindings{width:100%;border-collapse:collapse;font-size:13px}
+  table.bindings th, table.bindings td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  table.bindings th{color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  table.bindings tr.practiced td:first-child::before{content:"✓ ";color:var(--phos)}
+  table.bindings code{white-space:nowrap}
+
+  /* ---------- achievements ---------- */
+  .achs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .ach{
+    border:1px dashed #1d2c20;border-radius:10px;padding:10px;text-align:center;background:#0a120d;opacity:.55;
+    transition:all .25s ease
+  }
+  .ach.unlocked{opacity:1;border-style:solid;border-color:var(--phos);box-shadow:0 0 16px rgba(57,255,122,.18)}
+  .ach .em{font-size:24px}
+  .ach .nm{font-size:12px;color:var(--ink);margin-top:4px}
+  .ach .ds{font-size:11px;color:var(--ink-dim);margin-top:2px;line-height:1.3}
+
+  /* ---------- toast ---------- */
+  .toasts{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+  .toast{
+    background:#0e1a12;border:1px solid var(--phos);color:var(--phos);
+    padding:10px 14px;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.4);
+    font-size:13px;animation:tin .25s ease;
+  }
+  .toast.warn{border-color:var(--amber);color:var(--amber)}
+  .toast.bad{border-color:var(--red);color:var(--red)}
+  @keyframes tin{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+  /* ---------- confetti / particles ---------- */
+  canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:9500}
+
+  /* ---------- boss ---------- */
+  .boss{
+    background:linear-gradient(180deg,#160a14,#0e0a14);border:1px solid #341d2c;border-radius:12px;padding:18px;
+    box-shadow: 0 0 30px rgba(255,93,200,.18) inset;
+  }
+  .boss h2{color:var(--magenta);border-color:var(--magenta)}
+  .hp{height:14px;border:1px solid #341d2c;border-radius:8px;overflow:hidden;background:#0a070d}
+  .hp > div{height:100%;background:linear-gradient(90deg,var(--magenta),var(--amber));width:100%;transition:width .35s}
+  .boss .timer{font-size:14px;color:var(--amber)}
+  .boss .quest{background:#0c060f;border-color:#341d2c}
+  .boss .quest::before{display:none}
+  .boss .input-row input{border-color:#341d2c;color:var(--magenta)}
+  .boss .input-row input:focus{border-color:var(--magenta);box-shadow:0 0 0 2px rgba(255,93,200,.2)}
+  .boss .btn.primary{background:#1c0a18;border-color:var(--magenta);color:var(--magenta)}
+
+  /* ---------- nav (toc) ---------- */
+  .toc{
+    display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px
+  }
+  .toc a{
+    text-decoration:none;border:1px solid var(--line);padding:5px 10px;border-radius:999px;
+    font-size:12px;color:var(--ink-dim);background:#0b120e;
+  }
+  .toc a:hover{border-color:var(--phos);color:var(--phos)}
+
+  /* ---------- ascii art header ---------- */
+  pre.ascii{
+    color:var(--phos);font-size:11px;line-height:1.1;margin:0;
+    text-shadow:0 0 8px rgba(57,255,122,.3);
+  }
+  @media (max-width:600px){pre.ascii{font-size:9px}}
+
+  /* ---------- floating chord display ---------- */
+  .chord-overlay{
+    position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.8);
+    background:rgba(6,16,10,.92);border:1px solid var(--phos);border-radius:14px;
+    padding:18px 28px;color:var(--phos);font-size:36px;letter-spacing:.05em;
+    box-shadow:0 0 40px rgba(57,255,122,.4);opacity:0;pointer-events:none;
+    z-index:9800;transition:opacity .14s ease, transform .14s ease;
+  }
+  .chord-overlay.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  /* small util */
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .muted{color:var(--ink-dim)}
+  .ok{color:var(--phos)}.warn{color:var(--amber)}.bad{color:var(--red)}
+  .pill{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:999px;font-size:11px;color:var(--ink-dim)}
+
+  details > summary{cursor:pointer;color:var(--phos)}
+  details {border:1px dashed #1d2c20;padding:8px 12px;border-radius:8px;margin:6px 0;background:#0a120d}
+
+  hr{border:none;border-top:1px dashed #1d2c20;margin:24px 0}
+</style>
+</head>
+<body class="crt">
+  <div class="topbar">
+    <div class="brand">~ tmux<span class="slash">/</span>dojo <span class="blink">_</span></div>
+    <div class="top-spacer"></div>
+    <div class="row">
+      <span class="badge" id="hud-level">LV 1</span>
+      <span class="badge" id="hud-xp">XP 0</span>
+      <span class="badge" id="hud-combo">COMBO 0</span>
+      <button class="btn" id="toggle-crt" title="Toggle CRT scanlines">crt: on</button>
+      <button class="btn warn" id="reset-progress" title="Reset all progress">reset</button>
+    </div>
+  </div>
+
+  <main>
+    <pre class="ascii" aria-hidden="true">
+   ████████ ███    ███ ██    ██ ██   ██     ██████   ██████      ██  ██████
+      ██    ████  ████ ██    ██  ██ ██      ██   ██ ██    ██     ██ ██    ██
+      ██    ██ ████ ██ ██    ██   ███       ██   ██ ██    ██     ██ ██    ██
+      ██    ██  ██  ██ ██    ██  ██ ██      ██   ██ ██    ████   ██ ██    ██
+      ██    ██      ██  ██████  ██   ██     ██████   ██████  █████   ██████
+    </pre>
+    <h1>tmux dojo <span class="slash">//</span> naučte se multiplexer psaním</h1>
+    <p class="lead">Soběstačné hřiště. Přečtěte si stručné kapitoly, mačkejte klávesy v simulátoru a získávejte XP v procvičovacím dojo. Na konci porazte <b class="warn">Multiplexer Mastera</b>.</p>
+
+    <nav class="toc">
+      <a href="#what">1. co</a>
+      <a href="#model">2. model</a>
+      <a href="#prefix">3. prefix</a>
+      <a href="#sessions">4. sezení</a>
+      <a href="#windows">5. okna</a>
+      <a href="#panes">6. panely</a>
+      <a href="#copy">7. copy mode</a>
+      <a href="#config">8. konfig</a>
+      <a href="#plugins">9. pluginy</a>
+      <a href="#sim">simulátor</a>
+      <a href="#practice">procvičit</a>
+      <a href="#boss">boss</a>
+    </nav>
+
+    <!-- HUD -->
+    <div class="hud">
+      <div class="stat">
+        <div class="label">postup</div>
+        <div class="val" id="hud-progress">0 / 18</div>
+        <div class="sub">dokončené cvičení</div>
+        <div class="xpbar"><div id="hud-xpbar"></div></div>
+      </div>
+      <div class="stat">
+        <div class="label">úroveň</div>
+        <div class="val" id="hud-level2">1</div>
+        <div class="sub" id="hud-level-name">Tabby rekrut</div>
+      </div>
+      <div class="stat" id="hud-combo-card">
+        <div class="label">combo <span class="combo-flame">🔥</span></div>
+        <div class="val" id="hud-combo2">0</div>
+        <div class="sub" id="hud-combo-best">nej 0</div>
+      </div>
+      <div class="stat">
+        <div class="label">naučené zkratky</div>
+        <div class="val" id="hud-bindings">0</div>
+        <div class="sub" id="hud-bindings-total">/ mnoho</div>
+      </div>
+    </div>
+
+    <!-- 1. What is tmux -->
+    <h2 id="what">1. co je tmux?</h2>
+    <div class="grid grid-2">
+      <div class="panel">
+        <p><b class="ok">tmux</b> je <b>terminálový multiplexer</b>: jedno okno terminálu obsahuje mnoho nezávislých shellů, vedle sebe, v tabech a (nejdůležitější) <em>odpojené od vašeho SSH spojení</em>.</p>
+        <p>Tři superschopnosti:</p>
+        <ul>
+          <li><b>perzistence</b> — zavřete laptop, zítra se připojte, najdete své shelly přesně tam, kde jste je opustili</li>
+          <li><b>rozložení</b> — rozdělíte okno na panely; běží <code>vim</code>, <code>tail -f</code> i <code>htop</code> zároveň</li>
+          <li><b>skriptovatelný</b> — spustíte rozložení projektu jedním příkazem, sdílíte sezení s kolegou, automatizujete setup</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>tmux vs. alternativy</h3>
+        <table class="bindings">
+          <tr><th>nástroj</th><th>panely?</th><th>perzistence?</th><th>nálada</th></tr>
+          <tr><td><code>screen</code></td><td>tak nějak</td><td>ano</td><td>pradědek tribu; drsnější UX</td></tr>
+          <tr><td>iTerm splits</td><td>ano</td><td>ne</td><td>umírá s appkou, neportabilní přes SSH</td></tr>
+          <tr><td>VS Code terminál</td><td>ano</td><td>ne</td><td>jen lokálně</td></tr>
+          <tr><td><b>tmux</b></td><td>ano</td><td>ano</td><td>skriptovatelný, všudypřítomný, žije na serveru</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. Mental model -->
+    <h2 id="model">2. mentální model</h2>
+    <div class="panel">
+      <p>tmux je <b>client/server</b> program. Váš terminál mluví s dlouho běžícím <code>tmux</code> serverem. Server vlastní:</p>
+      <pre class="muted" style="font-size:13px;line-height:1.4">
+server
+└── session "work"
+    ├── window 0: editor
+    │   ├── pane 0: vim
+    │   └── pane 1: shell
+    └── window 1: logs
+        └── pane 0: tail -f app.log
+      </pre>
+      <p><b class="warn">attach</b> = terminál se připojí k sezení. <b class="warn">detach</b> = terminál se odpojí, ale sezení běží dál na serveru. Zavření SSH spojení ≠ zabití sezení.</p>
+    </div>
+
+    <!-- 3. Prefix -->
+    <h2 id="prefix">3. prefix klávesa</h2>
+    <div class="panel">
+      <p>Téměř každý příkaz tmuxu uvnitř sezení začíná <b>prefix klávesou</b>. Výchozí je <kbd>Ctrl</kbd>+<kbd>b</kbd>. Stisknete prefix, <em>uvolníte ho</em> a pak stisknete další klávesu.</p>
+      <p>Notace: <code>C-b "</code> znamená <kbd>Ctrl</kbd>+<kbd>b</kbd> a pak <kbd>"</kbd> (což je <kbd>Shift</kbd>+<kbd>'</kbd>). Mnoho lidí přemapuje prefix na <kbd>Ctrl</kbd>+<kbd>a</kbd>, protože je dosažitelnější.</p>
+      <p class="hint muted">Vyzkoušejte simulátor níže — stiskněte <kbd>Ctrl</kbd>+<kbd>b</kbd> a sledujte, jak indikátor začne hořet.</p>
+    </div>
+
+    <!-- 4. Sessions -->
+    <h2 id="sessions">4. sezení</h2>
+    <div class="panel">
+      <table class="bindings" id="tbl-sessions">
+        <tr><th>akce</th><th>shell příkaz</th><th>zkratka</th></tr>
+        <tr data-bind="new"><td>nové pojmenované sezení</td><td><code>tmux new -s work</code></td><td>—</td></tr>
+        <tr data-bind="ls"><td>výpis sezení</td><td><code>tmux ls</code></td><td><code>C-b s</code></td></tr>
+        <tr data-bind="attach"><td>připojit k sezení</td><td><code>tmux attach -t work</code></td><td>—</td></tr>
+        <tr data-bind="detach"><td>odpojit</td><td>—</td><td><code>C-b d</code></td></tr>
+        <tr data-bind="kill"><td>zabít sezení</td><td><code>tmux kill-session -t work</code></td><td>—</td></tr>
+        <tr data-bind="rename-s"><td>přejmenovat aktuální sezení</td><td>—</td><td><code>C-b $</code></td></tr>
+        <tr data-bind="switch-s"><td>přepnout sezení</td><td>—</td><td><code>C-b s</code></td></tr>
+      </table>
+    </div>
+
+    <!-- 5. Windows -->
+    <h2 id="windows">5. okna</h2>
+    <div class="panel">
+      <p>Okna jsou jako taby. Každé sezení má mnoho oken; aktivní je vždy jen jedno.</p>
+      <table class="bindings" id="tbl-windows">
+        <tr><th>akce</th><th>zkratka</th></tr>
+        <tr data-bind="new-w"><td>vytvořit okno</td><td><code>C-b c</code></td></tr>
+        <tr data-bind="rename-w"><td>přejmenovat okno</td><td><code>C-b ,</code></td></tr>
+        <tr data-bind="next-w"><td>další okno</td><td><code>C-b n</code></td></tr>
+        <tr data-bind="prev-w"><td>předchozí okno</td><td><code>C-b p</code></td></tr>
+        <tr data-bind="last-w"><td>poslední (nejnovější) okno</td><td><code>C-b l</code></td></tr>
+        <tr data-bind="goto-w"><td>jít na okno N</td><td><code>C-b 0..9</code></td></tr>
+        <tr data-bind="kill-w"><td>zabít okno</td><td><code>C-b &amp;</code></td></tr>
+        <tr data-bind="list-w"><td>interaktivní výpis oken</td><td><code>C-b w</code></td></tr>
+      </table>
+    </div>
+
+    <!-- 6. Panes -->
+    <h2 id="panes">6. panely</h2>
+    <div class="panel">
+      <p>Panely rozdělí okno na obdélníky. Notace tmuxu je proslule matoucí:</p>
+      <ul>
+        <li><code>C-b "</code> rozdělí <b>horizontálně</b> (nahoře/dole — horizontální dělič). Mnemo: <kbd>"</kbd> jsou dvě tečky nad sebou.</li>
+        <li><code>C-b %</code> rozdělí <b>vertikálně</b> (vlevo/vpravo — vertikální dělič). Mnemo: <kbd>%</kbd> vypadá jako lomítko mezi dvěma boxy.</li>
+      </ul>
+      <table class="bindings" id="tbl-panes">
+        <tr><th>akce</th><th>zkratka</th></tr>
+        <tr data-bind="split-h"><td>rozdělit horizontálně (nahoře/dole)</td><td><code>C-b "</code></td></tr>
+        <tr data-bind="split-v"><td>rozdělit vertikálně (vlevo/vpravo)</td><td><code>C-b %</code></td></tr>
+        <tr data-bind="nav-pane"><td>pohyb mezi panely</td><td><code>C-b ↑/↓/←/→</code></td></tr>
+        <tr data-bind="cycle-pane"><td>cyklit na další panel</td><td><code>C-b o</code></td></tr>
+        <tr data-bind="resize"><td>změnit velikost aktuálního panelu (podržet)</td><td><code>C-b C-↑/↓/←/→</code></td></tr>
+        <tr data-bind="zoom"><td>přepnout zoom (panel na celou plochu)</td><td><code>C-b z</code></td></tr>
+        <tr data-bind="swap"><td>prohodit panely</td><td><code>C-b {</code> / <code>C-b }</code></td></tr>
+        <tr data-bind="kill-p"><td>zabít aktuální panel</td><td><code>C-b x</code></td></tr>
+        <tr data-bind="break-p"><td>přesunout panel do vlastního okna</td><td><code>C-b !</code></td></tr>
+        <tr data-bind="num-p"><td>zobrazit čísla panelů</td><td><code>C-b q</code></td></tr>
+      </table>
+    </div>
+
+    <!-- 7. Copy mode -->
+    <h2 id="copy">7. copy mode a scrollback</h2>
+    <div class="panel">
+      <p>Myš sice umí scrollovat terminál, ale v tmux je <em>správný</em> způsob <b>copy mode</b>. Vstoupíte do něj přes <code>C-b [</code>. Pak se můžete pohybovat vi klávesami, hledat a kopírovat text.</p>
+      <table class="bindings">
+        <tr><th>akce</th><th>klávesa (v copy mode)</th></tr>
+        <tr><td>vstoupit do copy mode</td><td><code>C-b [</code></td></tr>
+        <tr><td>pohyb</td><td><kbd>h j k l</kbd> nebo šipky</td></tr>
+        <tr><td>hledat dopředu / zpět</td><td><kbd>/</kbd> / <kbd>?</kbd></td></tr>
+        <tr><td>začít výběr</td><td><kbd>Space</kbd> (vi) nebo <kbd>v</kbd> s <code>mode-keys vi</code></td></tr>
+        <tr><td>kopírovat výběr</td><td><kbd>Enter</kbd> (default) nebo <kbd>y</kbd> v režimu vi</td></tr>
+        <tr><td>vložit</td><td><code>C-b ]</code></td></tr>
+        <tr><td>opustit copy mode</td><td><kbd>q</kbd></td></tr>
+      </table>
+      <p class="muted">Vi styl nastavte pomocí <code>setw -g mode-keys vi</code> v <code>~/.tmux.conf</code>.</p>
+    </div>
+
+    <!-- 8. Config -->
+    <h2 id="config">8. konfigurace — <code>~/.tmux.conf</code></h2>
+    <div class="panel">
+      <p>Konfiguraci znovu načtete uvnitř tmuxu pomocí <code>C-b :</code> a pak <code>source-file ~/.tmux.conf</code>, nebo si to nabindujte.</p>
+      <pre style="background:#06100a;border:1px solid #16241a;border-radius:8px;padding:14px;color:var(--ink);overflow:auto"><span class="muted"># přemapuje prefix na Ctrl-a</span>
+unbind C-b
+set -g prefix C-a
+bind C-a send-prefix
+
+<span class="muted"># indexovat okna/panely od 1 (snáze dosáhnete kláves 1..9)</span>
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+<span class="muted"># navigace mezi panely ve stylu vim</span>
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+<span class="muted"># rozumné rozdělení, které zachovávají aktuální cestu</span>
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+
+<span class="muted"># myš + vi copy mode</span>
+set -g mouse on
+setw -g mode-keys vi
+bind r source-file ~/.tmux.conf \; display "config znovu načten"
+
+<span class="muted"># větší scrollback</span>
+set -g history-limit 50000</pre>
+    </div>
+
+    <!-- 9. Plugins -->
+    <h2 id="plugins">9. pluginy (TPM)</h2>
+    <div class="panel">
+      <p><b>TPM</b> = <a href="https://github.com/tmux-plugins/tpm" target="_blank" rel="noopener">Tmux Plugin Manager</a>. Přidejte do <code>~/.tmux.conf</code>:</p>
+      <pre style="background:#06100a;border:1px solid #16241a;border-radius:8px;padding:14px;color:var(--ink);overflow:auto">set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'tmux-plugins/tmux-resurrect'   <span class="muted"># uložit/obnovit sezení</span>
+set -g @plugin 'tmux-plugins/tmux-continuum'   <span class="muted"># auto-obnova při startu</span>
+run '~/.tmux/plugins/tpm/tpm'</pre>
+      <p>Uvnitř tmuxu: <code>C-b I</code> instaluje, <code>C-b U</code> aktualizuje. <code>tmux-resurrect</code> umí udělat checkpoint celého stromu sezení; <code>tmux-continuum</code> auto-ukládá každých 15 min a načte při startu — restart laptopu = žádná ztráta práce.</p>
+    </div>
+
+    <!-- SIMULATOR -->
+    <h2 id="sim">simulátor <span class="pill">živý chord kláves</span></h2>
+    <div class="panel term-wrap">
+      <p class="muted">Klikněte do terminálu a vyzkoušejte reálné zkratky. Stiskněte nejprve <kbd>Ctrl</kbd>+<kbd>b</kbd>; indikátor prefixu se rozsvítí. Pak stiskněte další klávesu. Každý unikátní chord, který vyvoláte, dostane ✓ v tabulkách kapitol a vydělá XP.</p>
+      <div class="term" id="sim-term" tabindex="0" aria-label="tmux simulátor">
+        <div class="term-bar">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <div class="term-title">~ tmux ~ dojo @ localhost</div>
+          <div></div>
+        </div>
+        <div class="tmux-status" id="sim-status">
+          <span class="session" id="sim-sess-name">[work]</span>
+          <span class="window active" id="sim-w0">0:editor*</span>
+          <span class="window" id="sim-w1" style="display:none">1:logs</span>
+          <span class="window" id="sim-w2" style="display:none">2:shell</span>
+          <span class="right" id="sim-clock">--:--</span>
+        </div>
+        <div class="term-body" id="sim-body">
+          <div class="pane active" data-pane="0">
+            <div class="ps1"><b>johnsmith</b>@<b>dojo</b>:~/work$ <span class="cursor"></span></div>
+            <div class="out" id="pane-out-0"></div>
+          </div>
+        </div>
+        <div class="term-footer">
+          <span class="keyhint">prefix:</span>
+          <span id="sim-prefix-ind" class="badge">nečinný</span>
+          <span class="keyhint">poslední:</span>
+          <span id="sim-last" class="badge">—</span>
+          <span style="margin-left:auto" class="muted" id="sim-msg">klikněte sem pro fokus</span>
+        </div>
+      </div>
+      <div class="sim-actions">
+        <button class="btn" data-cheat="C-b %">zkus C-b %</button>
+        <button class="btn" data-cheat="C-b &quot;">zkus C-b "</button>
+        <button class="btn" data-cheat="C-b c">zkus C-b c</button>
+        <button class="btn" data-cheat="C-b z">zkus C-b z</button>
+        <button class="btn" data-cheat="C-b d">zkus C-b d</button>
+        <button class="btn" data-cheat="C-b x">zkus C-b x</button>
+        <button class="btn warn" id="sim-reset">resetovat terminál</button>
+      </div>
+    </div>
+
+    <!-- PRACTICE -->
+    <h2 id="practice">režim procvičování <span class="pill" id="pq-counter">0 / 18</span></h2>
+    <div class="practice">
+      <div class="quest" id="quest-card">
+        <div class="tag" id="q-tag">— cvičení —</div>
+        <div class="prompt" id="q-prompt">načítá se…</div>
+        <div class="input-row">
+          <input id="q-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="napište odpověď a stiskněte Enter…" />
+          <button class="btn primary" id="q-submit">odeslat ⏎</button>
+          <button class="btn" id="q-skip">přeskočit</button>
+          <button class="btn" id="q-hint-btn">nápověda</button>
+        </div>
+        <div class="feedback" id="q-feedback"></div>
+        <div class="hint" id="q-hint" style="display:none"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" id="q-prev">◀ předchozí</button>
+          <button class="btn" id="q-next">další ▶</button>
+          <span class="muted" style="margin-left:8px" id="q-meta"></span>
+        </div>
+      </div>
+      <div>
+        <h3>záznam výprav</h3>
+        <div class="pquest-list" id="pq-list"></div>
+      </div>
+    </div>
+
+    <!-- ACHIEVEMENTS -->
+    <h2>úspěchy</h2>
+    <div class="panel">
+      <div class="achs" id="achs"></div>
+    </div>
+
+    <!-- BOSS -->
+    <h2 id="boss">boss: multiplexer master</h2>
+    <div class="boss panel" id="boss-panel">
+      <p>Pět kol. 30 sekund každé. Žádné nápovědy. Špatné odpovědi vás stojí HP. Přežijte a získejte korunu <b>Multiplexer Master</b>.</p>
+      <div class="row" style="margin:8px 0">
+        <span class="badge" id="boss-round">kolo 0/5</span>
+        <span class="badge" id="boss-timer">--s</span>
+        <span class="badge" id="boss-streak">série 0</span>
+        <button class="btn primary" id="boss-start">začít boj</button>
+        <button class="btn" id="boss-stop" style="display:none">vzdát se</button>
+      </div>
+      <div class="hp"><div id="boss-hp"></div></div>
+      <div style="margin-top:14px" id="boss-quest-wrap" hidden>
+        <div class="quest" style="border-color:#341d2c">
+          <div class="tag" id="bq-tag">kolo —</div>
+          <div class="prompt" id="bq-prompt">—</div>
+          <div class="input-row">
+            <input id="bq-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="odpověď…" />
+            <button class="btn primary" id="bq-submit">odeslat ⏎</button>
+          </div>
+          <div class="feedback" id="bq-feedback"></div>
+        </div>
+      </div>
+    </div>
+
+    <hr/>
+    <p class="muted" style="text-align:center">vyrobeno pro nadšence terminálu. postup se ukládá do <code>localStorage</code>. <button class="btn warn" id="reset-progress2">resetovat veškerý postup</button></p>
+  </main>
+
+  <div class="toasts" id="toasts"></div>
+  <div class="chord-overlay" id="chord-ov"></div>
+  <canvas class="confetti" id="confetti"></canvas>
+
+<script>
+"use strict";
+/* =====================================================================
+   tmux dojo — single-file interactive learning app
+   ===================================================================== */
+
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const LS_KEY = "tmuxDojoState_v1";
+
+/* ---------------- state ---------------- */
+const initialState = {
+  xp: 0,
+  bestCombo: 0,
+  practiced: {},          // { questIdx: true }
+  bindings: {},           // { bindingId: true } — chord-table ✓
+  achievements: {},       // { id: true }
+  bossWon: false,
+  crt: true,
+};
+let state = loadState();
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return {...initialState};
+    return Object.assign({}, initialState, JSON.parse(raw));
+  }catch(e){ return {...initialState} }
+}
+function saveState(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+/* ---------------- level table ---------------- */
+const LEVELS = [
+  {min:0,    name:"Tabby rekrut"},
+  {min:50,   name:"Učeň panelů"},
+  {min:120,  name:"Krotitel oken"},
+  {min:220,  name:"Chirurg sezení"},
+  {min:340,  name:"Šeptatel prefixu"},
+  {min:480,  name:"Architekt rozložení"},
+  {min:640,  name:"Multiplexer Master"},
+];
+function levelInfo(xp){
+  let i = 0;
+  for(let k=0;k<LEVELS.length;k++) if(xp >= LEVELS[k].min) i = k;
+  const cur = LEVELS[i];
+  const nxt = LEVELS[i+1];
+  const frac = nxt ? (xp - cur.min) / (nxt.min - cur.min) : 1;
+  return {idx:i+1, name:cur.name, frac, next:nxt};
+}
+
+/* ---------------- toasts ---------------- */
+function toast(msg, kind=""){
+  const wrap = $("#toasts");
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity = "0"; el.style.transition="opacity .3s"; }, 2200);
+  setTimeout(()=>{ el.remove(); }, 2700);
+}
+
+/* ---------------- confetti ---------------- */
+const confettiCanvas = $("#confetti");
+const cctx = confettiCanvas.getContext("2d");
+let cParticles = [];
+let cRunning = false;
+function resizeCC(){ confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+addEventListener("resize", resizeCC); resizeCC();
+function confetti(n=60, x=null, y=null){
+  const cx = x ?? innerWidth/2;
+  const cy = y ?? innerHeight*0.45;
+  const colors = ["#39ff7a","#ffb454","#5dd6ff","#ff5dc8","#ffffff"];
+  for(let i=0;i<n;i++){
+    cParticles.push({
+      x:cx, y:cy,
+      vx:(Math.random()-.5)*8,
+      vy:Math.random()*-7-2,
+      g:0.22+Math.random()*0.1,
+      s:3+Math.random()*4,
+      a:1, life:60+Math.random()*40,
+      c:colors[Math.floor(Math.random()*colors.length)],
+      r:Math.random()*Math.PI,
+      vr:(Math.random()-.5)*0.3,
+    });
+  }
+  if(!cRunning){ cRunning = true; tickConfetti(); }
+}
+function tickConfetti(){
+  cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+  cParticles.forEach(p=>{
+    p.x += p.vx; p.y += p.vy; p.vy += p.g; p.r += p.vr; p.life--;
+    p.a = Math.max(0, Math.min(1, p.life/40));
+    cctx.save();
+    cctx.globalAlpha = p.a;
+    cctx.translate(p.x, p.y);
+    cctx.rotate(p.r);
+    cctx.fillStyle = p.c;
+    cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s);
+    cctx.restore();
+  });
+  cParticles = cParticles.filter(p => p.life>0 && p.y < confettiCanvas.height+30);
+  if(cParticles.length){ requestAnimationFrame(tickConfetti); }
+  else { cRunning = false; cctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); }
+}
+
+/* ---------------- HUD ---------------- */
+function updateHUD(){
+  const lv = levelInfo(state.xp);
+  $("#hud-level").textContent = "LV " + lv.idx;
+  $("#hud-xp").textContent = "XP " + state.xp;
+  $("#hud-combo").textContent = "COMBO " + combo;
+  $("#hud-level2").textContent = lv.idx;
+  $("#hud-level-name").textContent = lv.name;
+  $("#hud-combo2").textContent = combo;
+  $("#hud-combo-best").textContent = "nej " + state.bestCombo;
+  const bindCount = Object.keys(state.bindings).length;
+  const bindTotal = $$("[data-bind]").length;
+  $("#hud-bindings").textContent = bindCount;
+  $("#hud-bindings-total").textContent = "/ " + bindTotal;
+  const done = Object.keys(state.practiced).length;
+  $("#hud-progress").textContent = done + " / " + QUESTS.length;
+  $("#pq-counter").textContent = done + " / " + QUESTS.length;
+  $("#hud-xpbar").style.width = (lv.frac*100).toFixed(1) + "%";
+  $("#hud-combo-card").classList.toggle("combo-on", combo >= 3);
+}
+
+/* ---------------- bindings registry ---------------- */
+/* Map chord -> binding id -> visual effect on simulator */
+const CHORDS = {
+  // sessions
+  "C-b s":   { id:"ls",       label:"choose-tree (sezení)", apply:(s)=>{ s.msg="(zobrazil by seznam sezení)"; } },
+  "C-b d":   { id:"detach",   label:"odpojit", apply:(s)=>{ s.detached = true; s.msg="[odpojeno (od sezení work)]"; } },
+  "C-b $":   { id:"rename-s", label:"přejmenovat sezení", apply:(s)=>{ s.msg="rename-session: napište nové jméno…"; s.session = "dojo"; } },
+  // windows
+  "C-b c":   { id:"new-w",    label:"nové okno", apply:(s)=>{ s.windows.push({name:"shell"}); s.activeWin = s.windows.length-1; } },
+  "C-b ,":   { id:"rename-w", label:"přejmenovat okno", apply:(s)=>{ const names=["editor","logs","shell","build","db","tests","docs","monitor"]; s.windows[s.activeWin].name = names[Math.floor(Math.random()*names.length)]; } },
+  "C-b n":   { id:"next-w",   label:"další okno", apply:(s)=>{ if(s.windows.length>1){s.activeWin=(s.activeWin+1)%s.windows.length;}} },
+  "C-b p":   { id:"prev-w",   label:"předchozí okno", apply:(s)=>{ if(s.windows.length>1){s.activeWin=(s.activeWin-1+s.windows.length)%s.windows.length;}} },
+  "C-b l":   { id:"last-w",   label:"poslední okno", apply:(s)=>{ if(s.lastWin!=null){[s.activeWin,s.lastWin]=[s.lastWin,s.activeWin];}} },
+  "C-b w":   { id:"list-w",   label:"choose-tree (okna)", apply:(s)=>{ s.msg="(volič oken)"; } },
+  "C-b 0":   { id:"goto-w",   label:"jít na okno 0", apply:(s)=>{ if(s.windows[0])s.activeWin=0;} },
+  "C-b 1":   { id:"goto-w",   label:"jít na okno 1", apply:(s)=>{ if(s.windows[1])s.activeWin=1;} },
+  "C-b 2":   { id:"goto-w",   label:"jít na okno 2", apply:(s)=>{ if(s.windows[2])s.activeWin=2;} },
+  "C-b &":   { id:"kill-w",   label:"zabít okno", apply:(s)=>{ if(s.windows.length>1){ s.windows.splice(s.activeWin,1); s.activeWin = Math.max(0, s.activeWin-1);} } },
+  // panes
+  'C-b "':   { id:"split-h",  label:"rozdělit horizontálně", apply:(s)=>{ s.panes.push({}); s.layout = decideLayout(s.panes.length, "h"); } },
+  "C-b %":   { id:"split-v",  label:"rozdělit vertikálně", apply:(s)=>{ s.panes.push({}); s.layout = decideLayout(s.panes.length, "v"); } },
+  "C-b o":   { id:"cycle-pane",label:"cyklit panel", apply:(s)=>{ s.activePane = (s.activePane+1)%s.panes.length; } },
+  "C-b z":   { id:"zoom",     label:"přepnout zoom", apply:(s)=>{ s.zoomed = !s.zoomed; } },
+  "C-b x":   { id:"kill-p",   label:"zabít panel", apply:(s)=>{ if(s.panes.length>1){ s.panes.splice(s.activePane,1); s.activePane=Math.max(0,s.activePane-1);} else { s.panes[0].killed=true; s.msg="(jediný panel — zabilo by okno)"; } s.layout = decideLayout(s.panes.length,"h"); } },
+  "C-b !":   { id:"break-p",  label:"vyjmout panel", apply:(s)=>{ s.windows.push({name:"broken"}); if(s.panes.length>1){ s.panes.splice(s.activePane,1); s.activePane=0;} s.layout=decideLayout(s.panes.length,"h"); } },
+  "C-b q":   { id:"num-p",    label:"zobrazit čísla panelů", apply:(s)=>{ s.showPaneNums = true; setTimeout(()=>{s.showPaneNums=false; renderSim();}, 1100); } },
+  "C-b {":   { id:"swap",     label:"prohodit panel doleva",   apply:(s)=>{ if(s.panes.length>1){ const i=s.activePane,j=(i-1+s.panes.length)%s.panes.length;[s.panes[i],s.panes[j]]=[s.panes[j],s.panes[i]];s.activePane=j;} } },
+  "C-b }":   { id:"swap",     label:"prohodit panel doprava",  apply:(s)=>{ if(s.panes.length>1){ const i=s.activePane,j=(i+1)%s.panes.length;[s.panes[i],s.panes[j]]=[s.panes[j],s.panes[i]];s.activePane=j;} } },
+  "C-b [":   { id:"copy",     label:"vstoupit do copy mode", apply:(s)=>{ s.msg="-- COPY MODE --"; } },
+  "C-b ]":   { id:"paste",    label:"vložit buffer", apply:(s)=>{ s.msg="(buffer vložen)"; } },
+  "C-b ?":   { id:"help",     label:"seznam zkratek", apply:(s)=>{ s.msg="(zobrazil by zkratky)"; } },
+  "C-b :":   { id:"cmd",      label:"příkazový řádek", apply:(s)=>{ s.msg=":"; } },
+  // arrow nav (treated as same id "nav-pane")
+  "C-b Up":     { id:"nav-pane", label:"vybrat panel nahoře", apply:(s)=>{ s.activePane = (s.activePane-1+s.panes.length)%s.panes.length; } },
+  "C-b Down":   { id:"nav-pane", label:"vybrat panel dole", apply:(s)=>{ s.activePane = (s.activePane+1)%s.panes.length; } },
+  "C-b Left":   { id:"nav-pane", label:"vybrat panel vlevo",  apply:(s)=>{ s.activePane = (s.activePane-1+s.panes.length)%s.panes.length; } },
+  "C-b Right":  { id:"nav-pane", label:"vybrat panel vpravo", apply:(s)=>{ s.activePane = (s.activePane+1)%s.panes.length; } },
+  "C-b C-Up":   { id:"resize",   label:"zvětšit panel nahoru",    apply:(s)=>{ s.msg="resize nahoru";   } },
+  "C-b C-Down": { id:"resize",   label:"zvětšit panel dolů",  apply:(s)=>{ s.msg="resize dolů"; } },
+  "C-b C-Left": { id:"resize",   label:"zvětšit panel vlevo",  apply:(s)=>{ s.msg="resize vlevo"; } },
+  "C-b C-Right":{ id:"resize",   label:"zvětšit panel vpravo", apply:(s)=>{ s.msg="resize vpravo";} },
+};
+
+function decideLayout(n, last){
+  if(n<=1) return "single";
+  if(n===2) return last==="v" ? "split-h" : "split-v"; // % = vertical split = side-by-side -> grid h
+  if(n===3) return "split-grid"; // grid with one empty
+  return "split-grid";
+}
+
+/* ---------------- simulator ---------------- */
+const sim = {
+  session: "work",
+  windows: [{name:"editor"}],
+  activeWin: 0,
+  lastWin: null,
+  panes: [{}],
+  activePane: 0,
+  layout: "single",
+  zoomed: false,
+  detached: false,
+  msg: "",
+  showPaneNums: false,
+};
+function resetSim(){
+  sim.session="work"; sim.windows=[{name:"editor"}]; sim.activeWin=0; sim.lastWin=null;
+  sim.panes=[{}]; sim.activePane=0; sim.layout="single"; sim.zoomed=false; sim.detached=false; sim.msg=""; sim.showPaneNums=false;
+  renderSim();
+}
+function renderSim(){
+  const status = $("#sim-status");
+  $("#sim-sess-name").textContent = sim.detached ? "[odpojeno]" : `[${sim.session}]`;
+  // windows
+  status.querySelectorAll(".window").forEach(el => el.remove());
+  // re-insert before .right
+  const rightEl = $("#sim-clock");
+  sim.windows.forEach((w, i) => {
+    const span = document.createElement("span");
+    span.className = "window" + (i===sim.activeWin ? " active":"");
+    span.textContent = `${i}:${w.name}${i===sim.activeWin?"*":""}`;
+    status.insertBefore(span, rightEl);
+  });
+  // body
+  const body = $("#sim-body");
+  body.className = "term-body " + (sim.layout==="single" ? "" : sim.layout);
+  body.innerHTML = "";
+  if(sim.detached){
+    const d = document.createElement("div");
+    d.className = "pane";
+    d.innerHTML = `<div class="ps1"><b>johnsmith</b>@<b>dojo</b>:~$ <span class="cursor"></span></div>
+      <div class="out">[odpojeno (od sezení ${sim.session})]\npoužijte <code>tmux attach -t ${sim.session}</code> pro návrat.</div>`;
+    body.appendChild(d);
+  } else {
+    sim.panes.forEach((p, i) => {
+      const div = document.createElement("div");
+      div.className = "pane" + (i===sim.activePane?" active":"") + (sim.zoomed && i===sim.activePane?" zoomed":"") + (p.killed?" killed":"");
+      div.dataset.pane = i;
+      const num = sim.showPaneNums ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;color:var(--phos);opacity:.65;font-weight:700;text-shadow:0 0 12px rgba(57,255,122,.6)">${i}</div>` : "";
+      const winName = sim.windows[sim.activeWin]?.name || "shell";
+      div.innerHTML = `${num}
+        <div class="ps1"><b>johnsmith</b>@<b>dojo</b>:~/work [${winName}#${i}]$ <span class="cursor"></span></div>
+        <div class="out">${i===sim.activePane && sim.msg ? escapeHtml(sim.msg) : ""}</div>`;
+      div.addEventListener("click", (e)=>{ sim.activePane = i; renderSim(); $("#sim-term").focus(); e.stopPropagation(); });
+      body.appendChild(div);
+    });
+  }
+  // clock
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  $("#sim-clock").textContent = `${hh}:${mm}`;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]); }
+setInterval(()=>{
+  const d = new Date();
+  $("#sim-clock").textContent = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}, 30000);
+renderSim();
+
+/* ---------------- key handling ---------------- */
+let prefixHot = false;
+let prefixTimer = null;
+const PREFIX_TIMEOUT_MS = 2400;
+const term = $("#sim-term");
+
+function setPrefixHot(v){
+  prefixHot = v;
+  const ind = $("#sim-prefix-ind");
+  if(v){
+    ind.textContent = "C-b ●";
+    ind.classList.add("on");
+    ind.style.color = "var(--amber)";
+    ind.style.borderColor = "var(--amber)";
+    ind.style.boxShadow = "0 0 0 1px rgba(255,180,84,.25)";
+  } else {
+    ind.textContent = "nečinný";
+    ind.classList.remove("on");
+    ind.style.color = "";
+    ind.style.borderColor = "";
+    ind.style.boxShadow = "";
+  }
+}
+
+function showChordOverlay(text){
+  const ov = $("#chord-ov");
+  ov.textContent = text;
+  ov.classList.add("show");
+  clearTimeout(showChordOverlay._t);
+  showChordOverlay._t = setTimeout(()=>{ ov.classList.remove("show"); }, 700);
+}
+
+function keyName(e){
+  // Returns canonical key for the second-key press
+  if(["Control","Shift","Alt","Meta"].includes(e.key)) return null;
+  // arrow keys
+  if(e.key === "ArrowUp")    return e.ctrlKey ? "C-Up"    : "Up";
+  if(e.key === "ArrowDown")  return e.ctrlKey ? "C-Down"  : "Down";
+  if(e.key === "ArrowLeft")  return e.ctrlKey ? "C-Left"  : "Left";
+  if(e.key === "ArrowRight") return e.ctrlKey ? "C-Right" : "Right";
+  // Single char
+  if(e.key.length === 1) return e.key;
+  return e.key;
+}
+
+function fireChord(chord){
+  $("#sim-last").textContent = chord;
+  showChordOverlay(chord);
+  const def = CHORDS[chord];
+  if(!def){
+    $("#sim-msg").textContent = `neznámý chord: ${chord}`;
+    return;
+  }
+  // remember last window before changing
+  const before = sim.activeWin;
+  def.apply(sim);
+  if(sim.activeWin !== before) sim.lastWin = before;
+  $("#sim-msg").textContent = def.label;
+  renderSim();
+  // mark binding practiced
+  if(def.id && !state.bindings[def.id]){
+    state.bindings[def.id] = true;
+    saveState();
+    addXP(5, `+5 XP — poprvé použito ${def.label}`);
+    refreshBindingTables();
+    checkAchievements();
+  }
+}
+
+term.addEventListener("keydown", (e) => {
+  // Ctrl+b — start prefix
+  if(e.key === "b" && e.ctrlKey && !e.metaKey && !e.altKey){
+    e.preventDefault();
+    setPrefixHot(true);
+    $("#sim-msg").textContent = "prefix připraven — stiskněte další klávesu";
+    clearTimeout(prefixTimer);
+    prefixTimer = setTimeout(()=>{
+      setPrefixHot(false);
+      $("#sim-msg").textContent = "(prefix vypršel)";
+    }, PREFIX_TIMEOUT_MS);
+    return;
+  }
+  if(prefixHot){
+    const k = keyName(e);
+    if(!k) return;
+    e.preventDefault();
+    clearTimeout(prefixTimer);
+    setPrefixHot(false);
+    const chord = `C-b ${k}`;
+    fireChord(chord);
+  } else {
+    // swallow nothing, allow scroll/normal interaction
+  }
+});
+
+term.addEventListener("focus", ()=>{ $("#sim-msg").textContent = "připraveno — zkuste Ctrl+b a klávesu"; });
+term.addEventListener("blur",  ()=>{ if(!prefixHot) $("#sim-msg").textContent = "klikněte sem pro fokus"; });
+
+/* cheat buttons */
+$$("[data-cheat]").forEach(btn => {
+  btn.addEventListener("click", ()=>{
+    fireChord(btn.dataset.cheat);
+    term.focus();
+  });
+});
+$("#sim-reset").addEventListener("click", resetSim);
+
+/* ---------------- chapter tables ✓ ---------------- */
+function refreshBindingTables(){
+  $$("[data-bind]").forEach(tr => {
+    const id = tr.dataset.bind;
+    if(state.bindings[id]) tr.classList.add("practiced");
+    else tr.classList.remove("practiced");
+  });
+  updateHUD();
+}
+refreshBindingTables();
+
+/* =====================================================================
+   PRACTICE MODE
+   ===================================================================== */
+
+/* Each quest has:
+   - id (stable)
+   - tag (badge label)
+   - prompt (HTML allowed)
+   - hint
+   - check(input) -> bool   (accepts variants)
+   - canon (the canonical answer to display on success)
+   - xp
+*/
+function norm(s){ return String(s||"").trim().replace(/\s+/g," "); }
+function lower(s){ return norm(s).toLowerCase(); }
+
+const QUESTS = [
+  // 1. Command typing
+  {
+    tag: "příkaz",
+    prompt: "Vytvořte nové tmux sezení s názvem <code>work</code>.",
+    hint: "Použijte podpříkaz <code>tmux new</code> s <code>-s</code>.",
+    canon: "tmux new -s work",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(new|new-session)(\s+-d)?\s+-s\s+work$/.test(s);
+    },
+  },
+  {
+    tag: "příkaz",
+    prompt: "Vypište všechna běžící tmux sezení ze shellu.",
+    hint: "<code>ls</code> tady funguje také jako podpříkaz.",
+    canon: "tmux ls",
+    xp: 8,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(ls|list-sessions)$/.test(s);
+    },
+  },
+  {
+    tag: "scénář",
+    prompt: "Odpojili jste se od SSH, ale měli jste rozdělanou práci v tmux sezení <code>dev</code>. Napište příkaz pro <b>opětovné připojení</b>.",
+    hint: "Podpříkaz je <code>attach</code>, cíl je <code>-t</code>.",
+    canon: "tmux attach -t dev",
+    xp: 12,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(a|at|att|attach|attach-session)(\s+-d)?\s+-t\s+dev$/.test(s);
+    },
+  },
+  {
+    tag: "příkaz",
+    prompt: "Zabijte tmux sezení s názvem <code>old</code>.",
+    hint: "<code>kill-session -t &lt;jméno&gt;</code>",
+    canon: "tmux kill-session -t old",
+    xp: 8,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+kill-session\s+-t\s+old$/.test(s);
+    },
+  },
+  {
+    tag: "příkaz",
+    prompt: "Spusťte nové <em>odpojené</em> sezení s názvem <code>build</code> (nepřipojujte se hned).",
+    hint: "Přidejte <code>-d</code> k <code>tmux new -s</code>.",
+    canon: "tmux new -d -s build",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(new|new-session)\s+(-d\s+-s\s+build|-s\s+build\s+-d)$/.test(s);
+    },
+  },
+
+  // 2. Binding drills
+  {
+    tag: "zkratka",
+    prompt: "Uvnitř tmuxu — jak rozdělíte aktuální panel <b>horizontálně</b> (nahoře/dole)?",
+    hint: 'Je to prefix a pak znak uvozovek.',
+    canon: 'C-b "',
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      // accept C-b ", Ctrl-b ", Ctrl+b ", prefix ", "
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?(["])$/.test(s) || s === '"' || s === 'c-b"';
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Jak rozdělíte aktuální panel <b>vertikálně</b> (vedle sebe)?",
+    hint: 'Prefix a pak procento.',
+    canon: "C-b %",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?(%)$/.test(s) || s === "%" || s === "c-b%";
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Odpojte se od aktuálního sezení.",
+    hint: 'Prefix a pak „d“.',
+    canon: "C-b d",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?d$/.test(s);
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Přepněte <b>zoom</b> (celá obrazovka) na aktuálním panelu.",
+    hint: "z je kouzelné písmeno.",
+    canon: "C-b z",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?z$/.test(s);
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Vytvořte <b>nové okno</b> v aktuálním sezení.",
+    hint: "c jako create.",
+    canon: "C-b c",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?c$/.test(s);
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Otevřete interaktivní seznam <b>sezení</b> pro přepínání mezi nimi.",
+    hint: "s jako sessions.",
+    canon: "C-b s",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?s$/.test(s);
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Vstupte do <b>copy mode</b> pro scrollování zpět ve výstupu.",
+    hint: "Prefix a hranatá závorka.",
+    canon: "C-b [",
+    xp: 9,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?\[$/.test(s);
+    },
+  },
+  {
+    tag: "zkratka",
+    prompt: "Zabijte aktuální panel (s potvrzením).",
+    hint: "x označuje místo.",
+    canon: "C-b x",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?x$/.test(s);
+    },
+  },
+
+  // 3. Config drills
+  {
+    tag: "konfig",
+    prompt: "Napište řádek do <code>~/.tmux.conf</code>, který <b>přemapuje prefix</b> na <code>Ctrl-a</code>.",
+    hint: "Je to globální volba: <code>set -g prefix …</code>",
+    canon: "set -g prefix C-a",
+    xp: 12,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return s === "set -g prefix c-a" || s === "set-option -g prefix c-a";
+    },
+  },
+  {
+    tag: "konfig",
+    prompt: "Napište řádek, který v copy mode zapne <b>vi-style klávesy</b>.",
+    hint: "<code>setw -g mode-keys vi</code>",
+    canon: "setw -g mode-keys vi",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return s === "setw -g mode-keys vi" || s === "set-window-option -g mode-keys vi" || s === "set -g mode-keys vi";
+    },
+  },
+  {
+    tag: "konfig",
+    prompt: "Zapněte <b>podporu myši</b> pro celý tmux server.",
+    hint: "<code>set -g mouse on</code>",
+    canon: "set -g mouse on",
+    xp: 8,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return s === "set -g mouse on" || s === "set-option -g mouse on";
+    },
+  },
+
+  // 4. More scenarios
+  {
+    tag: "scénář",
+    prompt: "Z vnitřku tmuxu chcete <b>znovu načíst</b> konfiguraci bez restartu. Napište příkaz (po <code>C-b :</code>), který spustíte.",
+    hint: "<code>source-file</code> je sloveso.",
+    canon: "source-file ~/.tmux.conf",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^(source|source-file)\s+~\/\.tmux\.conf$/.test(s);
+    },
+  },
+  {
+    tag: "scénář",
+    prompt: "Pošlete <b>literální</b> Ctrl-b programu uvnitř tmuxu, když je váš prefix stále C-b. Jaký chord stisknete?",
+    hint: "Stiskněte prefix dvakrát.",
+    canon: "C-b C-b",
+    xp: 9,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return s === "c-bc-b" || s === "ctrl-bctrl-b" || s === "ctrl+bctrl+b";
+    },
+  },
+  {
+    tag: "scénář",
+    prompt: "Nainstalujte pluginy <a target=\"_blank\" rel=\"noopener\" href=\"https://github.com/tmux-plugins/tpm\">TPM</a> po úpravě <code>~/.tmux.conf</code> — jaký chord uvnitř tmuxu?",
+    hint: "Velké I jako Install.",
+    canon: "C-b I",
+    xp: 9,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?i$/.test(s);
+    },
+  },
+];
+
+let curQuest = 0;
+let combo = 0;
+let hintsUsed = 0;
+
+function renderQuestList(){
+  const list = $("#pq-list");
+  list.innerHTML = "";
+  QUESTS.forEach((q, i) => {
+    const div = document.createElement("div");
+    div.className = "pq" + (state.practiced[i] ? " done" : "") + (i===curQuest ? " cur" : "");
+    div.innerHTML = `<span class="num">${String(i+1).padStart(2,"0")}</span>
+      <span class="ttl">[${q.tag}] ${stripTags(q.prompt).slice(0,72)}${stripTags(q.prompt).length>72?"…":""}</span>
+      <span class="st">${state.practiced[i] ? "✓" : (q.xp+" xp")}</span>`;
+    div.addEventListener("click", ()=>{ curQuest = i; renderQuest(); });
+    list.appendChild(div);
+  });
+}
+function stripTags(s){ return String(s).replace(/<[^>]+>/g, ""); }
+
+function renderQuest(){
+  const q = QUESTS[curQuest];
+  $("#q-tag").textContent = `— ${q.tag} ${curQuest+1}/${QUESTS.length} —`;
+  $("#q-prompt").innerHTML = q.prompt;
+  $("#q-hint").style.display = "none";
+  $("#q-hint").innerHTML = q.hint;
+  $("#q-feedback").textContent = "";
+  $("#q-feedback").className = "feedback";
+  $("#q-input").value = "";
+  $("#q-input").focus();
+  $("#q-meta").textContent = (state.practiced[curQuest] ? "✓ již zvládnuto — " : "") + `za ${q.xp} xp`;
+  renderQuestList();
+}
+
+function submitQuest(){
+  const q = QUESTS[curQuest];
+  const v = $("#q-input").value;
+  const card = $("#quest-card");
+  if(q.check(v)){
+    const earn = state.practiced[curQuest] ? Math.ceil(q.xp/3) : q.xp;
+    state.practiced[curQuest] = true;
+    combo += 1;
+    if(combo > state.bestCombo) state.bestCombo = combo;
+    addXP(earn, `+${earn} XP — správně!`);
+    $("#q-feedback").innerHTML = `<span class="ok">✓ správně</span> — kanonicky: <code>${escapeHtml(q.canon)}</code>${combo>=2?` &nbsp; <span class="warn">combo x${combo}</span>`:""}`;
+    $("#q-feedback").className = "feedback ok";
+    card.classList.add("glow-ok");
+    setTimeout(()=>card.classList.remove("glow-ok"), 800);
+    confetti(40 + Math.min(60, combo*10));
+    if(combo > 0 && combo % 5 === 0){
+      addXP(15, `combo x${combo} bonus +15 XP`);
+    }
+    saveState();
+    checkAchievements();
+    setTimeout(()=>{ if(curQuest < QUESTS.length-1){ curQuest++; renderQuest(); } else { renderQuest(); toast("všech 18 cvičení hotovo!", "warn"); } }, 850);
+  } else {
+    combo = 0;
+    card.classList.add("shake");
+    setTimeout(()=>card.classList.remove("shake"), 400);
+    $("#q-feedback").innerHTML = `<span class="bad">✗ téměř</span> — zkuste znovu nebo nahlédněte na nápovědu`;
+    $("#q-feedback").className = "feedback bad";
+    saveState();
+  }
+  updateHUD();
+  renderQuestList();
+}
+
+$("#q-submit").addEventListener("click", submitQuest);
+$("#q-input").addEventListener("keydown", (e) => { if(e.key==="Enter"){ e.preventDefault(); submitQuest(); }});
+$("#q-skip").addEventListener("click", ()=>{ combo = 0; curQuest = (curQuest+1)%QUESTS.length; renderQuest(); updateHUD(); });
+$("#q-prev").addEventListener("click", ()=>{ curQuest = (curQuest-1+QUESTS.length)%QUESTS.length; renderQuest(); });
+$("#q-next").addEventListener("click", ()=>{ curQuest = (curQuest+1)%QUESTS.length; renderQuest(); });
+$("#q-hint-btn").addEventListener("click", ()=>{
+  hintsUsed++;
+  $("#q-hint").style.display = "block";
+});
+
+/* ---------------- XP / leveling ---------------- */
+function addXP(n, label){
+  const oldLv = levelInfo(state.xp).idx;
+  state.xp += n;
+  const newLv = levelInfo(state.xp).idx;
+  if(label) toast(label, "warn");
+  if(newLv > oldLv){
+    const info = levelInfo(state.xp);
+    toast(`LEVEL UP — ${info.name}!`, "");
+    confetti(140);
+    if(info.idx >= 7) unlockAch("master");
+  }
+  saveState();
+  updateHUD();
+}
+
+/* ---------------- achievements ---------------- */
+const ACHIEVEMENTS = [
+  { id:"first_chord",  em:"⌨️", nm:"První chord",        ds:"Vyvolali jste libovolnou C-b zkratku v simulátoru." },
+  { id:"split_master", em:"⫤", nm:"Mistr rozdělení",       ds:"Použili jste C-b \" i C-b %." },
+  { id:"pane_juggler", em:"🤹", nm:"Žonglér panelů",      ds:"Vyvolali jste 8 unikátních zkratek pro panely." },
+  { id:"window_wiz",   em:"🪟", nm:"Mág oken",     ds:"Vyvolali jste 5 unikátních zkratek pro okna." },
+  { id:"copy_cat",     em:"📋", nm:"Kopírovací kočka",           ds:"Vstoupili jste do copy mode (C-b [)." },
+  { id:"detacher",     em:"🔌", nm:"Odpojovač",       ds:"Odpojili jste se od simulátorového sezení." },
+  { id:"combo_5",      em:"🔥", nm:"V plamenech",            ds:"Trefili jste 5-správně combo v procvičování." },
+  { id:"combo_10",     em:"⚡", nm:"Nedotknutelný",         ds:"Trefili jste 10-správně combo." },
+  { id:"all_quests",   em:"🏆", nm:"Absolvent dojo",      ds:"Dokončili jste všech 18 psacích cvičení." },
+  { id:"boss",         em:"👑", nm:"Multiplexer Master",  ds:"Porazili jste bosse." },
+  { id:"master",       em:"🎖️", nm:"Max úroveň",          ds:"Dosáhli jste úrovně 7." },
+  { id:"all_bindings", em:"🗝️", nm:"Klíčník",         ds:"Procvičili jste každý chord v tabulkách kapitol." },
+];
+
+function renderAchs(){
+  const wrap = $("#achs");
+  wrap.innerHTML = "";
+  ACHIEVEMENTS.forEach(a => {
+    const div = document.createElement("div");
+    div.className = "ach" + (state.achievements[a.id] ? " unlocked" : "");
+    div.innerHTML = `<div class="em">${a.em}</div><div class="nm">${a.nm}</div><div class="ds">${a.ds}</div>`;
+    wrap.appendChild(div);
+  });
+}
+function unlockAch(id){
+  if(state.achievements[id]) return;
+  state.achievements[id] = true;
+  saveState();
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  if(a){
+    toast(`🏅 odemčeno — ${a.nm}`, "");
+    confetti(80);
+  }
+  renderAchs();
+}
+function checkAchievements(){
+  const bindIds = Object.keys(state.bindings);
+  if(bindIds.length >= 1) unlockAch("first_chord");
+  if(state.bindings["split-h"] && state.bindings["split-v"]) unlockAch("split_master");
+
+  const paneIds = ["split-h","split-v","nav-pane","cycle-pane","resize","zoom","swap","kill-p","break-p","num-p"];
+  if(paneIds.filter(x=>state.bindings[x]).length >= 8) unlockAch("pane_juggler");
+
+  const winIds = ["new-w","rename-w","next-w","prev-w","last-w","goto-w","kill-w","list-w"];
+  if(winIds.filter(x=>state.bindings[x]).length >= 5) unlockAch("window_wiz");
+
+  if(state.bindings["copy"]) unlockAch("copy_cat");
+  if(state.bindings["detach"]) unlockAch("detacher");
+
+  if(state.bestCombo >= 5) unlockAch("combo_5");
+  if(state.bestCombo >= 10) unlockAch("combo_10");
+
+  if(Object.keys(state.practiced).length >= QUESTS.length) unlockAch("all_quests");
+
+  // all bindings rows (chapter tables)
+  const allBindIds = $$("[data-bind]").map(tr => tr.dataset.bind);
+  const uniq = [...new Set(allBindIds)];
+  if(uniq.every(id => state.bindings[id])) unlockAch("all_bindings");
+
+  if(state.bossWon) unlockAch("boss");
+  if(levelInfo(state.xp).idx >= 7) unlockAch("master");
+}
+
+/* =====================================================================
+   BOSS — Multiplexer Master
+   ===================================================================== */
+
+const BOSS_ROUNDS = [
+  {
+    prompt: "Vyrobte odpojené sezení s názvem <code>prod</code> jedním shellovým příkazem.",
+    canon: "tmux new -d -s prod",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^tmux\s+(new|new-session)\s+(-d\s+-s\s+prod|-s\s+prod\s+-d)$/.test(s);
+    },
+  },
+  {
+    prompt: "Uvnitř tmuxu: <b>vyjměte</b> aktuální panel do vlastního okna. (zkratka)",
+    canon: "C-b !",
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?!$/.test(s);
+    },
+  },
+  {
+    prompt: "Napište řádek <code>~/.tmux.conf</code>, který zvedne scrollback na 50 000 řádků.",
+    canon: "set -g history-limit 50000",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^set(-option)?\s+-g\s+history-limit\s+50000$/.test(s);
+    },
+  },
+  {
+    prompt: "Mimo tmux: vypište všechna sezení a piknete grepem na <code>dev</code>.",
+    canon: "tmux ls | grep dev",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^tmux\s+(ls|list-sessions)\s*\|\s*grep\s+(-i\s+)?dev$/.test(s);
+    },
+  },
+  {
+    prompt: "Ze shellu: připojte se k existujícímu sezení <code>work</code> NEBO ho vytvořte, pokud chybí — jeden příkaz, žádné skripty.",
+    canon: "tmux new -A -s work",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      // tmux new -A -s work  (or tmux new-session -A -s work). Any order of -A and -s work.
+      return /^tmux\s+(new|new-session)\s+(?=.*-a)(?=.*-s\s+work).+$/.test(s);
+    },
+  },
+];
+
+let bossActive = false;
+let bossRound = 0;
+let bossHP = 100;
+let bossTimer = null;
+let bossTimeLeft = 30;
+let bossStreak = 0;
+
+function setBossUI(){
+  $("#boss-round").textContent = `kolo ${bossRound}/${BOSS_ROUNDS.length}`;
+  $("#boss-timer").textContent = bossActive ? `${bossTimeLeft}s` : "--s";
+  $("#boss-streak").textContent = `série ${bossStreak}`;
+  $("#boss-hp").style.width = Math.max(0, bossHP) + "%";
+}
+
+function startBoss(){
+  bossActive = true; bossRound = 0; bossHP = 100; bossStreak = 0;
+  $("#boss-start").style.display = "none";
+  $("#boss-stop").style.display = "";
+  $("#boss-quest-wrap").hidden = false;
+  setBossUI();
+  nextBossRound();
+}
+function stopBoss(victory=false){
+  bossActive = false;
+  clearInterval(bossTimer); bossTimer = null;
+  $("#boss-start").style.display = "";
+  $("#boss-stop").style.display = "none";
+  $("#boss-quest-wrap").hidden = true;
+  $("#bq-input").value = "";
+  if(victory){
+    state.bossWon = true; saveState();
+    addXP(120, "+120 XP — boss poražen!");
+    unlockAch("boss");
+    confetti(220);
+    toast("👑 Multiplexer Master — drtili jste to.", "");
+  }
+  setBossUI();
+}
+function nextBossRound(){
+  if(!bossActive) return;
+  if(bossRound >= BOSS_ROUNDS.length){
+    stopBoss(true);
+    return;
+  }
+  const r = BOSS_ROUNDS[bossRound];
+  $("#bq-tag").textContent = `kolo ${bossRound+1}/${BOSS_ROUNDS.length}`;
+  $("#bq-prompt").innerHTML = r.prompt;
+  $("#bq-feedback").textContent = "";
+  $("#bq-input").value = "";
+  $("#bq-input").focus();
+  bossTimeLeft = 30;
+  setBossUI();
+  clearInterval(bossTimer);
+  bossTimer = setInterval(()=>{
+    if(!bossActive) return;
+    bossTimeLeft--;
+    setBossUI();
+    if(bossTimeLeft <= 0){
+      bossHP -= 25;
+      bossStreak = 0;
+      $("#bq-feedback").innerHTML = `<span class="bad">✗ čas vypršel</span> — odpověď byla <code>${escapeHtml(r.canon)}</code>`;
+      bossRound++;
+      if(bossHP <= 0){ toast("zemřeli jste — mistr se směje.", "bad"); stopBoss(false); return; }
+      setTimeout(nextBossRound, 1100);
+      clearInterval(bossTimer);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  if(!bossActive) return;
+  const r = BOSS_ROUNDS[bossRound];
+  const v = $("#bq-input").value;
+  if(r.check(v)){
+    bossStreak++;
+    addXP(20, `+20 XP — kolo ${bossRound+1} hotovo`);
+    $("#bq-feedback").innerHTML = `<span class="ok">✓</span> kanonicky <code>${escapeHtml(r.canon)}</code>`;
+    confetti(50);
+    bossRound++;
+    setBossUI();
+    clearInterval(bossTimer);
+    setTimeout(nextBossRound, 700);
+  } else {
+    bossHP -= 18;
+    bossStreak = 0;
+    $("#bq-feedback").innerHTML = `<span class="bad">✗</span> špatně — HP -18`;
+    setBossUI();
+    if(bossHP <= 0){ toast("zemřeli jste — mistr se směje.", "bad"); stopBoss(false); }
+  }
+}
+$("#boss-start").addEventListener("click", startBoss);
+$("#boss-stop").addEventListener("click", ()=>stopBoss(false));
+$("#bq-submit").addEventListener("click", submitBoss);
+$("#bq-input").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); submitBoss(); }});
+
+/* ---------------- top controls ---------------- */
+$("#toggle-crt").addEventListener("click", () => {
+  state.crt = !state.crt;
+  document.body.classList.toggle("crt", state.crt);
+  $("#toggle-crt").textContent = "crt: " + (state.crt ? "on" : "off");
+  saveState();
+});
+function resetAll(){
+  if(!confirm("Vymazat veškeré XP, úspěchy a postup procvičování?")) return;
+  localStorage.removeItem(LS_KEY);
+  state = {...initialState};
+  combo = 0;
+  curQuest = 0;
+  resetSim();
+  refreshBindingTables();
+  renderAchs();
+  renderQuestList();
+  renderQuest();
+  updateHUD();
+  document.body.classList.toggle("crt", state.crt);
+  toast("postup vymazán — čistý start", "warn");
+}
+$("#reset-progress").addEventListener("click", resetAll);
+$("#reset-progress2").addEventListener("click", resetAll);
+
+/* ---------------- init ---------------- */
+function init(){
+  document.body.classList.toggle("crt", state.crt);
+  $("#toggle-crt").textContent = "crt: " + (state.crt ? "on" : "off");
+  renderAchs();
+  renderQuestList();
+  renderQuest();
+  refreshBindingTables();
+  updateHUD();
+  checkAchievements();
+}
+init();
+
+/* keyboard niceties: jump into focus from anywhere */
+addEventListener("keydown", (e) => {
+  if(e.key === "Escape" && document.activeElement === $("#q-input")){
+    $("#q-input").blur();
+  }
+});
+</script>
+</body>
+</html>

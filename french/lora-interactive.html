@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LoRA · Adaptation de rang faible</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --frozen: #4a5568;
+    --frozen-glow: #6b7891;
+    --lora-a: #ff5e3a;
+    --lora-b: #ffd23a;
+    --lora-out: #3affb8;
+    --grid: rgba(255, 240, 220, 0.04);
+    --accent: #ff5e3a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Fraunces', serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-image:
+      radial-gradient(ellipse at top right, rgba(255, 94, 58, 0.12), transparent 50%),
+      radial-gradient(ellipse at bottom left, rgba(58, 255, 184, 0.06), transparent 50%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    min-height: 100vh;
+  }
+
+  .grain {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    z-index: 100;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 60px 32px 120px;
+  }
+
+  /* ---------- HERO ---------- */
+  header {
+    margin-bottom: 80px;
+    position: relative;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 32px; height: 1px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(56px, 9vw, 140px);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    margin-bottom: 24px;
+  }
+  h1 em {
+    font-style: italic;
+    font-weight: 900;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144;
+  }
+
+  .lede {
+    font-size: 20px;
+    max-width: 620px;
+    line-height: 1.5;
+    color: var(--ink-dim);
+    font-weight: 300;
+  }
+  .lede strong {
+    color: var(--ink);
+    font-weight: 600;
+    font-style: italic;
+  }
+
+  /* ---------- CONTROLS ---------- */
+  .panel {
+    background: var(--bg-2);
+    border: 1px solid rgba(255, 240, 220, 0.08);
+    border-radius: 2px;
+    padding: 40px;
+    margin-bottom: 48px;
+    position: relative;
+  }
+  .panel::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    width: 24px; height: 24px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+  }
+  .panel::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 24px; height: 24px;
+    border-bottom: 2px solid var(--accent);
+    border-right: 2px solid var(--accent);
+  }
+
+  .panel-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    margin-bottom: 32px;
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 48px;
+  }
+  @media (max-width: 800px) { .controls { grid-template-columns: 1fr; gap: 32px; } }
+
+  .ctrl-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .ctrl-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--ink-dim);
+  }
+  .ctrl-val {
+    font-family: 'Fraunces', serif;
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--ink);
+    font-feature-settings: "tnum";
+  }
+  .ctrl-val span {
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin-left: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2px;
+    background: rgba(255, 240, 220, 0.15);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    background: var(--accent);
+    cursor: pointer;
+    border-radius: 0;
+    box-shadow: 0 0 0 1px var(--bg), 0 0 20px var(--accent);
+    transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.3); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px;
+    background: var(--accent);
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 0 1px var(--bg), 0 0 20px var(--accent);
+  }
+
+  .ctrl-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-dim);
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ---------- VISUALIZATION ---------- */
+  .viz {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto auto auto auto 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 60px 20px;
+    overflow-x: auto;
+  }
+  @media (max-width: 900px) {
+    .viz { grid-template-columns: auto auto auto auto auto auto auto; padding: 40px 10px; }
+  }
+
+  .matrix {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .matrix-box {
+    border: 1.5px solid;
+    position: relative;
+    transition: width 0.4s cubic-bezier(.2,.8,.2,1), height 0.4s cubic-bezier(.2,.8,.2,1);
+    background-size: 8px 8px;
+    background-image:
+      linear-gradient(45deg, currentColor 25%, transparent 25%, transparent 75%, currentColor 75%),
+      linear-gradient(45deg, currentColor 25%, transparent 25%, transparent 75%, currentColor 75%);
+    background-position: 0 0, 4px 4px;
+  }
+  .matrix-frozen {
+    color: var(--frozen);
+    box-shadow: 0 0 30px rgba(107, 120, 145, 0.2);
+  }
+  .matrix-frozen::after {
+    content: '🔒';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    background: var(--bg);
+    padding: 4px 8px;
+  }
+  .matrix-A {
+    color: var(--lora-a);
+    box-shadow: 0 0 20px rgba(255, 94, 58, 0.3);
+  }
+  .matrix-B {
+    color: var(--lora-b);
+    box-shadow: 0 0 20px rgba(255, 210, 58, 0.3);
+  }
+  .matrix-out {
+    color: var(--lora-out);
+    box-shadow: 0 0 30px rgba(58, 255, 184, 0.25);
+  }
+
+  .matrix-name {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 28px;
+    margin-top: 16px;
+    font-weight: 600;
+  }
+  .matrix-shape {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+  }
+  .matrix-params {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--ink-dim);
+    margin-top: 2px;
+  }
+
+  .op {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 48px;
+    font-weight: 300;
+    color: var(--ink-dim);
+    padding: 0 4px;
+  }
+
+  /* ---------- STATS ---------- */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: rgba(255, 240, 220, 0.08);
+    margin-bottom: 48px;
+  }
+  @media (max-width: 800px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+  .stat {
+    background: var(--bg-2);
+    padding: 32px 24px;
+    position: relative;
+  }
+  .stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .stat-value {
+    font-family: 'Fraunces', serif;
+    font-size: 40px;
+    font-weight: 300;
+    line-height: 1;
+    font-feature-settings: "tnum";
+  }
+  .stat-value em {
+    font-style: italic;
+    font-weight: 900;
+    color: var(--accent);
+  }
+  .stat-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    margin-top: 8px;
+  }
+
+  /* ---------- COMPRESSION BAR ---------- */
+  .compression {
+    background: var(--bg-2);
+    padding: 40px;
+    margin-bottom: 48px;
+    border: 1px solid rgba(255, 240, 220, 0.08);
+  }
+  .compression-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+  }
+  .compression-title {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 24px;
+    font-weight: 600;
+  }
+  .compression-ratio {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--accent);
+  }
+  .bar-track {
+    height: 48px;
+    background: rgba(74, 85, 104, 0.2);
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-full {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(45deg, var(--frozen) 0 8px, transparent 8px 16px);
+    border: 1px solid var(--frozen);
+  }
+  .bar-lora {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--lora-a), var(--lora-b));
+    transition: width 0.5s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 0 30px var(--lora-a);
+  }
+  .bar-legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+  }
+  .swatch {
+    display: inline-block;
+    width: 12px; height: 12px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  /* ---------- CODE ---------- */
+  .code-block {
+    background: #050507;
+    border-left: 2px solid var(--accent);
+    padding: 28px 32px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin-top: 32px;
+    color: var(--ink-dim);
+  }
+  .code-block .kw { color: #ff5e3a; }
+  .code-block .num { color: #ffd23a; }
+  .code-block .str { color: #3affb8; }
+  .code-block .comment { color: #555; font-style: italic; }
+  .code-block .fn { color: #f4f0e6; }
+
+  /* ---------- SECTION HEADERS ---------- */
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 32px;
+    color: var(--ink-dim);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  h2 .num {
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  h2::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 240, 220, 0.1);
+  }
+
+  /* ---------- FOOTER ---------- */
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid rgba(255, 240, 220, 0.08);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-dim);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* highlight pulse */
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  .pulse { animation: pulse 0.3s ease; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Adaptateur · 2021 · Microsoft Research</div>
+    <h1>Adaptation<br><em>de rang faible</em></h1>
+    <p class="lede">
+      Au lieu de mettre à jour directement la gigantesque matrice de poids $W$, LoRA apprend le changement
+      sous la forme d'un produit de <strong>deux matrices fines</strong>. Faites glisser les curseurs pour voir comment
+      les formes se transforment — et à quel point le nombre de paramètres s'effondre.
+    </p>
+  </header>
+
+  <h2><span class="num">01</span> Paramètres</h2>
+
+  <div class="panel">
+    <div class="panel-label">Configurer l'adaptateur</div>
+    <div class="controls">
+      <div>
+        <div class="ctrl-label">
+          <span class="ctrl-name">hidden_dim · d</span>
+          <span class="ctrl-val" id="d-val">4096</span>
+        </div>
+        <input type="range" id="d-slider" min="256" max="8192" step="256" value="4096">
+        <div class="ctrl-meta">dimension de sortie</div>
+      </div>
+      <div>
+        <div class="ctrl-label">
+          <span class="ctrl-name">input_dim · k</span>
+          <span class="ctrl-val" id="k-val">4096</span>
+        </div>
+        <input type="range" id="k-slider" min="256" max="8192" step="256" value="4096">
+        <div class="ctrl-meta">dimension d'entrée</div>
+      </div>
+      <div>
+        <div class="ctrl-label">
+          <span class="ctrl-name">rank · r</span>
+          <span class="ctrl-val" id="r-val">8</span>
+        </div>
+        <input type="range" id="r-slider" min="1" max="128" step="1" value="8">
+        <div class="ctrl-meta">le goulot d'étranglement — habituellement 4 à 16</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">02</span> Flux des formes</h2>
+
+  <div class="panel" style="padding: 20px;">
+    <div class="viz">
+      <div></div>
+
+      <div class="matrix">
+        <div class="matrix-box matrix-frozen" id="box-W"></div>
+        <div class="matrix-name">W</div>
+        <div class="matrix-shape" id="shape-W">(4096, 4096)</div>
+        <div class="matrix-params" id="params-W">16.78M params · gelés</div>
+      </div>
+
+      <div class="op">+</div>
+
+      <div class="matrix">
+        <div class="matrix-box matrix-B" id="box-B"></div>
+        <div class="matrix-name">B</div>
+        <div class="matrix-shape" id="shape-B">(4096, 8)</div>
+        <div class="matrix-params" id="params-B">32.77K · init = 0</div>
+      </div>
+
+      <div class="op">·</div>
+
+      <div class="matrix">
+        <div class="matrix-box matrix-A" id="box-A"></div>
+        <div class="matrix-name">A</div>
+        <div class="matrix-shape" id="shape-A">(8, 4096)</div>
+        <div class="matrix-params" id="params-A">32.77K · gaussienne</div>
+      </div>
+
+      <div class="op">=</div>
+
+      <div class="matrix">
+        <div class="matrix-box matrix-out" id="box-out"></div>
+        <div class="matrix-name">W′</div>
+        <div class="matrix-shape" id="shape-out">(4096, 4096)</div>
+        <div class="matrix-params" id="params-out">même forme · rang ≤ 8</div>
+      </div>
+
+      <div></div>
+    </div>
+  </div>
+
+  <h2><span class="num">03</span> Le gain</h2>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Finetune complet</div>
+      <div class="stat-value" id="stat-full">16.78<span style="font-size:20px;color:var(--ink-dim)">M</span></div>
+      <div class="stat-sub">params entraînables</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">LoRA</div>
+      <div class="stat-value"><em id="stat-lora">65.54</em><span style="font-size:20px;color:var(--ink-dim)" id="stat-lora-unit">K</span></div>
+      <div class="stat-sub">params entraînables</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Compression</div>
+      <div class="stat-value"><em id="stat-ratio">256</em><span style="font-size:20px;color:var(--ink-dim)">×</span></div>
+      <div class="stat-sub">plus petit</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Économisé</div>
+      <div class="stat-value" id="stat-saved">99.6<span style="font-size:20px;color:var(--ink-dim)">%</span></div>
+      <div class="stat-sub">des paramètres</div>
+    </div>
+  </div>
+
+  <div class="compression">
+    <div class="compression-header">
+      <div class="compression-title">empreinte mémoire</div>
+      <div class="compression-ratio" id="comp-text">LoRA = 0.39% du total</div>
+    </div>
+    <div class="bar-track">
+      <div class="bar-full"></div>
+      <div class="bar-lora" id="bar-lora" style="width: 0.39%"></div>
+    </div>
+    <div class="bar-legend">
+      <div><span class="swatch" style="background: repeating-linear-gradient(45deg, var(--frozen) 0 4px, transparent 4px 8px); border: 1px solid var(--frozen)"></span>Finetune complet (d × k)</div>
+      <div><span class="swatch" style="background: linear-gradient(90deg, var(--lora-a), var(--lora-b))"></span>LoRA (r × (d + k))</div>
+    </div>
+  </div>
+
+  <h2><span class="num">04</span> En code</h2>
+
+  <div class="panel">
+    <div class="panel-label">passe avant · en direct</div>
+    <div class="code-block" id="code">
+<span class="kw">class</span> <span class="fn">LoRALinear</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self):
+        <span class="comment"># poids de base gelés</span>
+        self.W = nn.Linear(<span class="num" id="c-k">4096</span>, <span class="num" id="c-d">4096</span>, bias=<span class="kw">False</span>)
+        self.W.weight.requires_grad = <span class="kw">False</span>
+
+        <span class="comment"># adaptateurs de rang faible — les seuls params entraînables</span>
+        self.A = nn.Parameter(torch.randn(<span class="num" id="c-r1">8</span>, <span class="num" id="c-k2">4096</span>) * <span class="num">0.01</span>)
+        self.B = nn.Parameter(torch.zeros(<span class="num" id="c-d2">4096</span>, <span class="num" id="c-r2">8</span>))
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="comment"># x: (batch, seq, k) = (batch, seq, <span id="c-k3">4096</span>)</span>
+        out = self.W(x)                          <span class="comment"># → (batch, seq, <span id="c-d3">4096</span>)</span>
+        lora = (x @ self.A.T) @ self.B.T         <span class="comment"># → (batch, seq, <span id="c-r3">8</span>) → (batch, seq, <span id="c-d4">4096</span>)</span>
+        <span class="kw">return</span> out + lora
+    </div>
+  </div>
+
+  <footer>
+    <span>Hu et al. · LoRA: Low-Rank Adaptation of Large Language Models · 2021</span>
+    <span>faites glisser les curseurs ↑</span>
+  </footer>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  const dSlider = $('d-slider');
+  const kSlider = $('k-slider');
+  const rSlider = $('r-slider');
+
+  const fmt = (n) => {
+    if (n >= 1e9) return (n / 1e9).toFixed(2);
+    if (n >= 1e6) return (n / 1e6).toFixed(2);
+    if (n >= 1e3) return (n / 1e3).toFixed(2);
+    return n.toString();
+  };
+  const unit = (n) => {
+    if (n >= 1e9) return 'B';
+    if (n >= 1e6) return 'M';
+    if (n >= 1e3) return 'K';
+    return '';
+  };
+  const fmtFull = (n) => fmt(n) + unit(n);
+
+  // visual scale: matrix box size in px
+  const scale = (dim, max = 8192, maxPx = 130, minPx = 14) => {
+    return Math.max(minPx, Math.sqrt(dim / max) * maxPx);
+  };
+  const scaleR = (r, maxPx = 130, minPx = 6) => {
+    // r ranges 1..128, log-ish scale to keep small r tiny
+    return Math.max(minPx, Math.sqrt(r / 128) * maxPx);
+  };
+
+  function update() {
+    const d = parseInt(dSlider.value);
+    const k = parseInt(kSlider.value);
+    const r = parseInt(rSlider.value);
+
+    // labels
+    $('d-val').textContent = d.toLocaleString();
+    $('k-val').textContent = k.toLocaleString();
+    $('r-val').textContent = r;
+
+    // box sizes (visual)
+    const dPx = scale(d);
+    const kPx = scale(k);
+    const rPx = scaleR(r);
+
+    // W: (d × k)  — width = k, height = d
+    $('box-W').style.width  = kPx + 'px';
+    $('box-W').style.height = dPx + 'px';
+    // B: (d × r)
+    $('box-B').style.width  = rPx + 'px';
+    $('box-B').style.height = dPx + 'px';
+    // A: (r × k)
+    $('box-A').style.width  = kPx + 'px';
+    $('box-A').style.height = rPx + 'px';
+    // W': same as W
+    $('box-out').style.width  = kPx + 'px';
+    $('box-out').style.height = dPx + 'px';
+
+    // shapes
+    $('shape-W').textContent = `(${d.toLocaleString()}, ${k.toLocaleString()})`;
+    $('shape-B').textContent = `(${d.toLocaleString()}, ${r})`;
+    $('shape-A').textContent = `(${r}, ${k.toLocaleString()})`;
+    $('shape-out').textContent = `(${d.toLocaleString()}, ${k.toLocaleString()})`;
+
+    // params
+    const fullParams = d * k;
+    const aParams = r * k;
+    const bParams = d * r;
+    const loraParams = aParams + bParams;
+
+    $('params-W').textContent = `${fmtFull(fullParams)} params · gelés`;
+    $('params-B').textContent = `${fmtFull(bParams)} · init = 0`;
+    $('params-A').textContent = `${fmtFull(aParams)} · gaussienne`;
+    $('params-out').textContent = `même forme · rang ≤ ${r}`;
+
+    // stats
+    $('stat-full').innerHTML = fmt(fullParams) + `<span style="font-size:20px;color:var(--ink-dim)">${unit(fullParams)}</span>`;
+    $('stat-lora').textContent = fmt(loraParams);
+    $('stat-lora-unit').textContent = unit(loraParams);
+
+    const ratio = fullParams / loraParams;
+    $('stat-ratio').textContent = ratio >= 100 ? Math.round(ratio) : ratio.toFixed(1);
+
+    const savedPct = (1 - loraParams / fullParams) * 100;
+    $('stat-saved').innerHTML = savedPct.toFixed(savedPct >= 99 ? 2 : 1) + `<span style="font-size:20px;color:var(--ink-dim)">%</span>`;
+
+    // bar
+    const loraPct = (loraParams / fullParams) * 100;
+    $('bar-lora').style.width = Math.max(0.2, loraPct) + '%';
+    $('comp-text').textContent = `LoRA = ${loraPct.toFixed(2)}% du total`;
+
+    // code
+    $('c-d').textContent = d;
+    $('c-d2').textContent = d;
+    $('c-d3').textContent = d;
+    $('c-d4').textContent = d;
+    $('c-k').textContent = k;
+    $('c-k2').textContent = k;
+    $('c-k3').textContent = k;
+    $('c-r1').textContent = r;
+    $('c-r2').textContent = r;
+    $('c-r3').textContent = r;
+  }
+
+  [dSlider, kSlider, rSlider].forEach(s => {
+    s.addEventListener('input', update);
+    s.addEventListener('change', () => {
+      ['box-W','box-A','box-B','box-out'].forEach(id => {
+        const el = $(id);
+        el.classList.remove('pulse');
+        void el.offsetWidth;
+        el.classList.add('pulse');
+      });
+    });
+  });
+
+  update();
+</script>
+</body>
+</html>

@@ -1,0 +1,1215 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MULTI-AGENT // un manuel de terrain pour claude code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0a0d0b;
+    --bg-2:      #0f130f;
+    --ink:       #d6e1d3;
+    --ink-dim:   #8a988a;
+    --rule:      #1d241d;
+    --rule-2:    #2a342a;
+    --phosphor:  #5cffae;
+    --phosphor-deep: #18b072;
+    --amber:     #ffb547;
+    --crimson:   #ff5e6c;
+    --paper:     #f3eedf;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, rgba(92,255,174,0.06), transparent 55%),
+      radial-gradient(ellipse at 110% 30%, rgba(255,181,71,0.04), transparent 50%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 2px,
+        rgba(255,255,255,0.012) 2px,
+        rgba(255,255,255,0.012) 3px
+      );
+  }
+
+  ::selection { background: var(--phosphor); color: var(--bg); }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    opacity: 0.45; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.45 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* layout */
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 36px 96px;
+    position: relative;
+  }
+
+  .masthead {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .masthead .meta {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .masthead .meta.right { text-align: right; }
+  .masthead .meta strong { color: var(--phosphor); font-weight: 500; }
+  .wordmark {
+    text-align: center;
+    line-height: 1;
+  }
+  .wordmark .kicker {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .wordmark h1 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-weight: 300;
+    font-size: clamp(54px, 8vw, 110px);
+    margin: 0;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+  }
+  .wordmark h1 em {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--phosphor);
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .wordmark .subline {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+  }
+
+  .hero {
+    margin: 36px 0 56px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 28px;
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+
+  .terminal {
+    background: var(--bg-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 0 0 1px rgba(92,255,174,0.04) inset,
+      0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .terminal::before {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, rgba(92,255,174,0.03) 0 1px, transparent 1px 3px
+    );
+    opacity: 0.7;
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  }
+  .term-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--rule-2);
+  }
+  .term-dot.live { background: var(--phosphor); box-shadow: 0 0 8px var(--phosphor); }
+  .term-title {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+  .term-body {
+    padding: 22px 24px 26px;
+    font-size: 13px;
+    line-height: 1.7;
+    min-height: 280px;
+  }
+  .term-body .prompt { color: var(--phosphor); }
+  .term-body .out { color: var(--ink); }
+  .term-body .dim { color: var(--ink-dim); }
+  .term-body .amber { color: var(--amber); }
+  .term-body .crimson { color: var(--crimson); }
+  .term-body .bar {
+    color: var(--phosphor);
+    text-shadow: 0 0 8px rgba(92,255,174,0.4);
+  }
+  .cursor {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--phosphor);
+    vertical-align: -2px;
+    margin-left: 2px;
+    animation: blink 1.05s steps(2) infinite;
+    box-shadow: 0 0 6px var(--phosphor);
+  }
+  @keyframes blink { to { opacity: 0; } }
+
+  .lede {
+    align-self: end;
+    padding: 0 8px;
+  }
+  .lede .drop {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(22px, 2.4vw, 30px);
+    line-height: 1.25;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+  }
+  .lede .drop em { color: var(--amber); font-style: italic; }
+  .lede p {
+    color: var(--ink-dim);
+    font-size: 13px;
+    max-width: 44ch;
+  }
+  .lede .stamp {
+    margin-top: 22px;
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .stamp .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 6px var(--phosphor);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .ruler {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    margin: 64px 0 28px;
+    color: var(--ink-dim);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  .ruler hr {
+    border: none;
+    border-top: 1px dashed var(--rule-2);
+    margin: 0;
+  }
+  .ruler .num {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--amber);
+    text-transform: none;
+  }
+
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule-2);
+    border-bottom: 1px solid var(--rule-2);
+  }
+  @media (max-width: 760px) { .tabs { grid-template-columns: repeat(2, 1fr); } }
+
+  .tab {
+    appearance: none;
+    background: transparent;
+    color: var(--ink-dim);
+    border: none;
+    border-right: 1px solid var(--rule-2);
+    text-align: left;
+    padding: 18px 18px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.25s ease, color 0.25s ease;
+    position: relative;
+  }
+  .tab:last-child { border-right: none; }
+  .tab .num {
+    display: block;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 28px;
+    color: var(--ink-dim);
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    transition: color 0.25s ease;
+  }
+  .tab .label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .tab .desc {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .tab:hover { background: rgba(92,255,174,0.04); color: var(--ink); }
+  .tab.active {
+    color: var(--ink);
+    background: linear-gradient(180deg, rgba(92,255,174,0.06), transparent);
+  }
+  .tab.active .num { color: var(--phosphor); }
+  .tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--phosphor);
+    box-shadow: 0 0 14px var(--phosphor);
+  }
+
+  .panels { margin-top: 32px; }
+  .panel {
+    display: none;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 32px;
+    animation: panelin 0.45s ease;
+  }
+  .panel.active { display: grid; }
+  @media (max-width: 900px) { .panel { grid-template-columns: 1fr; } }
+  @keyframes panelin {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .copy-card {
+    padding: 4px 4px 0;
+  }
+  .copy-card h2 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-weight: 400;
+    font-size: clamp(34px, 4vw, 52px);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .copy-card h2 em {
+    font-style: italic;
+    color: var(--phosphor);
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .copy-card .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 14px;
+  }
+  .copy-card p {
+    color: var(--ink);
+    font-size: 14px;
+    max-width: 56ch;
+  }
+  .copy-card p em {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .copy-card .pull {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--amber);
+    border-left: 2px solid var(--amber);
+    padding-left: 14px;
+    margin: 22px 0;
+    max-width: 50ch;
+  }
+  .meta-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--rule-2);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .meta-row span strong {
+    color: var(--phosphor);
+    font-weight: 500;
+  }
+
+  .codeblock {
+    position: relative;
+    background: var(--bg-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .code-head .lang { color: var(--phosphor); }
+  .copy-btn {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule-2);
+    color: var(--ink-dim);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+  }
+  .copy-btn:hover { color: var(--phosphor); border-color: var(--phosphor); }
+  .copy-btn.copied { color: var(--bg); background: var(--phosphor); border-color: var(--phosphor); }
+  pre.code {
+    margin: 0;
+    padding: 18px 20px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+  .tk-c  { color: var(--ink-dim); font-style: italic; }
+  .tk-k  { color: var(--phosphor); }
+  .tk-s  { color: var(--amber); }
+  .tk-p  { color: var(--crimson); }
+  .tk-y  { color: #b6e8c4; }
+  .tk-d  { color: var(--ink); }
+
+  .sim-wrap {
+    margin-top: 28px;
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% -20%, rgba(92,255,174,0.05), transparent 60%),
+      var(--bg-2);
+  }
+  .sim-bar {
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .sim-bar .title {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .sim-bar .title em { color: var(--phosphor); }
+  .sim-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sim-btn {
+    appearance: none;
+    border: 1px solid var(--rule-2);
+    background: transparent;
+    color: var(--ink);
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .sim-btn.primary {
+    border-color: var(--phosphor);
+    color: var(--phosphor);
+  }
+  .sim-btn.primary:hover {
+    background: var(--phosphor);
+    color: var(--bg);
+    box-shadow: 0 0 18px rgba(92,255,174,0.4);
+  }
+  .sim-btn.ghost:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .sim-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .sim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    padding: 18px;
+    min-height: 220px;
+  }
+  .sim-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--ink-dim);
+    padding: 60px 20px;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 18px;
+  }
+  .sim-empty span {
+    display: block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-top: 8px;
+    font-style: normal;
+  }
+
+  .agent-card {
+    border: 1px solid var(--rule-2);
+    border-radius: 3px;
+    background: var(--bg);
+    padding: 12px 14px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    position: relative;
+    overflow: hidden;
+    animation: cardin 0.35s ease;
+  }
+  @keyframes cardin {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .agent-card .head {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px dashed var(--rule-2);
+    padding-bottom: 6px; margin-bottom: 8px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .agent-card .head .name { color: var(--phosphor); }
+  .agent-card .head.done .name { color: var(--amber); }
+  .agent-card .head.error .name { color: var(--crimson); }
+  .agent-card .head .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .agent-card .head .badge .blob {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 8px var(--phosphor);
+    animation: pulse 1s infinite;
+  }
+  .agent-card.done .blob { background: var(--amber); animation: none; box-shadow: none; }
+  .agent-card .stream {
+    color: var(--ink);
+    min-height: 60px;
+  }
+  .agent-card .stream .l { display: block; }
+  .agent-card .stream .l.p { color: var(--phosphor); }
+  .agent-card .stream .l.d { color: var(--ink-dim); }
+  .agent-card .stream .l.a { color: var(--amber); }
+  .agent-card .progress {
+    margin-top: 8px;
+    height: 2px;
+    background: var(--rule-2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .agent-card .progress > i {
+    display: block; height: 100%;
+    background: var(--phosphor);
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--phosphor);
+  }
+  .agent-card.done .progress > i { background: var(--amber); box-shadow: none; }
+
+  .compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 12.5px;
+  }
+  .compare th, .compare td {
+    text-align: left;
+    padding: 14px 14px;
+    border-bottom: 1px dashed var(--rule-2);
+    vertical-align: top;
+  }
+  .compare th {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--amber);
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .compare td:first-child {
+    color: var(--phosphor);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .compare tr:hover td { background: rgba(92,255,174,0.03); }
+
+  footer.foot {
+    margin-top: 80px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  footer.foot .ascii {
+    font-size: 10px;
+    line-height: 1.1;
+    color: var(--phosphor);
+    text-shadow: 0 0 8px rgba(92,255,174,0.3);
+    white-space: pre;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  footer.foot a { color: var(--ink); text-decoration: none; border-bottom: 1px dashed var(--rule-2); }
+  footer.foot a:hover { color: var(--phosphor); border-color: var(--phosphor); }
+
+  .kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid var(--rule-2);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--phosphor);
+    background: var(--bg-2);
+  }
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="shell">
+
+  <header class="masthead">
+    <div class="meta">
+      VOL.&nbsp;01 &nbsp;/&nbsp; <strong>2026.05</strong><br/>
+      un manuel de terrain pour l'opérateur impatient
+    </div>
+    <div class="wordmark">
+      <div class="kicker">— spawn / coordonner / fusionner —</div>
+      <h1>multi&shy;<em>agent</em>.</h1>
+      <div class="subline">quatre façons de faire travailler Claude Code en <em>parallèle</em>.</div>
+    </div>
+    <div class="meta right">
+      FICHIER :&nbsp;<strong>multi-agent-guide.html</strong><br/>
+      RUNTIME :&nbsp;claude-code/cli
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="terminal" aria-hidden="true">
+      <div class="term-bar">
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot live"></span>
+        <span class="term-title">~/repo — claude --multi-agent</span>
+      </div>
+      <div class="term-body" id="bootTerm"></div>
+    </div>
+
+    <div class="lede">
+      <p class="drop">
+        Une fenêtre Claude est déjà une petite équipe. <em>Quatre fenêtres</em> sont un studio.
+        Ce guide montre les quatre formes que cette équipe peut prendre — et quand chacune
+        est la bonne forme.
+      </p>
+      <p>
+        Choisissez par coordination, pas par effectif. Tâche annexe &rarr; sous-agent.
+        Indépendant &rarr; vue d'agent. Coordonné &rarr; équipe. Isolation totale
+        &rarr; worktree par terminal.
+      </p>
+      <span class="stamp"><span class="pulse"></span>en direct · interactif</span>
+    </div>
+  </section>
+
+  <div class="ruler">
+    <span class="num">i.</span>
+    <hr/>
+    <span>quatre approches · choisir une ou les superposer</span>
+  </div>
+
+  <nav class="tabs" id="tabs" role="tablist">
+    <button class="tab active" role="tab" data-panel="p-sub">
+      <span class="num">01</span>
+      <span class="label">Sous-Agents</span>
+      <span class="desc">tâches annexes déléguées</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-view">
+      <span class="num">02</span>
+      <span class="label">Vue d'Agent</span>
+      <span class="desc">un tableau de bord de sessions</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-team">
+      <span class="num">03</span>
+      <span class="label">Équipes d'Agents</span>
+      <span class="desc">workers coordonnés</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-term">
+      <span class="num">04</span>
+      <span class="label">Multi-Terminal</span>
+      <span class="desc">onglets &amp; worktrees</span>
+    </button>
+  </nav>
+
+  <div class="panels">
+
+    <section id="p-sub" class="panel active" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">approche 01 · délégation en session</div>
+        <h2>Sous-<em>agents</em>.</h2>
+        <p>
+          Un worker spécialiste qui s'exécute dans <em>sa propre fenêtre de contexte</em>, termine une
+          tâche ciblée, et renvoie un résumé à la session appelante. Utilisez-les
+          pour garder le fil principal propre — recherche, vérification, exploration.
+        </p>
+        <div class="pull">
+          « Le but n'est pas un autre agent. Le but est de garder votre <em>conversation
+          principale</em> dégagée. »
+        </div>
+        <p>
+          Définissez-les comme des fichiers Markdown sous <span class="kbd">.claude/agents/</span>.
+          Chacun reçoit son propre prompt système, sa allowlist d'outils, et (optionnellement) un
+          modèle plus petit pour que le travail soit peu coûteux.
+        </p>
+        <div class="meta-row">
+          <span>contexte · <strong>isolé</strong></span>
+          <span>parallèle · <strong>oui</strong></span>
+          <span>conflits-fichiers · <strong>cwd partagé</strong></span>
+          <span>idéal pour · <strong>recherche, audits</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">.claude/agents/researcher.md</span>
+            <button class="copy-btn" data-copy="sub">copier</button>
+          </div>
+<pre class="code" id="code-sub"><span class="tk-p">---</span>
+<span class="tk-y">name</span><span class="tk-p">:</span> <span class="tk-d">Researcher</span>
+<span class="tk-y">description</span><span class="tk-p">:</span> <span class="tk-d">Finds prior art &amp; cites sources</span>
+<span class="tk-y">model</span><span class="tk-p">:</span> <span class="tk-d">haiku</span>
+<span class="tk-y">tools</span><span class="tk-p">:</span>
+  <span class="tk-p">-</span> <span class="tk-d">bash</span>
+  <span class="tk-p">-</span> <span class="tk-d">read</span>
+  <span class="tk-p">-</span> <span class="tk-d">webfetch</span>
+<span class="tk-p">---</span>
+
+<span class="tk-c"># You are an expert researcher.</span>
+<span class="tk-c"># Return citations as a bullet list.</span>
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">prompt · session principale</span>
+            <button class="copy-btn" data-copy="sub2">copier</button>
+          </div>
+<pre class="code" id="code-sub2"><span class="tk-c">$ /agents</span>
+<span class="tk-c">  → gérer les définitions</span>
+<span class="tk-c">$ Have @Researcher dig up the rate-limit RFC, then summarize.</span>
+<span class="tk-k">→</span> <span class="tk-d">spawning Researcher in isolated context…</span>
+<span class="tk-k">←</span> <span class="tk-s">"Found 3 sources, see notes/rfc-rate-limit.md"</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="p-view" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">approche 02 · tableau de bord d'arrière-plan</div>
+        <h2>Vue d'<em>agent</em>.</h2>
+        <p>
+          Un tableau de bord de sessions d'arrière-plan indépendantes. Lancez un prompt,
+          partez, jetez un œil à la sortie plus tard. Chaque ligne est son propre processus et
+          survit à la fermeture du terminal.
+        </p>
+        <div class="pull">
+          « Lancer-et-revenir. Utile quand vous avez <em>cinq petits boulots</em>
+          et un seul cerveau. »
+        </div>
+        <p>
+          Ouvrez avec <span class="kbd">claude agents</span>. Dans le tableau de bord :
+          <span class="kbd">Espace</span> pour jeter un œil, <span class="kbd">Entrée</span> pour s'attacher,
+          <span class="kbd">←</span> pour se détacher.
+        </p>
+        <div class="meta-row">
+          <span>contexte · <strong>par session</strong></span>
+          <span>coordination · <strong>vous</strong></span>
+          <span>persistance · <strong>survit à la fermeture</strong></span>
+          <span>idéal pour · <strong>corvées parallèles</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">shell</span>
+            <button class="copy-btn" data-copy="view">copier</button>
+          </div>
+<pre class="code" id="code-view"><span class="tk-c"># lancer une session en arrière-plan</span>
+<span class="tk-k">$</span> claude --bg <span class="tk-s">"investigate the flaky e2e test"</span>
+
+<span class="tk-c"># lancer avec un agent personnalisé</span>
+<span class="tk-k">$</span> claude --agent code-reviewer --bg <span class="tk-s">"review PR #1234"</span>
+
+<span class="tk-c"># ouvrir le tableau de bord</span>
+<span class="tk-k">$</span> claude agents
+
+<span class="tk-c">┌─ actifs ──────────────────────────┐</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ flaky-e2e        running   2m 14s</span> <span class="tk-c">│</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ pr-1234-review   running     38s</span> <span class="tk-c">│</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ docs-cleanup     done      11m 02s</span> <span class="tk-c">│</span>
+<span class="tk-c">└────────────────────────────────────┘</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="p-team" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">approche 03 · expérimental · coordonné</div>
+        <h2>Équipes d'<em>agents</em>.</h2>
+        <p>
+          Plusieurs sessions travaillant sur le <em>même but</em> avec une liste de tâches partagée,
+          des messages inter-agents, et un lead qui gère le travail. Plus proche d'un
+          studio que d'un pool de workers.
+        </p>
+        <div class="pull">
+          « Un reviewer pour la sécurité, un pour la performance, un pour les tests —
+          ils <em>se parlent</em>. »
+        </div>
+        <p>
+          Expérimental et désactivé par défaut. Activez dans
+          <span class="kbd">settings.json</span>, puis demandez à Claude de monter une équipe pour
+          votre objectif.
+        </p>
+        <div class="meta-row">
+          <span>contexte · <strong>par coéquipier</strong></span>
+          <span>coordination · <strong>intégrée</strong></span>
+          <span>statut · <strong>expérimental</strong></span>
+          <span>idéal pour · <strong>revue multi-axes</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">settings.json</span>
+            <button class="copy-btn" data-copy="team">copier</button>
+          </div>
+<pre class="code" id="code-team">{
+  <span class="tk-y">"env"</span><span class="tk-p">:</span> {
+    <span class="tk-y">"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"</span><span class="tk-p">:</span> <span class="tk-s">"1"</span>
+  }
+}
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">prompt</span>
+            <button class="copy-btn" data-copy="team2">copier</button>
+          </div>
+<pre class="code" id="code-team2"><span class="tk-c">$ Spin up a team to review PR #142.</span>
+<span class="tk-c">  Three reviewers, working in parallel:</span>
+<span class="tk-c">    1. security  — auth, input, secrets</span>
+<span class="tk-c">    2. perf     — hot paths, allocs, queries</span>
+<span class="tk-c">    3. tests    — coverage, flakiness, mocks</span>
+<span class="tk-c">  Lead consolidates &amp; posts one review.</span>
+
+<span class="tk-k">→</span> <span class="tk-d">team:r142 spawned with 3 teammates</span>
+<span class="tk-k">→</span> <span class="tk-d">shared task list created (12 items)</span>
+<span class="tk-k">←</span> <span class="tk-s">consolidated review posted to #142</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="p-term" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">approche 04 · la simple · fortement recommandée</div>
+        <h2>Plusieurs <em>terminaux</em>.</h2>
+        <p>
+          Ouvrez un autre onglet de terminal. Lancez <span class="kbd">claude</span>. Fini — vous avez deux
+          agents. Combinez ça avec les <em>git worktrees</em> et vous obtenez une vraie isolation :
+          chaque agent sur sa propre branche et arborescence, pas de conflits d'édition.
+        </p>
+        <div class="pull">
+          « Le pattern le plus propre est aussi le plus bête : <em>plus d'onglets</em>. »
+        </div>
+        <p>
+          Idéal quand les tâches sont longues, sans rapport, et que vous voulez une visibilité
+          totale sur ce que fait chaque agent. Fusionnez via PR quand c'est fait.
+        </p>
+        <div class="meta-row">
+          <span>setup · <strong>zéro</strong></span>
+          <span>isolation · <strong>complète (worktree)</strong></span>
+          <span>visibilité · <strong>totale</strong></span>
+          <span>idéal pour · <strong>fonctionnalités parallèles</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">shell · worktree-par-agent</span>
+            <button class="copy-btn" data-copy="term">copier</button>
+          </div>
+<pre class="code" id="code-term"><span class="tk-c"># depuis le repo principal</span>
+<span class="tk-k">$</span> git worktree add ../repo-feat-a -b feat-a
+<span class="tk-k">$</span> git worktree add ../repo-feat-b -b feat-b
+
+<span class="tk-c"># terminal 1 — fonctionnalité A</span>
+<span class="tk-k">$</span> cd ../repo-feat-a &amp;&amp; claude
+
+<span class="tk-c"># terminal 2 — fonctionnalité B</span>
+<span class="tk-k">$</span> cd ../repo-feat-b &amp;&amp; claude
+
+<span class="tk-c"># fusionner plus tard via PR ─ pas de conflits</span>
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">tmux · variante split-pane</span>
+            <button class="copy-btn" data-copy="term2">copier</button>
+          </div>
+<pre class="code" id="code-term2"><span class="tk-k">$</span> tmux new -s squad
+<span class="tk-c">  ctrl-b "       split horizontal</span>
+<span class="tk-c">  ctrl-b %       split vertical</span>
+<span class="tk-c">  ctrl-b o       cycle panes</span>
+
+<span class="tk-c"># 4 panneaux · 4 worktrees · 4 claudes</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="ruler">
+    <span class="num">ii.</span>
+    <hr/>
+    <span>simulateur · spawn d'agents parallèles</span>
+  </div>
+
+  <div class="sim-wrap">
+    <div class="sim-bar">
+      <div class="title">un petit studio dans <em>votre navigateur</em></div>
+      <div class="sim-controls">
+        <button class="sim-btn primary" id="spawnBtn">+ spawn agent</button>
+        <button class="sim-btn ghost" id="spawnAllBtn">+ spawn 4</button>
+        <button class="sim-btn ghost" id="clearBtn">effacer</button>
+      </div>
+    </div>
+    <div class="sim-grid" id="simGrid">
+      <div class="sim-empty" id="simEmpty">
+        aucun agent pour l'instant.
+        <span>appuyez sur &nbsp;+&nbsp; spawn agent &nbsp;pour commencer&nbsp;</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ruler">
+    <span class="num">iii.</span>
+    <hr/>
+    <span>laquelle, quand</span>
+  </div>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th style="width:18%">approche</th>
+        <th>communication</th>
+        <th>isolation</th>
+        <th>idéal pour</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Sous-agents</td>
+        <td>résumé renvoyé à l'appelant</td>
+        <td>contexte propre · cwd partagé</td>
+        <td>recherche, vérification, exploration</td>
+      </tr>
+      <tr>
+        <td>Vue d'agent</td>
+        <td>vous médiez</td>
+        <td>contexte propre · processus propre</td>
+        <td>tâches indépendantes lancer-et-vérifier</td>
+      </tr>
+      <tr>
+        <td>Équipes d'agents</td>
+        <td>messagerie directe · liste partagée</td>
+        <td>contexte propre · objectif partagé</td>
+        <td>revue multi-axes, refactos complexes</td>
+      </tr>
+      <tr>
+        <td>Multi-terminal</td>
+        <td>aucune — vous câblez</td>
+        <td>complète · worktree par session</td>
+        <td>fonctionnalités parallèles longues</td>
+      </tr>
+      <tr>
+        <td>/batch (worktrees)</td>
+        <td>via revue de PR</td>
+        <td>complète · 5–30 worktrees</td>
+        <td>migrations à l'échelle du repo</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <footer class="foot">
+    <div>
+      fin du fichier · <strong style="color:var(--phosphor)">eof</strong> &nbsp;//&nbsp;
+      garder le principal propre, déployer le reste
+    </div>
+    <pre class="ascii">  ┌─┐ ┌─┐ ┌─┐ ┌─┐
+  │·│ │·│ │·│ │·│
+  └─┘ └─┘ └─┘ └─┘
+   01  02  03  04 </pre>
+    <div>
+      docs ·
+      <a href="https://code.claude.com/docs/en/agents.md" target="_blank" rel="noopener">code.claude.com/agents</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  /* boot terminal */
+  (function bootTerminal () {
+    const target = document.getElementById('bootTerm');
+    const lines = [
+      { d: 0,    cls: 'prompt', t: '$ claude --multi-agent' },
+      { d: 380,  cls: 'dim',    t: '› initialisation du harness…' },
+      { d: 780,  cls: 'out',    t: '› lecture de .claude/agents/*.md' },
+      { d: 1080, cls: 'amber',  t: '› 4 définitions trouvées' },
+      { d: 1380, cls: 'out',    t: '› démarrage des workers' },
+      { d: 1620, cls: 'bar',    t: '   [████████████░░░░] 75%' },
+      { d: 1920, cls: 'bar',    t: '   [████████████████] 100%' },
+      { d: 2200, cls: 'prompt', t: '✓ studio en ligne · 4 agents inactifs' },
+      { d: 2520, cls: 'dim',    t: '› en attente du prompt' },
+    ];
+    target.innerHTML = '';
+    lines.forEach(l => {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = l.cls;
+        el.textContent = l.t;
+        target.appendChild(el);
+      }, l.d);
+    });
+    setTimeout(() => {
+      const c = document.createElement('span');
+      c.className = 'cursor';
+      target.appendChild(c);
+    }, lines[lines.length - 1].d + 200);
+  })();
+
+  /* tabs */
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.panel).classList.add('active');
+    });
+  });
+
+  /* copy buttons */
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = 'code-' + btn.dataset.copy;
+      const node = document.getElementById(id);
+      if (!node) return;
+      try {
+        await navigator.clipboard.writeText(node.innerText);
+        const old = btn.textContent;
+        btn.textContent = 'copié ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = old; btn.classList.remove('copied'); }, 1400);
+      } catch (e) {
+        btn.textContent = 'pas de presse-papier';
+      }
+    });
+  });
+
+  /* simulator */
+  const grid = document.getElementById('simGrid');
+  const empty = document.getElementById('simEmpty');
+  const spawnBtn = document.getElementById('spawnBtn');
+  const spawnAllBtn = document.getElementById('spawnAllBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const ROSTER = [
+    { name: 'researcher',  steps: [
+      { cls:'p', t: '$ webfetch rfc-7235' },
+      { cls:'d', t: '› analyse de 412 lignes' },
+      { cls:'d', t: '› extraction des citations…' },
+      { cls:'a', t: '✓ 3 sources, résumé renvoyé' },
+    ]},
+    { name: 'reviewer',    steps: [
+      { cls:'p', t: '$ git diff main...HEAD' },
+      { cls:'d', t: '› lecture de 14 fichiers' },
+      { cls:'d', t: '› vérification des frontières d\'auth' },
+      { cls:'a', t: '✓ 2 nits · 0 bloqueurs' },
+    ]},
+    { name: 'tester',      steps: [
+      { cls:'p', t: '$ pnpm test --filter api' },
+      { cls:'d', t: '› exécution de 218 specs' },
+      { cls:'d', t: '› 217 passent · 1 flaky' },
+      { cls:'a', t: '✓ retry guard écrit' },
+    ]},
+    { name: 'docscribe',   steps: [
+      { cls:'p', t: '$ rg --type md TODO' },
+      { cls:'d', t: '› 9 entrées obsolètes' },
+      { cls:'d', t: '› réécriture du changelog' },
+      { cls:'a', t: '✓ docs/CHANGELOG.md mis à jour' },
+    ]},
+    { name: 'profiler',    steps: [
+      { cls:'p', t: '$ pprof -http 0.0.0.0:9000' },
+      { cls:'d', t: '› échantillonnage 30s' },
+      { cls:'d', t: '› chemin chaud : marshal()' },
+      { cls:'a', t: '✓ -32% sur /v1/dashboard' },
+    ]},
+    { name: 'migrator',    steps: [
+      { cls:'p', t: '$ git worktree add ../mig' },
+      { cls:'d', t: '› branche : chore/mig-022' },
+      { cls:'d', t: '› réécriture de 47 imports' },
+      { cls:'a', t: '✓ PR #220 ouverte' },
+    ]},
+  ];
+
+  let spawnIdx = 0;
+  let liveCount = 0;
+
+  function spawnAgent () {
+    if (empty && empty.parentNode) empty.remove();
+    const spec = ROSTER[spawnIdx % ROSTER.length];
+    spawnIdx++;
+    const id = `${spec.name}-${spawnIdx}`;
+
+    const card = document.createElement('div');
+    card.className = 'agent-card';
+    card.innerHTML = `
+      <div class="head">
+        <span class="name">▸ ${id}</span>
+        <span class="badge"><span class="blob"></span>en cours</span>
+      </div>
+      <div class="stream"></div>
+      <div class="progress"><i></i></div>
+    `;
+    grid.appendChild(card);
+    liveCount++;
+
+    const stream = card.querySelector('.stream');
+    const bar = card.querySelector('.progress > i');
+    const head = card.querySelector('.head');
+    const badge = card.querySelector('.badge');
+
+    spec.steps.forEach((s, i) => {
+      setTimeout(() => {
+        const line = document.createElement('span');
+        line.className = `l ${s.cls}`;
+        line.textContent = s.t;
+        stream.appendChild(line);
+        bar.style.width = `${((i + 1) / spec.steps.length) * 100}%`;
+      }, 350 + i * (480 + Math.random() * 240));
+    });
+
+    setTimeout(() => {
+      card.classList.add('done');
+      head.classList.add('done');
+      badge.innerHTML = '<span class="blob"></span>terminé';
+    }, 350 + spec.steps.length * 540 + 200);
+  }
+
+  spawnBtn.addEventListener('click', spawnAgent);
+  spawnAllBtn.addEventListener('click', () => {
+    for (let i = 0; i < 4; i++) setTimeout(spawnAgent, i * 220);
+  });
+  clearBtn.addEventListener('click', () => {
+    grid.innerHTML = '';
+    grid.appendChild(empty);
+    liveCount = 0;
+    spawnIdx = 0;
+  });
+</script>
+</body>
+</html>

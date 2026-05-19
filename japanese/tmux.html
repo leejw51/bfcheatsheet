@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>tmux 道場 — ターミナルマルチプレクサのマスタリー</title>
+<style>
+  /* ---------- root tokens ---------- */
+  :root{
+    --bg: #0b0f0a;
+    --bg-soft:#0f1410;
+    --panel:#0d1410;
+    --panel-2:#101a13;
+    --ink:#cfeed1;
+    --ink-dim:#7da37e;
+    --phos:#39ff7a;       /* phosphor green */
+    --phos-soft:#2bd463;
+    --amber:#ffb454;
+    --magenta:#ff5dc8;
+    --cyan:#5dd6ff;
+    --red:#ff6b6b;
+    --line: #1c2a1f;
+    --shadow: 0 0 24px rgba(57,255,122,.18), 0 0 2px rgba(57,255,122,.6) inset;
+    --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,"JetBrains Mono","Fira Code",monospace;
+  }
+  html,body{background:var(--bg);color:var(--ink);font-family:var(--mono);margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  *{box-sizing:border-box}
+  a{color:var(--phos)}
+  ::selection{background:var(--phos);color:#031}
+
+  /* ---------- CRT effect (toggleable) ---------- */
+  body.crt::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9000;
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px);
+    mix-blend-mode:overlay;
+  }
+  body.crt::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:9001;
+    background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0,0,0,.55) 100%);
+  }
+  body.crt .term, body.crt .panel, body.crt h1, body.crt h2, body.crt h3{
+    text-shadow: 0 0 6px rgba(57,255,122,.45);
+  }
+
+  /* ---------- layout ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;gap:12px;
+    padding:10px 18px;
+    background:linear-gradient(180deg, rgba(15,20,16,.95), rgba(15,20,16,.78));
+    border-bottom:1px solid var(--line);
+    backdrop-filter:blur(8px);
+  }
+  .brand{font-weight:700;letter-spacing:.04em;color:var(--phos)}
+  .brand .blink{animation:blink 1.1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .top-spacer{flex:1}
+  .badges{display:flex;gap:8px;flex-wrap:wrap}
+  .badge{
+    border:1px solid var(--line);background:var(--panel);padding:4px 10px;border-radius:6px;font-size:12px;color:var(--ink-dim)
+  }
+  .badge.on{border-color:var(--phos);color:var(--phos);box-shadow:0 0 0 1px rgba(57,255,122,.25)}
+  .btn{
+    appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    padding:6px 12px;border-radius:6px;font-family:var(--mono);cursor:pointer;font-size:12px;
+    transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .btn:hover{border-color:var(--phos);color:var(--phos)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:#0e2a18;border-color:var(--phos);color:var(--phos)}
+  .btn.warn{background:#2a160e;border-color:var(--amber);color:var(--amber)}
+  .btn.danger{background:#2a0e0e;border-color:var(--red);color:var(--red)}
+
+  main{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+
+  h1{font-size:34px;margin:8px 0 6px;color:var(--phos);letter-spacing:.02em}
+  h1 .slash{color:var(--amber)}
+  h2{margin-top:36px;color:var(--phos-soft);border-left:3px solid var(--phos);padding-left:10px}
+  h3{color:var(--cyan);margin-bottom:6px}
+  p{line-height:1.6;color:var(--ink)}
+  code, kbd{
+    font-family:var(--mono);background:#0a140d;color:var(--phos);border:1px solid var(--line);
+    padding:1px 6px;border-radius:4px;font-size:.92em
+  }
+  kbd{background:#0e1a12;color:var(--amber);border-color:#26341d;font-weight:600}
+
+  .lead{color:var(--ink-dim)}
+  .grid{display:grid;gap:16px}
+  .grid-2{grid-template-columns: 1fr 1fr}
+  .grid-3{grid-template-columns: repeat(3,1fr)}
+  @media (max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+  .panel{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:10px;padding:16px;
+    box-shadow: var(--shadow);
+  }
+
+  /* ---------- HUD ---------- */
+  .hud{
+    display:grid;grid-template-columns: 1.4fr 1fr 1fr 1fr;gap:14px;margin:18px 0 8px;
+  }
+  .hud .stat{
+    background:linear-gradient(180deg,#0d1410,#0c120e);
+    border:1px solid var(--line);border-radius:10px;padding:10px 14px;position:relative;overflow:hidden;
+  }
+  .hud .label{font-size:11px;color:var(--ink-dim);letter-spacing:.18em;text-transform:uppercase}
+  .hud .val{font-size:22px;color:var(--phos);font-weight:700;margin-top:2px}
+  .hud .sub{font-size:11px;color:var(--ink-dim)}
+  .xpbar{height:6px;background:#0a140d;border-radius:3px;margin-top:10px;overflow:hidden;border:1px solid #14241a}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,var(--phos),var(--amber));width:0%;transition:width .35s ease}
+  .combo-flame{display:inline-block;transition:transform .15s ease}
+  .combo-on .combo-flame{transform:scale(1.4) rotate(-8deg);filter:drop-shadow(0 0 4px var(--amber))}
+
+  /* ---------- terminal simulator ---------- */
+  .term-wrap{position:relative}
+  .term{
+    background:#06100a;border:1px solid #16241a;border-radius:10px;overflow:hidden;
+    box-shadow: 0 0 0 1px rgba(57,255,122,.06), 0 12px 40px rgba(0,0,0,.5);
+  }
+  .term-bar{
+    display:flex;align-items:center;gap:8px;padding:8px 12px;background:#0a140d;border-bottom:1px solid #16241a;
+    font-size:12px;color:var(--ink-dim)
+  }
+  .dot{width:10px;height:10px;border-radius:50%}
+  .dot.r{background:#ff5f56}.dot.y{background:#ffbd2e}.dot.g{background:#27c93f}
+  .term-title{flex:1;text-align:center}
+  .tmux-status{
+    display:flex;align-items:center;gap:6px;padding:6px 10px;background:#0a140d;border-bottom:1px solid #16241a;
+    font-size:12px;color:var(--ink-dim);
+  }
+  .tmux-status .session{color:var(--amber)}
+  .tmux-status .window{padding:2px 8px;border-radius:4px;background:#0e1a12;color:var(--ink-dim);border:1px solid #142119}
+  .tmux-status .window.active{background:#0e2a18;color:var(--phos);border-color:var(--phos)}
+  .tmux-status .right{margin-left:auto;color:var(--ink-dim)}
+
+  .term-body{
+    position:relative;
+    display:grid;grid-template-columns:1fr;grid-template-rows:1fr;
+    min-height:280px;background:#06100a;
+  }
+  .term-body.split-h{grid-template-columns:1fr 1fr}
+  .term-body.split-v{grid-template-rows:1fr 1fr}
+  .term-body.split-grid{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .pane{
+    border:1px solid #16241a;margin:6px;border-radius:6px;background:#06100a;
+    padding:10px 12px;font-size:13px;color:var(--ink);overflow:hidden;position:relative;min-height:120px;
+    transition: box-shadow .18s ease, border-color .18s ease, transform .18s ease;
+  }
+  .pane.active{border-color:var(--phos);box-shadow:0 0 0 1px rgba(57,255,122,.25), 0 0 24px rgba(57,255,122,.15) inset}
+  .pane.zoomed{position:absolute;inset:0;z-index:5;margin:0;border-radius:0}
+  .pane .ps1{color:var(--phos)}
+  .pane .ps1 b{color:var(--amber)}
+  .pane .out{color:var(--ink-dim);white-space:pre-wrap}
+  .pane .cursor{display:inline-block;width:8px;height:14px;background:var(--phos);vertical-align:middle;animation:blink 1s steps(1) infinite;margin-left:2px}
+  .pane.killed{opacity:.25;filter:grayscale(.6)}
+
+  .term-footer{
+    display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a140d;border-top:1px solid #16241a;font-size:12px;color:var(--ink-dim)
+  }
+  .chord{
+    font-family:var(--mono);background:#0e2a18;color:var(--phos);
+    padding:2px 8px;border-radius:4px;border:1px solid var(--phos);
+    box-shadow:0 0 12px rgba(57,255,122,.25);
+  }
+  .keyhint{color:var(--ink-dim)}
+
+  .sim-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+  /* ---------- practice mode ---------- */
+  .practice{
+    display:grid;grid-template-columns: 1.3fr 1fr;gap:18px;
+  }
+  @media (max-width:1000px){.practice{grid-template-columns:1fr}}
+  .quest{
+    background:linear-gradient(180deg,#0d1410,#0a120d);
+    border:1px solid var(--line);border-radius:10px;padding:16px;position:relative;overflow:hidden
+  }
+  .quest::before{
+    content:"";position:absolute;inset:-1px;border-radius:10px;pointer-events:none;
+    background:linear-gradient(140deg, rgba(57,255,122,.15), transparent 30%, rgba(255,180,84,.12) 70%, transparent);
+    opacity:.6;
+  }
+  .quest .tag{display:inline-block;font-size:11px;letter-spacing:.18em;color:var(--ink-dim);text-transform:uppercase;margin-bottom:8px}
+  .quest .prompt{font-size:18px;color:var(--ink);margin:4px 0 12px;line-height:1.5}
+  .quest .hint{color:var(--ink-dim);font-size:12px;margin-top:10px}
+  .quest .input-row{display:flex;gap:8px;align-items:center}
+  .quest input[type=text]{
+    flex:1;background:#06100a;border:1px solid #1c2a1f;color:var(--phos);
+    padding:10px 12px;border-radius:6px;font-family:var(--mono);font-size:15px;outline:none;
+    transition:border-color .12s ease, box-shadow .12s ease;
+  }
+  .quest input[type=text]:focus{border-color:var(--phos);box-shadow:0 0 0 2px rgba(57,255,122,.18)}
+  .quest .feedback{margin-top:10px;min-height:20px;font-size:13px}
+  .quest .feedback.ok{color:var(--phos)}
+  .quest .feedback.bad{color:var(--red)}
+  .shake{animation:shake .35s}
+  @keyframes shake{
+    0%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}80%{transform:translateX(3px)}100%{transform:translateX(0)}
+  }
+  .glow-ok{animation:glowok .8s}
+  @keyframes glowok{
+    0%{box-shadow:0 0 0 0 rgba(57,255,122,.0)}
+    30%{box-shadow:0 0 0 4px rgba(57,255,122,.4)}
+    100%{box-shadow:0 0 0 0 rgba(57,255,122,0)}
+  }
+
+  .pquest-list{max-height:520px;overflow:auto;padding-right:4px}
+  .pq{
+    display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:8px;margin-bottom:8px;background:#0b120e;cursor:pointer;
+  }
+  .pq:hover{border-color:var(--phos)}
+  .pq .num{color:var(--ink-dim);font-size:12px;width:26px}
+  .pq .ttl{flex:1;font-size:13px}
+  .pq .st{font-size:11px;color:var(--ink-dim)}
+  .pq.done{border-color:#1f3a26}
+  .pq.done .ttl{color:var(--phos)}
+  .pq.cur{border-color:var(--amber);box-shadow:0 0 0 1px rgba(255,180,84,.25)}
+
+  /* ---------- bindings table ---------- */
+  table.bindings{width:100%;border-collapse:collapse;font-size:13px}
+  table.bindings th, table.bindings td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  table.bindings th{color:var(--ink-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.1em}
+  table.bindings tr.practiced td:first-child::before{content:"✓ ";color:var(--phos)}
+  table.bindings code{white-space:nowrap}
+
+  /* ---------- achievements ---------- */
+  .achs{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+  .ach{
+    border:1px dashed #1d2c20;border-radius:10px;padding:10px;text-align:center;background:#0a120d;opacity:.55;
+    transition:all .25s ease
+  }
+  .ach.unlocked{opacity:1;border-style:solid;border-color:var(--phos);box-shadow:0 0 16px rgba(57,255,122,.18)}
+  .ach .em{font-size:24px}
+  .ach .nm{font-size:12px;color:var(--ink);margin-top:4px}
+  .ach .ds{font-size:11px;color:var(--ink-dim);margin-top:2px;line-height:1.3}
+
+  /* ---------- toast ---------- */
+  .toasts{position:fixed;right:18px;bottom:18px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+  .toast{
+    background:#0e1a12;border:1px solid var(--phos);color:var(--phos);
+    padding:10px 14px;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.4);
+    font-size:13px;animation:tin .25s ease;
+  }
+  .toast.warn{border-color:var(--amber);color:var(--amber)}
+  .toast.bad{border-color:var(--red);color:var(--red)}
+  @keyframes tin{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+  /* ---------- confetti / particles ---------- */
+  canvas.confetti{position:fixed;inset:0;pointer-events:none;z-index:9500}
+
+  /* ---------- boss ---------- */
+  .boss{
+    background:linear-gradient(180deg,#160a14,#0e0a14);border:1px solid #341d2c;border-radius:12px;padding:18px;
+    box-shadow: 0 0 30px rgba(255,93,200,.18) inset;
+  }
+  .boss h2{color:var(--magenta);border-color:var(--magenta)}
+  .hp{height:14px;border:1px solid #341d2c;border-radius:8px;overflow:hidden;background:#0a070d}
+  .hp > div{height:100%;background:linear-gradient(90deg,var(--magenta),var(--amber));width:100%;transition:width .35s}
+  .boss .timer{font-size:14px;color:var(--amber)}
+  .boss .quest{background:#0c060f;border-color:#341d2c}
+  .boss .quest::before{display:none}
+  .boss .input-row input{border-color:#341d2c;color:var(--magenta)}
+  .boss .input-row input:focus{border-color:var(--magenta);box-shadow:0 0 0 2px rgba(255,93,200,.2)}
+  .boss .btn.primary{background:#1c0a18;border-color:var(--magenta);color:var(--magenta)}
+
+  /* ---------- nav (toc) ---------- */
+  .toc{
+    display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px
+  }
+  .toc a{
+    text-decoration:none;border:1px solid var(--line);padding:5px 10px;border-radius:999px;
+    font-size:12px;color:var(--ink-dim);background:#0b120e;
+  }
+  .toc a:hover{border-color:var(--phos);color:var(--phos)}
+
+  /* ---------- ascii art header ---------- */
+  pre.ascii{
+    color:var(--phos);font-size:11px;line-height:1.1;margin:0;
+    text-shadow:0 0 8px rgba(57,255,122,.3);
+  }
+  @media (max-width:600px){pre.ascii{font-size:9px}}
+
+  /* ---------- floating chord display ---------- */
+  .chord-overlay{
+    position:fixed;left:50%;top:30%;transform:translate(-50%,-50%) scale(.8);
+    background:rgba(6,16,10,.92);border:1px solid var(--phos);border-radius:14px;
+    padding:18px 28px;color:var(--phos);font-size:36px;letter-spacing:.05em;
+    box-shadow:0 0 40px rgba(57,255,122,.4);opacity:0;pointer-events:none;
+    z-index:9800;transition:opacity .14s ease, transform .14s ease;
+  }
+  .chord-overlay.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+  /* small util */
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .muted{color:var(--ink-dim)}
+  .ok{color:var(--phos)}.warn{color:var(--amber)}.bad{color:var(--red)}
+  .pill{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:999px;font-size:11px;color:var(--ink-dim)}
+
+  details > summary{cursor:pointer;color:var(--phos)}
+  details {border:1px dashed #1d2c20;padding:8px 12px;border-radius:8px;margin:6px 0;background:#0a120d}
+
+  hr{border:none;border-top:1px dashed #1d2c20;margin:24px 0}
+</style>
+</head>
+<body class="crt">
+  <div class="topbar">
+    <div class="brand">~ tmux<span class="slash">/</span>dojo <span class="blink">_</span></div>
+    <div class="top-spacer"></div>
+    <div class="row">
+      <span class="badge" id="hud-level">LV 1</span>
+      <span class="badge" id="hud-xp">XP 0</span>
+      <span class="badge" id="hud-combo">コンボ 0</span>
+      <button class="btn" id="toggle-crt" title="CRT スキャンラインの切替">crt: オン</button>
+      <button class="btn warn" id="reset-progress" title="すべての進捗をリセット">リセット</button>
+    </div>
+  </div>
+
+  <main>
+    <pre class="ascii" aria-hidden="true">
+   ████████ ███    ███ ██    ██ ██   ██     ██████   ██████      ██  ██████
+      ██    ████  ████ ██    ██  ██ ██      ██   ██ ██    ██     ██ ██    ██
+      ██    ██ ████ ██ ██    ██   ███       ██   ██ ██    ██     ██ ██    ██
+      ██    ██  ██  ██ ██    ██  ██ ██      ██   ██ ██    ████   ██ ██    ██
+      ██    ██      ██  ██████  ██   ██     ██████   ██████  █████   ██████
+    </pre>
+    <h1>tmux 道場 <span class="slash">//</span> 入力でマルチプレクサを学ぶ</h1>
+    <p class="lead">自己完結型のプレイグラウンド。一口サイズの章を読み、シミュレーターでキーを叩き、入力道場で XP を獲得。最後に<b class="warn">マルチプレクサマスター</b>を倒そう。</p>
+
+    <nav class="toc">
+      <a href="#what">1. 概要</a>
+      <a href="#model">2. モデル</a>
+      <a href="#prefix">3. プレフィックス</a>
+      <a href="#sessions">4. セッション</a>
+      <a href="#windows">5. ウィンドウ</a>
+      <a href="#panes">6. ペイン</a>
+      <a href="#copy">7. コピーモード</a>
+      <a href="#config">8. 設定</a>
+      <a href="#plugins">9. プラグイン</a>
+      <a href="#sim">シミュレーター</a>
+      <a href="#practice">練習</a>
+      <a href="#boss">ボス戦</a>
+    </nav>
+
+    <!-- HUD -->
+    <div class="hud">
+      <div class="stat">
+        <div class="label">進捗</div>
+        <div class="val" id="hud-progress">0 / 18</div>
+        <div class="sub">完了した入力エクササイズ</div>
+        <div class="xpbar"><div id="hud-xpbar"></div></div>
+      </div>
+      <div class="stat">
+        <div class="label">レベル</div>
+        <div class="val" id="hud-level2">1</div>
+        <div class="sub" id="hud-level-name">Tabby Recruit</div>
+      </div>
+      <div class="stat" id="hud-combo-card">
+        <div class="label">コンボ <span class="combo-flame">🔥</span></div>
+        <div class="val" id="hud-combo2">0</div>
+        <div class="sub" id="hud-combo-best">最高 0</div>
+      </div>
+      <div class="stat">
+        <div class="label">習得バインド数</div>
+        <div class="val" id="hud-bindings">0</div>
+        <div class="sub" id="hud-bindings-total">/ 多数</div>
+      </div>
+    </div>
+
+    <!-- 1. What is tmux -->
+    <h2 id="what">1. tmux とは?</h2>
+    <div class="grid grid-2">
+      <div class="panel">
+        <p><b class="ok">tmux</b> は<b>ターミナルマルチプレクサ</b>です。ひとつのターミナルウィンドウの中に、独立したシェルを複数並べたり、タブで切り替えたり、そして何より <em>SSH 接続から切り離した状態で動かし続ける</em> ことができます。</p>
+        <p>3 つの強力な機能:</p>
+        <ul>
+          <li><b>永続性</b> — ノート PC を閉じても、翌日再接続すればシェルは作業をやめた地点でそのまま待っている</li>
+          <li><b>レイアウト</b> — ウィンドウをペインに分割し、<code>vim</code>、<code>tail -f</code>、<code>htop</code> を同時に走らせる</li>
+          <li><b>スクリプト可能</b> — ひとつのコマンドでプロジェクト用レイアウトを起動し、セッションを同僚と共有し、セットアップを自動化</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>tmux と他の選択肢</h3>
+        <table class="bindings">
+          <tr><th>ツール</th><th>ペイン?</th><th>永続的?</th><th>特徴</th></tr>
+          <tr><td><code>screen</code></td><td>一応</td><td>はい</td><td>部族の長老。UX はやや粗い</td></tr>
+          <tr><td>iTerm 分割</td><td>はい</td><td>いいえ</td><td>アプリと共に死ぬ。SSH 越しに持ち運べない</td></tr>
+          <tr><td>VS Code ターミナル</td><td>はい</td><td>いいえ</td><td>ローカル専用</td></tr>
+          <tr><td><b>tmux</b></td><td>はい</td><td>はい</td><td>スクリプタブル、どこにでもある、サーバー上で生き続ける</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- 2. Mental model -->
+    <h2 id="model">2. メンタルモデル</h2>
+    <div class="panel">
+      <p>tmux は <b>クライアント/サーバー</b> 型のプログラムです。あなたのターミナルは、長時間動き続ける <code>tmux</code> サーバーと通信します。サーバーが所有しているのは:</p>
+      <pre class="muted" style="font-size:13px;line-height:1.4">
+server
+└── session "work"
+    ├── window 0: editor
+    │   ├── pane 0: vim
+    │   └── pane 1: shell
+    └── window 1: logs
+        └── pane 0: tail -f app.log
+      </pre>
+      <p><b class="warn">attach</b> = ターミナルがセッションに接続する。<b class="warn">detach</b> = ターミナルが切断されるが、セッションはサーバー上で動き続ける。SSH 接続を閉じることはセッションを終了させることとは違います。</p>
+    </div>
+
+    <!-- 3. Prefix -->
+    <h2 id="prefix">3. プレフィックスキー</h2>
+    <div class="panel">
+      <p>セッション内のほぼすべての tmux コマンドは <b>プレフィックスキー</b> から始まります。デフォルトは <kbd>Ctrl</kbd>+<kbd>b</kbd>。プレフィックスを押し、<em>離してから</em>、次のキーを押します。</p>
+      <p>表記: <code>C-b "</code> は <kbd>Ctrl</kbd>+<kbd>b</kbd> のあと <kbd>"</kbd>(つまり <kbd>Shift</kbd>+<kbd>'</kbd>)。多くの人は届きやすさのためプレフィックスを <kbd>Ctrl</kbd>+<kbd>a</kbd> に再マップします。</p>
+      <p class="hint muted">下のシミュレーターで試してみよう — <kbd>Ctrl</kbd>+<kbd>b</kbd> を押すとインジケータが点灯します。</p>
+    </div>
+
+    <!-- 4. Sessions -->
+    <h2 id="sessions">4. セッション</h2>
+    <div class="panel">
+      <table class="bindings" id="tbl-sessions">
+        <tr><th>操作</th><th>シェルコマンド</th><th>バインド</th></tr>
+        <tr data-bind="new"><td>名前付き新規セッション</td><td><code>tmux new -s work</code></td><td>—</td></tr>
+        <tr data-bind="ls"><td>セッション一覧</td><td><code>tmux ls</code></td><td><code>C-b s</code></td></tr>
+        <tr data-bind="attach"><td>セッションにアタッチ</td><td><code>tmux attach -t work</code></td><td>—</td></tr>
+        <tr data-bind="detach"><td>デタッチ</td><td>—</td><td><code>C-b d</code></td></tr>
+        <tr data-bind="kill"><td>セッションを終了</td><td><code>tmux kill-session -t work</code></td><td>—</td></tr>
+        <tr data-bind="rename-s"><td>現在のセッション名を変更</td><td>—</td><td><code>C-b $</code></td></tr>
+        <tr data-bind="switch-s"><td>セッション切替</td><td>—</td><td><code>C-b s</code></td></tr>
+      </table>
+    </div>
+
+    <!-- 5. Windows -->
+    <h2 id="windows">5. ウィンドウ</h2>
+    <div class="panel">
+      <p>ウィンドウはタブのようなもの。各セッションは複数のウィンドウを持ち、アクティブなのは常に 1 つだけです。</p>
+      <table class="bindings" id="tbl-windows">
+        <tr><th>操作</th><th>バインド</th></tr>
+        <tr data-bind="new-w"><td>ウィンドウを作成</td><td><code>C-b c</code></td></tr>
+        <tr data-bind="rename-w"><td>ウィンドウ名を変更</td><td><code>C-b ,</code></td></tr>
+        <tr data-bind="next-w"><td>次のウィンドウ</td><td><code>C-b n</code></td></tr>
+        <tr data-bind="prev-w"><td>前のウィンドウ</td><td><code>C-b p</code></td></tr>
+        <tr data-bind="last-w"><td>最後(最近)のウィンドウ</td><td><code>C-b l</code></td></tr>
+        <tr data-bind="goto-w"><td>ウィンドウ N へ移動</td><td><code>C-b 0..9</code></td></tr>
+        <tr data-bind="kill-w"><td>ウィンドウを終了</td><td><code>C-b &amp;</code></td></tr>
+        <tr data-bind="list-w"><td>対話的なウィンドウリスト</td><td><code>C-b w</code></td></tr>
+      </table>
+    </div>
+
+    <!-- 6. Panes -->
+    <h2 id="panes">6. ペイン</h2>
+    <div class="panel">
+      <p>ペインはウィンドウを矩形に分割します。tmux の表記は混乱しがちで有名です:</p>
+      <ul>
+        <li><code>C-b "</code> は <b>水平方向に分割</b>(上下 — 水平な仕切り)。覚え方: <kbd>"</kbd> は縦に並んだ 2 つの点。</li>
+        <li><code>C-b %</code> は <b>垂直方向に分割</b>(左右 — 垂直な仕切り)。覚え方: <kbd>%</kbd> は 2 つの箱の間にあるスラッシュに見える。</li>
+      </ul>
+      <table class="bindings" id="tbl-panes">
+        <tr><th>操作</th><th>バインド</th></tr>
+        <tr data-bind="split-h"><td>水平分割(上下)</td><td><code>C-b "</code></td></tr>
+        <tr data-bind="split-v"><td>垂直分割(左右)</td><td><code>C-b %</code></td></tr>
+        <tr data-bind="nav-pane"><td>ペイン間を移動</td><td><code>C-b ↑/↓/←/→</code></td></tr>
+        <tr data-bind="cycle-pane"><td>次のペインへ循環</td><td><code>C-b o</code></td></tr>
+        <tr data-bind="resize"><td>現在のペインをリサイズ(押下保持)</td><td><code>C-b C-↑/↓/←/→</code></td></tr>
+        <tr data-bind="zoom"><td>ズーム切替(全画面ペイン)</td><td><code>C-b z</code></td></tr>
+        <tr data-bind="swap"><td>ペインを入れ替え</td><td><code>C-b {</code> / <code>C-b }</code></td></tr>
+        <tr data-bind="kill-p"><td>現在のペインを終了</td><td><code>C-b x</code></td></tr>
+        <tr data-bind="break-p"><td>ペインを独立ウィンドウに切り出す</td><td><code>C-b !</code></td></tr>
+        <tr data-bind="num-p"><td>ペイン番号を表示</td><td><code>C-b q</code></td></tr>
+      </table>
+    </div>
+
+    <!-- 7. Copy mode -->
+    <h2 id="copy">7. コピーモードとスクロールバック</h2>
+    <div class="panel">
+      <p>マウスでターミナルをスクロールすることもできますが、tmux で <em>本来の</em> 方法は <b>コピーモード</b> です。<code>C-b [</code> で入ります。すると vi キーで移動、検索、テキストのヤンクができます。</p>
+      <table class="bindings">
+        <tr><th>操作</th><th>キー(コピーモード内)</th></tr>
+        <tr><td>コピーモードに入る</td><td><code>C-b [</code></td></tr>
+        <tr><td>移動</td><td><kbd>h j k l</kbd> または矢印</td></tr>
+        <tr><td>前方/後方検索</td><td><kbd>/</kbd> / <kbd>?</kbd></td></tr>
+        <tr><td>選択開始</td><td><kbd>Space</kbd>(vi)または <code>mode-keys vi</code> 設定下では <kbd>v</kbd></td></tr>
+        <tr><td>選択範囲をコピー</td><td><kbd>Enter</kbd>(デフォルト)または vi モードでは <kbd>y</kbd></td></tr>
+        <tr><td>貼り付け</td><td><code>C-b ]</code></td></tr>
+        <tr><td>コピーモードを抜ける</td><td><kbd>q</kbd></td></tr>
+      </table>
+      <p class="muted">vi スタイルにするには <code>~/.tmux.conf</code> で <code>setw -g mode-keys vi</code> を設定。</p>
+    </div>
+
+    <!-- 8. Config -->
+    <h2 id="config">8. 設定 — <code>~/.tmux.conf</code></h2>
+    <div class="panel">
+      <p>tmux 内から設定を再読込するには <code>C-b :</code> のあと <code>source-file ~/.tmux.conf</code>。あるいはバインドしてしまいましょう。</p>
+      <pre style="background:#06100a;border:1px solid #16241a;border-radius:8px;padding:14px;color:var(--ink);overflow:auto"><span class="muted"># プレフィックスを Ctrl-a に再マップ</span>
+unbind C-b
+set -g prefix C-a
+bind C-a send-prefix
+
+<span class="muted"># ウィンドウ/ペインのインデックスを 1 から開始 (1..9 のキーが届きやすい)</span>
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+<span class="muted"># vim スタイルのペイン移動</span>
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+
+<span class="muted"># 現在のパスを保つまともな分割</span>
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+
+<span class="muted"># マウス + vi コピーモード</span>
+set -g mouse on
+setw -g mode-keys vi
+bind r source-file ~/.tmux.conf \; display "config reloaded"
+
+<span class="muted"># スクロールバックを大きく</span>
+set -g history-limit 50000</pre>
+    </div>
+
+    <!-- 9. Plugins -->
+    <h2 id="plugins">9. プラグイン (TPM)</h2>
+    <div class="panel">
+      <p><b>TPM</b> = <a href="https://github.com/tmux-plugins/tpm" target="_blank" rel="noopener">Tmux Plugin Manager</a>。<code>~/.tmux.conf</code> に追記:</p>
+      <pre style="background:#06100a;border:1px solid #16241a;border-radius:8px;padding:14px;color:var(--ink);overflow:auto">set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'tmux-plugins/tmux-resurrect'   <span class="muted"># セッションを保存/復元</span>
+set -g @plugin 'tmux-plugins/tmux-continuum'   <span class="muted"># 起動時に自動復元</span>
+run '~/.tmux/plugins/tpm/tpm'</pre>
+      <p>tmux 内で: <code>C-b I</code> でインストール、<code>C-b U</code> で更新。<code>tmux-resurrect</code> はセッションツリー全体をチェックポイントできます。<code>tmux-continuum</code> は 15 分ごとに自動保存し起動時にリロード — ノート PC を再起動しても作業は失われない。</p>
+    </div>
+
+    <!-- SIMULATOR -->
+    <h2 id="sim">シミュレーター <span class="pill">ライブキーコード</span></h2>
+    <div class="panel term-wrap">
+      <p class="muted">ターミナルをクリックして実際のバインドを試してみましょう。まず <kbd>Ctrl</kbd>+<kbd>b</kbd> を押すとプレフィックスインジケータが光ります。続いて次のキーを押します。発火させたユニークなコードはそれぞれ章のテーブルでチェック ✓ され、XP を獲得します。</p>
+      <div class="term" id="sim-term" tabindex="0" aria-label="tmux シミュレーター">
+        <div class="term-bar">
+          <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          <div class="term-title">~ tmux ~ dojo @ localhost</div>
+          <div></div>
+        </div>
+        <div class="tmux-status" id="sim-status">
+          <span class="session" id="sim-sess-name">[work]</span>
+          <span class="window active" id="sim-w0">0:editor*</span>
+          <span class="window" id="sim-w1" style="display:none">1:logs</span>
+          <span class="window" id="sim-w2" style="display:none">2:shell</span>
+          <span class="right" id="sim-clock">--:--</span>
+        </div>
+        <div class="term-body" id="sim-body">
+          <div class="pane active" data-pane="0">
+            <div class="ps1"><b>johnsmith</b>@<b>dojo</b>:~/work$ <span class="cursor"></span></div>
+            <div class="out" id="pane-out-0"></div>
+          </div>
+        </div>
+        <div class="term-footer">
+          <span class="keyhint">プレフィックス:</span>
+          <span id="sim-prefix-ind" class="badge">待機中</span>
+          <span class="keyhint">直前:</span>
+          <span id="sim-last" class="badge">—</span>
+          <span style="margin-left:auto" class="muted" id="sim-msg">クリックでフォーカス</span>
+        </div>
+      </div>
+      <div class="sim-actions">
+        <button class="btn" data-cheat="C-b %">C-b % を試す</button>
+        <button class="btn" data-cheat="C-b &quot;">C-b " を試す</button>
+        <button class="btn" data-cheat="C-b c">C-b c を試す</button>
+        <button class="btn" data-cheat="C-b z">C-b z を試す</button>
+        <button class="btn" data-cheat="C-b d">C-b d を試す</button>
+        <button class="btn" data-cheat="C-b x">C-b x を試す</button>
+        <button class="btn warn" id="sim-reset">ターミナルをリセット</button>
+      </div>
+    </div>
+
+    <!-- PRACTICE -->
+    <h2 id="practice">練習モード <span class="pill" id="pq-counter">0 / 18</span></h2>
+    <div class="practice">
+      <div class="quest" id="quest-card">
+        <div class="tag" id="q-tag">— エクササイズ —</div>
+        <div class="prompt" id="q-prompt">読み込み中…</div>
+        <div class="input-row">
+          <input id="q-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="ここに答えを入力して Enter…" />
+          <button class="btn primary" id="q-submit">送信 ⏎</button>
+          <button class="btn" id="q-skip">スキップ</button>
+          <button class="btn" id="q-hint-btn">ヒント</button>
+        </div>
+        <div class="feedback" id="q-feedback"></div>
+        <div class="hint" id="q-hint" style="display:none"></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn" id="q-prev">◀ 前へ</button>
+          <button class="btn" id="q-next">次へ ▶</button>
+          <span class="muted" style="margin-left:8px" id="q-meta"></span>
+        </div>
+      </div>
+      <div>
+        <h3>クエストログ</h3>
+        <div class="pquest-list" id="pq-list"></div>
+      </div>
+    </div>
+
+    <!-- ACHIEVEMENTS -->
+    <h2>実績</h2>
+    <div class="panel">
+      <div class="achs" id="achs"></div>
+    </div>
+
+    <!-- BOSS -->
+    <h2 id="boss">ボス: マルチプレクサマスター</h2>
+    <div class="boss panel" id="boss-panel">
+      <p>5 ラウンド。各 30 秒。ヒントなし。誤答は HP を消耗。生き延びれば <b>マルチプレクサマスター</b> の冠を獲得。</p>
+      <div class="row" style="margin:8px 0">
+        <span class="badge" id="boss-round">ラウンド 0/5</span>
+        <span class="badge" id="boss-timer">--秒</span>
+        <span class="badge" id="boss-streak">連勝 0</span>
+        <button class="btn primary" id="boss-start">戦闘開始</button>
+        <button class="btn" id="boss-stop" style="display:none">降参</button>
+      </div>
+      <div class="hp"><div id="boss-hp"></div></div>
+      <div style="margin-top:14px" id="boss-quest-wrap" hidden>
+        <div class="quest" style="border-color:#341d2c">
+          <div class="tag" id="bq-tag">ラウンド —</div>
+          <div class="prompt" id="bq-prompt">—</div>
+          <div class="input-row">
+            <input id="bq-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="解答…" />
+            <button class="btn primary" id="bq-submit">送信 ⏎</button>
+          </div>
+          <div class="feedback" id="bq-feedback"></div>
+        </div>
+      </div>
+    </div>
+
+    <hr/>
+    <p class="muted" style="text-align:center">ターミナル好きのために。進捗は <code>localStorage</code> に保存されます。<button class="btn warn" id="reset-progress2">すべての進捗をリセット</button></p>
+  </main>
+
+  <div class="toasts" id="toasts"></div>
+  <div class="chord-overlay" id="chord-ov"></div>
+  <canvas class="confetti" id="confetti"></canvas>
+
+<script>
+"use strict";
+/* =====================================================================
+   tmux dojo — single-file interactive learning app
+   ===================================================================== */
+
+const $  = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+const LS_KEY = "tmuxDojoState_v1";
+
+/* ---------------- state ---------------- */
+const initialState = {
+  xp: 0,
+  bestCombo: 0,
+  practiced: {},          // { questIdx: true }
+  bindings: {},           // { bindingId: true } — chord-table ✓
+  achievements: {},       // { id: true }
+  bossWon: false,
+  crt: true,
+};
+let state = loadState();
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return {...initialState};
+    return Object.assign({}, initialState, JSON.parse(raw));
+  }catch(e){ return {...initialState} }
+}
+function saveState(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+}
+
+/* ---------------- level table ---------------- */
+const LEVELS = [
+  {min:0,    name:"Tabby Recruit"},
+  {min:50,   name:"Pane Apprentice"},
+  {min:120,  name:"Window Wrangler"},
+  {min:220,  name:"Session Surgeon"},
+  {min:340,  name:"Prefix Whisperer"},
+  {min:480,  name:"Layout Architect"},
+  {min:640,  name:"Multiplexer Master"},
+];
+function levelInfo(xp){
+  let i = 0;
+  for(let k=0;k<LEVELS.length;k++) if(xp >= LEVELS[k].min) i = k;
+  const cur = LEVELS[i];
+  const nxt = LEVELS[i+1];
+  const frac = nxt ? (xp - cur.min) / (nxt.min - cur.min) : 1;
+  return {idx:i+1, name:cur.name, frac, next:nxt};
+}
+
+/* ---------------- toasts ---------------- */
+function toast(msg, kind=""){
+  const wrap = $("#toasts");
+  const el = document.createElement("div");
+  el.className = "toast " + kind;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity = "0"; el.style.transition="opacity .3s"; }, 2200);
+  setTimeout(()=>{ el.remove(); }, 2700);
+}
+
+/* ---------------- confetti ---------------- */
+const confettiCanvas = $("#confetti");
+const cctx = confettiCanvas.getContext("2d");
+let cParticles = [];
+let cRunning = false;
+function resizeCC(){ confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+addEventListener("resize", resizeCC); resizeCC();
+function confetti(n=60, x=null, y=null){
+  const cx = x ?? innerWidth/2;
+  const cy = y ?? innerHeight*0.45;
+  const colors = ["#39ff7a","#ffb454","#5dd6ff","#ff5dc8","#ffffff"];
+  for(let i=0;i<n;i++){
+    cParticles.push({
+      x:cx, y:cy,
+      vx:(Math.random()-.5)*8,
+      vy:Math.random()*-7-2,
+      g:0.22+Math.random()*0.1,
+      s:3+Math.random()*4,
+      a:1, life:60+Math.random()*40,
+      c:colors[Math.floor(Math.random()*colors.length)],
+      r:Math.random()*Math.PI,
+      vr:(Math.random()-.5)*0.3,
+    });
+  }
+  if(!cRunning){ cRunning = true; tickConfetti(); }
+}
+function tickConfetti(){
+  cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+  cParticles.forEach(p=>{
+    p.x += p.vx; p.y += p.vy; p.vy += p.g; p.r += p.vr; p.life--;
+    p.a = Math.max(0, Math.min(1, p.life/40));
+    cctx.save();
+    cctx.globalAlpha = p.a;
+    cctx.translate(p.x, p.y);
+    cctx.rotate(p.r);
+    cctx.fillStyle = p.c;
+    cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s);
+    cctx.restore();
+  });
+  cParticles = cParticles.filter(p => p.life>0 && p.y < confettiCanvas.height+30);
+  if(cParticles.length){ requestAnimationFrame(tickConfetti); }
+  else { cRunning = false; cctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); }
+}
+
+/* ---------------- HUD ---------------- */
+function updateHUD(){
+  const lv = levelInfo(state.xp);
+  $("#hud-level").textContent = "LV " + lv.idx;
+  $("#hud-xp").textContent = "XP " + state.xp;
+  $("#hud-combo").textContent = "コンボ " + combo;
+  $("#hud-level2").textContent = lv.idx;
+  $("#hud-level-name").textContent = lv.name;
+  $("#hud-combo2").textContent = combo;
+  $("#hud-combo-best").textContent = "最高 " + state.bestCombo;
+  const bindCount = Object.keys(state.bindings).length;
+  const bindTotal = $$("[data-bind]").length;
+  $("#hud-bindings").textContent = bindCount;
+  $("#hud-bindings-total").textContent = "/ " + bindTotal;
+  const done = Object.keys(state.practiced).length;
+  $("#hud-progress").textContent = done + " / " + QUESTS.length;
+  $("#pq-counter").textContent = done + " / " + QUESTS.length;
+  $("#hud-xpbar").style.width = (lv.frac*100).toFixed(1) + "%";
+  $("#hud-combo-card").classList.toggle("combo-on", combo >= 3);
+}
+
+/* ---------------- bindings registry ---------------- */
+/* Map chord -> binding id -> visual effect on simulator */
+const CHORDS = {
+  // sessions
+  "C-b s":   { id:"ls",       label:"choose-tree (セッション)", apply:(s)=>{ s.msg="(セッション一覧を表示)"; } },
+  "C-b d":   { id:"detach",   label:"デタッチ", apply:(s)=>{ s.detached = true; s.msg="[detached (from session work)]"; } },
+  "C-b $":   { id:"rename-s", label:"セッション名変更", apply:(s)=>{ s.msg="rename-session: 新しい名前を入力…"; s.session = "dojo"; } },
+  // windows
+  "C-b c":   { id:"new-w",    label:"新規ウィンドウ", apply:(s)=>{ s.windows.push({name:"shell"}); s.activeWin = s.windows.length-1; } },
+  "C-b ,":   { id:"rename-w", label:"ウィンドウ名変更", apply:(s)=>{ const names=["editor","logs","shell","build","db","tests","docs","monitor"]; s.windows[s.activeWin].name = names[Math.floor(Math.random()*names.length)]; } },
+  "C-b n":   { id:"next-w",   label:"次のウィンドウ", apply:(s)=>{ if(s.windows.length>1){s.activeWin=(s.activeWin+1)%s.windows.length;}} },
+  "C-b p":   { id:"prev-w",   label:"前のウィンドウ", apply:(s)=>{ if(s.windows.length>1){s.activeWin=(s.activeWin-1+s.windows.length)%s.windows.length;}} },
+  "C-b l":   { id:"last-w",   label:"直前のウィンドウ", apply:(s)=>{ if(s.lastWin!=null){[s.activeWin,s.lastWin]=[s.lastWin,s.activeWin];}} },
+  "C-b w":   { id:"list-w",   label:"choose-tree (ウィンドウ)", apply:(s)=>{ s.msg="(ウィンドウピッカー)"; } },
+  "C-b 0":   { id:"goto-w",   label:"ウィンドウ 0 へ", apply:(s)=>{ if(s.windows[0])s.activeWin=0;} },
+  "C-b 1":   { id:"goto-w",   label:"ウィンドウ 1 へ", apply:(s)=>{ if(s.windows[1])s.activeWin=1;} },
+  "C-b 2":   { id:"goto-w",   label:"ウィンドウ 2 へ", apply:(s)=>{ if(s.windows[2])s.activeWin=2;} },
+  "C-b &":   { id:"kill-w",   label:"ウィンドウを終了", apply:(s)=>{ if(s.windows.length>1){ s.windows.splice(s.activeWin,1); s.activeWin = Math.max(0, s.activeWin-1);} } },
+  // panes
+  'C-b "':   { id:"split-h",  label:"水平分割", apply:(s)=>{ s.panes.push({}); s.layout = decideLayout(s.panes.length, "h"); } },
+  "C-b %":   { id:"split-v",  label:"垂直分割", apply:(s)=>{ s.panes.push({}); s.layout = decideLayout(s.panes.length, "v"); } },
+  "C-b o":   { id:"cycle-pane",label:"ペイン循環", apply:(s)=>{ s.activePane = (s.activePane+1)%s.panes.length; } },
+  "C-b z":   { id:"zoom",     label:"ズーム切替", apply:(s)=>{ s.zoomed = !s.zoomed; } },
+  "C-b x":   { id:"kill-p",   label:"ペインを終了", apply:(s)=>{ if(s.panes.length>1){ s.panes.splice(s.activePane,1); s.activePane=Math.max(0,s.activePane-1);} else { s.panes[0].killed=true; s.msg="(唯一のペイン — ウィンドウを終了)"; } s.layout = decideLayout(s.panes.length,"h"); } },
+  "C-b !":   { id:"break-p",  label:"ペインを切り出し", apply:(s)=>{ s.windows.push({name:"broken"}); if(s.panes.length>1){ s.panes.splice(s.activePane,1); s.activePane=0;} s.layout=decideLayout(s.panes.length,"h"); } },
+  "C-b q":   { id:"num-p",    label:"ペイン番号表示", apply:(s)=>{ s.showPaneNums = true; setTimeout(()=>{s.showPaneNums=false; renderSim();}, 1100); } },
+  "C-b {":   { id:"swap",     label:"ペインを左へ入替",   apply:(s)=>{ if(s.panes.length>1){ const i=s.activePane,j=(i-1+s.panes.length)%s.panes.length;[s.panes[i],s.panes[j]]=[s.panes[j],s.panes[i]];s.activePane=j;} } },
+  "C-b }":   { id:"swap",     label:"ペインを右へ入替",  apply:(s)=>{ if(s.panes.length>1){ const i=s.activePane,j=(i+1)%s.panes.length;[s.panes[i],s.panes[j]]=[s.panes[j],s.panes[i]];s.activePane=j;} } },
+  "C-b [":   { id:"copy",     label:"コピーモードに入る", apply:(s)=>{ s.msg="-- COPY MODE --"; } },
+  "C-b ]":   { id:"paste",    label:"バッファを貼付", apply:(s)=>{ s.msg="(バッファを貼り付け)"; } },
+  "C-b ?":   { id:"help",     label:"キーバインド一覧", apply:(s)=>{ s.msg="(バインドを表示)"; } },
+  "C-b :":   { id:"cmd",      label:"コマンドプロンプト", apply:(s)=>{ s.msg=":"; } },
+  // arrow nav (treated as same id "nav-pane")
+  "C-b Up":     { id:"nav-pane", label:"上のペインを選択", apply:(s)=>{ s.activePane = (s.activePane-1+s.panes.length)%s.panes.length; } },
+  "C-b Down":   { id:"nav-pane", label:"下のペインを選択", apply:(s)=>{ s.activePane = (s.activePane+1)%s.panes.length; } },
+  "C-b Left":   { id:"nav-pane", label:"左のペインを選択",  apply:(s)=>{ s.activePane = (s.activePane-1+s.panes.length)%s.panes.length; } },
+  "C-b Right":  { id:"nav-pane", label:"右のペインを選択", apply:(s)=>{ s.activePane = (s.activePane+1)%s.panes.length; } },
+  "C-b C-Up":   { id:"resize",   label:"ペインを上へリサイズ",    apply:(s)=>{ s.msg="resize up";   } },
+  "C-b C-Down": { id:"resize",   label:"ペインを下へリサイズ",  apply:(s)=>{ s.msg="resize down"; } },
+  "C-b C-Left": { id:"resize",   label:"ペインを左へリサイズ",  apply:(s)=>{ s.msg="resize left"; } },
+  "C-b C-Right":{ id:"resize",   label:"ペインを右へリサイズ", apply:(s)=>{ s.msg="resize right";} },
+};
+
+function decideLayout(n, last){
+  if(n<=1) return "single";
+  if(n===2) return last==="v" ? "split-h" : "split-v"; // % = vertical split = side-by-side -> grid h
+  if(n===3) return "split-grid"; // grid with one empty
+  return "split-grid";
+}
+
+/* ---------------- simulator ---------------- */
+const sim = {
+  session: "work",
+  windows: [{name:"editor"}],
+  activeWin: 0,
+  lastWin: null,
+  panes: [{}],
+  activePane: 0,
+  layout: "single",
+  zoomed: false,
+  detached: false,
+  msg: "",
+  showPaneNums: false,
+};
+function resetSim(){
+  sim.session="work"; sim.windows=[{name:"editor"}]; sim.activeWin=0; sim.lastWin=null;
+  sim.panes=[{}]; sim.activePane=0; sim.layout="single"; sim.zoomed=false; sim.detached=false; sim.msg=""; sim.showPaneNums=false;
+  renderSim();
+}
+function renderSim(){
+  const status = $("#sim-status");
+  $("#sim-sess-name").textContent = sim.detached ? "[detached]" : `[${sim.session}]`;
+  // windows
+  status.querySelectorAll(".window").forEach(el => el.remove());
+  // re-insert before .right
+  const rightEl = $("#sim-clock");
+  sim.windows.forEach((w, i) => {
+    const span = document.createElement("span");
+    span.className = "window" + (i===sim.activeWin ? " active":"");
+    span.textContent = `${i}:${w.name}${i===sim.activeWin?"*":""}`;
+    status.insertBefore(span, rightEl);
+  });
+  // body
+  const body = $("#sim-body");
+  body.className = "term-body " + (sim.layout==="single" ? "" : sim.layout);
+  body.innerHTML = "";
+  if(sim.detached){
+    const d = document.createElement("div");
+    d.className = "pane";
+    d.innerHTML = `<div class="ps1"><b>johnsmith</b>@<b>dojo</b>:~$ <span class="cursor"></span></div>
+      <div class="out">[detached (from session ${sim.session})]\n戻るには <code>tmux attach -t ${sim.session}</code> を実行してください。</div>`;
+    body.appendChild(d);
+  } else {
+    sim.panes.forEach((p, i) => {
+      const div = document.createElement("div");
+      div.className = "pane" + (i===sim.activePane?" active":"") + (sim.zoomed && i===sim.activePane?" zoomed":"") + (p.killed?" killed":"");
+      div.dataset.pane = i;
+      const num = sim.showPaneNums ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;color:var(--phos);opacity:.65;font-weight:700;text-shadow:0 0 12px rgba(57,255,122,.6)">${i}</div>` : "";
+      const winName = sim.windows[sim.activeWin]?.name || "shell";
+      div.innerHTML = `${num}
+        <div class="ps1"><b>johnsmith</b>@<b>dojo</b>:~/work [${winName}#${i}]$ <span class="cursor"></span></div>
+        <div class="out">${i===sim.activePane && sim.msg ? escapeHtml(sim.msg) : ""}</div>`;
+      div.addEventListener("click", (e)=>{ sim.activePane = i; renderSim(); $("#sim-term").focus(); e.stopPropagation(); });
+      body.appendChild(div);
+    });
+  }
+  // clock
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  $("#sim-clock").textContent = `${hh}:${mm}`;
+}
+function escapeHtml(s){ return String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"})[c]); }
+setInterval(()=>{
+  const d = new Date();
+  $("#sim-clock").textContent = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}, 30000);
+renderSim();
+
+/* ---------------- key handling ---------------- */
+let prefixHot = false;
+let prefixTimer = null;
+const PREFIX_TIMEOUT_MS = 2400;
+const term = $("#sim-term");
+
+function setPrefixHot(v){
+  prefixHot = v;
+  const ind = $("#sim-prefix-ind");
+  if(v){
+    ind.textContent = "C-b ●";
+    ind.classList.add("on");
+    ind.style.color = "var(--amber)";
+    ind.style.borderColor = "var(--amber)";
+    ind.style.boxShadow = "0 0 0 1px rgba(255,180,84,.25)";
+  } else {
+    ind.textContent = "待機中";
+    ind.classList.remove("on");
+    ind.style.color = "";
+    ind.style.borderColor = "";
+    ind.style.boxShadow = "";
+  }
+}
+
+function showChordOverlay(text){
+  const ov = $("#chord-ov");
+  ov.textContent = text;
+  ov.classList.add("show");
+  clearTimeout(showChordOverlay._t);
+  showChordOverlay._t = setTimeout(()=>{ ov.classList.remove("show"); }, 700);
+}
+
+function keyName(e){
+  // Returns canonical key for the second-key press
+  if(["Control","Shift","Alt","Meta"].includes(e.key)) return null;
+  // arrow keys
+  if(e.key === "ArrowUp")    return e.ctrlKey ? "C-Up"    : "Up";
+  if(e.key === "ArrowDown")  return e.ctrlKey ? "C-Down"  : "Down";
+  if(e.key === "ArrowLeft")  return e.ctrlKey ? "C-Left"  : "Left";
+  if(e.key === "ArrowRight") return e.ctrlKey ? "C-Right" : "Right";
+  // Single char
+  if(e.key.length === 1) return e.key;
+  return e.key;
+}
+
+function fireChord(chord){
+  $("#sim-last").textContent = chord;
+  showChordOverlay(chord);
+  const def = CHORDS[chord];
+  if(!def){
+    $("#sim-msg").textContent = `未知のコード: ${chord}`;
+    return;
+  }
+  // remember last window before changing
+  const before = sim.activeWin;
+  def.apply(sim);
+  if(sim.activeWin !== before) sim.lastWin = before;
+  $("#sim-msg").textContent = def.label;
+  renderSim();
+  // mark binding practiced
+  if(def.id && !state.bindings[def.id]){
+    state.bindings[def.id] = true;
+    saveState();
+    addXP(5, `+5 XP — ${def.label} を初めて使った`);
+    refreshBindingTables();
+    checkAchievements();
+  }
+}
+
+term.addEventListener("keydown", (e) => {
+  // Ctrl+b — start prefix
+  if(e.key === "b" && e.ctrlKey && !e.metaKey && !e.altKey){
+    e.preventDefault();
+    setPrefixHot(true);
+    $("#sim-msg").textContent = "プレフィックス装填済み — 次のキーを押してください";
+    clearTimeout(prefixTimer);
+    prefixTimer = setTimeout(()=>{
+      setPrefixHot(false);
+      $("#sim-msg").textContent = "(プレフィックスがタイムアウト)";
+    }, PREFIX_TIMEOUT_MS);
+    return;
+  }
+  if(prefixHot){
+    const k = keyName(e);
+    if(!k) return;
+    e.preventDefault();
+    clearTimeout(prefixTimer);
+    setPrefixHot(false);
+    const chord = `C-b ${k}`;
+    fireChord(chord);
+  } else {
+    // swallow nothing, allow scroll/normal interaction
+  }
+});
+
+term.addEventListener("focus", ()=>{ $("#sim-msg").textContent = "準備完了 — Ctrl+b の後にキーを試してみよう"; });
+term.addEventListener("blur",  ()=>{ if(!prefixHot) $("#sim-msg").textContent = "クリックでフォーカス"; });
+
+/* cheat buttons */
+$$("[data-cheat]").forEach(btn => {
+  btn.addEventListener("click", ()=>{
+    fireChord(btn.dataset.cheat);
+    term.focus();
+  });
+});
+$("#sim-reset").addEventListener("click", resetSim);
+
+/* ---------------- chapter tables ✓ ---------------- */
+function refreshBindingTables(){
+  $$("[data-bind]").forEach(tr => {
+    const id = tr.dataset.bind;
+    if(state.bindings[id]) tr.classList.add("practiced");
+    else tr.classList.remove("practiced");
+  });
+  updateHUD();
+}
+refreshBindingTables();
+
+/* =====================================================================
+   PRACTICE MODE
+   ===================================================================== */
+
+/* Each quest has:
+   - id (stable)
+   - tag (badge label)
+   - prompt (HTML allowed)
+   - hint
+   - check(input) -> bool   (accepts variants)
+   - canon (the canonical answer to display on success)
+   - xp
+*/
+function norm(s){ return String(s||"").trim().replace(/\s+/g," "); }
+function lower(s){ return norm(s).toLowerCase(); }
+
+const QUESTS = [
+  // 1. Command typing
+  {
+    tag: "コマンド",
+    prompt: "<code>work</code> という名前の新しい tmux セッションを作成。",
+    hint: "<code>tmux new</code> サブコマンドと <code>-s</code> を使用。",
+    canon: "tmux new -s work",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(new|new-session)(\s+-d)?\s+-s\s+work$/.test(s);
+    },
+  },
+  {
+    tag: "コマンド",
+    prompt: "シェルから動作中の tmux セッションを一覧表示。",
+    hint: "<code>ls</code> もここではサブコマンドとして使える。",
+    canon: "tmux ls",
+    xp: 8,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(ls|list-sessions)$/.test(s);
+    },
+  },
+  {
+    tag: "シナリオ",
+    prompt: "SSH が切断されましたが tmux セッション <code>dev</code> で作業中でした。<b>再アタッチ</b>するコマンドを入力。",
+    hint: "サブコマンドは <code>attach</code>、ターゲットは <code>-t</code>。",
+    canon: "tmux attach -t dev",
+    xp: 12,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(a|at|att|attach|attach-session)(\s+-d)?\s+-t\s+dev$/.test(s);
+    },
+  },
+  {
+    tag: "コマンド",
+    prompt: "<code>old</code> という名前の tmux セッションを終了。",
+    hint: "<code>kill-session -t &lt;name&gt;</code>",
+    canon: "tmux kill-session -t old",
+    xp: 8,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+kill-session\s+-t\s+old$/.test(s);
+    },
+  },
+  {
+    tag: "コマンド",
+    prompt: "<code>build</code> という名前の <em>デタッチ済み</em> セッションを開始(すぐにアタッチしない)。",
+    hint: "<code>tmux new -s</code> に <code>-d</code> を追加。",
+    canon: "tmux new -d -s build",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v);
+      return /^tmux\s+(new|new-session)\s+(-d\s+-s\s+build|-s\s+build\s+-d)$/.test(s);
+    },
+  },
+
+  // 2. Binding drills
+  {
+    tag: "バインド",
+    prompt: "tmux 内で、現在のペインを <b>水平方向</b>(上下)に分割する方法は?",
+    hint: 'プレフィックスの後にダブルクオート文字。',
+    canon: 'C-b "',
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      // accept C-b ", Ctrl-b ", Ctrl+b ", prefix ", "
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?(["])$/.test(s) || s === '"' || s === 'c-b"';
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "現在のペインを <b>垂直方向</b>(左右)に分割するには?",
+    hint: 'プレフィックスの後にパーセント記号。',
+    canon: "C-b %",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?(%)$/.test(s) || s === "%" || s === "c-b%";
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "現在のセッションからデタッチ。",
+    hint: 'プレフィックスの後に "d"。',
+    canon: "C-b d",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?d$/.test(s);
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "現在のペインの <b>ズーム</b>(全画面)を切替。",
+    hint: "z が魔法の文字。",
+    canon: "C-b z",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?z$/.test(s);
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "現在のセッションに <b>新しいウィンドウ</b> を作成。",
+    hint: "create の c。",
+    canon: "C-b c",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?c$/.test(s);
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "切替用の <b>セッション</b> 対話的リストを開く。",
+    hint: "sessions の s。",
+    canon: "C-b s",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?s$/.test(s);
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "出力をスクロールバックするため <b>コピーモード</b> に入る。",
+    hint: "プレフィックスと角括弧。",
+    canon: "C-b [",
+    xp: 9,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?\[$/.test(s);
+    },
+  },
+  {
+    tag: "バインド",
+    prompt: "現在のペインを終了(確認付き)。",
+    hint: "x が当たりの印。",
+    canon: "C-b x",
+    xp: 8,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?x$/.test(s);
+    },
+  },
+
+  // 3. Config drills
+  {
+    tag: "設定",
+    prompt: "<code>~/.tmux.conf</code> で <b>プレフィックスを <code>Ctrl-a</code> に再マップ</b> する行を入力。",
+    hint: "グローバルオプション: <code>set -g prefix …</code>",
+    canon: "set -g prefix C-a",
+    xp: 12,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return s === "set -g prefix c-a" || s === "set-option -g prefix c-a";
+    },
+  },
+  {
+    tag: "設定",
+    prompt: "コピーモードで <b>vi スタイルキー</b> を有効化する行を入力。",
+    hint: "<code>setw -g mode-keys vi</code>",
+    canon: "setw -g mode-keys vi",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return s === "setw -g mode-keys vi" || s === "set-window-option -g mode-keys vi" || s === "set -g mode-keys vi";
+    },
+  },
+  {
+    tag: "設定",
+    prompt: "tmux サーバー全体で <b>マウスサポート</b> を有効化。",
+    hint: "<code>set -g mouse on</code>",
+    canon: "set -g mouse on",
+    xp: 8,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return s === "set -g mouse on" || s === "set-option -g mouse on";
+    },
+  },
+
+  // 4. More scenarios
+  {
+    tag: "シナリオ",
+    prompt: "tmux 内から再起動なしで設定を <b>再読込</b> したい。<code>C-b :</code> の後に実行するコマンドは?",
+    hint: "<code>source-file</code> がキーワード。",
+    canon: "source-file ~/.tmux.conf",
+    xp: 10,
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^(source|source-file)\s+~\/\.tmux\.conf$/.test(s);
+    },
+  },
+  {
+    tag: "シナリオ",
+    prompt: "プレフィックスがまだ C-b の状態で、tmux 内のプログラムに <b>リテラルの</b> Ctrl-b を送るには?どのコードを押す?",
+    hint: "プレフィックスを 2 回押す。",
+    canon: "C-b C-b",
+    xp: 9,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return s === "c-bc-b" || s === "ctrl-bctrl-b" || s === "ctrl+bctrl+b";
+    },
+  },
+  {
+    tag: "シナリオ",
+    prompt: "<code>~/.tmux.conf</code> の編集後、<a target=\"_blank\" rel=\"noopener\" href=\"https://github.com/tmux-plugins/tpm\">TPM</a> のプラグインをインストール。tmux 内のキーコードは?",
+    hint: "Install の大文字 I。",
+    canon: "C-b I",
+    xp: 9,
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?i$/.test(s);
+    },
+  },
+];
+
+let curQuest = 0;
+let combo = 0;
+let hintsUsed = 0;
+
+function renderQuestList(){
+  const list = $("#pq-list");
+  list.innerHTML = "";
+  QUESTS.forEach((q, i) => {
+    const div = document.createElement("div");
+    div.className = "pq" + (state.practiced[i] ? " done" : "") + (i===curQuest ? " cur" : "");
+    div.innerHTML = `<span class="num">${String(i+1).padStart(2,"0")}</span>
+      <span class="ttl">[${q.tag}] ${stripTags(q.prompt).slice(0,72)}${stripTags(q.prompt).length>72?"…":""}</span>
+      <span class="st">${state.practiced[i] ? "✓" : (q.xp+" xp")}</span>`;
+    div.addEventListener("click", ()=>{ curQuest = i; renderQuest(); });
+    list.appendChild(div);
+  });
+}
+function stripTags(s){ return String(s).replace(/<[^>]+>/g, ""); }
+
+function renderQuest(){
+  const q = QUESTS[curQuest];
+  $("#q-tag").textContent = `— ${q.tag} ${curQuest+1}/${QUESTS.length} —`;
+  $("#q-prompt").innerHTML = q.prompt;
+  $("#q-hint").style.display = "none";
+  $("#q-hint").innerHTML = q.hint;
+  $("#q-feedback").textContent = "";
+  $("#q-feedback").className = "feedback";
+  $("#q-input").value = "";
+  $("#q-input").focus();
+  $("#q-meta").textContent = (state.practiced[curQuest] ? "✓ 既にマスター済み — " : "") + `${q.xp} XP 獲得`;
+  renderQuestList();
+}
+
+function submitQuest(){
+  const q = QUESTS[curQuest];
+  const v = $("#q-input").value;
+  const card = $("#quest-card");
+  if(q.check(v)){
+    const earn = state.practiced[curQuest] ? Math.ceil(q.xp/3) : q.xp;
+    state.practiced[curQuest] = true;
+    combo += 1;
+    if(combo > state.bestCombo) state.bestCombo = combo;
+    addXP(earn, `+${earn} XP — 正解!`);
+    $("#q-feedback").innerHTML = `<span class="ok">✓ 正解</span> — 標準解: <code>${escapeHtml(q.canon)}</code>${combo>=2?` &nbsp; <span class="warn">コンボ x${combo}</span>`:""}`;
+    $("#q-feedback").className = "feedback ok";
+    card.classList.add("glow-ok");
+    setTimeout(()=>card.classList.remove("glow-ok"), 800);
+    confetti(40 + Math.min(60, combo*10));
+    if(combo > 0 && combo % 5 === 0){
+      addXP(15, `コンボ x${combo} ボーナス +15 XP`);
+    }
+    saveState();
+    checkAchievements();
+    setTimeout(()=>{ if(curQuest < QUESTS.length-1){ curQuest++; renderQuest(); } else { renderQuest(); toast("18 個すべてのエクササイズ完了!", "warn"); } }, 850);
+  } else {
+    combo = 0;
+    card.classList.add("shake");
+    setTimeout(()=>card.classList.remove("shake"), 400);
+    $("#q-feedback").innerHTML = `<span class="bad">✗ 惜しい</span> — もう一度、またはヒントを覗いてみよう`;
+    $("#q-feedback").className = "feedback bad";
+    saveState();
+  }
+  updateHUD();
+  renderQuestList();
+}
+
+$("#q-submit").addEventListener("click", submitQuest);
+$("#q-input").addEventListener("keydown", (e) => { if(e.key==="Enter"){ e.preventDefault(); submitQuest(); }});
+$("#q-skip").addEventListener("click", ()=>{ combo = 0; curQuest = (curQuest+1)%QUESTS.length; renderQuest(); updateHUD(); });
+$("#q-prev").addEventListener("click", ()=>{ curQuest = (curQuest-1+QUESTS.length)%QUESTS.length; renderQuest(); });
+$("#q-next").addEventListener("click", ()=>{ curQuest = (curQuest+1)%QUESTS.length; renderQuest(); });
+$("#q-hint-btn").addEventListener("click", ()=>{
+  hintsUsed++;
+  $("#q-hint").style.display = "block";
+});
+
+/* ---------------- XP / leveling ---------------- */
+function addXP(n, label){
+  const oldLv = levelInfo(state.xp).idx;
+  state.xp += n;
+  const newLv = levelInfo(state.xp).idx;
+  if(label) toast(label, "warn");
+  if(newLv > oldLv){
+    const info = levelInfo(state.xp);
+    toast(`レベルアップ — ${info.name}!`, "");
+    confetti(140);
+    if(info.idx >= 7) unlockAch("master");
+  }
+  saveState();
+  updateHUD();
+}
+
+/* ---------------- achievements ---------------- */
+const ACHIEVEMENTS = [
+  { id:"first_chord",  em:"⌨️", nm:"最初のコード",        ds:"シミュレーターで C-b 系のバインドを発火した。" },
+  { id:"split_master", em:"⫤", nm:"分割マスター",       ds:"C-b \" と C-b % を両方使った。" },
+  { id:"pane_juggler", em:"🤹", nm:"ペインジャグラー",      ds:"ペイン関連バインドを 8 種類発火した。" },
+  { id:"window_wiz",   em:"🪟", nm:"ウィンドウの魔術師",     ds:"ウィンドウ関連バインドを 5 種類発火した。" },
+  { id:"copy_cat",     em:"📋", nm:"コピーキャット",           ds:"コピーモード(C-b [)に入った。" },
+  { id:"detacher",     em:"🔌", nm:"デタッチャー",       ds:"シミュレーターのセッションからデタッチした。" },
+  { id:"combo_5",      em:"🔥", nm:"絶好調",            ds:"練習で 5 連続正解のコンボを達成。" },
+  { id:"combo_10",     em:"⚡", nm:"無敵",         ds:"10 連続正解のコンボを達成。" },
+  { id:"all_quests",   em:"🏆", nm:"道場卒業生",      ds:"18 個すべての入力エクササイズを完了。" },
+  { id:"boss",         em:"👑", nm:"マルチプレクサマスター",  ds:"ボスを倒した。" },
+  { id:"master",       em:"🎖️", nm:"最大レベル",          ds:"レベル 7 に到達。" },
+  { id:"all_bindings", em:"🗝️", nm:"鍵の番人",         ds:"章のテーブルにあるすべてのコードを練習した。" },
+];
+
+function renderAchs(){
+  const wrap = $("#achs");
+  wrap.innerHTML = "";
+  ACHIEVEMENTS.forEach(a => {
+    const div = document.createElement("div");
+    div.className = "ach" + (state.achievements[a.id] ? " unlocked" : "");
+    div.innerHTML = `<div class="em">${a.em}</div><div class="nm">${a.nm}</div><div class="ds">${a.ds}</div>`;
+    wrap.appendChild(div);
+  });
+}
+function unlockAch(id){
+  if(state.achievements[id]) return;
+  state.achievements[id] = true;
+  saveState();
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  if(a){
+    toast(`🏅 解放 — ${a.nm}`, "");
+    confetti(80);
+  }
+  renderAchs();
+}
+function checkAchievements(){
+  const bindIds = Object.keys(state.bindings);
+  if(bindIds.length >= 1) unlockAch("first_chord");
+  if(state.bindings["split-h"] && state.bindings["split-v"]) unlockAch("split_master");
+
+  const paneIds = ["split-h","split-v","nav-pane","cycle-pane","resize","zoom","swap","kill-p","break-p","num-p"];
+  if(paneIds.filter(x=>state.bindings[x]).length >= 8) unlockAch("pane_juggler");
+
+  const winIds = ["new-w","rename-w","next-w","prev-w","last-w","goto-w","kill-w","list-w"];
+  if(winIds.filter(x=>state.bindings[x]).length >= 5) unlockAch("window_wiz");
+
+  if(state.bindings["copy"]) unlockAch("copy_cat");
+  if(state.bindings["detach"]) unlockAch("detacher");
+
+  if(state.bestCombo >= 5) unlockAch("combo_5");
+  if(state.bestCombo >= 10) unlockAch("combo_10");
+
+  if(Object.keys(state.practiced).length >= QUESTS.length) unlockAch("all_quests");
+
+  // all bindings rows (chapter tables)
+  const allBindIds = $$("[data-bind]").map(tr => tr.dataset.bind);
+  const uniq = [...new Set(allBindIds)];
+  if(uniq.every(id => state.bindings[id])) unlockAch("all_bindings");
+
+  if(state.bossWon) unlockAch("boss");
+  if(levelInfo(state.xp).idx >= 7) unlockAch("master");
+}
+
+/* =====================================================================
+   BOSS — Multiplexer Master
+   ===================================================================== */
+
+const BOSS_ROUNDS = [
+  {
+    prompt: "<code>prod</code> という名前のデタッチ済みセッションをワンライナーで生成。",
+    canon: "tmux new -d -s prod",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^tmux\s+(new|new-session)\s+(-d\s+-s\s+prod|-s\s+prod\s+-d)$/.test(s);
+    },
+  },
+  {
+    prompt: "tmux 内で: 現在のペインを <b>独立したウィンドウに切り出す</b>。(バインド)",
+    canon: "C-b !",
+    check: (v) => {
+      const s = norm(v).replace(/\s+/g,"").toLowerCase();
+      return /^(c-b|ctrl-?b|prefix|<prefix>)?!$/.test(s);
+    },
+  },
+  {
+    prompt: "スクロールバックを 50,000 行に増やす <code>~/.tmux.conf</code> の行を入力。",
+    canon: "set -g history-limit 50000",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^set(-option)?\s+-g\s+history-limit\s+50000$/.test(s);
+    },
+  },
+  {
+    prompt: "tmux の外側から: 全セッションを一覧表示し <code>dev</code> を grep。",
+    canon: "tmux ls | grep dev",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      return /^tmux\s+(ls|list-sessions)\s*\|\s*grep\s+(-i\s+)?dev$/.test(s);
+    },
+  },
+  {
+    prompt: "シェルから: 既存セッション <code>work</code> にアタッチし、なければ作成 — ワンコマンドで、スクリプト不可。",
+    canon: "tmux new -A -s work",
+    check: (v) => {
+      const s = lower(v).replace(/\s+/g," ");
+      // tmux new -A -s work  (or tmux new-session -A -s work). Any order of -A and -s work.
+      return /^tmux\s+(new|new-session)\s+(?=.*-a)(?=.*-s\s+work).+$/.test(s);
+    },
+  },
+];
+
+let bossActive = false;
+let bossRound = 0;
+let bossHP = 100;
+let bossTimer = null;
+let bossTimeLeft = 30;
+let bossStreak = 0;
+
+function setBossUI(){
+  $("#boss-round").textContent = `ラウンド ${bossRound}/${BOSS_ROUNDS.length}`;
+  $("#boss-timer").textContent = bossActive ? `${bossTimeLeft}秒` : "--秒";
+  $("#boss-streak").textContent = `連勝 ${bossStreak}`;
+  $("#boss-hp").style.width = Math.max(0, bossHP) + "%";
+}
+
+function startBoss(){
+  bossActive = true; bossRound = 0; bossHP = 100; bossStreak = 0;
+  $("#boss-start").style.display = "none";
+  $("#boss-stop").style.display = "";
+  $("#boss-quest-wrap").hidden = false;
+  setBossUI();
+  nextBossRound();
+}
+function stopBoss(victory=false){
+  bossActive = false;
+  clearInterval(bossTimer); bossTimer = null;
+  $("#boss-start").style.display = "";
+  $("#boss-stop").style.display = "none";
+  $("#boss-quest-wrap").hidden = true;
+  $("#bq-input").value = "";
+  if(victory){
+    state.bossWon = true; saveState();
+    addXP(120, "+120 XP — ボスを撃破!");
+    unlockAch("boss");
+    confetti(220);
+    toast("👑 マルチプレクサマスター — 完全勝利。", "");
+  }
+  setBossUI();
+}
+function nextBossRound(){
+  if(!bossActive) return;
+  if(bossRound >= BOSS_ROUNDS.length){
+    stopBoss(true);
+    return;
+  }
+  const r = BOSS_ROUNDS[bossRound];
+  $("#bq-tag").textContent = `ラウンド ${bossRound+1}/${BOSS_ROUNDS.length}`;
+  $("#bq-prompt").innerHTML = r.prompt;
+  $("#bq-feedback").textContent = "";
+  $("#bq-input").value = "";
+  $("#bq-input").focus();
+  bossTimeLeft = 30;
+  setBossUI();
+  clearInterval(bossTimer);
+  bossTimer = setInterval(()=>{
+    if(!bossActive) return;
+    bossTimeLeft--;
+    setBossUI();
+    if(bossTimeLeft <= 0){
+      bossHP -= 25;
+      bossStreak = 0;
+      $("#bq-feedback").innerHTML = `<span class="bad">✗ 時間切れ</span> — 答えは <code>${escapeHtml(r.canon)}</code>`;
+      bossRound++;
+      if(bossHP <= 0){ toast("敗北 — マスターの嘲笑が聞こえる。", "bad"); stopBoss(false); return; }
+      setTimeout(nextBossRound, 1100);
+      clearInterval(bossTimer);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  if(!bossActive) return;
+  const r = BOSS_ROUNDS[bossRound];
+  const v = $("#bq-input").value;
+  if(r.check(v)){
+    bossStreak++;
+    addXP(20, `+20 XP — ラウンド ${bossRound+1} クリア`);
+    $("#bq-feedback").innerHTML = `<span class="ok">✓</span> 標準解 <code>${escapeHtml(r.canon)}</code>`;
+    confetti(50);
+    bossRound++;
+    setBossUI();
+    clearInterval(bossTimer);
+    setTimeout(nextBossRound, 700);
+  } else {
+    bossHP -= 18;
+    bossStreak = 0;
+    $("#bq-feedback").innerHTML = `<span class="bad">✗</span> 不正解 — HP -18`;
+    setBossUI();
+    if(bossHP <= 0){ toast("敗北 — マスターの嘲笑が聞こえる。", "bad"); stopBoss(false); }
+  }
+}
+$("#boss-start").addEventListener("click", startBoss);
+$("#boss-stop").addEventListener("click", ()=>stopBoss(false));
+$("#bq-submit").addEventListener("click", submitBoss);
+$("#bq-input").addEventListener("keydown", (e)=>{ if(e.key==="Enter"){ e.preventDefault(); submitBoss(); }});
+
+/* ---------------- top controls ---------------- */
+$("#toggle-crt").addEventListener("click", () => {
+  state.crt = !state.crt;
+  document.body.classList.toggle("crt", state.crt);
+  $("#toggle-crt").textContent = "crt: " + (state.crt ? "オン" : "オフ");
+  saveState();
+});
+function resetAll(){
+  if(!confirm("XP、実績、練習進捗をすべて消去しますか?")) return;
+  localStorage.removeItem(LS_KEY);
+  state = {...initialState};
+  combo = 0;
+  curQuest = 0;
+  resetSim();
+  refreshBindingTables();
+  renderAchs();
+  renderQuestList();
+  renderQuest();
+  updateHUD();
+  document.body.classList.toggle("crt", state.crt);
+  toast("進捗を消去 — 新たなスタート", "warn");
+}
+$("#reset-progress").addEventListener("click", resetAll);
+$("#reset-progress2").addEventListener("click", resetAll);
+
+/* ---------------- init ---------------- */
+function init(){
+  document.body.classList.toggle("crt", state.crt);
+  $("#toggle-crt").textContent = "crt: " + (state.crt ? "オン" : "オフ");
+  renderAchs();
+  renderQuestList();
+  renderQuest();
+  refreshBindingTables();
+  updateHUD();
+  checkAchievements();
+}
+init();
+
+/* keyboard niceties: jump into focus from anywhere */
+addEventListener("keydown", (e) => {
+  if(e.key === "Escape" && document.activeElement === $("#q-input")){
+    $("#q-input").blur();
+  }
+});
+</script>
+</body>
+</html>

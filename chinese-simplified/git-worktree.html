@@ -1,0 +1,1648 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Worktree 道场 — 精通 git worktree</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#0e0a07;
+    --bg2:#171110;
+    --panel:#1d1614;
+    --panel2:#241b18;
+    --line:#2e231f;
+    --ink:#f3e9df;
+    --ink2:#c9b8aa;
+    --muted:#8a786c;
+    --orange:#f05133; /* git orange */
+    --orange2:#ff6f3d;
+    --red:#e02424;
+    --green:#3ddc97;
+    --yellow:#f5c451;
+    --blue:#4ea1ff;
+    --purple:#b685ff;
+    --shadow:0 10px 40px rgba(0,0,0,.5);
+    --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace;
+    --sans:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(240,81,51,.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(255,111,61,.10), transparent 60%),
+      var(--bg);
+    min-height:100vh;
+  }
+
+  /* ---------- Layout ---------- */
+  header.topbar{
+    position:sticky;top:0;z-index:40;
+    backdrop-filter:blur(12px);
+    background:rgba(14,10,7,.78);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1280px;margin:0 auto;padding:14px 22px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .logo{
+    display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:.2px;
+  }
+  .logo .mark{
+    width:30px;height:30px;border-radius:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    display:grid;place-items:center;color:#1a0f0a;font-weight:900;
+    box-shadow:0 6px 18px rgba(240,81,51,.45);
+  }
+  .nav{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+  .nav a{
+    color:var(--ink2);text-decoration:none;font-size:13px;
+    padding:7px 11px;border-radius:8px;border:1px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);background:rgba(255,255,255,.04);border-color:var(--line)}
+  .stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--line);
+    padding:6px 10px;border-radius:999px;font-size:12px;color:var(--ink2);font-family:var(--mono);
+  }
+  .chip b{color:var(--ink)}
+  .chip.lv{background:linear-gradient(135deg,rgba(240,81,51,.22),rgba(255,111,61,.12));border-color:rgba(240,81,51,.5);color:#ffd9cb}
+  .chip.combo{background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(245,196,81,.06));border-color:rgba(245,196,81,.45);color:#ffe4a0}
+  .chip.xp{background:linear-gradient(135deg,rgba(61,220,151,.16),rgba(61,220,151,.04));border-color:rgba(61,220,151,.4);color:#b9f5d8}
+
+  main{max-width:1280px;margin:0 auto;padding:30px 22px 90px}
+  .hero{
+    display:grid;grid-template-columns:1.05fr .95fr;gap:28px;margin-bottom:34px;
+  }
+  @media (max-width:980px){ .hero{grid-template-columns:1fr} }
+  .hero h1{
+    font-size:44px;line-height:1.05;margin:0 0 12px;letter-spacing:-.5px;
+  }
+  .hero h1 .accent{
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.sub{color:var(--ink2);font-size:17px;max-width:62ch;margin:0 0 18px}
+  .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    color:#fff;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;
+    box-shadow:0 8px 22px rgba(240,81,51,.35);
+  }
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--orange);color:#ffd2c5}
+  .btn:active{transform:translateY(1px)}
+
+  .hero-art{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:18px;
+    box-shadow:var(--shadow);
+    min-height:340px;display:flex;flex-direction:column;
+  }
+  .hero-art header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .hero-art header span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .hero-art .dots{display:flex;gap:6px}
+  .hero-art .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .hero-art .dots i:nth-child(1){background:#ff5f56}
+  .hero-art .dots i:nth-child(2){background:#ffbd2e}
+  .hero-art .dots i:nth-child(3){background:#27c93f}
+
+  /* ---------- Section ---------- */
+  section.card{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:26px;
+    box-shadow:var(--shadow);margin-bottom:24px;
+  }
+  section.card h2{
+    margin:0 0 6px;font-size:24px;letter-spacing:-.2px;display:flex;align-items:center;gap:10px;
+  }
+  section.card h2 .num{
+    width:30px;height:30px;border-radius:8px;background:rgba(240,81,51,.16);
+    color:var(--orange2);font-family:var(--mono);font-size:14px;display:grid;place-items:center;border:1px solid rgba(240,81,51,.35);
+  }
+  section.card .lede{color:var(--ink2);margin:0 0 18px;max-width:78ch}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media (max-width:880px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .pane{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;
+  }
+  .pane h3{margin:0 0 8px;font-size:16px}
+  .pane p{margin:0 0 8px;color:var(--ink2);font-size:14px}
+  .pane code, code.inline{
+    font-family:var(--mono);font-size:12.5px;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+
+  pre.code{
+    font-family:var(--mono);font-size:13px;line-height:1.55;
+    background:#0a0706;border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;margin:10px 0;color:#f3e9df;
+  }
+  pre.code .c{color:#7e6a5e}
+  pre.code .k{color:var(--orange2);font-weight:700}
+  pre.code .s{color:#ffd9a8}
+  pre.code .p{color:#9ad7ff}
+  pre.code .x{color:var(--red)}
+
+  .kbd{
+    font-family:var(--mono);font-size:11px;background:#1f1612;border:1px solid var(--line);border-bottom-width:2px;
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+  .pill{
+    display:inline-block;font-size:11px;letter-spacing:.4px;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:rgba(240,81,51,.18);color:#ffd2c5;
+    border:1px solid rgba(240,81,51,.35);
+  }
+  .pill.green{background:rgba(61,220,151,.14);color:#b9f5d8;border-color:rgba(61,220,151,.35)}
+  .pill.blue{background:rgba(78,161,255,.14);color:#b9d8ff;border-color:rgba(78,161,255,.35)}
+  .pill.purple{background:rgba(182,133,255,.14);color:#dec5ff;border-color:rgba(182,133,255,.35)}
+
+  /* ---------- Tree visual ---------- */
+  .stage{
+    display:grid;grid-template-columns:1fr 1.1fr;gap:16px;
+  }
+  @media (max-width:980px){.stage{grid-template-columns:1fr}}
+  .tree-wrap{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:340px;
+    position:relative;overflow:hidden;
+  }
+  .tree-title{
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .tree-title .badge{
+    color:var(--orange2);font-weight:700;
+  }
+  .tree{font-family:var(--mono);font-size:13.5px;line-height:1.7}
+  .tree .node{display:flex;align-items:center;gap:6px;transition:all .25s ease;border-radius:6px;padding:1px 6px}
+  .tree .node.dir{color:var(--ink)}
+  .tree .node.dir.main{color:#ffd2c5}
+  .tree .node.dir.wt{color:#ffe4a0}
+  .tree .node.file{color:var(--ink2)}
+  .tree .node.git{color:var(--blue)}
+  .tree .node .ico{width:14px;display:inline-block;text-align:center}
+  .tree .indent{display:inline-block;width:14px}
+  .tree .branch-tag{
+    margin-left:8px;font-size:11px;color:#1a0f0a;background:var(--orange2);padding:1px 6px;border-radius:5px;font-weight:700;
+  }
+  .tree .branch-tag.detached{background:#9ca0a6}
+  .tree .branch-tag.locked{background:var(--yellow)}
+  .tree .new{
+    animation:popIn .45s cubic-bezier(.2,1.4,.4,1.05) both;
+    background:rgba(240,81,51,.12);
+  }
+  .tree .removed{
+    animation:popOut .45s ease both;
+    background:rgba(224,36,36,.16);
+  }
+  @keyframes popIn{
+    0%{opacity:0;transform:translateX(-8px) scale(.92)}
+    100%{opacity:1;transform:translateX(0) scale(1)}
+  }
+  @keyframes popOut{
+    0%{opacity:1;transform:translateX(0)}
+    100%{opacity:0;transform:translateX(8px) scale(.96)}
+  }
+
+  /* ---------- Shell ---------- */
+  .shell{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;min-height:340px;overflow:hidden;
+  }
+  .shell-head{
+    display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#120c0a;
+  }
+  .shell-head .left{display:flex;gap:6px;align-items:center}
+  .shell-head .left i{width:11px;height:11px;border-radius:50%;display:block}
+  .shell-head .left i:nth-child(1){background:#ff5f56}
+  .shell-head .left i:nth-child(2){background:#ffbd2e}
+  .shell-head .left i:nth-child(3){background:#27c93f}
+  .shell-head .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .shell-body{
+    flex:1;padding:14px 16px;font-family:var(--mono);font-size:13px;color:var(--ink);overflow:auto;max-height:280px;
+  }
+  .shell-body .line{margin:0;white-space:pre-wrap;word-break:break-all}
+  .shell-body .prompt{color:var(--orange2)}
+  .shell-body .out{color:var(--ink2)}
+  .shell-body .err{color:#ff8a8a}
+  .shell-body .ok{color:var(--green)}
+  .shell-input{
+    display:flex;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line);background:#0e0907;
+  }
+  .shell-input .ps1{font-family:var(--mono);font-size:13px;color:var(--orange2);white-space:nowrap}
+  .shell-input input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--mono);font-size:13.5px;caret-color:var(--orange2);
+  }
+  .shell-input.shake{animation:shake .35s}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+
+  /* ---------- Practice ---------- */
+  .practice-head{
+    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px;
+  }
+  .practice-task{
+    flex:1;min-width:240px;background:rgba(240,81,51,.08);border:1px solid rgba(240,81,51,.35);
+    border-radius:12px;padding:14px 16px;
+  }
+  .practice-task .label{
+    font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--orange2);font-weight:800;
+  }
+  .practice-task .q{font-size:17px;margin:6px 0 0;color:var(--ink)}
+  .practice-task .hint{font-size:12.5px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  .practice-meta{
+    display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;min-width:280px;
+  }
+  .meter{
+    background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+  }
+  .meter .l{font-size:11px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .meter .v{font-size:18px;font-weight:800;font-family:var(--mono);color:var(--ink)}
+  .meter .v.orange{color:var(--orange2)}
+  .meter .v.green{color:var(--green)}
+  .meter .v.yellow{color:var(--yellow)}
+
+  .progress{
+    height:8px;background:#1a1310;border-radius:999px;overflow:hidden;border:1px solid var(--line);margin-top:10px;
+  }
+  .progress > div{
+    height:100%;background:linear-gradient(90deg,var(--orange),var(--orange2));
+    transition:width .35s ease;
+  }
+
+  .feedback{
+    margin-top:12px;font-family:var(--mono);font-size:13px;min-height:22px;
+  }
+  .feedback.ok{color:var(--green)}
+  .feedback.err{color:#ff8a8a}
+  .feedback.tip{color:var(--yellow)}
+
+  .practice-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  /* ---------- Achievements ---------- */
+  .achv-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;
+  }
+  .achv{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px;
+    display:flex;gap:10px;align-items:flex-start;opacity:.45;transition:all .25s ease;
+  }
+  .achv.unlocked{
+    opacity:1;border-color:rgba(240,81,51,.45);
+    background:linear-gradient(135deg,rgba(240,81,51,.12),rgba(255,111,61,.04));
+    box-shadow:0 6px 24px rgba(240,81,51,.18);
+  }
+  .achv .ico{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:18px;flex-shrink:0;
+  }
+  .achv.unlocked .ico{background:linear-gradient(135deg,var(--orange),var(--orange2));border-color:transparent}
+  .achv .t{font-weight:800;font-size:13px}
+  .achv .d{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* ---------- Toast ---------- */
+  .toasts{position:fixed;right:20px;bottom:20px;z-index:80;display:flex;flex-direction:column;gap:10px}
+  .toast{
+    background:linear-gradient(135deg,#221814,#2d201b);
+    border:1px solid rgba(240,81,51,.5);border-radius:12px;
+    padding:12px 14px;min-width:240px;max-width:340px;color:var(--ink);
+    box-shadow:0 12px 32px rgba(0,0,0,.5);
+    animation:slideIn .4s cubic-bezier(.2,1.4,.4,1.05);
+  }
+  .toast .t{font-weight:800;font-size:14px;color:#ffd9cb}
+  .toast .d{font-size:12.5px;color:var(--ink2);margin-top:2px}
+  @keyframes slideIn{
+    from{transform:translateX(20px);opacity:0}
+    to{transform:translateX(0);opacity:1}
+  }
+
+  /* ---------- Boss mode ---------- */
+  .boss{
+    background:radial-gradient(900px 420px at 70% 0%,rgba(224,36,36,.18),transparent 60%),
+               linear-gradient(180deg,#1a0e0a,#1a0a07);
+    border:1px solid rgba(224,36,36,.4);
+  }
+  .boss h2 .num{background:rgba(224,36,36,.22);color:#ff8a8a;border-color:rgba(224,36,36,.45)}
+  .boss .hp-bar{
+    height:14px;background:#1a0a07;border:1px solid var(--line);border-radius:999px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .boss .hp-bar > div{
+    height:100%;background:linear-gradient(90deg,#ff5f56,#ffbd2e);transition:width .35s ease;
+  }
+  .boss-art{
+    font-family:var(--mono);font-size:13px;color:#ffb088;white-space:pre;
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;line-height:1.4;
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+  .tab{
+    padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink2);
+  }
+  .tab.active{background:rgba(240,81,51,.18);color:#ffd2c5;border-color:rgba(240,81,51,.5)}
+
+  table.cmp{
+    width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px;
+  }
+  table.cmp th, table.cmp td{
+    padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;
+  }
+  table.cmp th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  table.cmp tr:last-child td{border-bottom:none}
+  table.cmp td.win{color:var(--green);font-weight:700}
+  table.cmp td.lose{color:#ff8a8a}
+
+  footer{
+    text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;
+  }
+
+  .scroll-fade{
+    opacity:0;transform:translateY(14px);transition:all .55s ease;
+  }
+  .scroll-fade.in{opacity:1;transform:translateY(0)}
+
+  /* ---------- SVG anim ---------- */
+  .wt-svg circle{transition:all .4s ease}
+  .wt-svg .pop{animation:pulseRing 1.4s ease infinite}
+  @keyframes pulseRing{
+    0%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+    50%{filter:drop-shadow(0 0 12px rgba(240,81,51,.6))}
+    100%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <div class="mark">⌥</div>
+      <div>Worktree 道场</div>
+    </div>
+    <nav class="nav">
+      <a href="#problem">问题</a>
+      <a href="#anatomy">剖析</a>
+      <a href="#commands">命令</a>
+      <a href="#patterns">模式</a>
+      <a href="#gotchas">坑</a>
+      <a href="#vs">对比 stash</a>
+      <a href="#bare">裸仓库</a>
+      <a href="#practice">练习</a>
+      <a href="#boss">Boss</a>
+    </nav>
+    <div class="stats">
+      <span class="chip lv">LV <b id="hud-lv">1</b></span>
+      <span class="chip xp">XP <b id="hud-xp">0</b>/<span id="hud-xpmax">100</span></span>
+      <span class="chip combo">x<b id="hud-combo">0</b></span>
+      <span class="chip">★ <b id="hud-achv">0</b>/12</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div>
+      <div class="pill">git 多检出 · 边敲边学</div>
+      <h1>别再 stash 了。<br/><span class="accent">开始并行分支开发。</span></h1>
+      <p class="sub">
+        <code class="inline">git worktree</code> 让一个仓库拥有多个工作目录 —— 不同分支，同时全部检出，共享同一份 <code class="inline">.git</code>。
+        通过有 XP、成就和最终 Boss 的打字驱动道场把它练熟。
+      </p>
+      <div class="ctas">
+        <button class="btn" onclick="document.getElementById('practice').scrollIntoView({behavior:'smooth'})">开始练习 →</button>
+        <button class="btn ghost" onclick="document.getElementById('commands').scrollIntoView({behavior:'smooth'})">阅读手册</button>
+        <button class="btn ghost" onclick="resetProgress()">重置进度</button>
+      </div>
+    </div>
+    <div class="hero-art">
+      <header>
+        <div class="dots"><i></i><i></i><i></i></div>
+        <span>~/projects/cro-economy-service</span>
+      </header>
+      <div class="stage" style="grid-template-columns:1fr 1.05fr;flex:1">
+        <div class="tree-wrap">
+          <div class="tree-title"><span>文件系统</span><span class="badge" id="hero-wtcount">1 个工作树</span></div>
+          <div class="tree" id="hero-tree"></div>
+        </div>
+        <div class="shell">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">演示 · zsh</div>
+          </div>
+          <div class="shell-body" id="hero-shell"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. PROBLEM -->
+  <section class="card scroll-fade" id="problem">
+    <h2><span class="num">01</span> worktree 解决的问题</h2>
+    <p class="lede">你正埋头写一个特性，生产环境炸了，必须立刻修 <code class="inline">main</code>。没有工作树时，怎么选都很疼。</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">痛点 1</span> 上下文切换的代价</h3>
+        <p>你要 stash、切到 main、修复、推送、切回来、pop stash，再祈祷不冲突。在 stash pop 时遇到正在改的代码冲突，是一种独特的折磨。</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">痛点 2</span> 并行工作</h3>
+        <p>你的构建要 6 分钟。CI 在分支 A 跑的同时，你想在分支 B 写代码而不重建。一次检出 = 同时只能在一个分支上。</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">痛点 3</span> 评审 PR</h3>
+        <p>你想 <code class="inline">git checkout pr/42</code> 在本地跑一下 —— 但又不想毁掉当前分支上正在改的修改。</p>
+      </div>
+    </div>
+    <div class="pane" style="margin-top:14px">
+      <h3>worktree 的答案</h3>
+      <p style="color:var(--ink2)">加一个钉在另一个分支上的工作目录。两者共享同一份 <code class="inline">.git</code> 对象库 —— fetch、ref、钩子、配置全部共享 —— 但 <em>磁盘上的文件</em> 各自独立。靠 <code class="inline">cd</code> 切，不靠 <code class="inline">checkout</code>。</p>
+<pre class="code"><span class="c"># 之前：stash 大挪移</span>
+<span class="k">git</span> stash push -m wip
+<span class="k">git</span> checkout main
+<span class="c"># …修复、提交、推送…</span>
+<span class="k">git</span> checkout feature/long-thing
+<span class="k">git</span> stash pop   <span class="c"># 🤞</span>
+
+<span class="c"># 之后：开一个并行的工作目录</span>
+<span class="k">git</span> worktree add ../hotfix main
+<span class="k">cd</span> ../hotfix
+<span class="c"># …修复、提交、推送，然后：</span>
+<span class="k">cd</span> ../cro-economy-service
+<span class="k">git</span> worktree remove ../hotfix</pre>
+    </div>
+  </section>
+
+  <!-- 2. ANATOMY -->
+  <section class="card scroll-fade" id="anatomy">
+    <h2><span class="num">02</span> 剖面：共享的 <code class="inline">.git</code>、独立工作目录</h2>
+    <p class="lede">工作树是一份位于主仓库目录之外、但仍由主仓库的 <code class="inline">.git</code> 跟踪的检出。</p>
+    <div class="grid2">
+      <div>
+        <svg viewBox="0 0 520 320" class="wt-svg" width="100%" height="320" aria-hidden="true">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#f05133"/>
+              <stop offset="100%" stop-color="#ff6f3d"/>
+            </linearGradient>
+            <linearGradient id="g2" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#4ea1ff"/>
+              <stop offset="100%" stop-color="#b685ff"/>
+            </linearGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+
+          <!-- core .git -->
+          <circle cx="260" cy="160" r="58" fill="url(#g1)" filter="url(#glow)" class="pop"/>
+          <text x="260" y="156" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="900" font-size="14">.git</text>
+          <text x="260" y="174" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="700" font-size="11">objects · refs</text>
+
+          <!-- worktree nodes -->
+          <g>
+            <line x1="260" y1="160" x2="80" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="80" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+          </g>
+
+          <g>
+            <circle cx="80" cy="60" r="34" fill="url(#g2)"/>
+            <text x="80" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">主仓库</text>
+            <text x="80" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">main</text>
+          </g>
+          <g>
+            <circle cx="440" cy="60" r="34" fill="url(#g2)"/>
+            <text x="440" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../hotfix</text>
+            <text x="440" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">hotfix-123</text>
+          </g>
+          <g>
+            <circle cx="80" cy="270" r="34" fill="url(#g2)"/>
+            <text x="80" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../review</text>
+            <text x="80" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">pr/42</text>
+          </g>
+          <g>
+            <circle cx="440" cy="270" r="34" fill="url(#g2)"/>
+            <text x="440" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../e2e</text>
+            <text x="440" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">release/v2</text>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="pane">
+          <h3>共享的部分</h3>
+          <p><b>对象库</b>（<code class="inline">.git/objects</code>）：commit、tree、blob。</p>
+          <p><b>引用</b>：分支、标签、远程 —— 唯一真相来源。</p>
+          <p><b>配置与钩子</b>：在主仓库里只定义一次。</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>独立的部分</h3>
+          <p><b>工作目录</b>：磁盘上实际检出的文件。</p>
+          <p><b>暂存区（index）</b>：每个工作树有自己独立的暂存区。</p>
+          <p><b>HEAD</b>：每个工作树指向自己的 commit / 分支。</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>元数据放在哪里</h3>
+          <p>主仓库会把每个关联工作树记录在 <code class="inline">.git/worktrees/&lt;名字&gt;/</code> 下。每个关联工作树自己有一个 <code class="inline">.git</code> <em>文件</em>（不是目录），通过 <code class="inline">gitdir:</code> 指回那份元数据。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. CORE COMMANDS -->
+  <section class="card scroll-fade" id="commands">
+    <h2><span class="num">03</span> 核心命令</h2>
+    <p class="lede">真正会用到的八条子命令。点任意一条都能在下面的沙盒里回放。</p>
+    <div class="tabs" id="cmd-tabs"></div>
+    <div class="stage">
+      <div class="tree-wrap">
+        <div class="tree-title"><span>项目目录</span><span class="badge" id="cmd-wtcount">1 个工作树</span></div>
+        <div class="tree" id="cmd-tree"></div>
+      </div>
+      <div class="shell">
+        <div class="shell-head">
+          <div class="left"><i></i><i></i><i></i></div>
+          <div class="title">沙盒 · 把玩工作树</div>
+        </div>
+        <div class="shell-body" id="cmd-shell"></div>
+        <div class="shell-input" id="cmd-input-row">
+          <span class="ps1" id="cmd-ps1">~/proj $</span>
+          <input id="cmd-input" placeholder="试试：git worktree add ../feature feature-x" autocomplete="off" spellcheck="false"/>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin-top:10px">沙盒识别的命令：<code class="inline">git worktree add|list|remove|prune|move|lock|unlock</code>、<code class="inline">git status</code>、<code class="inline">git branch</code>、<code class="inline">cd</code>、<code class="inline">ls</code>、<code class="inline">clear</code>、<code class="inline">reset</code>。</p>
+  </section>
+
+  <!-- 4. PATTERNS -->
+  <section class="card scroll-fade" id="patterns">
+    <h2><span class="num">04</span> 常见模式</h2>
+    <p class="lede">三种立刻就能让你回本的工作流。</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">Hotfix</span> 抛下一切</h3>
+        <p>生产挂了，你正在某个特性上提交了 14 次。</p>
+<pre class="code"><span class="k">git</span> fetch origin
+<span class="k">git</span> worktree add -b hotfix/login \
+  ../hotfix origin/main
+<span class="k">cd</span> ../hotfix
+<span class="c"># 修复、提交、推送</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../hotfix</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill blue">Review</span> 在本地跑 PR</h3>
+        <p>评审 PR #42，又不想毁掉手头还没收尾的工作。</p>
+<pre class="code"><span class="k">git</span> fetch origin pull/42/head:pr/42
+<span class="k">git</span> worktree add ../review pr/42
+<span class="k">cd</span> ../review
+<span class="c"># 跑测试、四处看看</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../review</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill purple">长测试</span> 让 CI 在旁边跑</h3>
+        <p>在 <code class="inline">release/v2</code> 上跑集成测试套件，自己继续写代码。</p>
+<pre class="code"><span class="k">git</span> worktree add ../e2e release/v2
+<span class="k">cd</span> ../e2e
+make integration-test &amp;
+<span class="k">cd</span> -
+<span class="c"># 主仓库继续干活</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. GOTCHAS -->
+  <section class="card scroll-fade" id="gotchas">
+    <h2><span class="num">05</span> 值得记住的坑</h2>
+    <p class="lede">你大概率会踩到的工作树 bug，几乎都属于下面这五种。</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> add 时进入游离 HEAD</h3>
+        <p>如果传的是某个 commit / tag 而不是分支，新工作树就会处于游离 HEAD。要新建分支，加 <code class="inline">-b</code>。</p>
+<pre class="code"><span class="c"># 游离：</span>
+<span class="k">git</span> worktree add ../tmp v1.4.0
+<span class="c"># 新建分支：</span>
+<span class="k">git</span> worktree add -b fix-1.4 ../tmp v1.4.0</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 分支已被检出</h3>
+        <p>git 不允许一个分支同时被两个工作树检出（否则两个 HEAD 会踩同一个 ref）。要么换个分支，要么真知道自己在干嘛时用 <code class="inline">--force</code>。</p>
+<pre class="code">fatal: 'feature-x' is already checked out at '/path/A'
+<span class="c"># 强制覆盖（基本不是好主意）：</span>
+<span class="k">git</span> worktree add --force ../B feature-x</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 手动 rm 留下残余元数据</h3>
+        <p>如果直接 <code class="inline">rm -rf</code> 一个工作树目录，<code class="inline">.git/worktrees/&lt;名字&gt;</code> 还在。<code class="inline">git worktree list</code> 仍把它列为 <em>可清理</em>。跑一下 <code class="inline">git worktree prune</code>。</p>
+<pre class="code"><span class="k">git</span> worktree list
+<span class="c"># 显示：../old  (prunable: gitdir is missing)</span>
+<span class="k">git</span> worktree prune -v</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 子模块与按工作树的配置</h3>
+        <p>子模块不会自动跨工作树初始化 —— 在每个工作树都跑一遍 <code class="inline">git submodule update --init</code>。一些配置（稀疏检出、钩子）只有在你用 <code class="inline">--worktree</code> 显式声明时才按工作树生效。</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> 删错对象</h3>
+        <p>如果工作树里还有未提交修改，<code class="inline">remove</code> 会拒绝。不要条件反射地按 <code class="inline">--force</code> —— 先 <code class="inline">cd</code> 进去看看。</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.4);color:#ffe4a0">·</span> 用 lock 来保护</h3>
+        <p>如果工作树位于可移动磁盘或慢吞吞的 NFS 上，用 <code class="inline">git worktree lock</code> 告诉 git：路径暂时不可达不代表要清掉它。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. VS STASH -->
+  <section class="card scroll-fade" id="vs">
+    <h2><span class="num">06</span> worktree vs stash vs 多次 clone</h2>
+    <p class="lede">三种轮换工作的方式，并不可互换。</p>
+    <table class="cmp">
+      <tr>
+        <th></th><th>git stash</th><th>多个 clone</th><th>git worktree</th>
+      </tr>
+      <tr>
+        <td>搭建成本</td>
+        <td class="win">瞬时</td>
+        <td class="lose">重新 clone、重新 fetch、重新配置</td>
+        <td>一条命令，无需重新 fetch</td>
+      </tr>
+      <tr>
+        <td>磁盘：对象库</td>
+        <td>共享</td>
+        <td class="lose">每个 clone 都重复一份</td>
+        <td class="win">共享</td>
+      </tr>
+      <tr>
+        <td>引用 / fetch 是否同步</td>
+        <td>不适用</td>
+        <td class="lose">每个都得 fetch</td>
+        <td class="win">一次 fetch，全部工作树立即可见</td>
+      </tr>
+      <tr>
+        <td>同时跑两个分支</td>
+        <td class="lose">不行</td>
+        <td>可以</td>
+        <td class="win">可以</td>
+      </tr>
+      <tr>
+        <td>丢失工作的风险</td>
+        <td class="lose">stash 会堆积，pop 时易冲突</td>
+        <td>低</td>
+        <td class="win">文件就在磁盘上</td>
+      </tr>
+      <tr>
+        <td>合适场景</td>
+        <td>极小且临时的切换（&lt; 1 分钟）</td>
+        <td>每份拷贝真的要不同的 SDK / 工具链</td>
+        <td class="win">同一套工具链下的并行分支</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 7. BARE -->
+  <section class="card scroll-fade" id="bare">
+    <h2><span class="num">07</span> 裸仓库 + worktree：单仓库（monorepo）小技巧</h2>
+    <p class="lede">有些团队干脆不要"主检出"，把仓库当作一个装满工作树的文件夹。</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3>初始化方式</h3>
+<pre class="code"><span class="k">git</span> clone --bare git@github.com:org/repo.git repo.git
+<span class="k">cd</span> repo.git
+<span class="k">git</span> worktree add ../repo/main main
+<span class="k">git</span> worktree add ../repo/feature-x feature-x
+<span class="k">git</span> worktree add ../repo/release release/v2</pre>
+        <p style="margin-top:8px">目录结构：</p>
+<pre class="code">repo.git/        <span class="c"># 共享对象库</span>
+repo/
+  main/          <span class="c"># main 分支的工作树</span>
+  feature-x/     <span class="c"># feature-x 分支的工作树</span>
+  release/       <span class="c"># release/v2 的工作树</span></pre>
+      </div>
+      <div class="pane">
+        <h3>它的好处</h3>
+        <p>没有所谓"主"工作树会让人迷糊 —— 每个分支都是平级目录。工具链（IDE、devcontainer、按分支的构建缓存）正好对齐到一个个文件夹。</p>
+        <p>代价：在裸仓库里跑某些 git 命令略显怪。多数人会给 <code class="inline">cd repo/main</code> 起个别名，干脆忘掉裸仓库。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. PRACTICE -->
+  <section class="card scroll-fade" id="practice">
+    <h2><span class="num">08</span> 练习模式 <span class="pill" style="margin-left:8px">边敲边学</span></h2>
+    <p class="lede">读题、键入命令、按 <span class="kbd">Enter</span>。叠连击、赚 XP、解锁成就。</p>
+
+    <div class="practice-head">
+      <div class="practice-task" id="practice-task">
+        <div class="label">练习 <span id="p-idx">1</span> / <span id="p-total">15</span></div>
+        <div class="q" id="p-q">加载中…</div>
+        <div class="hint" id="p-hint"></div>
+      </div>
+      <div class="practice-meta">
+        <div class="meter"><div class="l">XP</div><div class="v orange" id="p-xp">0</div></div>
+        <div class="meter"><div class="l">连击</div><div class="v yellow" id="p-combo">0</div></div>
+        <div class="meter"><div class="l">正确率</div><div class="v green" id="p-acc">100%</div></div>
+      </div>
+    </div>
+
+    <div class="progress"><div id="p-bar" style="width:0%"></div></div>
+
+    <div class="shell" style="margin-top:14px">
+      <div class="shell-head">
+        <div class="left"><i></i><i></i><i></i></div>
+        <div class="title">练习 · 输入命令</div>
+      </div>
+      <div class="shell-body" id="p-shell"></div>
+      <div class="shell-input" id="p-input-row">
+        <span class="ps1" id="p-ps1">~/proj $</span>
+        <input id="p-input" placeholder="git worktree …" autocomplete="off" spellcheck="false"/>
+      </div>
+    </div>
+    <div class="feedback" id="p-feedback"></div>
+    <div class="practice-controls">
+      <button class="btn ghost" onclick="practice.skip()">跳过 <span class="kbd">→</span></button>
+      <button class="btn ghost" onclick="practice.peek()">看答案</button>
+      <button class="btn ghost" onclick="practice.restart()">重练</button>
+    </div>
+  </section>
+
+  <!-- ACHIEVEMENTS -->
+  <section class="card scroll-fade" id="achv-section">
+    <h2><span class="num">09</span> 成就</h2>
+    <p class="lede">通过练习、连击与 Boss 战，共可收集 12 枚。</p>
+    <div class="achv-grid" id="achv-grid"></div>
+  </section>
+
+  <!-- BOSS -->
+  <section class="card boss scroll-fade" id="boss">
+    <h2><span class="num">10</span> Boss：<span style="color:#ff8a8a">分支杂耍人</span></h2>
+    <p class="lede">连续 7 回合的速答场景。每回合限时 <b id="boss-timer">12.0s</b>。答对扣 Boss 血，答错给 Boss 回血。打败它即可解锁 <code class="inline">Branch Juggler</code> 成就。</p>
+    <div class="grid2">
+      <div>
+        <div class="boss-art" id="boss-art">
+            ╔══════════════════════════╗
+            ║   B R A N C H            ║
+            ║      J U G G L E R       ║
+            ║                          ║
+            ║   ╲   |   /              ║
+            ║    ╲  |  /  ← 工作树       ║
+            ║     ╲ | /                ║
+            ║   [  ⚡  ]                ║
+            ╚══════════════════════════╝
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:4px">血量</div>
+          <div class="hp-bar"><div id="boss-hp" style="width:100%"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="practice-task" style="background:rgba(224,36,36,.08);border-color:rgba(224,36,36,.4)">
+          <div class="label" style="color:#ff8a8a">回合 <span id="boss-round">–</span> / 7</div>
+          <div class="q" id="boss-q">按下 <b>开战</b> 即可开始战斗。</div>
+          <div class="hint" id="boss-hint"></div>
+        </div>
+        <div class="shell" style="margin-top:12px">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">boss · 不要怯场</div>
+          </div>
+          <div class="shell-input" id="boss-input-row">
+            <span class="ps1" id="boss-ps1">~/proj $</span>
+            <input id="boss-input" placeholder="此处作答" autocomplete="off" spellcheck="false" disabled/>
+          </div>
+        </div>
+        <div class="feedback" id="boss-feedback"></div>
+        <div class="practice-controls">
+          <button class="btn" id="boss-engage" onclick="boss.start()">开战</button>
+          <button class="btn ghost" onclick="boss.reset()">重置 Boss</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Worktree 道场 · 锻造一个多元宇宙，共享一份 <code class="inline">.git</code>。
+  </footer>
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+ * 状态与持久化
+ * ============================================================ */
+const SAVE_KEY = 'worktree-dojo-v1';
+const State = {
+  xp:0, level:1, combo:0, bestCombo:0,
+  totalAttempts:0, correctAttempts:0,
+  achv:{}, drillIdx:0, bossDefeated:false,
+};
+function xpForLevel(l){ return 100 + (l-1)*60; }
+
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(State)); }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    Object.assign(State, JSON.parse(raw));
+  }catch(e){}
+}
+function resetProgress(){
+  if(!confirm('清空所有 XP、成就和练习进度？')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+
+/* ============================================================
+ * Toast 与礼花
+ * ============================================================ */
+function toast(title, desc){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="t">${title}</div><div class="d">${desc||''}</div>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>{
+    t.style.transition='opacity .4s, transform .4s';
+    t.style.opacity='0';
+    t.style.transform='translateX(20px)';
+    setTimeout(()=>t.remove(), 420);
+  }, 3200);
+}
+function fireConfetti(intensity=1){
+  if(typeof confetti !== 'function') return;
+  confetti({
+    particleCount: 60*intensity,
+    spread: 70,
+    origin:{y:0.7},
+    colors:['#f05133','#ff6f3d','#f5c451','#3ddc97','#4ea1ff'],
+  });
+}
+
+/* ============================================================
+ * 顶部 HUD
+ * ============================================================ */
+function refreshHUD(){
+  const need = xpForLevel(State.level);
+  document.getElementById('hud-lv').textContent = State.level;
+  document.getElementById('hud-xp').textContent = State.xp;
+  document.getElementById('hud-xpmax').textContent = need;
+  document.getElementById('hud-combo').textContent = State.combo;
+  const unlocked = Object.values(State.achv).filter(Boolean).length;
+  document.getElementById('hud-achv').textContent = unlocked;
+
+  document.getElementById('p-xp').textContent = State.xp;
+  document.getElementById('p-combo').textContent = State.combo;
+  const acc = State.totalAttempts ? Math.round(100*State.correctAttempts/State.totalAttempts) : 100;
+  document.getElementById('p-acc').textContent = acc + '%';
+}
+
+function gainXP(amount, reason){
+  State.xp += amount;
+  while(State.xp >= xpForLevel(State.level)){
+    State.xp -= xpForLevel(State.level);
+    State.level += 1;
+    toast(`升级 → ${State.level}`, '继续敲键盘，师父。');
+    fireConfetti(1.4);
+  }
+  save(); refreshHUD();
+  if(reason) toast(`+${amount} XP`, reason);
+}
+
+/* ============================================================
+ * 成就系统
+ * ============================================================ */
+const ACHIEVEMENTS = [
+  { id:'first',   t:'First Worktree',   d:'添加第一个工作树。',         ico:'🌱' },
+  { id:'lister',  t:'Roll Call',        d:'执行 git worktree list。',           ico:'📋' },
+  { id:'pruner',  t:'Pruner',           d:'清理一个失效的工作树元数据。',        ico:'✂️' },
+  { id:'mover',   t:'Furniture Mover',  d:'移动一个工作树。',                 ico:'📦' },
+  { id:'locker',  t:'Lockpicker',       d:'对工作树执行 lock 与 unlock。',      ico:'🔒' },
+  { id:'force',   t:'Forced Hand',      d:'在合适时使用 --force。',      ico:'💥' },
+  { id:'hotfix',  t:'Firefighter',      d:'搭起一个热修复工作树。',         ico:'🚒' },
+  { id:'review',  t:'Reviewer',         d:'拉起一个 PR 评审工作树。',    ico:'🔍' },
+  { id:'combo5',  t:'Streak ×5',        d:'达成连答对 5 次。',            ico:'🔥' },
+  { id:'combo10', t:'Multiverse Master',d:'达成连答对 10 次。',           ico:'🌌' },
+  { id:'level5',  t:'Apprentice',       d:'达到 5 级。',                   ico:'⭐' },
+  { id:'boss',    t:'Branch Juggler',   d:'击败 Boss。',                 ico:'🏆' },
+];
+
+function unlockAchv(id){
+  if(State.achv[id]) return;
+  State.achv[id] = true;
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  toast(`★ 成就：${a.t}`, a.d);
+  fireConfetti(1.1);
+  save(); refreshHUD(); renderAchv();
+}
+function renderAchv(){
+  const grid = document.getElementById('achv-grid');
+  grid.innerHTML = ACHIEVEMENTS.map(a=>`
+    <div class="achv ${State.achv[a.id]?'unlocked':''}">
+      <div class="ico">${a.ico}</div>
+      <div>
+        <div class="t">${a.t}</div>
+        <div class="d">${a.d}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+ * 共享的「假 git」引擎
+ *
+ * 每个 "world" 都有：
+ *   cwd: string（'main' 或工作树名）
+ *   wts: 数组，元素 {name,path,branch,detached?,locked?,prunable?,bare?}
+ *   branches: Set<string>（存在的分支名）
+ * ============================================================ */
+function newWorld(){
+  return {
+    cwd:'main',
+    wts:[
+      {name:'main', path:'~/proj', branch:'main', primary:true},
+    ],
+    branches:new Set(['main','develop','feature-x','release/v2','hotfix-123','pr/42']),
+    history:[],
+  };
+}
+
+function fmtPath(w){
+  if(w.cwd==='main') return '~/proj';
+  const wt = w.wts.find(x=>x.name===w.cwd);
+  return wt ? wt.path : '~/proj';
+}
+
+function findByPath(world, p){
+  return world.wts.find(w=>w.path===p);
+}
+function findByName(world, n){
+  return world.wts.find(w=>w.name===n);
+}
+function branchTaken(world, b){
+  return world.wts.some(w=>w.branch===b && !w.detached);
+}
+
+function runFakeGit(world, raw){
+  const tokens = raw.trim().split(/\s+/);
+  // CD
+  if(tokens[0]==='cd'){
+    const t = tokens[1]||'~';
+    if(t==='~' || t==='~/proj' || t==='-' || t==='/' ){
+      world.cwd='main'; return {ok:true, out:''};
+    }
+    const wt = world.wts.find(w=>w.path===t || ('../'+w.name)===t);
+    if(wt){ world.cwd = wt.name; return {ok:true,out:''}; }
+    return {err:`cd: no such directory: ${t}`};
+  }
+  if(tokens[0]==='ls'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    return {ok:true, out:`README.md  src/  package.json   .git${wt && !wt.primary?' -> '+wt.path+'/.git/worktrees/'+wt.name:''}`};
+  }
+  if(tokens[0]==='clear'){
+    return {ok:true, clear:true};
+  }
+  if(tokens[0]==='reset'){
+    Object.assign(world, newWorld());
+    return {ok:true, out:'沙盒已重置。'};
+  }
+  if(tokens[0]==='git'){
+    return runGit(world, tokens.slice(1));
+  }
+  return {err:`zsh: command not found: ${tokens[0]}`};
+}
+
+function runGit(world, args){
+  if(args[0]==='status'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    if(!wt) return {err:'not a git repo'};
+    const head = wt.detached ? `HEAD detached at ${wt.branch}` : `On branch ${wt.branch}`;
+    return {ok:true, out:`${head}\nnothing to commit, working tree clean`};
+  }
+  if(args[0]==='branch'){
+    return {ok:true, out:[...world.branches].map(b=>(world.wts.find(w=>w.branch===b)?'+ ':'  ')+b).join('\n')};
+  }
+  if(args[0]!=='worktree') return {err:`git: '${args.join(' ')}' is not a git command`};
+
+  const sub = args[1];
+  const rest = args.slice(2);
+
+  // ---- ADD（添加工作树）
+  if(sub==='add'){
+    let force=false, asBranch=null, hasB=false;
+    const positional=[];
+    for(let i=0;i<rest.length;i++){
+      const t=rest[i];
+      if(t==='--force'||t==='-f'){ force=true; }
+      else if(t==='-b'){ hasB=true; asBranch=rest[++i]; }
+      else if(t==='--detach'){ /* allowed */ }
+      else positional.push(t);
+    }
+    const path = positional[0];
+    const ref  = positional[1]; // can be branch, commit, tag
+    if(!path) return {err:`usage: git worktree add [-b new-branch] <path> [<commit-ish>]`};
+
+    let branch;
+    let detached = false;
+    if(hasB){
+      branch = asBranch;
+      if(world.branches.has(branch) && !force){
+        return {err:`fatal: a branch named '${branch}' already exists`};
+      }
+      world.branches.add(branch);
+    } else if(ref){
+      if(world.branches.has(ref)){
+        if(branchTaken(world, ref) && !force){
+          return {err:`fatal: '${ref}' is already checked out at another worktree`};
+        }
+        branch = ref;
+      } else {
+        // commit-ish / tag — detached HEAD
+        branch = ref;
+        detached = true;
+      }
+    } else {
+      // no ref: create a new branch named after the basename
+      const base = path.split('/').pop();
+      if(world.branches.has(base) && branchTaken(world, base) && !force){
+        return {err:`fatal: '${base}' is already checked out at another worktree`};
+      }
+      branch = base;
+      world.branches.add(branch);
+    }
+    if(findByPath(world, path)) return {err:`fatal: '${path}' already exists`};
+    const name = path.replace(/^\.\.?\//,'').replace(/\//g,'-');
+    world.wts.push({name, path, branch, detached, primary:false, _new:true});
+    return {ok:true, out:`Preparing worktree (${detached?'detached HEAD':'new branch '+branch}) at ${path}`};
+  }
+
+  // ---- LIST（列出工作树）
+  if(sub==='list'){
+    return {ok:true, out: world.wts.map(w=>{
+      const sha = Math.random().toString(16).slice(2,9);
+      const head = w.detached ? `(detached HEAD)` : `[${w.branch}]`;
+      const tags = [];
+      if(w.locked) tags.push('locked');
+      if(w.prunable) tags.push('prunable');
+      const tagstr = tags.length?'  '+tags.map(t=>`(${t})`).join(' '):'';
+      return `${w.path.padEnd(20,' ')} ${sha} ${head}${tagstr}`;
+    }).join('\n')};
+  }
+
+  // ---- REMOVE（删除工作树）
+  if(sub==='remove'){
+    let force=false; const pos=[];
+    rest.forEach(t=>t==='--force'||t==='-f'?force=true:pos.push(t));
+    const path = pos[0];
+    if(!path) return {err:'usage: git worktree remove <path>'};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' is not a working tree`};
+    if(wt.primary) return {err:`fatal: cannot remove the main worktree`};
+    if(wt.locked && !force) return {err:`fatal: cannot remove a locked working tree`};
+    if(world.cwd===wt.name) world.cwd='main';
+    wt._removed=true;
+    setTimeout(()=>{ world.wts = world.wts.filter(x=>x!==wt); renderAllTrees(); }, 380);
+    return {ok:true, out:`removed ${path}`};
+  }
+
+  // ---- PRUNE（清理失效条目）
+  if(sub==='prune'){
+    const before = world.wts.filter(w=>w.prunable).length;
+    world.wts = world.wts.filter(w=>!w.prunable);
+    return {ok:true, out:`pruned ${before} worktree${before===1?'':'s'}`};
+  }
+
+  // ---- MOVE（移动工作树）
+  if(sub==='move'){
+    const [from,to] = rest;
+    if(!from||!to) return {err:'usage: git worktree move <from> <to>'};
+    const wt = findByPath(world, from);
+    if(!wt) return {err:`fatal: '${from}' is not a working tree`};
+    if(wt.primary) return {err:`fatal: cannot move the main worktree`};
+    wt.path = to;
+    wt._new = true;
+    return {ok:true, out:`moved ${from} → ${to}`};
+  }
+
+  // ---- LOCK / UNLOCK（锁定 / 解锁）
+  if(sub==='lock' || sub==='unlock'){
+    const path = rest[0];
+    if(!path) return {err:`usage: git worktree ${sub} <path>`};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' is not a working tree`};
+    wt.locked = (sub==='lock');
+    return {ok:true, out:`${sub}ed ${path}`};
+  }
+
+  return {err:`git worktree: unknown subcommand '${sub}'`};
+}
+
+/* ============================================================
+ * 渲染相关
+ * ============================================================ */
+function renderTree(targetId, world, badgeId){
+  const tgt = document.getElementById(targetId);
+  if(!tgt) return;
+  const main = world.wts.find(w=>w.primary);
+  const linked = world.wts.filter(w=>!w.primary);
+
+  // Build node array
+  const nodes = [];
+  nodes.push({ico:'📁', label:'~/proj/', cls:'dir main', tag:main?.branch, tagCls:'', _new:false, _removed:false});
+  nodes.push({ico:'📂', label:'.git/', cls:'git', indent:1});
+  nodes.push({ico:'·', label:'objects/  refs/  worktrees/', cls:'file muted', indent:2, dim:true});
+  nodes.push({ico:'📄', label:'README.md', cls:'file', indent:1});
+  nodes.push({ico:'📁', label:'src/', cls:'dir', indent:1});
+
+  linked.forEach(w=>{
+    nodes.push({
+      ico:'🪐', label:`${w.path}/`, cls:'dir wt', tag:w.detached?'detached':w.branch,
+      tagCls: w.locked?'locked':(w.detached?'detached':''),
+      _new:w._new, _removed:w._removed, locked:w.locked, prunable:w.prunable,
+    });
+    nodes.push({ico:'·', label:'.git → '+(w.path)+'/.git/worktrees/'+w.name, cls:'file muted', indent:1, dim:true});
+  });
+
+  tgt.innerHTML = nodes.map(n=>{
+    const indent = '<span class="indent"></span>'.repeat(n.indent||0);
+    const dim = n.dim?'opacity:.55;':'';
+    const newClass = n._new?'new':'';
+    const remClass = n._removed?'removed':'';
+    const tag = n.tag?` <span class="branch-tag ${n.tagCls}">${n.tag}${n.locked?' 🔒':''}${n.prunable?' (prunable)':''}</span>`:'';
+    return `<div class="node ${n.cls} ${newClass} ${remClass}" style="${dim}">
+      ${indent}<span class="ico">${n.ico}</span><span>${n.label}</span>${tag}
+    </div>`;
+  }).join('');
+
+  // clear flags after animation
+  setTimeout(()=>{ world.wts.forEach(w=>{ w._new=false; }); }, 500);
+
+  if(badgeId){
+    const c = world.wts.length;
+    const b = document.getElementById(badgeId);
+    if(b) b.textContent = `${c} 个工作树`;
+  }
+}
+
+function appendShellLine(shellId, text, cls){
+  const sh = document.getElementById(shellId);
+  if(!sh) return;
+  const div = document.createElement('div');
+  div.className='line '+(cls||'');
+  div.textContent = text;
+  sh.appendChild(div);
+  sh.scrollTop = sh.scrollHeight;
+}
+function clearShell(shellId){
+  document.getElementById(shellId).innerHTML='';
+}
+
+/* ============================================================
+ * 顶部 Hero 动画演示
+ * ============================================================ */
+const heroWorld = newWorld();
+const heroSequence = [
+  {cmd:'git worktree add ../hotfix hotfix-123', wait:1700},
+  {cmd:'git worktree add ../review pr/42',      wait:1700},
+  {cmd:'git worktree list',                      wait:1700},
+  {cmd:'git worktree remove ../review',          wait:1700},
+  {cmd:'git worktree add ../e2e release/v2',     wait:1700},
+  {cmd:'git worktree remove ../hotfix',          wait:1700},
+  {cmd:'git worktree remove ../e2e',             wait:1700},
+];
+let heroIdx = 0;
+function heroTick(){
+  const step = heroSequence[heroIdx % heroSequence.length];
+  appendShellLine('hero-shell', `${fmtPath(heroWorld)} $ ${step.cmd}`, 'prompt');
+  const res = runFakeGit(heroWorld, step.cmd);
+  if(res.ok && res.out) appendShellLine('hero-shell', res.out, 'out');
+  if(res.err) appendShellLine('hero-shell', res.err, 'err');
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  heroIdx++;
+  setTimeout(heroTick, step.wait);
+}
+
+/* ============================================================
+ * 命令沙盒
+ * ============================================================ */
+const cmdWorld = newWorld();
+function cmdRender(){ renderTree('cmd-tree', cmdWorld, 'cmd-wtcount'); document.getElementById('cmd-ps1').textContent = fmtPath(cmdWorld)+' $'; }
+function cmdRun(line){
+  appendShellLine('cmd-shell', `${fmtPath(cmdWorld)} $ ${line}`, 'prompt');
+  if(!line.trim()){ return; }
+  const res = runFakeGit(cmdWorld, line);
+  if(res.clear){ clearShell('cmd-shell'); cmdRender(); return; }
+  if(res.ok && res.out) appendShellLine('cmd-shell', res.out, 'out');
+  if(res.ok && !res.out) {/* silent */}
+  if(res.err) appendShellLine('cmd-shell', res.err, 'err');
+  cmdRender();
+}
+
+const CMD_TABS = [
+  { id:'add',    label:'add',    desc:'在 &lt;路径&gt; 为 &lt;分支&gt; 新建工作树。',
+    demo:['git worktree add ../feature feature-x','git worktree add -b new-fix ../fix main'] },
+  { id:'list',   label:'list',   desc:'列出所有工作树及其 HEAD。',
+    demo:['git worktree list'] },
+  { id:'remove', label:'remove', desc:'删除一个工作树（不能有未提交修改）。',
+    demo:['git worktree remove ../feature'] },
+  { id:'prune',  label:'prune',  desc:'丢弃路径已不存在的 .git/worktrees/* 残余元数据。',
+    demo:['git worktree prune -v'] },
+  { id:'move',   label:'move',   desc:'把工作树移到新路径。',
+    demo:['git worktree move ../feature ../feat-x'] },
+  { id:'lock',   label:'lock',   desc:'把工作树标记为已锁，避免被自动清理。',
+    demo:['git worktree lock ../feature'] },
+  { id:'unlock', label:'unlock', desc:'撤销 lock。',
+    demo:['git worktree unlock ../feature'] },
+];
+function renderCmdTabs(){
+  const t = document.getElementById('cmd-tabs');
+  t.innerHTML = CMD_TABS.map((c,i)=>`<div class="tab ${i===0?'active':''}" data-id="${c.id}">${c.label}</div>`).join('');
+  t.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      t.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      tab.classList.add('active');
+      const cfg = CMD_TABS.find(c=>c.id===tab.dataset.id);
+      appendShellLine('cmd-shell', `# ${cfg.desc}`, 'out');
+      cfg.demo.forEach(d => setTimeout(()=>cmdRun(d), 250));
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  load();
+  refreshHUD();
+  renderAchv();
+
+  // Start hero loop
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  setTimeout(heroTick, 800);
+
+  // Sandbox
+  cmdRender();
+  appendShellLine('cmd-shell', '# 沙盒就绪 · 试试 `git worktree add ../feature feature-x`','out');
+  renderCmdTabs();
+
+  document.getElementById('cmd-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      cmdRun(e.target.value);
+      e.target.value='';
+    }
+  });
+
+  // Practice
+  practice.start();
+
+  // Boss input
+  document.getElementById('boss-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter') boss.submit();
+  });
+
+  // Scroll fade
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
+  },{threshold:.12});
+  document.querySelectorAll('.scroll-fade').forEach(el=>obs.observe(el));
+});
+
+function renderAllTrees(){
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  renderTree('cmd-tree', cmdWorld, 'cmd-wtcount');
+  renderTree('p-tree', practice.world, 'p-wtcount');
+}
+
+/* ============================================================
+ * 练习模式
+ * ============================================================ */
+const DRILLS = [
+  {
+    q:'在 <code class="inline">../hotfix</code> 创建一个工作树，跟踪分支 <code class="inline">hotfix-123</code>。',
+    answers:['git worktree add ../hotfix hotfix-123'],
+    hint:'`git worktree add <路径> <分支>`',
+    achv:['first'],
+  },
+  {
+    q:'列出当前仓库挂载的所有工作树。',
+    answers:['git worktree list'],
+    hint:'一个简短的子命令',
+    achv:['lister'],
+  },
+  {
+    q:'基于 <code class="inline">main</code>，在 <code class="inline">../fix</code> 新建工作树并新建分支 <code class="inline">fix-42</code>。',
+    answers:['git worktree add -b fix-42 ../fix main'],
+    hint:'`-b <新分支>` 用来新建分支',
+  },
+  {
+    q:'在 <code class="inline">../review</code> 为已存在的本地分支 <code class="inline">pr/42</code> 添加工作树。',
+    answers:['git worktree add ../review pr/42'],
+    hint:'标准的 add 即可',
+    achv:['review'],
+  },
+  {
+    q:'把 <code class="inline">../review</code> 这个工作树干净地删除。',
+    answers:['git worktree remove ../review'],
+    hint:'干净时无需任何参数',
+  },
+  {
+    q:'有人用 <code class="inline">rm -rf</code> 删掉了 <code class="inline">../old</code>，把对应的元数据回收。',
+    answers:['git worktree prune','git worktree prune -v'],
+    hint:'这条子命令会清理失效条目',
+    achv:['pruner'],
+  },
+  {
+    q:'分支 <code class="inline">feature-x</code> 已经在别处被检出，强制把它加到 <code class="inline">../alt</code>。',
+    answers:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x'],
+    hint:'`--force`（或 `-f`）会跳过"已被检出"的保护',
+    achv:['force'],
+  },
+  {
+    q:'把工作树从 <code class="inline">../feat</code> 移到 <code class="inline">../feat-x</code>。',
+    answers:['git worktree move ../feat ../feat-x'],
+    hint:'用 move 重命名',
+    achv:['mover'],
+  },
+  {
+    q:'锁住 <code class="inline">../usb-build</code> 这个工作树，让 prune 绕开它。',
+    answers:['git worktree lock ../usb-build'],
+    hint:'保护它不被清理',
+  },
+  {
+    q:'解锁 <code class="inline">../usb-build</code>。',
+    answers:['git worktree unlock ../usb-build'],
+    hint:'lock 的反操作',
+    achv:['locker'],
+  },
+  {
+    q:'热修复场景：在 <code class="inline">../hotfix</code> 基于 <code class="inline">origin/main</code> 新建分支 <code class="inline">hotfix/login</code>。',
+    answers:['git worktree add -b hotfix/login ../hotfix origin/main'],
+    hint:'`-b <新分支> <路径> <起点>`',
+    achv:['hotfix'],
+  },
+  {
+    q:'看一下当前工作树布局，然后切到 <code class="inline">../hotfix</code>。',
+    answers:['cd ../hotfix'],
+    hint:'就是普通的 `cd`',
+  },
+  {
+    q:'<code class="inline">../hotfix</code> 这个热修复工作树已经完工，没有未提交修改 —— 删掉它。',
+    answers:['git worktree remove ../hotfix'],
+    hint:'普通 remove',
+  },
+  {
+    q:'在兄弟目录 <code class="inline">../e2e</code> 里基于 <code class="inline">release/v2</code> 跑一个长时间的集成测试。',
+    answers:['git worktree add ../e2e release/v2'],
+    hint:'对已有分支的标准 add',
+  },
+  {
+    q:'确认这个集成工作树出现在注册表里。',
+    answers:['git worktree list'],
+    hint:'同一条 list 命令',
+  },
+  {
+    q:'之前在 <code class="inline">../tmp</code> 跟踪标签 <code class="inline">v1.4.0</code> 时进了游离状态。下次在 <code class="inline">../tmp</code> 改用真正的分支 <code class="inline">fix-1.4</code>。',
+    answers:['git worktree add -b fix-1.4 ../tmp v1.4.0'],
+    hint:'`-b` 是避开游离 HEAD 的方式',
+  },
+  {
+    q:'啰嗦地 prune（把清理掉的内容打印出来）。',
+    answers:['git worktree prune -v','git worktree prune --verbose'],
+    hint:'加一个详细日志参数',
+  },
+];
+
+const practice = {
+  world: newWorld(),
+  start(){
+    if(State.drillIdx>=DRILLS.length) State.drillIdx = 0;
+    document.getElementById('p-total').textContent = DRILLS.length;
+    this.render();
+
+    document.getElementById('p-input').addEventListener('keydown', e=>{
+      if(e.key==='Enter') this.submit();
+    });
+  },
+  current(){ return DRILLS[State.drillIdx]; },
+  render(){
+    const d = this.current();
+    if(!d){
+      document.getElementById('p-q').innerHTML = `练习全部完成。前往 Boss →`;
+      document.getElementById('p-hint').textContent = '';
+      document.getElementById('p-idx').textContent = DRILLS.length;
+      document.getElementById('p-bar').style.width = '100%';
+      return;
+    }
+    document.getElementById('p-q').innerHTML = d.q;
+    document.getElementById('p-hint').innerHTML = '提示：'+d.hint;
+    document.getElementById('p-idx').textContent = State.drillIdx+1;
+    document.getElementById('p-bar').style.width = (100*State.drillIdx/DRILLS.length)+'%';
+    document.getElementById('p-feedback').className='feedback';
+    document.getElementById('p-feedback').textContent='';
+    document.getElementById('p-input').value='';
+    document.getElementById('p-input').focus();
+    document.getElementById('p-ps1').textContent = '~/proj $';
+  },
+  submit(){
+    const d = this.current();
+    if(!d) return;
+    const inputEl = document.getElementById('p-input');
+    const val = inputEl.value.trim().replace(/\s+/g,' ');
+    State.totalAttempts++;
+    appendShellLine('p-shell', `~/proj $ ${val}`, 'prompt');
+
+    const ok = d.answers.some(a=>a.replace(/\s+/g,' ').toLowerCase()===val.toLowerCase());
+    const fb = document.getElementById('p-feedback');
+    if(ok){
+      State.correctAttempts++;
+      State.combo++;
+      State.bestCombo = Math.max(State.bestCombo, State.combo);
+      const reward = 12 + Math.min(State.combo,10)*2;
+      gainXP(reward);
+      fb.className='feedback ok';
+      fb.textContent = `答对了。+${reward} XP。（连击 ×${State.combo}）`;
+      appendShellLine('p-shell', '✓ 已通过', 'ok');
+      fireConfetti(0.6);
+      if(d.achv) d.achv.forEach(unlockAchv);
+      if(State.combo===5) unlockAchv('combo5');
+      if(State.combo>=10) unlockAchv('combo10');
+      if(State.level>=5) unlockAchv('level5');
+      State.drillIdx++;
+      save();
+      setTimeout(()=>this.render(), 500);
+    } else {
+      State.combo = 0;
+      fb.className='feedback err';
+      fb.textContent = `还差点。提示：${d.hint}`;
+      appendShellLine('p-shell', '✗ 再试一次', 'err');
+      const row = document.getElementById('p-input-row');
+      row.classList.add('shake');
+      setTimeout(()=>row.classList.remove('shake'), 400);
+      save();
+    }
+    refreshHUD();
+  },
+  skip(){
+    State.drillIdx++;
+    State.combo=0;
+    save();
+    this.render();
+    refreshHUD();
+  },
+  peek(){
+    const d = this.current();
+    if(!d) return;
+    const fb = document.getElementById('p-feedback');
+    fb.className='feedback tip';
+    fb.textContent = '答案：'+d.answers[0];
+  },
+  restart(){
+    if(!confirm('从第 1 题重新开始练习？（XP 与成就保留）')) return;
+    State.drillIdx=0; State.combo=0; save();
+    this.render(); refreshHUD();
+    clearShell('p-shell');
+  },
+};
+
+/* ============================================================
+ * Boss：分支杂耍人
+ * ============================================================ */
+const BOSS_ROUNDS = [
+  {q:'队友用 `rm -rf` 删了一个工作树目录。运行清理命令。',  ans:['git worktree prune','git worktree prune -v']},
+  {q:'列出当前仓库登记的所有工作树。',                ans:['git worktree list']},
+  {q:'分支 `feature-x` 已被别处检出，仍要在 `../alt` 添加它。', ans:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x']},
+  {q:'基于 `origin/main`，在 `../hot` 新建工作树并新建分支 `hot/2026`。', ans:['git worktree add -b hot/2026 ../hot origin/main']},
+  {q:'锁定 `../slow-disk`，让它在 prune 后存活。',                 ans:['git worktree lock ../slow-disk']},
+  {q:'把 `../wip` 移动到 `../wip-old`。',                            ans:['git worktree move ../wip ../wip-old']},
+  {q:'干净地拆掉 `../alt`。',                               ans:['git worktree remove ../alt']},
+];
+
+const boss = {
+  round:0, hp:100, dmg:18, heal:8, perRound:12.0,
+  timerId:null, deadline:0,
+
+  start(){
+    if(State.bossDefeated){
+      if(!confirm('Boss 已被击败。再战一次？')) return;
+    }
+    this.round=0; this.hp=100;
+    document.getElementById('boss-input').disabled=false;
+    document.getElementById('boss-engage').textContent='战斗中…';
+    document.getElementById('boss-engage').disabled=true;
+    this.next();
+  },
+  next(){
+    if(this.round>=BOSS_ROUNDS.length || this.hp<=0){
+      this.finish();
+      return;
+    }
+    const r = BOSS_ROUNDS[this.round];
+    document.getElementById('boss-round').textContent = (this.round+1);
+    document.getElementById('boss-q').innerHTML = r.q;
+    document.getElementById('boss-hint').innerHTML = '';
+    document.getElementById('boss-feedback').textContent = '';
+    document.getElementById('boss-feedback').className='feedback';
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-input').focus();
+    this.deadline = Date.now() + this.perRound*1000;
+    this.tick();
+  },
+  tick(){
+    clearTimeout(this.timerId);
+    const remain = (this.deadline - Date.now())/1000;
+    document.getElementById('boss-timer').textContent = Math.max(remain,0).toFixed(1)+'秒';
+    if(remain<=0){
+      this.miss('超时');
+      return;
+    }
+    this.timerId = setTimeout(()=>this.tick(), 100);
+  },
+  submit(){
+    const r = BOSS_ROUNDS[this.round];
+    const v = document.getElementById('boss-input').value.trim().replace(/\s+/g,' ').toLowerCase();
+    State.totalAttempts++;
+    if(r.ans.some(a=>a.toLowerCase()===v)){
+      this.hit();
+    } else {
+      this.miss('命令错误');
+    }
+  },
+  hit(){
+    State.correctAttempts++;
+    State.combo++;
+    State.bestCombo = Math.max(State.bestCombo, State.combo);
+    this.hp = Math.max(0, this.hp - this.dmg);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback ok';
+    document.getElementById('boss-feedback').textContent = `命中！−${this.dmg} HP。`;
+    fireConfetti(0.5);
+    gainXP(20);
+    this.round++;
+    setTimeout(()=>this.next(), 500);
+  },
+  miss(reason){
+    State.combo = 0;
+    this.hp = Math.min(100, this.hp + this.heal);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback err';
+    document.getElementById('boss-feedback').textContent = `失误（${reason}）。Boss 回血 +${this.heal}。`;
+    const row = document.getElementById('boss-input-row');
+    row.classList.add('shake');
+    setTimeout(()=>row.classList.remove('shake'), 400);
+    refreshHUD();
+    save();
+    this.round++;
+    setTimeout(()=>this.next(), 600);
+  },
+  finish(){
+    clearTimeout(this.timerId);
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='开战';
+    if(this.hp<=0){
+      document.getElementById('boss-q').innerHTML = `分支杂耍人已被击败。多元宇宙归你所有。`;
+      document.getElementById('boss-feedback').className='feedback ok';
+      document.getElementById('boss-feedback').textContent = '胜利。';
+      State.bossDefeated = true;
+      unlockAchv('boss');
+      gainXP(100, 'Boss 加成');
+      fireConfetti(2.0);
+      setTimeout(()=>fireConfetti(2.0), 400);
+    } else {
+      document.getElementById('boss-q').innerHTML = `回合用尽。Boss HP：${this.hp}。再来一次。`;
+      document.getElementById('boss-feedback').className='feedback err';
+      document.getElementById('boss-feedback').textContent = '失败。按下"开战"重试。';
+    }
+    save();
+    refreshHUD();
+  },
+  reset(){
+    clearTimeout(this.timerId);
+    this.round=0; this.hp=100;
+    document.getElementById('boss-hp').style.width='100%';
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='开战';
+    document.getElementById('boss-q').innerHTML = `按下 <b>开战</b> 即可开始战斗。`;
+    document.getElementById('boss-feedback').textContent='';
+    document.getElementById('boss-timer').textContent='12.0秒';
+  },
+};
+</script>
+</body>
+</html>

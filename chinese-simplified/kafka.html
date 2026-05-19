@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka 速查表 — 交互式</title>
+<style>
+  :root {
+    --bg: #0b1418;
+    --panel: #0f1c22;
+    --panel-2: #14262e;
+    --border: #1f3640;
+    --text: #e6f1f5;
+    --muted: #7d97a1;
+    --accent: #14e0c4;       /* Kafka teal */
+    --accent-2: #0bb4ff;     /* cyan */
+    --accent-3: #ff6b6b;     /* alarm red */
+    --code-bg: #07101417;
+    --code-bg-2: #061015;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 0% -10%, rgba(20, 224, 196, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(11, 180, 255, 0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #0f1c22 0%, #0b1418 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; letter-spacing: 0.3px; }
+  .logo .mark {
+    width: 26px; height: 26px; display: inline-block;
+    background: radial-gradient(circle at 30% 30%, var(--accent) 0%, #0a8b7d 60%, #053b34 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(20, 224, 196, 0.45);
+    position: relative;
+  }
+  .logo .mark::after {
+    content: ""; position: absolute; inset: 5px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 50%;
+    border-right-color: transparent;
+    animation: spin 4s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #052622;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(20,224,196,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(20,224,196,0.10);
+    border-color: rgba(20,224,196,0.45);
+    box-shadow: 0 0 0 3px rgba(20,224,196,0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(20, 224, 196, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg-2);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 12px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 110px; }
+  .pg-row select, .pg-row input[type="number"], .pg-row input[type="text"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .pg-row input[type="range"] { accent-color: var(--accent); }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #0a8b7d);
+    color: #042622; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(20,224,196,0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Partition visualizer */
+  .pviz {
+    display: grid; grid-template-columns: 130px 1fr; gap: 10px;
+    align-items: center;
+  }
+  .pviz .row {
+    display: contents;
+  }
+  .pviz .clabel {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; color: var(--text);
+    padding: 6px 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .pviz .parts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pviz .part {
+    padding: 6px 10px; border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; font-weight: 700;
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border);
+    transition: all 0.18s;
+  }
+  .pviz .part.assigned {
+    color: #052622;
+    border-color: transparent;
+    box-shadow: 0 0 12px -2px currentColor;
+  }
+  .pviz .pempty { color: var(--muted); font-size: 12px; padding: 4px 8px; }
+
+  /* Lag simulator */
+  .lagsim {
+    background: var(--code-bg-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; margin-top: 10px;
+  }
+  .lagsim .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 12px;
+  }
+  .lagsim .stat { background: var(--panel-2); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+  .lagsim .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .lagsim .stat .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 18px; font-weight: 700; color: var(--accent); margin-top: 4px;
+  }
+  .lagsim .bar {
+    height: 18px; background: var(--panel-2); border-radius: 4px;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    margin-top: 4px;
+  }
+  .lagsim .bar > div {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+  .lagsim .barlbl { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+  /* Message flow */
+  .msgflow { width: 100%; height: 240px; }
+  .msgflow text { fill: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .msgflow .node { fill: var(--panel-2); stroke: var(--border); stroke-width: 1.5; }
+  .msgflow .leader { stroke: var(--accent); }
+  .msgflow .follower { stroke: var(--accent-2); stroke-dasharray: 4 4; }
+  .msgflow .edge { stroke: var(--border); stroke-width: 2; fill: none; }
+  .msgflow .dot { fill: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+
+  /* Architecture diagram */
+  .arch { width: 100%; height: 320px; }
+  .arch .topic { fill: var(--panel-2); stroke: var(--border); }
+  .arch .partition { fill: var(--panel-2); stroke: var(--accent); stroke-width: 1.5; }
+  .arch .arrow { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .arch text { fill: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+  .arch .lbl { fill: var(--muted); }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th { background: var(--panel-2); color: var(--accent-2); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .pviz { grid-template-columns: 90px 1fr; }
+    .lagsim .stats { grid-template-columns: repeat(2, 1fr); }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="mark"></span> Kafka 速查表</div>
+    <div class="search">
+      <span class="icon">⌕</span>
+      <input id="searchInput" type="text" placeholder="搜索主题、命令、配置… ( / )" />
+    </div>
+    <span class="badge">v3.7+</span>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="concepts">概念</button>
+    <button data-tab="producers">生产者</button>
+    <button data-tab="consumers">消费者</button>
+    <button data-tab="cli">CLI</button>
+    <button data-tab="streams">Streams &amp; ksqlDB</button>
+    <button data-tab="ops">运维与调优</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== CONCEPTS ========== -->
+<section class="tab-section active" id="concepts">
+  <h1>概念</h1>
+  <p class="lead">brokers 组成集群。topic 划分为多个 partition。生产者追加，消费者按 offset 读取。整盘游戏就这样。</p>
+
+  <div class="playground">
+    <h3>集群剖面</h3>
+    <div class="desc">生产者向某个 topic 写入消息。partitioner 决定写到哪个 partition。每个 partition 都有副本。同一消费组内的消费者瓜分 partition。</div>
+    <svg class="arch" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet">
+      <!-- Producers -->
+      <rect class="topic" x="10" y="120" width="120" height="60" rx="8"/>
+      <text x="70" y="155" text-anchor="middle">producer</text>
+
+      <!-- Topic = orders, 4 partitions -->
+      <rect class="topic" x="200" y="40" width="320" height="240" rx="10"/>
+      <text class="lbl" x="360" y="60" text-anchor="middle">topic: orders   (4 个 partition，RF=3)</text>
+      <g>
+        <rect class="partition" x="220" y="80" width="80" height="40" rx="6"/>
+        <text x="260" y="105" text-anchor="middle">P0</text>
+        <rect class="partition" x="320" y="80" width="80" height="40" rx="6"/>
+        <text x="360" y="105" text-anchor="middle">P1</text>
+        <rect class="partition" x="420" y="80" width="80" height="40" rx="6"/>
+        <text x="460" y="105" text-anchor="middle">P2</text>
+        <rect class="partition" x="320" y="140" width="80" height="40" rx="6"/>
+        <text x="360" y="165" text-anchor="middle">P3</text>
+        <text class="lbl" x="360" y="200" text-anchor="middle">leader / 2 follower (ISR)</text>
+        <text class="lbl" x="360" y="220" text-anchor="middle">retention.ms = 7d · 日志压缩关闭</text>
+      </g>
+
+      <!-- Consumer groups -->
+      <rect class="topic" x="580" y="50" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="70" text-anchor="middle">group: billing  (2 个消费者)</text>
+      <rect class="partition" x="600" y="90" width="120" height="40" rx="6"/>
+      <text x="660" y="115" text-anchor="middle">c1 → P0,P1</text>
+      <rect class="partition" x="740" y="90" width="120" height="40" rx="6"/>
+      <text x="800" y="115" text-anchor="middle">c2 → P2,P3</text>
+
+      <rect class="topic" x="580" y="170" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="190" text-anchor="middle">group: analytics  (1 个消费者)</text>
+      <rect class="partition" x="600" y="210" width="260" height="40" rx="6"/>
+      <text x="730" y="235" text-anchor="middle">c1 → P0..P3</text>
+
+      <!-- Arrows -->
+      <path class="arrow" d="M 130 150 L 200 150" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 100 L 580 100" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 220 L 580 220" marker-end="url(#arrow)"/>
+
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d97a1"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <h2>词汇表</h2>
+  <table class="ref">
+    <thead><tr><th>术语</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>broker</code></td><td>Kafka 服务器。集群 = 多个 broker。每个 broker 由一个数字 <code>broker.id</code> 标识。</td></tr>
+      <tr><td><code>topic</code></td><td>命名的消息日志。创建时指定分区数和副本因子。</td></tr>
+      <tr><td><code>partition</code></td><td>有序、仅追加的提交日志。同一 partition 内严格有序；跨 partition 不保证顺序。</td></tr>
+      <tr><td><code>offset</code></td><td>partition 内单调递增的 64 位位置。消费者跟踪自己读到了哪个 offset。</td></tr>
+      <tr><td><code>leader / follower</code></td><td>对每个 partition，一个 broker 是 leader（处理读写），其余 broker 复制。leader 失效时，follower 被提升。</td></tr>
+      <tr><td><code>ISR</code></td><td>In-Sync Replicas：在 <code>replica.lag.time.max.ms</code> 内追上的 follower。只有 ISR 成员可以成为 leader。</td></tr>
+      <tr><td><code>consumer group</code></td><td>共享同一 <code>group.id</code> 的一组消费者。Kafka 任一时刻把每个 partition 分给组里某一个消费者。</td></tr>
+      <tr><td><code>rebalance</code></td><td>当组成员变化（消费者加入/离开/挂掉）时，重新分配 partition。</td></tr>
+      <tr><td><code>__consumer_offsets</code></td><td>内置压缩 topic，存放已提交 offset（默认 50 个 partition）。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>顺序规则</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">仅 partition 内有序</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">同一 partition 严格有序；跨 partition 无顺序。同 key → 默认走同一 partition → 该 key 内有序。</div>
+      <pre><code><span class="tok-c"># 顺序坑</span>
+<span class="tok-c"># key=user-42 → 进入 partition hash(user-42) % N</span>
+<span class="tok-c"># 所有 user-42 事件保持顺序。user-99 可能交错出现。</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">acks 与持久性</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">acks=all + min.insync.replicas≥2 = 单 broker 故障时不丢数据。</div>
+      <pre><code><span class="tok-k">acks</span>=<span class="tok-s">0</span>    <span class="tok-c"># 一发即走</span>
+<span class="tok-k">acks</span>=<span class="tok-s">1</span>    <span class="tok-c"># 仅等 leader</span>
+<span class="tok-k">acks</span>=<span class="tok-s">all</span>  <span class="tok-c"># 等待所有 ISR</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">投递语义</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">默认至少一次。精确一次需要幂等生产者 + 事务 + read_committed 消费者。</div>
+      <pre><code><span class="tok-c"># 精确一次配方</span>
+<span class="tok-k">enable.idempotence</span>=<span class="tok-s">true</span>
+<span class="tok-k">transactional.id</span>=<span class="tok-s">order-app-1</span>
+<span class="tok-c"># 消费者：</span>
+<span class="tok-k">isolation.level</span>=<span class="tok-s">read_committed</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>陷阱：</strong>事后增加 partition 数不会迁移已有数据。已有 key 留在原 partition；新 key 可能落到别处 —— 该 key 的顺序在两个 partition 上分裂一段时间。提前规划 partition 数，或使用按 key 的重分区作业。</div>
+</section>
+
+<!-- ========== PRODUCERS ========== -->
+<section class="tab-section" id="producers">
+  <h1>生产者</h1>
+  <p class="lead">生产者向 topic 追加消息。选择 key、ack 策略和 partitioner 占据 80% 的设计。</p>
+
+  <h2>快速上手（kafka-python）</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">基础生产者</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaProducer
+<span class="tok-k">import</span> <span class="tok-t">json</span>
+
+<span class="tok-f">p</span> = KafkaProducer(
+    bootstrap_servers=<span class="tok-s">"broker1:9092,broker2:9092"</span>,
+    value_serializer=<span class="tok-k">lambda</span> v: <span class="tok-t">json</span>.dumps(v).encode(),
+    key_serializer=<span class="tok-k">lambda</span> k: k.encode() <span class="tok-k">if</span> k <span class="tok-k">else</span> <span class="tok-k">None</span>,
+    acks=<span class="tok-s">"all"</span>,
+    enable_idempotence=<span class="tok-k">True</span>,
+    linger_ms=<span class="tok-n">5</span>,
+    compression_type=<span class="tok-s">"zstd"</span>,
+)
+<span class="tok-f">p</span>.send(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"user-42"</span>, value={<span class="tok-s">"sku"</span>: <span class="tok-s">"X"</span>, <span class="tok-s">"qty"</span>: <span class="tok-n">2</span>})
+<span class="tok-f">p</span>.flush()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">幂等 + 重试</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">重试不重复，max.in.flight ≤ 5 时不乱序。</div>
+      <pre><code>KafkaProducer(
+    enable_idempotence=<span class="tok-k">True</span>,
+    acks=<span class="tok-s">"all"</span>,
+    retries=<span class="tok-t">2</span>**<span class="tok-n">31</span>-<span class="tok-n">1</span>,
+    max_in_flight_requests_per_connection=<span class="tok-n">5</span>,
+    delivery_timeout_ms=<span class="tok-n">120_000</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">事务生产者</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">跨多 topic + partition 的原子写入。用于 read-process-write 应用与精确一次。</div>
+      <pre><code><span class="tok-c"># confluent-kafka 风格</span>
+<span class="tok-k">from</span> <span class="tok-t">confluent_kafka</span> <span class="tok-k">import</span> Producer
+p = Producer({
+  <span class="tok-s">"bootstrap.servers"</span>: <span class="tok-s">"broker1:9092"</span>,
+  <span class="tok-s">"transactional.id"</span>: <span class="tok-s">"order-app-1"</span>,
+  <span class="tok-s">"enable.idempotence"</span>: <span class="tok-k">True</span>,
+})
+p.<span class="tok-f">init_transactions</span>()
+p.<span class="tok-f">begin_transaction</span>()
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">produce</span>(<span class="tok-s">"audit"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">commit_transaction</span>()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">自定义 partitioner</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">默认在有 key 时使用 murmur2(key) % N；无 key 时使用 sticky partitioner。</div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">tenant_partitioner</span>(key, all_parts, available):
+    <span class="tok-c"># 把 tenant=premium 路由到专属 partition 0..3</span>
+    <span class="tok-k">if</span> key <span class="tok-k">and</span> key.startswith(<span class="tok-s">b"premium:"</span>):
+        <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-n">4</span>
+    <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-f">len</span>(all_parts)
+
+KafkaProducer(partitioner=tenant_partitioner, …)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Headers + 时间戳</div><button class="copy-btn">复制</button></div>
+      <pre><code>p.send(
+  <span class="tok-s">"orders"</span>, key=<span class="tok-s">b"u1"</span>, value=<span class="tok-s">b"..."</span>,
+  headers=[(<span class="tok-s">"trace-id"</span>, <span class="tok-s">b"abc123"</span>),
+           (<span class="tok-s">"schema"</span>, <span class="tok-s">b"OrderV2"</span>)],
+  timestamp_ms=<span class="tok-f">int</span>(<span class="tok-t">time</span>.time()*<span class="tok-n">1000</span>),
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">异步 + 回调</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">on_delivery</span>(err, msg):
+    <span class="tok-k">if</span> err:
+        log.<span class="tok-f">error</span>(<span class="tok-s">"failed: %s"</span>, err)
+    <span class="tok-k">else</span>:
+        log.<span class="tok-f">debug</span>(<span class="tok-s">"%s[%d]@%d"</span>,
+                  msg.topic(), msg.partition(), msg.offset())
+
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, value=v, on_delivery=on_delivery)
+p.<span class="tok-f">poll</span>(<span class="tok-n">0</span>)  <span class="tok-c"># 触发回调</span></code></pre>
+    </div>
+  </div>
+
+  <h2>acks vs 持久性 vs 延迟</h2>
+  <table class="ref">
+    <thead><tr><th>acks</th><th>持久性</th><th>延迟</th><th>适用场景</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>无 — 一发即走</td><td>最低</td><td>指标，可完全替代的遥测数据。</td></tr>
+      <tr><td><code>1</code></td><td>leader 不挂就还在</td><td>低</td><td>偶尔丢失可接受的热路径。</td></tr>
+      <tr><td><code>all</code></td><td>min.insync.replicas 个 broker 都还在</td><td>较高</td><td>所有重要数据的默认选项。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>压缩与批处理</h2>
+  <table class="ref">
+    <thead><tr><th>参数</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>linger.ms</code></td><td>即使批未满也至多等这么久再发送。5–20 ms 能带来显著的吞吐提升。</td></tr>
+      <tr><td><code>batch.size</code></td><td>每个 partition 批次的字节数（默认 16 KB）。高吞吐生产者宜 64 KB+。</td></tr>
+      <tr><td><code>compression.type</code></td><td><code>none</code> · <code>gzip</code> · <code>snappy</code> · <code>lz4</code> · <code>zstd</code>。<strong>zstd</strong> 通常在压缩比 + CPU 上表现最佳。</td></tr>
+      <tr><td><code>buffer.memory</code></td><td>客户端可用于缓冲未发送消息的总字节（默认 32 MB）。</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== CONSUMERS ========== -->
+<section class="tab-section" id="consumers">
+  <h1>消费者</h1>
+  <p class="lead">订阅 topic、poll、处理、提交 offset。组成员资格与 rebalance 行为才是真正的坑。</p>
+
+  <div class="playground">
+    <h3>Partition 分配可视化</h3>
+    <div class="desc">选择 partition 数、消费者数和分配策略。看 Kafka 如何在组里分配 partition。</div>
+    <div class="pg-row">
+      <label>Partition 数</label>
+      <input type="range" id="vizParts" min="1" max="16" value="6">
+      <span id="vizPartsVal" class="clabel" style="min-width:32px;text-align:center">6</span>
+      <label>消费者数</label>
+      <input type="range" id="vizCons" min="1" max="8" value="3">
+      <span id="vizConsVal" class="clabel" style="min-width:32px;text-align:center">3</span>
+      <label>策略</label>
+      <select id="vizStrat">
+        <option value="range">Range</option>
+        <option value="roundrobin" selected>RoundRobin</option>
+        <option value="sticky">CooperativeSticky</option>
+      </select>
+      <button class="btn ghost" id="vizDrop">移除一个消费者</button>
+      <button class="btn ghost" id="vizAdd">添加一个消费者</button>
+    </div>
+    <div class="pviz" id="pviz"></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:10px" id="vizNote"></div>
+  </div>
+
+  <div class="playground">
+    <h3>Offset / Lag 模拟器</h3>
+    <div class="desc">滑动生产、消费速率。观察已提交 offset 落后于日志末端。Lag = 末端 − 已提交。</div>
+    <div class="pg-row">
+      <label>生产 msg/s</label>
+      <input type="range" id="rateP" min="0" max="2000" value="500" step="50">
+      <span id="ratePV" class="clabel" style="min-width:60px;text-align:center">500</span>
+      <label>消费 msg/s</label>
+      <input type="range" id="rateC" min="0" max="2000" value="600" step="50">
+      <span id="rateCV" class="clabel" style="min-width:60px;text-align:center">600</span>
+      <button class="btn" id="lagToggle">暂停</button>
+      <button class="btn ghost" id="lagBurst">+1 万突发</button>
+      <button class="btn ghost" id="lagReset">重置</button>
+    </div>
+    <div class="lagsim">
+      <div class="stats">
+        <div class="stat"><div class="label">日志末端</div><div class="val" id="lagEnd">0</div></div>
+        <div class="stat"><div class="label">已提交</div><div class="val" id="lagCommit">0</div></div>
+        <div class="stat"><div class="label">Lag</div><div class="val" id="lagLag" style="color:var(--accent-3)">0</div></div>
+        <div class="stat"><div class="label">追平 ETA</div><div class="val" id="lagETA">—</div></div>
+      </div>
+      <div class="bar"><div id="barEnd" style="background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%"></div></div>
+      <div class="barlbl">日志末端（相对）</div>
+      <div class="bar"><div id="barCommit" style="background:linear-gradient(90deg,var(--ok),#22c55e);width:0%"></div></div>
+      <div class="barlbl">已提交 offset</div>
+      <div class="bar"><div id="barLag" style="background:linear-gradient(90deg,var(--accent-3),#b13838);width:0%"></div></div>
+      <div class="barlbl">Lag（差距）</div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <h3>消息流</h3>
+    <div class="desc">生产者 → leader → follower（复制）→ 消费者。</div>
+    <svg class="msgflow" viewBox="0 0 700 220">
+      <rect class="node" x="20" y="80" width="120" height="60" rx="10"/>
+      <text x="80" y="115" text-anchor="middle">producer</text>
+
+      <rect class="node leader" x="240" y="40" width="120" height="60" rx="10"/>
+      <text x="300" y="75" text-anchor="middle">P0 leader</text>
+
+      <rect class="node follower" x="240" y="120" width="120" height="40" rx="10"/>
+      <text x="300" y="145" text-anchor="middle">follower</text>
+      <rect class="node follower" x="240" y="170" width="120" height="40" rx="10"/>
+      <text x="300" y="195" text-anchor="middle">follower</text>
+
+      <rect class="node" x="500" y="80" width="170" height="60" rx="10"/>
+      <text x="585" y="115" text-anchor="middle">consumer (group)</text>
+
+      <path class="edge" d="M 140 110 L 240 70" id="edge1"/>
+      <path class="edge" d="M 360 70  L 500 110" id="edge2"/>
+      <path class="edge" d="M 300 100 L 300 120" />
+      <path class="edge" d="M 300 100 L 300 170" />
+
+      <circle class="dot" id="flowDot" r="6" cx="-20" cy="-20"/>
+    </svg>
+  </div>
+
+  <h2>消费者代码</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">基础 poll 循环</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaConsumer
+
+c = KafkaConsumer(
+    <span class="tok-s">"orders"</span>,
+    bootstrap_servers=<span class="tok-s">"broker1:9092"</span>,
+    group_id=<span class="tok-s">"billing"</span>,
+    auto_offset_reset=<span class="tok-s">"earliest"</span>,   <span class="tok-c"># 或 "latest"</span>
+    enable_auto_commit=<span class="tok-k">False</span>,
+    isolation_level=<span class="tok-s">"read_committed"</span>,
+    max_poll_records=<span class="tok-n">500</span>,
+    session_timeout_ms=<span class="tok-n">10_000</span>,
+)
+<span class="tok-k">for</span> msg <span class="tok-k">in</span> c:
+    <span class="tok-f">handle</span>(msg.value)
+    c.<span class="tok-f">commit</span>()  <span class="tok-c"># 同步提交</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">手动 poll + offset</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">仅在处理成功后提交 → 至少一次。</div>
+      <pre><code><span class="tok-k">while</span> <span class="tok-k">True</span>:
+    batch = c.<span class="tok-f">poll</span>(timeout_ms=<span class="tok-n">1000</span>)
+    <span class="tok-k">for</span> tp, msgs <span class="tok-k">in</span> batch.items():
+        <span class="tok-k">for</span> m <span class="tok-k">in</span> msgs:
+            <span class="tok-f">handle</span>(m)
+        c.<span class="tok-f">commit</span>({tp: OffsetAndMetadata(msgs[-<span class="tok-n">1</span>].offset+<span class="tok-n">1</span>, <span class="tok-k">None</span>)})</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Rebalance 监听器</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">在 partition 被收回前清空在途任务。</div>
+      <pre><code><span class="tok-k">class</span> <span class="tok-f">L</span>(ConsumerRebalanceListener):
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_revoked</span>(self, revoked):
+        <span class="tok-f">flush_buffer</span>()
+        consumer.<span class="tok-f">commit</span>()
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_assigned</span>(self, assigned):
+        log.<span class="tok-f">info</span>(<span class="tok-s">"now own %s"</span>, assigned)
+
+c.<span class="tok-f">subscribe</span>([<span class="tok-s">"orders"</span>], listener=L())</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">按 offset / 时间 seek</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-c"># 按 offset</span>
+c.<span class="tok-f">seek</span>(TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>), <span class="tok-n">12345</span>)
+
+<span class="tok-c"># 按时间戳（毫秒，自 epoch 起）</span>
+ts = {TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>): <span class="tok-n">1714000000000</span>}
+offsets = c.<span class="tok-f">offsets_for_times</span>(ts)
+<span class="tok-k">for</span> tp, off <span class="tok-k">in</span> offsets.items():
+    c.<span class="tok-f">seek</span>(tp, off.offset)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">静态成员</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">稳定的 group.instance.id 可避免滚动重启时触发 rebalance。</div>
+      <pre><code>KafkaConsumer(
+  group_id=<span class="tok-s">"billing"</span>,
+  group_instance_id=<span class="tok-s">"billing-pod-7"</span>,
+  session_timeout_ms=<span class="tok-n">30_000</span>,
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">协作式 rebalance</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">增量 rebalance —— 只有易主的 partition 暂停，其它继续处理。</div>
+      <pre><code>partition_assignment_strategy=[
+  <span class="tok-s">"org.apache.kafka.clients.consumer.CooperativeStickyAssignor"</span>
+]</code></pre>
+    </div>
+  </div>
+
+  <h2>提交语义</h2>
+  <table class="ref">
+    <thead><tr><th>模式</th><th>保证</th><th>风险</th></tr></thead>
+    <tbody>
+      <tr><td><code>enable_auto_commit=true</code>（默认 5 秒）</td><td>近似至多一次</td><td>提交后、处理前崩溃 → 消息丢失。</td></tr>
+      <tr><td>处理后手动 <code>commit()</code></td><td>至少一次</td><td>处理后、提交前崩溃 → 重启时重处理，需让 handler 幂等。</td></tr>
+      <tr><td>事务 <code>send_offsets_to_transaction()</code></td><td>精确一次（Kafka 内的 read-process-write）</td><td>当副作用在 Kafka 外（如非幂等的 HTTP POST）时无效。</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pitfall"><strong>陷阱：</strong>消息处理函数耗时超过 <code>max.poll.interval.ms</code>（默认 5 分钟）会被踢出组 → 触发 rebalance 风暴。要么调大限制，要么减小 <code>max.poll.records</code>，要么把工作交给 worker pool 并使用 <code>pause()</code> / <code>resume()</code>。</div>
+</section>
+
+<!-- ========== CLI ========== -->
+<section class="tab-section" id="cli">
+  <h1>CLI</h1>
+  <p class="lead"><code>$KAFKA_HOME/bin/</code> 下的脚本是生产环境里的好帮手。下面是速查。</p>
+
+  <h2>Topic</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">创建 / 列出 / 描述</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-c"># 创建</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic orders \
+  --partitions 12 --replication-factor 3 \
+  --config retention.ms=604800000 \
+  --config min.insync.replicas=2
+
+<span class="tok-c"># 列出 / 描述</span>
+kafka-topics.sh --bootstrap-server localhost:9092 --list
+kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">变更 / 删除</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-c"># 加 partition（无法减少！）</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --alter --topic orders --partitions 24
+
+<span class="tok-c"># 修改配置</span>
+kafka-configs.sh --bootstrap-server localhost:9092 \
+  --entity-type topics --entity-name orders \
+  --alter --add-config retention.ms=86400000
+
+<span class="tok-c"># 删除</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --delete --topic orders</code></pre>
+    </div>
+  </div>
+
+  <h2>Console produce / consume</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">从 stdin 生产</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --property parse.key=true \
+  --property key.separator=:
+<span class="tok-c"># 输入：    user-42:{"sku":"X","qty":2}</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">从头消费</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --from-beginning \
+  --property print.key=true \
+  --property print.timestamp=true \
+  --max-messages 50</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">消费单个 partition / offset 区间</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --partition 3 \
+  --offset 1000 \
+  --max-messages 10</code></pre>
+    </div>
+  </div>
+
+  <h2>消费组</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">列出、描述 lag</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --list
+
+kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe --group billing
+<span class="tok-c"># 列：TOPIC PARTITION CURRENT-OFFSET LOG-END-OFFSET LAG CONSUMER-ID HOST CLIENT-ID</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">重置 offset</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">先 --dry-run。仅在组停止时重置。</div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --group billing \
+  --reset-offsets --to-earliest \
+  --topic orders --execute
+
+<span class="tok-c"># 到时间戳：</span>
+  --to-datetime 2026-05-01T00:00:00.000
+
+<span class="tok-c"># 后退 1000 条：</span>
+  --shift-by -1000</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">删除组</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --delete --group billing</code></pre>
+    </div>
+  </div>
+
+  <h2>其他实用</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">查询 earliest / latest offset</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -1   <span class="tok-c"># latest</span>
+
+kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -2   <span class="tok-c"># earliest</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">dump 日志段</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-dump-log.sh \
+  --files /var/lib/kafka/orders-0/00000000000000000000.log \
+  --print-data-log</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">检查 ACL</div><button class="copy-btn">复制</button></div>
+      <pre><code>kafka-acls.sh \
+  --bootstrap-server localhost:9092 \
+  --add --allow-principal User:billing \
+  --operation Read --topic orders \
+  --group billing</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== STREAMS ========== -->
+<section class="tab-section" id="streams">
+  <h1>Streams &amp; ksqlDB</h1>
+  <p class="lead">Kafka Streams：转换 topic 的 Java/Scala 库。ksqlDB：构建在 Streams 之上的 SQL。</p>
+
+  <h2>Streams DSL</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Word count（「Hello World」）</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-t">StreamsBuilder</span> b = <span class="tok-k">new</span> <span class="tok-f">StreamsBuilder</span>();
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">String</span>&gt; src = b.<span class="tok-f">stream</span>(<span class="tok-s">"text-input"</span>);
+src.<span class="tok-f">flatMapValues</span>(v -&gt; Arrays.<span class="tok-f">asList</span>(v.<span class="tok-f">split</span>(<span class="tok-s">"\\W+"</span>)))
+   .<span class="tok-f">groupBy</span>((k,w) -&gt; w)
+   .<span class="tok-f">count</span>(Materialized.<span class="tok-f">as</span>(<span class="tok-s">"counts"</span>))
+   .<span class="tok-f">toStream</span>()
+   .<span class="tok-f">to</span>(<span class="tok-s">"word-counts"</span>, Produced.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()));</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Stream-table 连接</div><button class="copy-btn">复制</button></div>
+      <div class="card-desc">用压缩 topic 的最新状态丰富事件流。</div>
+      <pre><code><span class="tok-t">KTable</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">User</span>&gt; users = b.<span class="tok-f">table</span>(<span class="tok-s">"users"</span>);
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">Order</span>&gt; orders = b.<span class="tok-f">stream</span>(<span class="tok-s">"orders"</span>);
+
+orders.<span class="tok-f">join</span>(users,
+       (order, user) -&gt; <span class="tok-k">new</span> <span class="tok-f">EnrichedOrder</span>(order, user))
+      .<span class="tok-f">to</span>(<span class="tok-s">"orders-enriched"</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">窗口聚合</div><button class="copy-btn">复制</button></div>
+      <pre><code>orders.<span class="tok-f">groupByKey</span>()
+      .<span class="tok-f">windowedBy</span>(TimeWindows.<span class="tok-f">ofSizeAndGrace</span>(
+         Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">5</span>), Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">1</span>)))
+      .<span class="tok-f">aggregate</span>(() -&gt; <span class="tok-n">0L</span>,
+                 (k, v, sum) -&gt; sum + v.amount(),
+                 Materialized.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()))
+      .<span class="tok-f">toStream</span>()
+      .<span class="tok-f">to</span>(<span class="tok-s">"5min-totals"</span>);</code></pre>
+    </div>
+  </div>
+
+  <h2>ksqlDB</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">CREATE STREAM / TABLE</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> orders (
+  user_id <span class="tok-t">VARCHAR</span> KEY,
+  sku <span class="tok-t">VARCHAR</span>,
+  qty <span class="tok-t">INT</span>,
+  amount <span class="tok-t">DOUBLE</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'orders'</span>, value_format=<span class="tok-s">'JSON'</span>);
+
+<span class="tok-k">CREATE TABLE</span> users (
+  user_id <span class="tok-t">VARCHAR</span> PRIMARY KEY,
+  name <span class="tok-t">VARCHAR</span>, tier <span class="tok-t">VARCHAR</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'users'</span>, value_format=<span class="tok-s">'JSON'</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CSAS — 派生 stream</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> big_orders <span class="tok-k">AS</span>
+<span class="tok-k">SELECT</span> o.user_id, u.tier, o.amount
+<span class="tok-k">FROM</span> orders o
+<span class="tok-k">LEFT JOIN</span> users u <span class="tok-k">ON</span> o.user_id = u.user_id
+<span class="tok-k">WHERE</span> o.amount &gt; <span class="tok-n">100</span>
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CTAS — 窗口表</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-k">CREATE TABLE</span> spend_5min <span class="tok-k">AS</span>
+<span class="tok-k">SELECT</span> user_id,
+       <span class="tok-f">SUM</span>(amount) <span class="tok-k">AS</span> total
+<span class="tok-k">FROM</span> orders
+<span class="tok-k">WINDOW TUMBLING</span> (<span class="tok-k">SIZE</span> <span class="tok-n">5</span> <span class="tok-k">MINUTES</span>)
+<span class="tok-k">GROUP BY</span> user_id
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pull 查询</div><button class="copy-btn">复制</button></div>
+      <pre><code><span class="tok-c">-- 对表的最新状态做时点读取</span>
+<span class="tok-k">SELECT</span> total <span class="tok-k">FROM</span> spend_5min
+<span class="tok-k">WHERE</span> user_id = <span class="tok-s">'user-42'</span>;</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OPS ========== -->
+<section class="tab-section" id="ops">
+  <h1>运维与调优</h1>
+  <p class="lead">生产中你真正会调的旋钮，以及把你叫醒的告警。</p>
+
+  <h2>复制与持久性</h2>
+  <table class="ref">
+    <thead><tr><th>配置</th><th>默认</th><th>含义与场景</th></tr></thead>
+    <tbody>
+      <tr><td><code>replication.factor</code>（每 topic）</td><td>—</td><td>生产用 3。配合 <code>min.insync.replicas=2</code> 可承受单 broker 损失。</td></tr>
+      <tr><td><code>min.insync.replicas</code></td><td>1</td><td>RF=3 时设为 2。配合 <code>acks=all</code> = 单 broker 故障不丢数据。</td></tr>
+      <tr><td><code>unclean.leader.election.enable</code></td><td>false</td><td>保持 false。开启会用持久性换可用性。</td></tr>
+      <tr><td><code>replica.lag.time.max.ms</code></td><td>30000</td><td>follower 落后超过此值会被踢出 ISR。</td></tr>
+      <tr><td><code>auto.create.topics.enable</code></td><td>true</td><td>生产环境设 <code>false</code>。topic 创建应作为显式步骤。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>保留与存储</h2>
+  <table class="ref">
+    <thead><tr><th>配置</th><th>作用</th></tr></thead>
+    <tbody>
+      <tr><td><code>retention.ms</code></td><td>删除超过此时长的消息。默认 7 天。按 topic 设置。</td></tr>
+      <tr><td><code>retention.bytes</code></td><td>每个 partition 日志大小上限。按 topic 设置。ms / bytes 谁先到谁生效。</td></tr>
+      <tr><td><code>segment.bytes</code> / <code>segment.ms</code></td><td>每 X 字节或 X 毫秒滚动新段。段越小：删除/压缩越快、文件句柄越多。</td></tr>
+      <tr><td><code>cleanup.policy=compact</code></td><td>日志压缩 — 永远保留每个 key 的最新值。用于状态 topic、changelog、<code>__consumer_offsets</code>。</td></tr>
+      <tr><td><code>cleanup.policy=delete,compact</code></td><td>同时启用：压缩 + 按保留期丢弃旧 key。</td></tr>
+      <tr><td><code>min.cleanable.dirty.ratio</code></td><td>多脏才触发压缩（默认 0.5）。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>常见告警</h2>
+  <table class="ref">
+    <thead><tr><th>症状</th><th>排查方向</th></tr></thead>
+    <tbody>
+      <tr><td>under-replicated partitions &gt; 0</td><td>broker 宕机、磁盘慢或网络问题。<code>kafka-topics.sh --describe --under-replicated-partitions</code>。</td></tr>
+      <tr><td>offline partitions &gt; 0</td><td>无 leader 可用。集群处于危险状态。</td></tr>
+      <tr><td>消费者 lag 持续增长</td><td>消费者慢/卡。检查 <code>max.poll.interval.ms</code>、GC 暂停、下游系统。</td></tr>
+      <tr><td>生产者 <code>RecordTooLargeException</code></td><td>调大生产者 <code>max.request.size</code>、broker 的 <code>message.max.bytes</code>、消费者的 <code>max.partition.fetch.bytes</code>。</td></tr>
+      <tr><td>消费组 rebalance 风暴</td><td>慢 handler、不稳定成员、GC 等。使用静态成员 + cooperative-sticky。</td></tr>
+      <tr><td>ISR 频繁缩水</td><td>网络或磁盘问题。检查 <code>replica.lag.time.max.ms</code> 与 broker IO wait。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>集群规模经验法则</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">每个 broker 的 partition 数</div></div>
+      <div class="card-desc">目标 &lt; 4000。每个 partition 都吃文件句柄、内存和 rebalance 时间。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">每个 topic 的 partition 数</div></div>
+      <div class="card-desc">≥ 你将来需要的最大并行度。前期取一个慷慨的值；事后增加会破坏按 key 顺序。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">磁盘</div></div>
+      <div class="card-desc">XFS、大量顺序写。不要与突发型负载共享。预留 50%+ 给日志压缩。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">网络</div></div>
+      <div class="card-desc">复制也是南北向流量。RF=3 意味着每生产 1 字节，网络上传 ~3×。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">JVM</div></div>
+      <div class="card-desc">堆 6-8 GB 足够。大部分内存留给 page cache。</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">KRaft（无 ZooKeeper）</div></div>
+      <div class="card-desc">3.3+ 默认 KRaft。4.0 已移除 ZooKeeper。新集群只用 KRaft。</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="footer">单文件自包含速查表。配色与同目录的 PyTorch / Go / AWS 页面一致。按 <code>/</code> 搜索，<code>1</code>–<code>6</code> 切换标签页。</div>
+
+<script>
+  // Tabs
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // Search
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); search.focus(); }
+    if (e.key === 'Escape') { search.value = ''; filter(); search.blur(); }
+    if (/^[1-6]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
+      const order = ['concepts','producers','consumers','cli','streams','ops'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // Copy buttons
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const code = card?.querySelector('pre code')?.innerText || '';
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      btn.textContent = 'Copied'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // Partition visualizer
+  const colors = ['#14e0c4','#0bb4ff','#a78bfa','#f472b6','#fbbf24','#34d399','#fb7185','#60a5fa'];
+  const vizParts = document.getElementById('vizParts');
+  const vizCons = document.getElementById('vizCons');
+  const vizStrat = document.getElementById('vizStrat');
+  const vizPartsVal = document.getElementById('vizPartsVal');
+  const vizConsVal = document.getElementById('vizConsVal');
+  const pviz = document.getElementById('pviz');
+  const vizNote = document.getElementById('vizNote');
+  function assign(parts, cons, strat) {
+    const owners = new Array(parts).fill(-1);
+    if (cons === 0) return owners;
+    if (strat === 'range') {
+      const per = Math.floor(parts / cons);
+      const rem = parts % cons;
+      let p = 0;
+      for (let c = 0; c < cons; c++) {
+        const take = per + (c < rem ? 1 : 0);
+        for (let i = 0; i < take; i++) owners[p++] = c;
+      }
+    } else if (strat === 'roundrobin' || strat === 'sticky') {
+      for (let p = 0; p < parts; p++) owners[p] = p % cons;
+    }
+    return owners;
+  }
+  function renderViz() {
+    const parts = parseInt(vizParts.value, 10);
+    const cons = parseInt(vizCons.value, 10);
+    vizPartsVal.textContent = parts;
+    vizConsVal.textContent = cons;
+    const owners = assign(parts, cons, vizStrat.value);
+    pviz.innerHTML = '';
+    if (cons === 0) {
+      pviz.innerHTML = '<div class="pempty">No consumers in group.</div>';
+      return;
+    }
+    for (let c = 0; c < cons; c++) {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('div'); lbl.className = 'clabel'; lbl.textContent = 'consumer-' + c;
+      const ps = document.createElement('div'); ps.className = 'parts';
+      const myParts = owners.map((o,i) => o === c ? i : -1).filter(x => x >= 0);
+      if (myParts.length === 0) {
+        const e = document.createElement('div'); e.className = 'pempty';
+        e.textContent = '— idle (no partitions assigned)';
+        ps.appendChild(e);
+      }
+      myParts.forEach(p => {
+        const d = document.createElement('div'); d.className = 'part assigned';
+        d.style.background = colors[c % colors.length];
+        d.style.color = '#052622';
+        d.textContent = 'P' + p;
+        ps.appendChild(d);
+      });
+      pviz.appendChild(lbl); pviz.appendChild(ps);
+    }
+    if (cons > parts) {
+      vizNote.textContent = 'More consumers than partitions: ' + (cons - parts) + ' consumer(s) sit idle. Partitions are the unit of parallelism.';
+    } else if (vizStrat.value === 'range') {
+      vizNote.textContent = 'Range: each consumer gets a contiguous slice. Uneven when partitions don\'t divide evenly.';
+    } else if (vizStrat.value === 'roundrobin') {
+      vizNote.textContent = 'RoundRobin: balanced fan-out. May reshuffle a lot of partitions on group changes.';
+    } else {
+      vizNote.textContent = 'CooperativeSticky: minimizes movement on rebalance. Only the partitions whose owner changed pause briefly.';
+    }
+  }
+  vizParts.addEventListener('input', renderViz);
+  vizCons.addEventListener('input', renderViz);
+  vizStrat.addEventListener('change', renderViz);
+  document.getElementById('vizDrop').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) > 1) { vizCons.value = parseInt(vizCons.value,10) - 1; renderViz(); }
+  });
+  document.getElementById('vizAdd').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) < 8) { vizCons.value = parseInt(vizCons.value,10) + 1; renderViz(); }
+  });
+  renderViz();
+
+  // Lag simulator
+  (function() {
+    const rateP = document.getElementById('rateP');
+    const rateC = document.getElementById('rateC');
+    const rateCV = document.getElementById('rateCV');
+    const ratePV = document.getElementById('ratePV');
+    const lagEnd = document.getElementById('lagEnd');
+    const lagCommit = document.getElementById('lagCommit');
+    const lagLag = document.getElementById('lagLag');
+    const lagETA = document.getElementById('lagETA');
+    const barEnd = document.getElementById('barEnd');
+    const barCommit = document.getElementById('barCommit');
+    const barLag = document.getElementById('barLag');
+    const lagToggle = document.getElementById('lagToggle');
+    const lagBurst = document.getElementById('lagBurst');
+    const lagReset = document.getElementById('lagReset');
+    let state = { end: 0, committed: 0, paused: false };
+    function syncLabels() { ratePV.textContent = rateP.value; rateCV.textContent = rateC.value; }
+    rateP.addEventListener('input', syncLabels); rateC.addEventListener('input', syncLabels); syncLabels();
+    lagToggle.addEventListener('click', () => { state.paused = !state.paused; lagToggle.textContent = state.paused ? 'Resume' : 'Pause'; });
+    lagBurst.addEventListener('click', () => { state.end += 10000; });
+    lagReset.addEventListener('click', () => { state.end = 0; state.committed = 0; });
+    function tick() {
+      if (!state.paused) {
+        const p = parseInt(rateP.value, 10) / 10; // per 100ms
+        const c = parseInt(rateC.value, 10) / 10;
+        state.end += p;
+        state.committed = Math.min(state.end, state.committed + c);
+      }
+      const lag = Math.max(0, state.end - state.committed);
+      lagEnd.textContent = Math.floor(state.end).toLocaleString();
+      lagCommit.textContent = Math.floor(state.committed).toLocaleString();
+      lagLag.textContent = Math.floor(lag).toLocaleString();
+      const cRate = parseInt(rateC.value, 10), pRate = parseInt(rateP.value, 10);
+      if (cRate <= pRate || lag <= 0) {
+        lagETA.textContent = lag <= 0 ? 'caught up' : '∞';
+      } else {
+        const eta = lag / (cRate - pRate);
+        lagETA.textContent = eta < 60 ? eta.toFixed(1) + 's' : (eta/60).toFixed(1) + 'm';
+      }
+      const max = Math.max(state.end, 1);
+      barEnd.style.width = '100%';
+      barCommit.style.width = (state.committed / max * 100) + '%';
+      barLag.style.width = (lag / max * 100) + '%';
+    }
+    setInterval(tick, 100);
+  })();
+
+  // Message flow animation
+  (function() {
+    const dot = document.getElementById('flowDot');
+    if (!dot) return;
+    // Path: producer (140,110) -> leader (300,70) -> back to leader after replication blink -> consumer (500,110)
+    const path = [
+      [140, 110], [300, 70], [300, 70], [500, 110]
+    ];
+    let t = 0;
+    function ease(x) { return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x+2, 2)/2; }
+    function frame() {
+      t = (t + 0.006) % 1;
+      const seg = Math.floor(t * 3);
+      const local = ease((t * 3) % 1);
+      const a = path[seg], b = path[seg+1];
+      const x = a[0] + (b[0]-a[0]) * local;
+      const y = a[1] + (b[1]-a[1]) * local;
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+</script>
+
+</body>
+</html>

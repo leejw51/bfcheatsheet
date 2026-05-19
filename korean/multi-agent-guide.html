@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MULTI-AGENT // Claude Code 현장 매뉴얼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #0a0d0b;
+    --bg-2:      #0f130f;
+    --ink:       #d6e1d3;
+    --ink-dim:   #8a988a;
+    --rule:      #1d241d;
+    --rule-2:    #2a342a;
+    --phosphor:  #5cffae;
+    --phosphor-deep: #18b072;
+    --amber:     #ffb547;
+    --crimson:   #ff5e6c;
+    --paper:     #f3eedf;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(ellipse at 20% -10%, rgba(92,255,174,0.06), transparent 55%),
+      radial-gradient(ellipse at 110% 30%, rgba(255,181,71,0.04), transparent 50%),
+      repeating-linear-gradient(
+        0deg,
+        transparent 0,
+        transparent 2px,
+        rgba(255,255,255,0.012) 2px,
+        rgba(255,255,255,0.012) 3px
+      );
+  }
+
+  ::selection { background: var(--phosphor); color: var(--bg); }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    opacity: 0.45; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.45 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  /* ───── layout ───── */
+  .shell {
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 28px 36px 96px;
+    position: relative;
+  }
+
+  /* ───── masthead ───── */
+  .masthead {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .masthead .meta {
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .masthead .meta.right { text-align: right; }
+  .masthead .meta strong { color: var(--phosphor); font-weight: 500; }
+  .wordmark {
+    text-align: center;
+    line-height: 1;
+  }
+  .wordmark .kicker {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: var(--amber);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .wordmark h1 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-weight: 300;
+    font-size: clamp(54px, 8vw, 110px);
+    margin: 0;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+  }
+  .wordmark h1 em {
+    font-style: italic;
+    font-weight: 300;
+    color: var(--phosphor);
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .wordmark .subline {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+  }
+
+  /* ───── hero terminal ───── */
+  .hero {
+    margin: 36px 0 56px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 28px;
+  }
+  @media (max-width: 900px) { .hero { grid-template-columns: 1fr; } }
+
+  .terminal {
+    background: var(--bg-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      0 0 0 1px rgba(92,255,174,0.04) inset,
+      0 30px 60px -30px rgba(0,0,0,0.6);
+  }
+  .terminal::before {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, rgba(92,255,174,0.03) 0 1px, transparent 1px 3px
+    );
+    opacity: 0.7;
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), transparent);
+  }
+  .term-dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--rule-2);
+  }
+  .term-dot.live { background: var(--phosphor); box-shadow: 0 0 8px var(--phosphor); }
+  .term-title {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+  }
+  .term-body {
+    padding: 22px 24px 26px;
+    font-size: 13px;
+    line-height: 1.7;
+    min-height: 280px;
+  }
+  .term-body .prompt { color: var(--phosphor); }
+  .term-body .out { color: var(--ink); }
+  .term-body .dim { color: var(--ink-dim); }
+  .term-body .amber { color: var(--amber); }
+  .term-body .crimson { color: var(--crimson); }
+  .term-body .bar {
+    color: var(--phosphor);
+    text-shadow: 0 0 8px rgba(92,255,174,0.4);
+  }
+  .cursor {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--phosphor);
+    vertical-align: -2px;
+    margin-left: 2px;
+    animation: blink 1.05s steps(2) infinite;
+    box-shadow: 0 0 6px var(--phosphor);
+  }
+  @keyframes blink { to { opacity: 0; } }
+
+  .lede {
+    align-self: end;
+    padding: 0 8px;
+  }
+  .lede .drop {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-style: italic;
+    font-weight: 300;
+    font-size: clamp(22px, 2.4vw, 30px);
+    line-height: 1.25;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0 0 16px;
+  }
+  .lede .drop em { color: var(--amber); font-style: italic; }
+  .lede p {
+    color: var(--ink-dim);
+    font-size: 13px;
+    max-width: 44ch;
+  }
+  .lede .stamp {
+    margin-top: 22px;
+    display: inline-flex;
+    gap: 10px;
+    align-items: center;
+    padding: 6px 12px;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .stamp .pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 6px var(--phosphor);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ───── section ruler ───── */
+  .ruler {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 18px;
+    margin: 64px 0 28px;
+    color: var(--ink-dim);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+  }
+  .ruler hr {
+    border: none;
+    border-top: 1px dashed var(--rule-2);
+    margin: 0;
+  }
+  .ruler .num {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--amber);
+    text-transform: none;
+  }
+
+  /* ───── tabs ───── */
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule-2);
+    border-bottom: 1px solid var(--rule-2);
+  }
+  @media (max-width: 760px) { .tabs { grid-template-columns: repeat(2, 1fr); } }
+
+  .tab {
+    appearance: none;
+    background: transparent;
+    color: var(--ink-dim);
+    border: none;
+    border-right: 1px solid var(--rule-2);
+    text-align: left;
+    padding: 18px 18px 16px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.25s ease, color 0.25s ease;
+    position: relative;
+  }
+  .tab:last-child { border-right: none; }
+  .tab .num {
+    display: block;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 28px;
+    color: var(--ink-dim);
+    line-height: 1;
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    transition: color 0.25s ease;
+  }
+  .tab .label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .tab .desc {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .tab:hover { background: rgba(92,255,174,0.04); color: var(--ink); }
+  .tab.active {
+    color: var(--ink);
+    background: linear-gradient(180deg, rgba(92,255,174,0.06), transparent);
+  }
+  .tab.active .num { color: var(--phosphor); }
+  .tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 2px;
+    background: var(--phosphor);
+    box-shadow: 0 0 14px var(--phosphor);
+  }
+
+  /* ───── panels ───── */
+  .panels { margin-top: 32px; }
+  .panel {
+    display: none;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 32px;
+    animation: panelin 0.45s ease;
+  }
+  .panel.active { display: grid; }
+  @media (max-width: 900px) { .panel { grid-template-columns: 1fr; } }
+  @keyframes panelin {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .copy-card {
+    padding: 4px 4px 0;
+  }
+  .copy-card h2 {
+    font-family: "Fraunces", serif;
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+    font-weight: 400;
+    font-size: clamp(34px, 4vw, 52px);
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .copy-card h2 em {
+    font-style: italic;
+    color: var(--phosphor);
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .copy-card .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 14px;
+  }
+  .copy-card p {
+    color: var(--ink);
+    font-size: 14px;
+    max-width: 56ch;
+  }
+  .copy-card p em {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    color: var(--ink-dim);
+    font-size: 14px;
+  }
+  .copy-card .pull {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 300;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--amber);
+    border-left: 2px solid var(--amber);
+    padding-left: 14px;
+    margin: 22px 0;
+    max-width: 50ch;
+  }
+  .meta-row {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px dashed var(--rule-2);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .meta-row span strong {
+    color: var(--phosphor);
+    font-weight: 500;
+  }
+
+  /* code block */
+  .codeblock {
+    position: relative;
+    background: var(--bg-2);
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .code-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .code-head .lang { color: var(--phosphor); }
+  .copy-btn {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--rule-2);
+    color: var(--ink-dim);
+    padding: 4px 10px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s ease;
+  }
+  .copy-btn:hover { color: var(--phosphor); border-color: var(--phosphor); }
+  .copy-btn.copied { color: var(--bg); background: var(--phosphor); border-color: var(--phosphor); }
+  pre.code {
+    margin: 0;
+    padding: 18px 20px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+    color: var(--ink);
+  }
+  .tk-c  { color: var(--ink-dim); font-style: italic; }   /* comment */
+  .tk-k  { color: var(--phosphor); }                       /* keyword */
+  .tk-s  { color: var(--amber); }                          /* string */
+  .tk-p  { color: var(--crimson); }                        /* punct */
+  .tk-y  { color: #b6e8c4; }                               /* yaml key */
+  .tk-d  { color: var(--ink); }                            /* default */
+
+  /* ───── simulator ───── */
+  .sim-wrap {
+    margin-top: 28px;
+    border: 1px solid var(--rule-2);
+    border-radius: 4px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 50% -20%, rgba(92,255,174,0.05), transparent 60%),
+      var(--bg-2);
+  }
+  .sim-bar {
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--rule);
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .sim-bar .title {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--ink);
+  }
+  .sim-bar .title em { color: var(--phosphor); }
+  .sim-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sim-btn {
+    appearance: none;
+    border: 1px solid var(--rule-2);
+    background: transparent;
+    color: var(--ink);
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.2s;
+  }
+  .sim-btn.primary {
+    border-color: var(--phosphor);
+    color: var(--phosphor);
+  }
+  .sim-btn.primary:hover {
+    background: var(--phosphor);
+    color: var(--bg);
+    box-shadow: 0 0 18px rgba(92,255,174,0.4);
+  }
+  .sim-btn.ghost:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .sim-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .sim-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    padding: 18px;
+    min-height: 220px;
+  }
+  .sim-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--ink-dim);
+    padding: 60px 20px;
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-size: 18px;
+  }
+  .sim-empty span {
+    display: block;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-top: 8px;
+    font-style: normal;
+  }
+
+  .agent-card {
+    border: 1px solid var(--rule-2);
+    border-radius: 3px;
+    background: var(--bg);
+    padding: 12px 14px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    position: relative;
+    overflow: hidden;
+    animation: cardin 0.35s ease;
+  }
+  @keyframes cardin {
+    from { opacity: 0; transform: scale(0.96); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  .agent-card .head {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px dashed var(--rule-2);
+    padding-bottom: 6px; margin-bottom: 8px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .agent-card .head .name { color: var(--phosphor); }
+  .agent-card .head.done .name { color: var(--amber); }
+  .agent-card .head.error .name { color: var(--crimson); }
+  .agent-card .head .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .agent-card .head .badge .blob {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 8px var(--phosphor);
+    animation: pulse 1s infinite;
+  }
+  .agent-card.done .blob { background: var(--amber); animation: none; box-shadow: none; }
+  .agent-card .stream {
+    color: var(--ink);
+    min-height: 60px;
+  }
+  .agent-card .stream .l { display: block; }
+  .agent-card .stream .l.p { color: var(--phosphor); }
+  .agent-card .stream .l.d { color: var(--ink-dim); }
+  .agent-card .stream .l.a { color: var(--amber); }
+  .agent-card .progress {
+    margin-top: 8px;
+    height: 2px;
+    background: var(--rule-2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .agent-card .progress > i {
+    display: block; height: 100%;
+    background: var(--phosphor);
+    width: 0%;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px var(--phosphor);
+  }
+  .agent-card.done .progress > i { background: var(--amber); box-shadow: none; }
+
+  /* ───── comparison table ───── */
+  .compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 12.5px;
+  }
+  .compare th, .compare td {
+    text-align: left;
+    padding: 14px 14px;
+    border-bottom: 1px dashed var(--rule-2);
+    vertical-align: top;
+  }
+  .compare th {
+    font-family: "Fraunces", serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--amber);
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .compare td:first-child {
+    color: var(--phosphor);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .compare tr:hover td { background: rgba(92,255,174,0.03); }
+
+  /* ───── footer ───── */
+  footer.foot {
+    margin-top: 80px;
+    padding-top: 22px;
+    border-top: 1px solid var(--rule-2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  footer.foot .ascii {
+    font-size: 10px;
+    line-height: 1.1;
+    color: var(--phosphor);
+    text-shadow: 0 0 8px rgba(92,255,174,0.3);
+    white-space: pre;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  footer.foot a { color: var(--ink); text-decoration: none; border-bottom: 1px dashed var(--rule-2); }
+  footer.foot a:hover { color: var(--phosphor); border-color: var(--phosphor); }
+
+  /* ───── small bits ───── */
+  .kbd {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid var(--rule-2);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--phosphor);
+    background: var(--bg-2);
+  }
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="shell">
+
+  <!-- ═══════════ MASTHEAD ═══════════ -->
+  <header class="masthead">
+    <div class="meta">
+      VOL.&nbsp;01 &nbsp;/&nbsp; <strong>2026.05</strong><br/>
+      성급한 운영자를 위한 현장 매뉴얼
+    </div>
+    <div class="wordmark">
+      <div class="kicker">— 생성 / 조율 / 병합 —</div>
+      <h1>multi&shy;<em>agent</em>.</h1>
+      <div class="subline">Claude Code를 <em>병렬</em>로 작동시키는 네 가지 방법.</div>
+    </div>
+    <div class="meta right">
+      파일:&nbsp;<strong>multi-agent-guide.html</strong><br/>
+      런타임:&nbsp;claude-code/cli
+    </div>
+  </header>
+
+  <!-- ═══════════ HERO ═══════════ -->
+  <section class="hero">
+    <div class="terminal" aria-hidden="true">
+      <div class="term-bar">
+        <span class="term-dot"></span>
+        <span class="term-dot"></span>
+        <span class="term-dot live"></span>
+        <span class="term-title">~/repo — claude --multi-agent</span>
+      </div>
+      <div class="term-body" id="bootTerm"></div>
+    </div>
+
+    <div class="lede">
+      <p class="drop">
+        Claude 창 하나도 이미 작은 팀입니다. <em>네 개의 창</em>은 스튜디오입니다.
+        이 가이드는 그 팀이 취할 수 있는 네 가지 형태와 — 각 형태가 언제
+        올바른 형태인지 보여줍니다.
+      </p>
+      <p>
+        인원수가 아닌 조율 방식으로 선택하세요. 사이드 작업 &rarr; 서브 에이전트.
+        독립적 &rarr; 에이전트 뷰. 조율됨 &rarr; 팀. 완전 격리
+        &rarr; 터미널당 워크트리.
+      </p>
+      <span class="stamp"><span class="pulse"></span>라이브 · 인터랙티브</span>
+    </div>
+  </section>
+
+  <!-- ═══════════ APPROACHES ═══════════ -->
+  <div class="ruler">
+    <span class="num">i.</span>
+    <hr/>
+    <span>네 가지 접근법 · 하나를 선택하거나 겹쳐 쓰세요</span>
+  </div>
+
+  <nav class="tabs" id="tabs" role="tablist">
+    <button class="tab active" role="tab" data-panel="p-sub">
+      <span class="num">01</span>
+      <span class="label">서브 에이전트</span>
+      <span class="desc">위임된 사이드 작업</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-view">
+      <span class="num">02</span>
+      <span class="label">에이전트 뷰</span>
+      <span class="desc">세션 대시보드</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-team">
+      <span class="num">03</span>
+      <span class="label">에이전트 팀</span>
+      <span class="desc">조율된 작업자</span>
+    </button>
+    <button class="tab" role="tab" data-panel="p-term">
+      <span class="num">04</span>
+      <span class="label">멀티 터미널</span>
+      <span class="desc">탭 &amp; 워크트리</span>
+    </button>
+  </nav>
+
+  <div class="panels">
+
+    <!-- ───── 01 SUB-AGENTS ───── -->
+    <section id="p-sub" class="panel active" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">접근법 01 · 세션 내 위임</div>
+        <h2>서브 <em>에이전트</em>.</h2>
+        <p>
+          <em>자체 컨텍스트 윈도우</em>에서 실행되어 집중된 작업을 마치고 호출 세션에
+          요약을 반환하는 전문 작업자. 메인 스레드를 깨끗하게 유지하기 위해 사용하세요
+          — 조사, 검증, 탐색.
+        </p>
+        <div class="pull">
+          “요점은 또 다른 에이전트가 아닙니다. 요점은 <em>메인</em>
+          대화를 어수선하지 않게 유지하는 것입니다.”
+        </div>
+        <p>
+          <span class="kbd">.claude/agents/</span> 아래에 Markdown 파일로 정의합니다.
+          각각 자체 시스템 프롬프트, 도구 허용 목록, 그리고 (선택적으로) 더 작은
+          모델을 가지므로 작업이 저렴합니다.
+        </p>
+        <div class="meta-row">
+          <span>컨텍스트 · <strong>격리됨</strong></span>
+          <span>병렬 · <strong>예</strong></span>
+          <span>파일 충돌 · <strong>공유 cwd</strong></span>
+          <span>적합 · <strong>조사, 감사</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">.claude/agents/researcher.md</span>
+            <button class="copy-btn" data-copy="sub">복사</button>
+          </div>
+<pre class="code" id="code-sub"><span class="tk-p">---</span>
+<span class="tk-y">name</span><span class="tk-p">:</span> <span class="tk-d">Researcher</span>
+<span class="tk-y">description</span><span class="tk-p">:</span> <span class="tk-d">Finds prior art &amp; cites sources</span>
+<span class="tk-y">model</span><span class="tk-p">:</span> <span class="tk-d">haiku</span>
+<span class="tk-y">tools</span><span class="tk-p">:</span>
+  <span class="tk-p">-</span> <span class="tk-d">bash</span>
+  <span class="tk-p">-</span> <span class="tk-d">read</span>
+  <span class="tk-p">-</span> <span class="tk-d">webfetch</span>
+<span class="tk-p">---</span>
+
+<span class="tk-c"># You are an expert researcher.</span>
+<span class="tk-c"># Return citations as a bullet list.</span>
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">prompt · main session</span>
+            <button class="copy-btn" data-copy="sub2">복사</button>
+          </div>
+<pre class="code" id="code-sub2"><span class="tk-c">$ /agents</span>
+<span class="tk-c">  → manage definitions</span>
+
+<span class="tk-c">$ Have @Researcher dig up the rate-limit RFC, then summarize.</span>
+<span class="tk-k">→</span> <span class="tk-d">spawning Researcher in isolated context…</span>
+<span class="tk-k">←</span> <span class="tk-s">"Found 3 sources, see notes/rfc-rate-limit.md"</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 02 AGENT VIEW ───── -->
+    <section id="p-view" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">접근법 02 · 백그라운드 대시보드</div>
+        <h2>에이전트 <em>뷰</em>.</h2>
+        <p>
+          독립적인 백그라운드 세션의 대시보드. 프롬프트를 디스패치하고 자리를 떠난 다음
+          나중에 출력을 들여다보세요. 각 행은 자체 프로세스이며 터미널을 닫아도
+          살아남습니다.
+        </p>
+        <div class="pull">
+          “쏘고 나중에 확인. <em>5개의 작은 작업</em>과
+          하나의 두뇌가 있을 때 유용합니다.”
+        </div>
+        <p>
+          <span class="kbd">claude agents</span>로 엽니다. 대시보드 안에서:
+          <span class="kbd">Space</span>로 엿보기, <span class="kbd">Enter</span>로 부착,
+          <span class="kbd">←</span>로 분리.
+        </p>
+        <div class="meta-row">
+          <span>컨텍스트 · <strong>세션당</strong></span>
+          <span>조율 · <strong>당신</strong></span>
+          <span>지속성 · <strong>닫아도 유지</strong></span>
+          <span>적합 · <strong>병렬 잡일</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">shell</span>
+            <button class="copy-btn" data-copy="view">복사</button>
+          </div>
+<pre class="code" id="code-view"><span class="tk-c"># dispatch a background session</span>
+<span class="tk-k">$</span> claude --bg <span class="tk-s">"investigate the flaky e2e test"</span>
+
+<span class="tk-c"># dispatch with a custom agent</span>
+<span class="tk-k">$</span> claude --agent code-reviewer --bg <span class="tk-s">"review PR #1234"</span>
+
+<span class="tk-c"># open the dashboard</span>
+<span class="tk-k">$</span> claude agents
+
+<span class="tk-c">┌─ active ───────────────────────────┐</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ flaky-e2e        running   2m 14s</span> <span class="tk-c">│</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ pr-1234-review   running     38s</span> <span class="tk-c">│</span>
+<span class="tk-c">│</span> <span class="tk-d">▸ docs-cleanup     done      11m 02s</span> <span class="tk-c">│</span>
+<span class="tk-c">└────────────────────────────────────┘</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 03 AGENT TEAMS ───── -->
+    <section id="p-team" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">접근법 03 · 실험적 · 조율됨</div>
+        <h2>에이전트 <em>팀</em>.</h2>
+        <p>
+          공유된 작업 목록, 에이전트 간 메시지, 작업을 관리하는 리더와 함께
+          <em>같은 목표</em>를 향해 작업하는 여러 세션. 작업자 풀보다는
+          스튜디오에 가깝습니다.
+        </p>
+        <div class="pull">
+          “보안용 리뷰어 한 명, 성능용 한 명, 테스트용 한 명 —
+          그들은 서로 <em>대화</em>합니다.”
+        </div>
+        <p>
+          실험적이며 기본적으로 비활성화되어 있습니다.
+          <span class="kbd">settings.json</span>에서 활성화한 다음, Claude에게
+          목표를 위한 팀을 꾸리도록 요청하세요.
+        </p>
+        <div class="meta-row">
+          <span>컨텍스트 · <strong>팀원당</strong></span>
+          <span>조율 · <strong>내장</strong></span>
+          <span>상태 · <strong>실험적</strong></span>
+          <span>적합 · <strong>다축 리뷰</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">settings.json</span>
+            <button class="copy-btn" data-copy="team">복사</button>
+          </div>
+<pre class="code" id="code-team">{
+  <span class="tk-y">"env"</span><span class="tk-p">:</span> {
+    <span class="tk-y">"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS"</span><span class="tk-p">:</span> <span class="tk-s">"1"</span>
+  }
+}
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">prompt</span>
+            <button class="copy-btn" data-copy="team2">복사</button>
+          </div>
+<pre class="code" id="code-team2"><span class="tk-c">$ Spin up a team to review PR #142.</span>
+<span class="tk-c">  Three reviewers, working in parallel:</span>
+<span class="tk-c">    1. security  — auth, input, secrets</span>
+<span class="tk-c">    2. perf     — hot paths, allocs, queries</span>
+<span class="tk-c">    3. tests    — coverage, flakiness, mocks</span>
+<span class="tk-c">  Lead consolidates &amp; posts one review.</span>
+
+<span class="tk-k">→</span> <span class="tk-d">team:r142 spawned with 3 teammates</span>
+<span class="tk-k">→</span> <span class="tk-d">shared task list created (12 items)</span>
+<span class="tk-k">←</span> <span class="tk-s">consolidated review posted to #142</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── 04 MULTI-TERMINAL ───── -->
+    <section id="p-term" class="panel" role="tabpanel">
+      <div class="copy-card">
+        <div class="eyebrow">접근법 04 · 단순한 방식 · 강력 추천</div>
+        <h2>여러 <em>터미널</em>.</h2>
+        <p>
+          다른 터미널 탭을 엽니다. <span class="kbd">claude</span>를 실행합니다. 끝 — 두 개의
+          에이전트가 생겼습니다. 이를 <em>git 워크트리</em>와 결합하면 진정한 격리를 얻습니다:
+          각 에이전트가 자체 브랜치와 작업 트리에 있어 편집 충돌이 없습니다.
+        </p>
+        <div class="pull">
+          “가장 깔끔한 패턴이 가장 단순한 패턴이기도 합니다: <em>더 많은 탭</em>.”
+        </div>
+        <p>
+          작업이 장시간 실행되고, 관련 없으며, 각 에이전트가 무엇을 하는지
+          완전히 파악하고 싶을 때 가장 좋습니다. 완료되면 PR로 병합하세요.
+        </p>
+        <div class="meta-row">
+          <span>설정 · <strong>없음</strong></span>
+          <span>격리 · <strong>완전 (워크트리)</strong></span>
+          <span>가시성 · <strong>전체</strong></span>
+          <span>적합 · <strong>병렬 기능</strong></span>
+        </div>
+      </div>
+
+      <div>
+        <div class="codeblock">
+          <div class="code-head">
+            <span class="lang">shell · worktree-per-agent</span>
+            <button class="copy-btn" data-copy="term">복사</button>
+          </div>
+<pre class="code" id="code-term"><span class="tk-c"># from main repo</span>
+<span class="tk-k">$</span> git worktree add ../repo-feat-a -b feat-a
+<span class="tk-k">$</span> git worktree add ../repo-feat-b -b feat-b
+
+<span class="tk-c"># terminal 1 — feature A</span>
+<span class="tk-k">$</span> cd ../repo-feat-a &amp;&amp; claude
+
+<span class="tk-c"># terminal 2 — feature B</span>
+<span class="tk-k">$</span> cd ../repo-feat-b &amp;&amp; claude
+
+<span class="tk-c"># merge later via PR ─ no conflicts</span>
+</pre>
+        </div>
+
+        <div class="codeblock" style="margin-top:14px">
+          <div class="code-head">
+            <span class="lang">tmux · split-pane variant</span>
+            <button class="copy-btn" data-copy="term2">복사</button>
+          </div>
+<pre class="code" id="code-term2"><span class="tk-k">$</span> tmux new -s squad
+<span class="tk-c">  ctrl-b "       split horizontal</span>
+<span class="tk-c">  ctrl-b %       split vertical</span>
+<span class="tk-c">  ctrl-b o       cycle panes</span>
+
+<span class="tk-c"># 4 panes · 4 worktrees · 4 claudes</span>
+</pre>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ═══════════ SIMULATOR ═══════════ -->
+  <div class="ruler">
+    <span class="num">ii.</span>
+    <hr/>
+    <span>시뮬레이터 · 병렬 에이전트 생성</span>
+  </div>
+
+  <div class="sim-wrap">
+    <div class="sim-bar">
+      <div class="title"><em>당신의 브라우저</em>에 있는 작은 스튜디오</div>
+      <div class="sim-controls">
+        <button class="sim-btn primary" id="spawnBtn">+ 에이전트 생성</button>
+        <button class="sim-btn ghost" id="spawnAllBtn">+ 4개 생성</button>
+        <button class="sim-btn ghost" id="clearBtn">지우기</button>
+      </div>
+    </div>
+    <div class="sim-grid" id="simGrid">
+      <div class="sim-empty" id="simEmpty">
+        아직 에이전트가 없습니다.
+        <span>시작하려면 &nbsp;+&nbsp; 에이전트 생성을 누르세요&nbsp;</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ COMPARE ═══════════ -->
+  <div class="ruler">
+    <span class="num">iii.</span>
+    <hr/>
+    <span>어떤 것을, 언제</span>
+  </div>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th style="width:18%">접근법</th>
+        <th>커뮤니케이션</th>
+        <th>격리</th>
+        <th>최적 용도</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>서브 에이전트</td>
+        <td>호출자에게 요약 반환</td>
+        <td>자체 컨텍스트 · 공유 cwd</td>
+        <td>조사, 검증, 탐색</td>
+      </tr>
+      <tr>
+        <td>에이전트 뷰</td>
+        <td>당신이 중재</td>
+        <td>자체 컨텍스트 · 자체 프로세스</td>
+        <td>독립적인 디스패치-체크 작업</td>
+      </tr>
+      <tr>
+        <td>에이전트 팀</td>
+        <td>직접 메시징 · 공유 목록</td>
+        <td>자체 컨텍스트 · 공유 목표</td>
+        <td>다축 리뷰, 복잡한 리팩터링</td>
+      </tr>
+      <tr>
+        <td>멀티 터미널</td>
+        <td>없음 — 직접 연결</td>
+        <td>완전 · 세션당 워크트리</td>
+        <td>장기 실행 병렬 기능</td>
+      </tr>
+      <tr>
+        <td>/batch (워크트리)</td>
+        <td>PR 리뷰를 통해</td>
+        <td>완전 · 5–30개 워크트리</td>
+        <td>레포 전반 마이그레이션</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ FOOTER ═══════════ -->
+  <footer class="foot">
+    <div>
+      파일 끝 · <strong style="color:var(--phosphor)">eof</strong> &nbsp;//&nbsp;
+      메인은 깨끗하게, 나머지는 분산
+    </div>
+    <pre class="ascii">  ┌─┐ ┌─┐ ┌─┐ ┌─┐
+  │·│ │·│ │·│ │·│
+  └─┘ └─┘ └─┘ └─┘
+   01  02  03  04 </pre>
+    <div>
+      문서 ·
+      <a href="https://code.claude.com/docs/en/agents.md" target="_blank" rel="noopener">code.claude.com/agents</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  /* ─────────── boot terminal ─────────── */
+  (function bootTerminal () {
+    const target = document.getElementById('bootTerm');
+    const lines = [
+      { d: 0,    cls: 'prompt', t: '$ claude --multi-agent' },
+      { d: 380,  cls: 'dim',    t: '› 하네스 초기화 중…' },
+      { d: 780,  cls: 'out',    t: '› .claude/agents/*.md 읽는 중' },
+      { d: 1080, cls: 'amber',  t: '› 4개 정의 발견' },
+      { d: 1380, cls: 'out',    t: '› 워커 가동 중' },
+      { d: 1620, cls: 'bar',    t: '   [████████████░░░░] 75%' },
+      { d: 1920, cls: 'bar',    t: '   [████████████████] 100%' },
+      { d: 2200, cls: 'prompt', t: '✓ 스튜디오 온라인 · 4개 에이전트 대기' },
+      { d: 2520, cls: 'dim',    t: '› 프롬프트 대기 중' },
+    ];
+    target.innerHTML = '';
+    lines.forEach(l => {
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = l.cls;
+        el.textContent = l.t;
+        target.appendChild(el);
+      }, l.d);
+    });
+    setTimeout(() => {
+      const c = document.createElement('span');
+      c.className = 'cursor';
+      target.appendChild(c);
+    }, lines[lines.length - 1].d + 200);
+  })();
+
+  /* ─────────── tabs ─────────── */
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.panel).classList.add('active');
+    });
+  });
+
+  /* ─────────── copy buttons ─────────── */
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = 'code-' + btn.dataset.copy;
+      const node = document.getElementById(id);
+      if (!node) return;
+      try {
+        await navigator.clipboard.writeText(node.innerText);
+        const old = btn.textContent;
+        btn.textContent = '복사됨 ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = old; btn.classList.remove('copied'); }, 1400);
+      } catch (e) {
+        btn.textContent = '클립 없음';
+      }
+    });
+  });
+
+  /* ─────────── simulator ─────────── */
+  const grid = document.getElementById('simGrid');
+  const empty = document.getElementById('simEmpty');
+  const spawnBtn = document.getElementById('spawnBtn');
+  const spawnAllBtn = document.getElementById('spawnAllBtn');
+  const clearBtn = document.getElementById('clearBtn');
+
+  const ROSTER = [
+    { name: 'researcher',  steps: [
+      { cls:'p', t: '$ webfetch rfc-7235' },
+      { cls:'d', t: '› 412줄 파싱 중' },
+      { cls:'d', t: '› 인용 추출 중…' },
+      { cls:'a', t: '✓ 3개 출처, 요약 반환됨' },
+    ]},
+    { name: 'reviewer',    steps: [
+      { cls:'p', t: '$ git diff main...HEAD' },
+      { cls:'d', t: '› 14개 파일 읽는 중' },
+      { cls:'d', t: '› 인증 경계 확인 중' },
+      { cls:'a', t: '✓ 사소한 사항 2개 · 차단 사항 0개' },
+    ]},
+    { name: 'tester',      steps: [
+      { cls:'p', t: '$ pnpm test --filter api' },
+      { cls:'d', t: '› 218개 스펙 실행 중' },
+      { cls:'d', t: '› 217개 통과 · 1개 불안정' },
+      { cls:'a', t: '✓ 재시도 가드 작성됨' },
+    ]},
+    { name: 'docscribe',   steps: [
+      { cls:'p', t: '$ rg --type md TODO' },
+      { cls:'d', t: '› 9개 오래된 항목' },
+      { cls:'d', t: '› 체인지로그 다시 작성 중' },
+      { cls:'a', t: '✓ docs/CHANGELOG.md 업데이트됨' },
+    ]},
+    { name: 'profiler',    steps: [
+      { cls:'p', t: '$ pprof -http 0.0.0.0:9000' },
+      { cls:'d', t: '› 30초 샘플링' },
+      { cls:'d', t: '› 핫 패스: marshal()' },
+      { cls:'a', t: '✓ /v1/dashboard에서 -32%' },
+    ]},
+    { name: 'migrator',    steps: [
+      { cls:'p', t: '$ git worktree add ../mig' },
+      { cls:'d', t: '› 브랜치: chore/mig-022' },
+      { cls:'d', t: '› 47개 import 다시 쓰는 중' },
+      { cls:'a', t: '✓ PR #220 열림' },
+    ]},
+  ];
+
+  let spawnIdx = 0;
+  let liveCount = 0;
+
+  function spawnAgent () {
+    if (empty && empty.parentNode) empty.remove();
+    const spec = ROSTER[spawnIdx % ROSTER.length];
+    spawnIdx++;
+    const id = `${spec.name}-${spawnIdx}`;
+
+    const card = document.createElement('div');
+    card.className = 'agent-card';
+    card.innerHTML = `
+      <div class="head">
+        <span class="name">▸ ${id}</span>
+        <span class="badge"><span class="blob"></span>실행 중</span>
+      </div>
+      <div class="stream"></div>
+      <div class="progress"><i></i></div>
+    `;
+    grid.appendChild(card);
+    liveCount++;
+
+    const stream = card.querySelector('.stream');
+    const bar = card.querySelector('.progress > i');
+    const head = card.querySelector('.head');
+    const badge = card.querySelector('.badge');
+
+    spec.steps.forEach((s, i) => {
+      setTimeout(() => {
+        const line = document.createElement('span');
+        line.className = `l ${s.cls}`;
+        line.textContent = s.t;
+        stream.appendChild(line);
+        bar.style.width = `${((i + 1) / spec.steps.length) * 100}%`;
+      }, 350 + i * (480 + Math.random() * 240));
+    });
+
+    setTimeout(() => {
+      card.classList.add('done');
+      head.classList.add('done');
+      badge.innerHTML = '<span class="blob"></span>완료';
+    }, 350 + spec.steps.length * 540 + 200);
+  }
+
+  spawnBtn.addEventListener('click', spawnAgent);
+  spawnAllBtn.addEventListener('click', () => {
+    for (let i = 0; i < 4; i++) setTimeout(spawnAgent, i * 220);
+  });
+  clearBtn.addEventListener('click', () => {
+    grid.innerHTML = '';
+    grid.appendChild(empty);
+    liveCount = 0;
+    spawnIdx = 0;
+  });
+</script>
+</body>
+</html>

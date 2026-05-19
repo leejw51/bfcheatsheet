@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RabbitMQ 實驗室 —— 邊打字邊學</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --bg-2:#161a22;
+    --panel:#1b212c;
+    --panel-2:#222a36;
+    --line:#2a3242;
+    --text:#e7ecf3;
+    --muted:#8a93a4;
+    --accent:#FF6600;
+    --accent-2:#ffb37a;
+    --good:#3fd17c;
+    --bad:#ff4d6d;
+    --warn:#ffd166;
+    --info:#4dd6ff;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --rounded:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;line-height:1.55}
+  a{color:var(--accent-2)}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:46px;height:46px;border-radius:12px;background:radial-gradient(circle at 30% 30%,#ffb37a,#FF6600 60%,#a93f00);display:grid;place-items:center;box-shadow:var(--shadow)}
+  .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
+  .brand small{color:var(--muted);font-weight:400}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .xpbar{width:170px;height:8px;background:#0b0e13;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,#ffb37a,#FF6600);width:0%}
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 18px}
+  nav.tabs button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px}
+  nav.tabs button.active{background:linear-gradient(180deg,#2a1407,#1d0e05);border-color:var(--accent);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .grid{display:grid;gap:14px}
+  .grid.cols-2{grid-template-columns:1fr 1fr}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:900px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rounded);padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 8px 0;font-size:18px}
+  .card h3{margin:18px 0 6px 0;font-size:15px;color:var(--accent-2)}
+  .card p{color:#cdd5e0;margin:6px 0}
+  .muted{color:var(--muted)}
+  .kbd{background:#0b0e13;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{background:var(--accent);color:#1a0a00;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input[type="text"], select, textarea{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  input[type="text"]:focus, select:focus, textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,102,0,.2)}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .tag{display:inline-block;background:#23170c;border:1px solid #4a2c12;color:#ffd0aa;border-radius:6px;padding:2px 8px;font-size:12px;margin-right:6px}
+  .tag.good{background:#0f2418;border-color:#1d4a30;color:#a8e6c1}
+  .tag.bad{background:#2b0e14;border-color:#5a1a26;color:#ffb1bd}
+  .tag.info{background:#0d1f2a;border-color:#1d4256;color:#a8dff5}
+  .tag.warn{background:#2a2110;border-color:#5a4720;color:#ffe5a3}
+  .step{padding:8px 10px;border-left:3px solid var(--accent);background:#1a1107;border-radius:0 8px 8px 0;margin:8px 0}
+  .scroll{max-height:340px;overflow:auto;padding-right:6px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;margin:3px}
+  .badge.unlocked{border-color:var(--accent);background:#22130a;color:#ffd0aa;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .badge .em{filter:saturate(.6) opacity(.6)}
+  .badge.unlocked .em{filter:none}
+  .progress{height:10px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--good),#7eebac)}
+  /* shake/confetti */
+  .shake{animation:shake .35s ease}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+  .pulse{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(255,102,0,0))}50%{filter:drop-shadow(0 0 6px rgba(255,102,0,.7))}}
+  .hidden{display:none !important}
+  .footer{color:var(--muted);font-size:12px;margin:30px 0 6px;text-align:center}
+  /* simulator */
+  .simwrap{position:relative;background:repeating-linear-gradient(45deg,#0d1118 0 10px,#0b0e13 10px 20px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line);background:#11151d}
+  .controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .legend{display:flex;gap:14px;color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--line);background:#11151d}
+  .log{font-family:ui-monospace,monospace;font-size:12px;background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:160px;overflow:auto;white-space:pre-wrap}
+  .log .ok{color:var(--good)}
+  .log .err{color:var(--bad)}
+  .log .info{color:var(--info)}
+  .log .warn{color:var(--warn)}
+  .log .acc{color:var(--accent-2)}
+  /* practice */
+  .ex-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+  .ex-card .q{font-size:16px;margin-bottom:8px}
+  .ex-card input[type=text]{width:100%}
+  .feedback{margin-top:8px;font-size:13px}
+  .feedback.ok{color:var(--good)}
+  .feedback.err{color:var(--bad)}
+  .feedback.hint{color:var(--muted)}
+  .stagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .timer{font-variant-numeric:tabular-nums;font-weight:700;color:var(--warn)}
+  /* boss */
+  .siren{color:var(--bad);animation:siren .8s linear infinite alternate}
+  @keyframes siren{0%{text-shadow:0 0 0 transparent}100%{text-shadow:0 0 12px rgba(255,77,109,.8)}}
+  /* canvas overlay for confetti */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:9999}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- 兔子剪影 -->
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <path d="M14 50c-2-10 0-22 6-28 1 6 4 8 8 8 1-7 4-12 8-15 1 6 3 9 6 11 5-3 9-3 12 0-2 4-6 6-6 12 0 6 4 8 4 14H14z" fill="#fff"/>
+          <circle cx="40" cy="42" r="2" fill="#1a0a00"/>
+          <circle cx="30" cy="42" r="2" fill="#1a0a00"/>
+          <path d="M34 47c1 1 3 1 4 0" stroke="#1a0a00" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>RabbitMQ 實驗室 <small>—— 邊打字邊學</small></h1>
+        <div class="muted" style="font-size:13px">關於 AMQP、交換器、訊息佇列與常見模式的互動式遊戲化入門。</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="pill"><span class="dot"></span><span>等級 <b id="hud-level">1</b></span></div>
+      <div class="pill">經驗 <b id="hud-xp">0</b><div class="xpbar" title="距離下一級的 XP"><div id="hud-xpbar"></div></div></div>
+      <div class="pill">連擊 <b id="hud-combo">0</b>x</div>
+      <div class="pill">最佳 <b id="hud-best">0</b>x</div>
+      <button class="btn ghost small" id="btn-reset">清除進度</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button data-tab="learn" class="active">1. 概念</button>
+    <button data-tab="exchanges">2. 交換器</button>
+    <button data-tab="reliability">3. 可靠性</button>
+    <button data-tab="qos">4. QoS 與叢集</button>
+    <button data-tab="patterns">5. 常見模式</button>
+    <button data-tab="sim">模擬器</button>
+    <button data-tab="practice">練習(打字!)</button>
+    <button data-tab="boss">魔王戰:正式環境故障</button>
+    <button data-tab="badges">徽章</button>
+  </nav>
+
+  <!-- ========================== TAB: LEARN ========================== -->
+  <section data-panel="learn">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>1. 什麼是訊息代理人?</h2>
+        <p><b>訊息代理人</b>(message broker)位在生產者與消費者之間。生產者把訊息丟進代理人後就回頭處理自己的事。消費者稍後再以自己的步調取走。雙方不需要同時上線、不必知道彼此的位址,也不必對處理速度有共識。</p>
+        <h3>為什麼需要佇列</h3>
+        <ul>
+          <li><b>解耦</b>:更換消費者不需動到生產者。</li>
+          <li><b>緩衝</b>:吸收尖峰流量,佇列把突發攤平。</li>
+          <li><b>可靠性</b>:即使消費者當掉,訊息還在。</li>
+          <li><b>扇出(fan-out)</b>:同一事件觸發多個獨立的後續處理。</li>
+        </ul>
+        <div class="step"><b>心智模型:</b>生產者寫明信片,代理人是郵局,佇列是各自的信箱,消費者有空再來收。</div>
+      </div>
+
+      <div class="card">
+        <h2>2. AMQP 核心概念</h2>
+        <p>RabbitMQ 實作 <b>AMQP 0-9-1</b>。詞彙不多,但個個都很精確。</p>
+        <ul>
+          <li><span class="tag">Producer 生產者</span> 發布訊息。</li>
+          <li><span class="tag">Consumer 消費者</span> 訂閱並處理訊息。</li>
+          <li><span class="tag">Queue 訊息佇列</span> 用來存放訊息的具名緩衝區。</li>
+          <li><span class="tag">Exchange 交換器</span> 路由器;生產者只能發布到交換器,絕不能直接發到佇列。</li>
+          <li><span class="tag">Binding 繫結</span> 把交換器與佇列接起來的規則(通常會配上一個鍵)。</li>
+          <li><span class="tag">Routing Key 路由鍵</span> 生產者附加在訊息上的字串;交換器據此決定要送到哪。</li>
+          <li><span class="tag">Virtual host 虛擬主機</span>(vhost)切割使用者、交換器與佇列的命名空間;邏輯隔離。</li>
+          <li><span class="tag">Connection 連線</span> 一條 TCP 連線。<span class="tag">Channel 通道</span> 是其上多工的虛擬連線。</li>
+        </ul>
+        <h3>整體流向</h3>
+        <pre>producer
+  └─ publish(routing_key) ─▶ exchange
+                              ├─ binding A ─▶ queue 1 ─▶ consumer
+                              └─ binding B ─▶ queue 2 ─▶ consumer</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: EXCHANGES ========================== -->
+  <section data-panel="exchanges" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>3. 交換器類型深入解析</h2>
+        <h3>Direct(直接)</h3>
+        <p>把<b>路由鍵與繫結鍵完全相符</b>的訊息路由出去。適用場合:點對點派發、單純工作佇列、指令路由。</p>
+        <pre>binding: queue.email  ⇐ key="email"
+publish key="email"   → queue.email
+publish key="sms"     → 被丟棄(unrouted)</pre>
+
+        <h3>Fanout(扇出)</h3>
+        <p>忽略路由鍵,<b>對每個繫結的佇列廣播。</b>適用場合:pub/sub 事件、快取失效、「告知所有人」的通知。</p>
+        <pre>publish 任何 key → 所有繫結的佇列都會收到</pre>
+
+        <h3>Topic(主題)</h3>
+        <p>依模式路由。路由鍵是用點號分隔的單字;繫結模式可使用:</p>
+        <ul>
+          <li><code>*</code> 匹配<b>恰好一個</b>單字。</li>
+          <li><code>#</code> 匹配<b>零個或多個</b>單字。</li>
+        </ul>
+        <pre>binding "orders.*.us"   匹配  orders.new.us, orders.cancel.us
+                        不符  orders.us, orders.new.eu, orders.a.b.us
+binding "orders.#"      匹配  orders, orders.new, orders.new.us
+binding "*.error.*"     匹配  app.error.db, web.error.api</pre>
+
+        <h3>Headers(標頭)</h3>
+        <p>依訊息<b>標頭</b>而非路由鍵來路由。匹配模式 <code>x-match: all</code> 要求所有標頭都符合;<code>x-match: any</code> 只要有一個符合即可。</p>
+        <pre>binding headers: {format: pdf, type: report, x-match: all}
+header {format: pdf, type: report}     → 匹配
+header {format: pdf}                    → 不符</pre>
+      </div>
+
+      <div class="card">
+        <h2>什麼時候用哪一種</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:6px 4px">類型</th><th>適用情境&hellip;</th>
+            </tr>
+          </thead>
+          <tbody style="vertical-align:top">
+            <tr><td style="padding:8px 4px"><span class="tag">direct</span></td><td>需要點對點派發、或單一鍵的嚴格相等比對。</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">fanout</span></td><td>每個訂閱者都要收到同樣的事件,推理成本最低。</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">topic</span></td><td>階層式事件如 <code>region.service.severity</code>;訂閱者只想要某個子集。</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">headers</span></td><td>路由依據是多個無法塞進單一字串鍵的屬性。</td></tr>
+          </tbody>
+        </table>
+        <h3>預設交換器</h3>
+        <p>未具名的 <code>""</code> 交換器是個特殊的 <b>direct</b> 交換器,每個佇列都隱式地以自己的名字繫結到它。這就是為什麼 <code>basic_publish(exchange='', routing_key='hello')</code> 會直接送到名為 <code>hello</code> 的佇列。</p>
+
+        <h3>死信交換器(DLX)</h3>
+        <p>佇列可以設定 <code>x-dead-letter-exchange</code>。被拒收、過期、或溢位的訊息會被重新發布到 DLX,再由另一條繫結停在死信佇列裡,以供檢查或重試。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: RELIABILITY ========================== -->
+  <section data-panel="reliability" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>4. 確認(Acknowledgments)</h2>
+        <h3>自動確認 vs 手動確認</h3>
+        <ul>
+          <li><b>自動確認</b>(<code>auto_ack=True</code>):訊息一離開代理人就視為已遞送。<b>快但不安全。</b>消費者若在處理途中當掉,訊息就消失了。</li>
+          <li><b>手動確認</b>(<code>auto_ack=False</code>):消費者處理成功後必須呼叫 <code>basic_ack(delivery_tag)</code>。若先當掉了,代理人在重連後會<b>重新派發</b>。</li>
+        </ul>
+        <h3>nack 與 reject</h3>
+        <ul>
+          <li><code>basic_nack(requeue=true)</code> —— 把訊息放回佇列。</li>
+          <li><code>basic_nack(requeue=false)</code> —— 丟棄,或在有設定 DLX 時送過去。</li>
+          <li><code>basic_reject</code> 是 nack 的單訊息版本。</li>
+        </ul>
+        <h3>重新派發旗標</h3>
+        <p>當訊息被重新派發時,代理人會把 <code>redelivered=true</code> 設起來。消費者應把它當成提醒:小心冪等性、去重鍵、把重試次數記在標頭裡。</p>
+      </div>
+
+      <div class="card">
+        <h2>5. 持久性 —— 哪些東西能撐過重啟</h2>
+        <p>下列三件事必須<b>同時</b>都有,訊息才能撐過代理人崩潰:</p>
+        <ol>
+          <li><b>持久佇列</b>:<code>queue_declare(durable=True)</code>。否則佇列本身就會消失。</li>
+          <li><b>持久訊息</b>:<code>delivery_mode=2</code>(或 <code>PERSISTENT_TEXT_PLAIN</code>)。沒有它,訊息只在記憶體中。</li>
+          <li><b>持久交換器</b>(若你依賴它):<code>exchange_declare(durable=True)</code>。</li>
+        </ol>
+        <div class="step"><b>陷阱:</b>持久化是盡力而為,並不會對每個訊息做同步 fsync。如果你需要在向上游回應之前確認訊息已落盤,請使用 <b>publisher confirms</b>(<code>confirm_delivery</code>)。</div>
+        <h3>publisher confirms vs 交易</h3>
+        <p>AMQP 的 transactions 雖然存在,但很慢。<b>publisher confirms</b> 是非同步的,速度快上好幾個量級:代理人會用一個 ack frame 告訴你「我收下了」。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: QoS / CLUSTER ========================== -->
+  <section data-panel="qos" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>6. Prefetch 與 QoS —— 公平派發</h2>
+        <p>RabbitMQ 預設以輪詢(round-robin)派送訊息給消費者。如果一個慢、一個快,慢的會堆得滿滿,快的卻在閒置。<b>Prefetch 解決此事。</b></p>
+        <pre>channel.basic_qos(prefetch_count=1)</pre>
+        <p>它告訴代理人:「在我把上一則 ack 掉之前,別發新的給我。」於是快的拉走比較多工作,慢的則拉得少。如果工作短而均勻,可以調高(例如 10–50)。</p>
+        <h3>調校的拇指規則</h3>
+        <ul>
+          <li>長且不均的工作 → <code>prefetch=1</code>。</li>
+          <li>短且均勻的工作 → 較高的 prefetch(減少 round-trip 開銷)。</li>
+          <li>用 <b>佇列深度</b> 與 <b>消費者使用率</b> 來量測。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>7. 叢集與 quorum 佇列</h2>
+        <p>RabbitMQ 的 <b>cluster</b> 在節點之間共享使用者、vhost、交換器與繫結。佇列預設是單主節點實體;主節點駐在某一節點上,可被鏡像,或改用 quorum 取代。</p>
+        <h3>傳統鏡像佇列</h3>
+        <p>已過時。把狀態複製給跟隨者,在現代部署中已被 quorum 佇列取代。</p>
+        <h3>Quorum 佇列</h3>
+        <ul>
+          <li>建立於 <b>Raft</b> 共識協定之上。</li>
+          <li><b>強一致性</b>:寫入要在多數副本都收到後才會被確認。</li>
+          <li>可乾淨地撐過節點故障,重要資料的推薦預設選項。</li>
+          <li>權衡:延遲比傳統佇列高、磁碟 I/O 較多。</li>
+        </ul>
+        <h3>Streams(加碼)</h3>
+        <p>類似 log 的追加式佇列,適合高吞吐分析等級工作負載。協定不同、存取模式不同(用 offset、不會破壞性消費)。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PATTERNS ========================== -->
+  <section data-panel="patterns" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>8. 常見模式</h2>
+        <h3>工作佇列(任務分派)</h3>
+        <p>一個佇列、多個工人,使用手動 ack 與 prefetch=1。適用情境:圖片縮圖、寄信、影片轉檔。</p>
+        <pre>producer ─▶ "" ─▶ queue:tasks ─▶ worker1
+                              └▶ worker2
+                              └▶ worker3</pre>
+
+        <h3>發布/訂閱</h3>
+        <p>使用 fanout 交換器,每個訂閱者都透過自己的佇列收到每一則訊息。</p>
+        <pre>producer ─▶ fanout:events ─┬─▶ queue:audit       ─▶ logger
+                            ├─▶ queue:cache_invl  ─▶ cache
+                            └─▶ queue:notify      ─▶ pusher</pre>
+      </div>
+
+      <div class="card">
+        <h2>更多模式</h2>
+        <h3>Topic 路由</h3>
+        <p>階層式事件,不同佇列訂閱不同形狀。</p>
+        <pre>topic:logs
+  binding "*.error.*"  ─▶ queue:alerts
+  binding "db.#"       ─▶ queue:dba
+  binding "#"          ─▶ queue:audit</pre>
+
+        <h3>RPC(請求/回應)</h3>
+        <p>生產者設定 <code>reply_to</code>(一個臨時、獨佔的佇列)和 <code>correlation_id</code>。消費者把回應發布到 <code>reply_to</code>。生產者用 <code>correlation_id</code> 比對回應。</p>
+        <pre>client → publish(reply_to=Q1, correlation_id=abc)
+server → consume → publish(exchange='', routing_key=Q1, correlation_id=abc)
+client → 比對到 abc,resolve promise</pre>
+        <div class="step"><b>提示:</b>給回應佇列設個 TTL,免得洩漏的 client 累積成孤兒佇列。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: SIMULATOR ========================== -->
+  <section data-panel="sim" class="hidden">
+    <div class="card">
+      <h2>互動模擬器</h2>
+      <p class="muted">挑一種交換器類型、宣告繫結,然後發布訊息看看流向。切換消費者的行為,觀察 ack/nack 與重新派發如何運作。每次成功發布都會獲得 XP。</p>
+
+      <div class="simwrap">
+        <div class="controls">
+          <label>交換器類型
+            <select id="sim-extype">
+              <option value="direct">direct</option>
+              <option value="fanout">fanout</option>
+              <option value="topic" selected>topic</option>
+              <option value="headers">headers</option>
+            </select>
+          </label>
+          <label>路由鍵
+            <input type="text" id="sim-rk" value="orders.new.us" style="width:160px"/>
+          </label>
+          <label>標頭(k=v,k=v)<span class="muted">僅 headers 類型</span>
+            <input type="text" id="sim-headers" value="format=pdf,type=report" style="width:200px"/>
+          </label>
+          <label>內容
+            <input type="text" id="sim-payload" value="hello-world" style="width:140px"/>
+          </label>
+          <button class="btn" id="sim-publish">發布 ▶</button>
+          <button class="btn ghost small" id="sim-add-binding">+ 新增繫結</button>
+          <button class="btn ghost small" id="sim-clear">清除日誌</button>
+        </div>
+
+        <svg id="sim-svg" viewBox="0 0 1000 360" style="display:block;width:100%;height:360px;background:#0a0d12">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#FF6600"/>
+            </marker>
+            <radialGradient id="g-prod" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd0aa"/>
+              <stop offset="100%" stop-color="#FF6600"/>
+            </radialGradient>
+            <radialGradient id="g-ex" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8dff5"/>
+              <stop offset="100%" stop-color="#1a6c95"/>
+            </radialGradient>
+            <radialGradient id="g-q" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8e6c1"/>
+              <stop offset="100%" stop-color="#1f7045"/>
+            </radialGradient>
+            <radialGradient id="g-c" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffe5a3"/>
+              <stop offset="100%" stop-color="#a07a14"/>
+            </radialGradient>
+          </defs>
+
+          <!-- 生產者 -->
+          <g id="node-producer">
+            <rect x="20" y="140" width="140" height="80" rx="14" fill="url(#g-prod)" stroke="#FF6600"/>
+            <text x="90" y="175" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="14">Producer</text>
+            <text x="90" y="195" text-anchor="middle" fill="#1a0a00" font-size="11">basic_publish</text>
+          </g>
+
+          <!-- 交換器 -->
+          <g id="node-exchange">
+            <polygon points="380,180 440,140 500,180 440,220" fill="url(#g-ex)" stroke="#4dd6ff"/>
+            <text x="440" y="184" text-anchor="middle" fill="#062231" font-weight="700" font-size="13" id="sim-extype-label">topic</text>
+            <text x="440" y="200" text-anchor="middle" fill="#062231" font-size="10">exchange</text>
+          </g>
+
+          <!-- 佇列稍後會 append 到此 -->
+          <g id="queues-layer"></g>
+          <g id="bindings-layer"></g>
+          <g id="consumers-layer"></g>
+
+          <!-- producer-to-exchange 路徑 -->
+          <path d="M160,180 L380,180" stroke="#FF6600" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        </svg>
+
+        <div class="legend">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#FF6600;border-radius:50%;margin-right:6px"></span>生產者</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1a6c95;border-radius:2px;margin-right:6px"></span>交換器</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1f7045;border-radius:2px;margin-right:6px"></span>佇列</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#a07a14;border-radius:2px;margin-right:6px"></span>消費者</span>
+          <span class="muted">掉落 = 路由失敗(mandatory 關閉時悄悄丟失)</span>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">繫結</h3>
+          <div id="bindings-list"></div>
+          <p class="muted" style="font-size:12px">點選繫結即可移除。</p>
+        </div>
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">消費者</h3>
+          <div id="consumers-list"></div>
+          <button class="btn ghost small" id="sim-add-consumer">+ 新增消費者</button>
+          <p class="muted" style="font-size:12px">切換每個消費者的 ack 模式(auto / manual-ack / manual-nack-requeue / manual-nack-DLX)。</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-top:0;color:var(--accent-2)">活動日誌</h3>
+        <div class="log" id="sim-log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PRACTICE ========================== -->
+  <section data-panel="practice" class="hidden">
+    <div class="card">
+      <h2>練習模式 —— 自己打答案</h2>
+      <p class="muted">沒有選擇題。請輸入術語、指令、參數,或回答 <b>yes</b>/<b>no</b>。比對不分大小寫,術語與 yes/no 題容許小錯字,但指令與程式碼必須完全一致。</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">第 <b id="prac-i">1</b> 題 / 共 <b id="prac-n">18</b> 題</span>
+          <span class="tag info" id="prac-kind">vocab</span>
+          <span class="tag good" id="prac-correct">答對 0</span>
+          <span class="tag bad" id="prac-wrong">答錯 0</span>
+        </div>
+        <div class="row">
+          <button class="btn ghost small" id="prac-skip">略過</button>
+          <button class="btn ghost small" id="prac-restart">重新開始</button>
+        </div>
+      </div>
+      <div class="progress"><div id="prac-progress"></div></div>
+      <div id="prac-mount"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BOSS ========================== -->
+  <section data-panel="boss" class="hidden">
+    <div class="card">
+      <h2><span class="siren">●</span> 魔王模式:正式環境故障</h2>
+      <p>呼叫器響了。每題 <b>30 秒</b>、共 10 題。輸入指令、術語、或一個字的答案。答對 = +50 XP。答錯或逾時 = 連擊歸零。撐過全部 10 題即可解鎖 <b>故障終結者</b>。</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">第 <b id="boss-i">1</b> 題 / 共 10 題</span>
+          <span class="tag warn">時間 <span class="timer" id="boss-timer">30</span>s</span>
+          <span class="tag good" id="boss-correct">答對 0</span>
+        </div>
+        <div class="row">
+          <button class="btn" id="boss-start">開始救火</button>
+          <button class="btn ghost small" id="boss-quit">退出</button>
+        </div>
+      </div>
+      <div class="progress"><div id="boss-progress"></div></div>
+      <div id="boss-mount" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BADGES ========================== -->
+  <section data-panel="badges" class="hidden">
+    <div class="card">
+      <h2>徽章櫃</h2>
+      <p class="muted">透過模擬器、完成練習、撐過故障來解鎖。</p>
+      <div id="badges-mount"></div>
+    </div>
+  </section>
+
+  <p class="footer">為學習而生。進度會儲存在你瀏覽器,可隨時清除。</p>
+</div>
+
+<script>
+/* =========================================================
+   狀態與持久化
+   ========================================================= */
+const SAVE_KEY = 'rmq-lab-v1';
+const DEFAULT_STATE = {
+  xp: 0,
+  level: 1,
+  combo: 0,
+  bestCombo: 0,
+  badges: {},
+  practiceDone: false,
+  bossDone: false,
+  publishCount: 0,
+  ackCount: 0,
+  nackCount: 0,
+  topicMatchSolved: 0,
+  dlxRoutes: 0,
+};
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return structuredClone(DEFAULT_STATE);
+    return Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(raw));
+  }catch(e){ return structuredClone(DEFAULT_STATE); }
+}
+function saveState(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
+
+function xpForLevel(lvl){ return 100 + (lvl-1)*60; }
+function addXP(n, reason){
+  state.xp += n;
+  while(state.xp >= xpForLevel(state.level)){
+    state.xp -= xpForLevel(state.level);
+    state.level++;
+    toast(`升級了!→ 等級 ${state.level}`, 'good');
+    confettiBurst(140);
+  }
+  saveState(); renderHUD();
+  if(reason) flashLog(`+${n} XP — ${reason}`, 'acc');
+}
+function bumpCombo(){
+  state.combo++;
+  if(state.combo > state.bestCombo) state.bestCombo = state.combo;
+  if(state.combo===5) unlockBadge('combo5');
+  if(state.combo===10) unlockBadge('combo10');
+  if(state.combo===20) unlockBadge('combo20');
+  saveState(); renderHUD();
+}
+function breakCombo(){ state.combo = 0; saveState(); renderHUD(); }
+
+function renderHUD(){
+  document.getElementById('hud-level').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-combo').textContent = state.combo;
+  document.getElementById('hud-best').textContent = state.bestCombo;
+  const need = xpForLevel(state.level);
+  document.getElementById('hud-xpbar').style.width = Math.min(100, (state.xp/need)*100) + '%';
+}
+renderHUD();
+
+/* =========================================================
+   徽章
+   ========================================================= */
+const BADGES = [
+  {id:'firstPublish', name:'首次發布', icon:'🚀', desc:'在模擬器中發布第一則訊息。'},
+  {id:'fanoutFan', name:'扇出狂熱者', icon:'📡', desc:'透過 fanout 一次成功發布到 3 個以上的佇列。'},
+  {id:'topicMaster', name:'主題大師', icon:'🧩', desc:'連續解出 5 道 topic 路由題。'},
+  {id:'ackAttack', name:'Ack 連擊', icon:'✅', desc:'手動 ack 5 則訊息。'},
+  {id:'dlxDefender', name:'DLX 守門員', icon:'🛡️', desc:'把 3 則訊息路由到死信交換器。'},
+  {id:'durableDevotee', name:'持久信徒', icon:'💾', desc:'在練習中通過所有持久性問題。'},
+  {id:'rpcRanger', name:'RPC 騎兵', icon:'📞', desc:'正確輸入 RPC reply_to 與 correlation_id 答案。'},
+  {id:'practiceComplete', name:'練習達人', icon:'🎓', desc:'完成所有 18 道練習題。'},
+  {id:'outageCrusher', name:'故障終結者', icon:'🔥', desc:'撐過正式環境故障魔王模式。'},
+  {id:'combo5', name:'手感正熱', icon:'🎯', desc:'連對 5 題。'},
+  {id:'combo10', name:'熱血連擊', icon:'⚡', desc:'連對 10 題。'},
+  {id:'combo20', name:'勢不可擋', icon:'🌟', desc:'連對 20 題。'},
+];
+function unlockBadge(id){
+  if(state.badges[id]) return;
+  state.badges[id] = Date.now();
+  const b = BADGES.find(x=>x.id===id);
+  if(b){ toast(`解鎖徽章: ${b.icon} ${b.name}`, 'good'); confettiBurst(120); }
+  saveState(); renderBadges();
+}
+function renderBadges(){
+  const m = document.getElementById('badges-mount');
+  if(!m) return;
+  m.innerHTML = BADGES.map(b=>{
+    const on = !!state.badges[b.id];
+    return `<div class="badge ${on?'unlocked':''}" title="${b.desc}">
+      <span class="em">${b.icon}</span>
+      <span>${b.name}</span>
+      ${on?'<span style="color:var(--good);font-size:11px">已解鎖</span>':'<span class="muted" style="font-size:11px">未解鎖</span>'}
+    </div>`;
+  }).join('');
+}
+renderBadges();
+
+/* =========================================================
+   提示訊息 + 視覺特效
+   ========================================================= */
+const fx = document.getElementById('fx');
+const fctx = fx.getContext('2d');
+function resizeFX(){ fx.width = innerWidth; fx.height = innerHeight; }
+addEventListener('resize', resizeFX); resizeFX();
+let particles = [];
+function confettiBurst(n=80){
+  const colors = ['#FF6600','#ffb37a','#3fd17c','#4dd6ff','#ffd166','#ff4d6d'];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*120,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*8,
+      vy: (Math.random()-1.2)*9,
+      g: .25,
+      life: 90 + Math.random()*40,
+      c: colors[(Math.random()*colors.length)|0],
+      s: 4 + Math.random()*4,
+      r: Math.random()*Math.PI
+    });
+  }
+}
+function tickFX(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.life--; p.r += .15;
+    fctx.save(); fctx.translate(p.x,p.y); fctx.rotate(p.r);
+    fctx.fillStyle = p.c;
+    fctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*1.4);
+    fctx.restore();
+  });
+  requestAnimationFrame(tickFX);
+}
+tickFX();
+
+const toastBox = (function(){
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;right:18px;top:18px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:320px';
+  document.body.appendChild(el); return el;
+})();
+function toast(msg, kind='info'){
+  const t = document.createElement('div');
+  const c = kind==='good'?'#3fd17c':kind==='bad'?'#ff4d6d':kind==='warn'?'#ffd166':'#4dd6ff';
+  t.style.cssText = `background:#161a22;border:1px solid ${c}55;color:#e7ecf3;padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px;border-left:4px solid ${c};animation:slideIn .25s ease`;
+  t.textContent = msg;
+  toastBox.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 2400);
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function flashLog(msg, kind='info'){
+  const log = document.getElementById('sim-log');
+  if(!log) return;
+  const span = document.createElement('div');
+  span.className = kind;
+  const t = new Date().toLocaleTimeString();
+  span.textContent = `[${t}] ${msg}`;
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* =========================================================
+   分頁切換
+   ========================================================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('section[data-panel]').forEach(s=>{
+      s.classList.toggle('hidden', s.dataset.panel !== tab);
+    });
+  });
+});
+
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(confirm('確定要清除所有進度、徽章與經驗值?')){
+    state = structuredClone(DEFAULT_STATE);
+    saveState(); renderHUD(); renderBadges();
+    toast('進度已清除。', 'warn');
+  }
+});
+
+/* =========================================================
+   模擬器
+   ========================================================= */
+const SIM = {
+  exchangeType: 'topic',
+  bindings: [], // {id, queue, key, headers:{}, xMatch:'all'}
+  consumers: [], // {id, queue, mode}
+  queueIds: 0,
+  consumerIds: 0,
+  bindingIds: 0,
+  // queueId -> [pending message ids]
+  pending: {},
+};
+
+function simAddBinding(queue, key, headers={}, xMatch='all'){
+  SIM.bindingIds++;
+  const id = 'b'+SIM.bindingIds;
+  // 若無對應佇列則一併建立
+  if(!queue) queue = `q.${SIM.queueIds+1}`;
+  SIM.bindings.push({id, queue, key, headers, xMatch});
+  // 視需要再賦予消費者欄位
+  redrawSim();
+}
+
+function simRemoveBinding(id){
+  SIM.bindings = SIM.bindings.filter(b=>b.id!==id);
+  redrawSim();
+}
+
+function simAddConsumer(queue, mode='manual-ack'){
+  SIM.consumerIds++;
+  if(!queue){
+    // 預設掛到第一個可用佇列
+    const queues = uniqueQueues();
+    queue = queues[0] || 'q.1';
+  }
+  const id = 'c'+SIM.consumerIds;
+  SIM.consumers.push({id, queue, mode});
+  redrawSim();
+}
+
+function uniqueQueues(){
+  const set = new Set();
+  SIM.bindings.forEach(b=>set.add(b.queue));
+  SIM.consumers.forEach(c=>set.add(c.queue));
+  return [...set];
+}
+
+function topicMatch(pattern, key){
+  // amqp topic: '*' = 恰好一個單字, '#' = 零個或多個單字
+  const pp = pattern.split('.');
+  const kk = key.split('.');
+  // 動態規劃
+  function rec(i,j){
+    if(i===pp.length && j===kk.length) return true;
+    if(i===pp.length) return false;
+    if(pp[i]==='#'){
+      // 匹配零或多個單字
+      for(let x=j;x<=kk.length;x++){
+        if(rec(i+1,x)) return true;
+      }
+      // 同時支援尾端的 #
+      return rec(i+1,j) && j===kk.length;
+    }
+    if(j===kk.length) return false;
+    if(pp[i]==='*' || pp[i]===kk[j]) return rec(i+1,j+1);
+    return false;
+  }
+  return rec(0,0);
+}
+
+function headersMatch(bindHdr, msgHdr, xMatch){
+  const keys = Object.keys(bindHdr);
+  if(keys.length===0) return false;
+  if(xMatch==='any'){
+    return keys.some(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+  }
+  return keys.every(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+}
+
+function routeMessage(extype, key, headers){
+  const matched = new Set();
+  SIM.bindings.forEach(b=>{
+    if(extype==='fanout'){ matched.add(b.queue); return; }
+    if(extype==='direct'){ if(b.key===key) matched.add(b.queue); return; }
+    if(extype==='topic'){ if(topicMatch(b.key, key)) matched.add(b.queue); return; }
+    if(extype==='headers'){ if(headersMatch(b.headers||{}, headers||{}, b.xMatch||'all')) matched.add(b.queue); return; }
+  });
+  return [...matched];
+}
+
+function redrawSim(){
+  const extype = SIM.exchangeType;
+  document.getElementById('sim-extype-label').textContent = extype;
+  // 佇列排版
+  const queues = uniqueQueues();
+  if(queues.length===0){
+    // 至少保持一個預設佇列
+  }
+  const qLayer = document.getElementById('queues-layer');
+  const cLayer = document.getElementById('consumers-layer');
+  const bLayer = document.getElementById('bindings-layer');
+  qLayer.innerHTML=''; cLayer.innerHTML=''; bLayer.innerHTML='';
+
+  const startY = 40, gap = (queues.length>0) ? Math.max(60, 280/queues.length) : 280;
+  queues.forEach((q,i)=>{
+    const y = startY + i*gap + 20;
+    // queue 矩形
+    qLayer.insertAdjacentHTML('beforeend',
+      `<g data-q="${q}">
+         <rect x="640" y="${y-22}" width="140" height="44" rx="8" fill="url(#g-q)" stroke="#3fd17c"/>
+         <text x="710" y="${y+5}" text-anchor="middle" fill="#06190f" font-weight="700" font-size="13">${q}</text>
+         <g class="q-msgs" data-q="${q}" transform="translate(648,${y-6})"></g>
+       </g>`);
+    // 繫結連線
+    SIM.bindings.filter(b=>b.queue===q).forEach((b,idx)=>{
+      const offset = (idx-(SIM.bindings.filter(bb=>bb.queue===q).length-1)/2)*8;
+      bLayer.insertAdjacentHTML('beforeend',
+        `<path d="M500,${180+offset} C570,${180+offset} 600,${y} 640,${y}" stroke="#FF6600" stroke-width="1.6" fill="none" opacity=".7"/>
+         <text x="555" y="${(180+y)/2 - 4 + offset}" text-anchor="middle" fill="#ffb37a" font-size="10">${escapeHtml(extype==='headers'? bindingHdrLabel(b) : b.key||'""')}</text>`);
+    });
+    // 該佇列的消費者
+    const cs = SIM.consumers.filter(c=>c.queue===q);
+    cs.forEach((c,j)=>{
+      const cx = 860, cy = y + (j-(cs.length-1)/2)*36;
+      cLayer.insertAdjacentHTML('beforeend',
+        `<g data-c="${c.id}">
+           <rect x="${cx}" y="${cy-18}" width="120" height="36" rx="8" fill="url(#g-c)" stroke="#ffd166"/>
+           <text x="${cx+60}" y="${cy+2}" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="12">${c.id}</text>
+           <text x="${cx+60}" y="${cy+14}" text-anchor="middle" fill="#1a0a00" font-size="9">${c.mode}</text>
+         </g>
+         <path d="M780,${y} L${cx},${cy}" stroke="#ffd166" stroke-width="1.4" fill="none" opacity=".7" marker-end="url(#arrow)"/>`);
+    });
+  });
+
+  // 繫結列表
+  const bl = document.getElementById('bindings-list');
+  if(SIM.bindings.length===0){
+    bl.innerHTML = '<p class="muted" style="font-size:13px">目前沒有繫結。請按上方 <b>+ 新增繫結</b>。</p>';
+  } else {
+    bl.innerHTML = SIM.bindings.map(b=>{
+      const label = SIM.exchangeType==='headers' ? bindingHdrLabel(b) : (b.key||'""');
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag info">${b.queue}</span>
+        <span class="tag">${escapeHtml(label)}</span>
+        <button class="btn ghost small" data-rm-binding="${b.id}">移除</button>
+      </div>`;
+    }).join('');
+    bl.querySelectorAll('[data-rm-binding]').forEach(btn=>{
+      btn.addEventListener('click',()=>simRemoveBinding(btn.dataset.rmBinding));
+    });
+  }
+
+  // 消費者列表
+  const cl = document.getElementById('consumers-list');
+  if(SIM.consumers.length===0){
+    cl.innerHTML = '<p class="muted" style="font-size:13px">目前沒有消費者。新增一個才能看到送達情形。</p>';
+  } else {
+    cl.innerHTML = SIM.consumers.map(c=>{
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag warn">${c.id}</span>
+        <span class="tag">佇列 ${c.queue}</span>
+        <select data-c-mode="${c.id}">
+          ${['auto-ack','manual-ack','manual-nack-requeue','manual-nack-DLX'].map(m=>`<option ${c.mode===m?'selected':''} value="${m}">${m}</option>`).join('')}
+        </select>
+        <button class="btn ghost small" data-rm-c="${c.id}">移除</button>
+      </div>`;
+    }).join('');
+    cl.querySelectorAll('[data-c-mode]').forEach(sel=>{
+      sel.addEventListener('change',()=>{
+        const c = SIM.consumers.find(x=>x.id===sel.dataset.cMode);
+        c.mode = sel.value; redrawSim();
+      });
+    });
+    cl.querySelectorAll('[data-rm-c]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        SIM.consumers = SIM.consumers.filter(c=>c.id!==btn.dataset.rmC);
+        redrawSim();
+      });
+    });
+  }
+}
+
+function bindingHdrLabel(b){
+  const h = b.headers||{};
+  const inside = Object.entries(h).map(([k,v])=>`${k}=${v}`).join(',');
+  return `{${inside||'∅'}|x-match=${b.xMatch||'all'}}`;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* 動畫顯示一次發布:訊息點 prod→exchange→queue(s)→consumer(或被丟棄) */
+function animateFlow(matched, payload, key){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  // 1) 生產者 → 交換器
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 6);
+  dot.setAttribute('fill','#FF6600');
+  dot.setAttribute('cx', 160); dot.setAttribute('cy', 180);
+  svg.appendChild(dot);
+  const label = document.createElementNS(NS,'text');
+  label.setAttribute('fill','#ffd0aa'); label.setAttribute('font-size','10');
+  label.setAttribute('text-anchor','middle');
+  label.textContent = key;
+  label.setAttribute('x', 160); label.setAttribute('y', 170);
+  svg.appendChild(label);
+
+  let t = 0;
+  const dur1 = 30; // 抵達交換器的影格數
+  function step1(){
+    t++;
+    const p = t/dur1;
+    const x = 160 + (380-160)*p;
+    dot.setAttribute('cx', x);
+    label.setAttribute('x', x);
+    if(t<dur1) requestAnimationFrame(step1);
+    else {
+      label.remove();
+      // 讓交換器脈動一下
+      const exNode = document.querySelector('#node-exchange polygon');
+      exNode.classList.add('pulse');
+      setTimeout(()=>exNode.classList.remove('pulse'), 700);
+      if(matched.length===0){
+        // 路由失敗
+        flashLog(`✗ 路由失敗: key="${key}" 無任何繫結匹配(訊息被丟棄)`,'err');
+        // 整個畫布抖動
+        shake(document.querySelector('.simwrap'));
+        // 訊息點落下淡出
+        let a=1;
+        const fall = ()=>{
+          a-=.05;
+          dot.setAttribute('opacity', Math.max(0,a));
+          dot.setAttribute('cy', 180 + (1-a)*60);
+          if(a>0) requestAnimationFrame(fall);
+          else dot.remove();
+        };
+        fall();
+        breakCombo();
+        return;
+      }
+      // 2) 交換器 → 每個匹配到的佇列
+      matched.forEach(q=>{
+        const dot2 = dot.cloneNode();
+        svg.appendChild(dot2);
+        const target = svg.querySelector(`g[data-q="${CSS.escape(q)}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+70;
+        const ty = parseFloat(target.getAttribute('y'))+22;
+        let s=0;
+        const dur2 = 26;
+        const cb = ()=>{
+          s++;
+          const p = s/dur2;
+          const cx = 440 + (tx-440)*p;
+          const cy = 180 + (ty-180)*p;
+          dot2.setAttribute('cx', cx);
+          dot2.setAttribute('cy', cy);
+          if(s<dur2) requestAnimationFrame(cb);
+          else { dot2.remove(); enqueueAndDeliver(q, payload); }
+        };
+        requestAnimationFrame(cb);
+      });
+      dot.remove();
+      bumpCombo();
+      addXP(10 + Math.min(20, matched.length*5), `已發布到 ${matched.length} 個佇列`);
+      flashLog(`✓ 路由完成 key="${key}" → ${matched.join(', ')}`,'ok');
+      if(matched.length>=3 && SIM.exchangeType==='fanout') unlockBadge('fanoutFan');
+    }
+  }
+  step1();
+}
+
+function enqueueAndDeliver(queue, payload){
+  // 從該佇列的消費者中以 round-robin 挑一位
+  const cs = SIM.consumers.filter(c=>c.queue===queue);
+  if(cs.length===0){
+    flashLog(`… 佇列 ${queue}: 已入列,但沒有消費者(訊息暫泊)`,'warn');
+    drawQMessage(queue, payload, false);
+    return;
+  }
+  const c = cs[Math.floor(Math.random()*cs.length)];
+  const dot = drawQMessage(queue, payload, true);
+  // 動畫到消費者
+  const svg = document.getElementById('sim-svg');
+  const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+  const tx = parseFloat(target.getAttribute('x'))+60;
+  const ty = parseFloat(target.getAttribute('y'))+18;
+  const startX = parseFloat(dot.getAttribute('cx'));
+  const startY = parseFloat(dot.getAttribute('cy'));
+  let s=0; const dur=22;
+  const cb = ()=>{
+    s++;
+    const p = s/dur;
+    dot.setAttribute('cx', startX + (tx-startX)*p);
+    dot.setAttribute('cy', startY + (ty-startY)*p);
+    if(s<dur) requestAnimationFrame(cb);
+    else { dot.remove(); handleConsumerOutcome(c, payload, queue); }
+  };
+  requestAnimationFrame(cb);
+}
+
+function drawQMessage(queue, payload, willMove){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const target = svg.querySelector(`g[data-q="${CSS.escape(queue)}"] rect`);
+  const cx = parseFloat(target.getAttribute('x')) + 70;
+  const cy = parseFloat(target.getAttribute('y')) + 22;
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 5);
+  dot.setAttribute('fill', '#FF6600');
+  dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','1');
+  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+  svg.appendChild(dot);
+  if(!willMove){
+    // 微微擺動
+    let i=0;
+    const wob=()=>{
+      i++;
+      dot.setAttribute('cx', cx + Math.sin(i/3)*2);
+      if(i<300) requestAnimationFrame(wob);
+    };
+    wob();
+  }
+  return dot;
+}
+
+function handleConsumerOutcome(c, payload, queue){
+  switch(c.mode){
+    case 'auto-ack':
+      flashLog(`⇢ ${c.id} (auto-ack): 已消費 "${payload}" —— 快但不安全`,'info');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-ack':
+      flashLog(`✓ ${c.id} (manual-ack): 完成處理 "${payload}",已送出 basic_ack`,'ok');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-nack-requeue':
+      flashLog(`↺ ${c.id} (nack, requeue=true): "${payload}" 重回 ${queue},被標記為 redelivered`,'warn');
+      state.nackCount++;
+      // 過一會模擬重新派發
+      setTimeout(()=>{
+        flashLog(`↻ 重新派發: ${queue} → ${c.id} (redelivered=true)`,'warn');
+        // 再送一次給同一個消費者
+        const dot = drawQMessage(queue, payload+'*', true);
+        const svg = document.getElementById('sim-svg');
+        const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+60;
+        const ty = parseFloat(target.getAttribute('y'))+18;
+        let s=0; const dur=22;
+        const startX = parseFloat(dot.getAttribute('cx'));
+        const startY = parseFloat(dot.getAttribute('cy'));
+        const cb=()=>{
+          s++;
+          const p=s/dur;
+          dot.setAttribute('cx', startX+(tx-startX)*p);
+          dot.setAttribute('cy', startY+(ty-startY)*p);
+          if(s<dur) requestAnimationFrame(cb);
+          else { dot.remove(); flashLog(`✓ ${c.id} 重試後已處理`, 'ok'); }
+        };
+        requestAnimationFrame(cb);
+      }, 700);
+      break;
+    case 'manual-nack-DLX':
+      flashLog(`☠ ${c.id} (nack, requeue=false): "${payload}" → DLX(死信交換器)`,'err');
+      state.dlxRoutes++;
+      if(state.dlxRoutes>=3) unlockBadge('dlxDefender');
+      break;
+  }
+  saveState();
+}
+
+/* 模擬器事件接線 */
+document.getElementById('sim-extype').addEventListener('change', e=>{
+  SIM.exchangeType = e.target.value;
+  redrawSim();
+});
+document.getElementById('sim-add-binding').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  let key = '';
+  let headers = {};
+  let xMatch = 'all';
+  let queue = prompt('佇列名稱?', `q.${SIM.queueIds+1}`);
+  if(!queue) return;
+  SIM.queueIds++;
+  if(extype==='headers'){
+    const raw = prompt('Headers 繫結(k=v,以逗號分隔)', 'format=pdf,type=report');
+    if(raw===null) return;
+    raw.split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+    xMatch = (prompt('x-match: all 或 any?','all')||'all').toLowerCase()==='any'?'any':'all';
+  } else if(extype==='fanout'){
+    key = ''; // fanout 會忽略
+  } else {
+    key = prompt('繫結鍵(例如 orders.*.us)', 'orders.*.us') || '';
+  }
+  simAddBinding(queue, key, headers, xMatch);
+});
+document.getElementById('sim-add-consumer').addEventListener('click', ()=>{
+  const queues = uniqueQueues();
+  let queue;
+  if(queues.length===0){
+    queue = prompt('還沒有任何佇列。請輸入要繫結消費者的佇列名稱:', 'q.1');
+    if(!queue) return;
+    SIM.queueIds = Math.max(SIM.queueIds, 1);
+  } else if(queues.length===1){
+    queue = queues[0];
+  } else {
+    queue = prompt('要把消費者掛到哪個佇列? '+queues.join(', '), queues[0]);
+    if(!queue) return;
+  }
+  simAddConsumer(queue, 'manual-ack');
+});
+document.getElementById('sim-publish').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  const key = document.getElementById('sim-rk').value || '';
+  const payload = document.getElementById('sim-payload').value || 'msg';
+  let headers = {};
+  if(extype==='headers'){
+    (document.getElementById('sim-headers').value||'').split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+  }
+  const matched = routeMessage(extype, key, headers);
+  state.publishCount++;
+  if(state.publishCount===1) unlockBadge('firstPublish');
+  saveState();
+  animateFlow(matched, payload, extype==='headers' ? JSON.stringify(headers) : key);
+});
+document.getElementById('sim-clear').addEventListener('click', ()=>{
+  document.getElementById('sim-log').innerHTML='';
+});
+
+// 種入一組 topic 範例
+simAddBinding('q.alerts','*.error.*');
+simAddBinding('q.us-orders','orders.*.us');
+simAddBinding('q.audit','#');
+simAddConsumer('q.alerts','manual-ack');
+simAddConsumer('q.us-orders','manual-ack');
+simAddConsumer('q.audit','auto-ack');
+
+/* =========================================================
+   練習 —— 打字練習題
+   ========================================================= */
+const PRACTICE = [
+  // VOCAB
+  { kind:'vocab', q:'用來存放訊息直到消費者取走的具名緩衝區。請輸入術語(英文):', a:'queue', xp:15 },
+  { kind:'vocab', q:'生產者送過來的路由器,佇列要繫結到它。請輸入術語(英文):', a:'exchange', xp:15 },
+  { kind:'vocab', q:'切割使用者、佇列、交換器命名空間的邏輯隔離邊界。請輸入縮寫(5 個字母):', a:'vhost', xp:15, accept:['virtual host'] },
+  { kind:'vocab', q:'生產者附在訊息上、由交換器決定送到哪的字串。兩個英文單字:', a:'routing key', xp:15 },
+  { kind:'vocab', q:'用來收下被拒收、過期、或溢位訊息的特殊交換器。請輸入縮寫(3 個字母):', a:'dlx', xp:20, accept:['dead letter exchange','dead-letter exchange'] },
+  // CLI
+  { kind:'cli', q:'請輸入列出所有佇列的 rabbitmqctl 指令:', a:'rabbitmqctl list_queues', xp:20, strict:true },
+  { kind:'cli', q:'請輸入列出所有交換器的指令(rabbitmqctl):', a:'rabbitmqctl list_exchanges', xp:20, strict:true },
+  { kind:'cli', q:'請輸入列出所有繫結的指令(rabbitmqctl):', a:'rabbitmqctl list_bindings', xp:20, strict:true },
+  { kind:'cli', q:'新增一個名為 "billing" 的 vhost。rabbitmqctl ___:', a:'rabbitmqctl add_vhost billing', xp:20, strict:true },
+  // CODE (pika)
+  { kind:'code', q:'pika:宣告一個名為 "tasks" 的持久佇列。請填入函式名:\nchannel.____(queue="tasks", durable=True)', a:'queue_declare', xp:20, strict:true },
+  { kind:'code', q:'pika:把 "hi" 發布到預設交換器,送到佇列 "tasks",並標記為持久。\nchannel.basic_publish(exchange="", routing_key="tasks", body="hi", properties=pika.BasicProperties(delivery_mode=__))\n請填入缺少的數字:', a:'2', xp:20, strict:true, accept:['PERSISTENT_DELIVERY_MODE'] },
+  { kind:'code', q:'pika:確認一則送達。請填入缺少的方法:\nch.____(delivery_tag=method.delivery_tag)', a:'basic_ack', xp:20, strict:true },
+  { kind:'code', q:'pika:啟用公平派發,讓每位消費者一次最多只有一則待處理:\nchannel.____(prefetch_count=1)', a:'basic_qos', xp:20, strict:true },
+  { kind:'code', q:'pika:用手動 ack 訂閱 "tasks"。請填入空格:\nchannel.____(queue="tasks", on_message_callback=cb, auto_ack=False)', a:'basic_consume', xp:20, strict:true },
+  // TOPIC PUZZLES (yes/no)
+  { kind:'topic', q:'繫結 "orders.*.us"  vs  路由鍵 "orders.new.us"。匹配嗎?(yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'繫結 "orders.*.us"  vs  路由鍵 "orders.us"。匹配嗎?(yes/no)', a:'no', xp:15 },
+  { kind:'topic', q:'繫結 "orders.#"  vs  路由鍵 "orders.new.us.express"。匹配嗎?(yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'繫結 "*.error.*"  vs  路由鍵 "db.error"。匹配嗎?(yes/no)', a:'no', xp:15 },
+];
+
+const pracState = {
+  i: 0,
+  correct: 0,
+  wrong: 0,
+  topicStreak: 0,
+  durableStreak: 0,
+  rpcStreak: 0,
+};
+function normalize(s){ return String(s).trim().toLowerCase().replace(/\s+/g,' '); }
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function answerMatches(ex, input){
+  const v = normalize(input);
+  const accepts = [ex.a, ...(ex.accept||[])].map(normalize);
+  if(ex.strict){
+    return accepts.includes(v);
+  }
+  // 容錯比對:完全相符 OR 接受清單 OR 短字串容許小距離
+  for(const a of accepts){
+    if(v===a) return true;
+    if(a.length<=8 && levenshtein(v,a)<=1) return true;
+    if(a.length<=14 && levenshtein(v,a)<=2) return true;
+  }
+  return false;
+}
+
+function renderPractice(){
+  const total = PRACTICE.length;
+  document.getElementById('prac-n').textContent = total;
+  const i = pracState.i;
+  document.getElementById('prac-i').textContent = Math.min(i+1, total);
+  document.getElementById('prac-correct').textContent = `答對 ${pracState.correct}`;
+  document.getElementById('prac-wrong').textContent = `答錯 ${pracState.wrong}`;
+  document.getElementById('prac-progress').style.width = (i/total*100)+'%';
+
+  const mount = document.getElementById('prac-mount');
+  if(i>=total){
+    mount.innerHTML = `<div class="ex-card">
+      <div class="q"><b>完成!</b>你正確答對了 ${pracState.correct}/${total} 題。</div>
+      <p class="muted">可隨時重新開始,或前往魔王模式。</p>
+    </div>`;
+    if(pracState.correct === total){ unlockBadge('practiceComplete'); }
+    state.practiceDone = true; saveState();
+    return;
+  }
+  const ex = PRACTICE[i];
+  document.getElementById('prac-kind').textContent = ex.kind;
+  mount.innerHTML = `<div class="ex-card" id="ex-${i}">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="prac-input" autocomplete="off" spellcheck="false" placeholder="輸入答案後按 Enter…" style="flex:1;min-width:260px"/>
+      <button class="btn" id="prac-submit">送出</button>
+    </div>
+    <div class="feedback hint" id="prac-feedback">提示:${ex.kind==='topic' ? '回答 "yes" 或 "no"' : ex.kind==='cli' ? '需完全相符' : ex.kind==='code' ? '需完全相符' : '小錯字會容許'}</div>
+  </div>`;
+  const input = document.getElementById('prac-input');
+  input.focus();
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter') submitPractice();
+  });
+  document.getElementById('prac-submit').addEventListener('click', submitPractice);
+}
+function linkifyHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+function submitPractice(){
+  const ex = PRACTICE[pracState.i];
+  const val = document.getElementById('prac-input').value;
+  const ok = answerMatches(ex, val);
+  const fb = document.getElementById('prac-feedback');
+  if(ok){
+    fb.className='feedback ok';
+    fb.textContent = `✓ 正確!+${ex.xp} XP`;
+    addXP(ex.xp, `練習 ${ex.kind}`);
+    bumpCombo();
+    pracState.correct++;
+    if(ex.kind==='topic'){ pracState.topicStreak++; if(pracState.topicStreak>=5) unlockBadge('topicMaster'); state.topicMatchSolved++; }
+    else pracState.topicStreak=0;
+    confettiBurst(60);
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 500);
+  } else {
+    fb.className='feedback err';
+    fb.textContent = `✗ 還差一點。預期答案: ${ex.a}`;
+    breakCombo();
+    pracState.wrong++;
+    pracState.topicStreak=0;
+    shake(document.getElementById('ex-'+pracState.i));
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 1100);
+  }
+}
+document.getElementById('prac-skip').addEventListener('click', ()=>{
+  pracState.wrong++; pracState.i++; breakCombo(); renderPractice();
+});
+document.getElementById('prac-restart').addEventListener('click', ()=>{
+  pracState.i=0; pracState.correct=0; pracState.wrong=0; pracState.topicStreak=0; renderPractice();
+});
+renderPractice();
+
+/* =========================================================
+   魔王模式 —— 10 題限時情境題
+   ========================================================= */
+const BOSS_QUESTIONS = [
+  { q:'工人在處理一半時當掉、訊息也跟著消失。消費者啟動時用了 auto_ack=True。要把哪個布林參數翻成 False?', a:'auto_ack' },
+  { q:'代理人重啟後你的佇列不見了。你在 queue_declare 上忘了哪個旗標?', a:'durable' },
+  { q:'訊息在佇列中還在,但代理人崩潰後就蒸發了。訊息上少了哪個屬性?(填一個數字)', a:'2', accept:['delivery_mode=2','persistent'] },
+  { q:'一個慢工人霸佔工作,快的卻在閒置。請輸入修正公平派發的 pika 方法:', a:'basic_qos' },
+  { q:'你需要透過 Raft 達到強一致性、可撐過節點故障的佇列。是哪一種佇列類型?(一個字)', a:'quorum' },
+  { q:'一則「毒丸」訊息被無限重新入列。修法是 nack 並 requeue=false,讓它路由到一個特殊交換器。它的三字母縮寫是?', a:'dlx' },
+  { q:'你想讓所有訂閱者都收到事件,不在乎路由鍵。要用哪種交換器?(一個字)', a:'fanout' },
+  { q:'你想讓訂閱者用 "*.error.*" 或 "db.#" 之類的模式過濾。要用哪種交換器?(一個字)', a:'topic' },
+  { q:'你需要確認代理人真的收到並持久化了某則訊息。應啟用哪個非同步功能?(兩個英文字)', a:'publisher confirms', accept:['publisher confirm','confirm select'] },
+  { q:'RPC client 留下的回應佇列一直洩漏。你需要加一個讓它自動到期的佇列參數。是哪個參數?(三字母縮寫)', a:'ttl', accept:['x-message-ttl','x-expires'] },
+];
+const BOSS = { i:0, correct:0, timer:null, secs:30, active:false };
+function startBoss(){
+  if(BOSS.active) return;
+  BOSS.active = true; BOSS.i=0; BOSS.correct=0;
+  document.getElementById('boss-correct').textContent='答對 0';
+  document.getElementById('boss-progress').style.width='0%';
+  showBossQ();
+}
+function showBossQ(){
+  const total = BOSS_QUESTIONS.length;
+  if(BOSS.i>=total){
+    finishBoss(); return;
+  }
+  document.getElementById('boss-i').textContent = BOSS.i+1;
+  document.getElementById('boss-progress').style.width = (BOSS.i/total*100)+'%';
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const mount = document.getElementById('boss-mount');
+  mount.innerHTML = `<div class="ex-card" id="boss-card">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="boss-input" placeholder="輸入後按 Enter…" autocomplete="off" spellcheck="false" style="flex:1;min-width:260px"/>
+      <button class="btn" id="boss-submit">送出</button>
+    </div>
+    <div class="feedback hint" id="boss-feedback">提示:答案要短而精確。容許少量錯字。</div>
+  </div>`;
+  const inp = document.getElementById('boss-input'); inp.focus();
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitBoss(); });
+  document.getElementById('boss-submit').addEventListener('click', submitBoss);
+  // 計時器
+  BOSS.secs = 30;
+  document.getElementById('boss-timer').textContent = BOSS.secs;
+  clearInterval(BOSS.timer);
+  BOSS.timer = setInterval(()=>{
+    BOSS.secs--;
+    document.getElementById('boss-timer').textContent = BOSS.secs;
+    if(BOSS.secs<=0){
+      clearInterval(BOSS.timer);
+      handleBossOutcome(false, ex);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const val = document.getElementById('boss-input').value;
+  const ok = answerMatches(ex, val);
+  clearInterval(BOSS.timer);
+  handleBossOutcome(ok, ex);
+}
+function handleBossOutcome(ok, ex){
+  const fb = document.getElementById('boss-feedback');
+  if(ok){
+    fb.className='feedback ok'; fb.textContent='✓ 正確!+50 XP';
+    addXP(50, '魔王答對'); bumpCombo();
+    BOSS.correct++;
+    document.getElementById('boss-correct').textContent = `答對 ${BOSS.correct}`;
+    confettiBurst(80);
+  } else {
+    fb.className='feedback err'; fb.textContent=`✗ 答錯。預期答案: ${ex.a}`;
+    breakCombo();
+    shake(document.getElementById('boss-card'));
+  }
+  setTimeout(()=>{ BOSS.i++; showBossQ(); }, 700);
+}
+function finishBoss(){
+  BOSS.active = false;
+  clearInterval(BOSS.timer);
+  const total = BOSS_QUESTIONS.length;
+  document.getElementById('boss-progress').style.width = '100%';
+  const survived = BOSS.correct >= total - 2; // 容許錯 2 題
+  const mount = document.getElementById('boss-mount');
+  if(survived){
+    unlockBadge('outageCrusher');
+    state.bossDone = true; saveState();
+    mount.innerHTML = `<div class="ex-card"><div class="q">🏆 故障已控制 —— ${BOSS.correct}/${total}。你解鎖了 <b>故障終結者</b>。</div></div>`;
+    confettiBurst(220);
+  } else {
+    mount.innerHTML = `<div class="ex-card"><div class="q">🚨 故障擴大 —— ${BOSS.correct}/${total}。答對 8/10 才能解鎖徽章。</div></div>`;
+  }
+}
+document.getElementById('boss-start').addEventListener('click', startBoss);
+document.getElementById('boss-quit').addEventListener('click', ()=>{
+  BOSS.active=false; clearInterval(BOSS.timer);
+  document.getElementById('boss-mount').innerHTML='';
+});
+
+/* =========================================================
+   起始渲染
+   ========================================================= */
+redrawSim();
+flashLog('實驗室已就緒。已預先放入 3 條繫結與 3 個消費者。試試以 topic 交換器發布 key="orders.new.us"。','info');
+</script>
+</body>
+</html>

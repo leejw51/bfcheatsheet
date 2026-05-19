@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zig 치트시트 — 인터랙티브</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2229;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #f7a41d;     /* Zig orange/amber */
+    --accent-2: #ffb84d;
+    --accent-3: #d97706;
+    --code-bg: #0a0f15;
+    --keyword: #ff9d5c;
+    --string: #ffd29c;
+    --number: #d2a8ff;
+    --comment: #6b7785;
+    --fn: #ffd29c;
+    --tag: #79c0ff;
+    --type: #f7a41d;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1f1810 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #1a1208;
+    border-radius: 6px; font-weight: 900;
+    box-shadow: 0 0 14px rgba(247, 164, 29, 0.45);
+  }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #1a1208;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(247, 164, 29, 0.12);
+    border-color: rgba(247, 164, 29, 0.4);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag {
+    color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; font-weight: 500;
+  }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--type); font-weight: 600; }
+  .tok-b { color: var(--tag); }   /* builtin like @import */
+  .tok-e { color: #ff7b9c; }      /* error */
+
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; font-size: 13px;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  td code {
+    background: var(--code-bg); padding: 2px 6px; border-radius: 4px;
+    color: var(--tag); font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--panel-2); }
+
+  .note {
+    background: rgba(247, 164, 29, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px;
+    padding: 30px 20px; border-top: 1px solid var(--border); margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .card.hidden { display: none; }
+  .no-results {
+    color: var(--muted); text-align: center;
+    padding: 40px; font-style: italic; display: none;
+  }
+
+  /* Practice */
+  .practice-wrap {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .practice-wrap { grid-template-columns: 1fr; } }
+  .practice-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .practice-panel h3 {
+    margin: 0 0 4px; font-size: 16px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .practice-panel p.sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .quiz-card {
+    background: var(--code-bg); border-radius: 8px; padding: 14px;
+    margin-bottom: 12px; font-family: ui-monospace, monospace;
+    font-size: 14px; min-height: 80px; line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .quiz-prompt-label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .quiz-blank {
+    display: inline-block;
+    min-width: 80px;
+    padding: 2px 6px;
+    margin: 0 2px;
+    border: 1px dashed var(--accent);
+    background: rgba(247, 164, 29, 0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 700;
+  }
+  .quiz-input {
+    width: 100%;
+    background: var(--code-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .quiz-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(247, 164, 29, 0.15); }
+  .quiz-input.shake { animation: shake 240ms ease-in-out; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0);} 25%{transform:translateX(-4px);} 50%{transform:translateX(4px);} 75%{transform:translateX(-2px);}
+  }
+  .quiz-input.flash { animation: flash 380ms ease-out; }
+  @keyframes flash {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); border-color: var(--good); }
+    100% { box-shadow: 0 0 0 12px rgba(74, 222, 128, 0); border-color: var(--border); }
+  }
+  .quiz-controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .quiz-btn {
+    background: var(--accent); color: #1a1208; border: none;
+    border-radius: 6px; padding: 8px 16px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: filter 0.15s; font-family: inherit;
+  }
+  .quiz-btn:hover { filter: brightness(1.1); }
+  .quiz-btn.secondary {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  }
+  .quiz-feedback {
+    margin-top: 12px; padding: 10px 14px; border-radius: 6px;
+    font-size: 13px; display: none;
+  }
+  .quiz-feedback.show { display: block; animation: fade 0.2s ease; }
+  .quiz-feedback.correct {
+    background: rgba(74, 222, 128, 0.1); border-left: 3px solid var(--good); color: #86efac;
+  }
+  .quiz-feedback.wrong {
+    background: rgba(248, 113, 113, 0.1); border-left: 3px solid var(--bad); color: #fca5a5;
+  }
+  .quiz-feedback .answer {
+    display: block; color: var(--string);
+    font-family: ui-monospace, monospace; margin-top: 6px; font-size: 12.5px;
+  }
+  .quiz-stats {
+    display: flex; gap: 16px; justify-content: space-around;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .quiz-stat { text-align: center; }
+  .quiz-stat .num {
+    color: var(--accent); font-size: 22px; font-weight: 800; display: block;
+  }
+  .quiz-stat .lbl {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .quiz-progress-bar {
+    height: 4px; background: var(--panel-2); border-radius: 2px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .quiz-progress-bar > div {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0%; transition: width 0.3s ease;
+  }
+  .streak-fire {
+    display: inline-block; transition: filter 0.3s, transform 0.3s;
+    filter: grayscale(1); opacity: 0.5;
+  }
+  .streak-fire.on { filter: none; opacity: 1; transform: scale(1.15); }
+
+  /* Confetti */
+  .confetti-layer {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1000;
+  }
+  .confetti-piece {
+    position: absolute; width: 8px; height: 12px;
+    opacity: 0; animation: confetti-fall 1100ms ease-out forwards;
+  }
+  @keyframes confetti-fall {
+    0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+    100% { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 200px)) rotate(var(--rot, 360deg)); }
+  }
+
+  /* REPL */
+  .repl {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-top: 16px;
+  }
+  .repl-input {
+    width: 100%;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  .repl-input:focus { border-color: var(--accent); }
+  .repl-history {
+    margin-top: 10px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 12px;
+    max-height: 220px; overflow-y: auto;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .repl-line { margin: 2px 0; }
+  .repl-line .prompt { color: var(--accent); }
+  .repl-line .output { color: var(--good); }
+  .repl-line .err { color: var(--bad); }
+
+  /* Comptime visualizer */
+  .vis-row {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 12px;
+  }
+  .vis-row label { font-size: 13px; color: var(--muted); min-width: 90px; }
+  .vis-row select, .vis-row input {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Memory diagram */
+  .mem {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin-top: 12px;
+  }
+  @media (max-width: 700px) { .mem { grid-template-columns: 1fr; } }
+  .mem-region {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+    min-height: 220px;
+  }
+  .mem-region h4 {
+    margin: 0 0 8px; color: var(--accent); font-size: 13px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .mem-block {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    transition: opacity 350ms, transform 350ms, background 350ms;
+  }
+  .mem-block.heap { border-left-color: #79c0ff; }
+  .mem-block.freed { opacity: 0; transform: translateX(20px); }
+  .mem-controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+<header>
+  <div class="logo"><span class="mark">Z</span> Zig Cheatsheet <span class="badge">Interactive</span></div>
+  <div class="search">
+    <span class="icon">&#128269;</span>
+    <input id="search" type="text" placeholder="검색: const, defer, comptime, allocator, struct…" />
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="hello" class="active">Hello, Zig</button>
+  <button data-tab="vars">변수</button>
+  <button data-tab="numbers">숫자</button>
+  <button data-tab="control">제어 흐름</button>
+  <button data-tab="functions">함수</button>
+  <button data-tab="errors">에러</button>
+  <button data-tab="memory">메모리</button>
+  <button data-tab="structs">구조체 &amp; 열거형</button>
+  <button data-tab="comptime">Comptime</button>
+  <button data-tab="build">빌드 시스템</button>
+  <button data-tab="practice">&#127919; 연습</button>
+  <button data-tab="repl">미니 REPL</button>
+</nav>
+</div>
+
+<main>
+
+<!-- HELLO -->
+<section class="tab-section active" id="hello">
+  <h1>Hello, Zig</h1>
+  <p class="lead">견고하고, 최적이며, 재사용 가능한 소프트웨어를 위해 설계된 작고 간단한 언어. 숨겨진 제어 흐름 없음, 숨겨진 할당 없음.</p>
+
+  <h2>표준 프로그램</h2>
+  <div class="grid">
+    <div class="card" data-keywords="hello main import std debug print">
+      <div class="card-head">
+        <div class="card-title">Hello, World <span class="tag">main.zig</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> std = <span class="tok-b">@import</span>(<span class="tok-s">"std"</span>);
+
+<span class="tok-k">pub fn</span> <span class="tok-f">main</span>() <span class="tok-e">!</span><span class="tok-t">void</span> {
+    <span class="tok-k">const</span> stdout = std.io.getStdOut().writer();
+    <span class="tok-k">try</span> stdout.print(<span class="tok-s">"Hello, {s}!\n"</span>, .{<span class="tok-s">"Zig"</span>});
+}
+</code></pre>
+      <p class="card-desc">반환 타입 <code>!void</code>에 주목 — main은 에러를 반환할 수 있습니다. <code>try</code>가 에러를 전파합니다.</p>
+    </div>
+
+    <div class="card" data-keywords="build run zig command">
+      <div class="card-head">
+        <div class="card-title">빌드 &amp; 실행 <span class="tag">terminal</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c"># 단일 파일 컴파일 + 실행</span>
+zig run main.zig
+
+<span class="tok-c"># 네이티브 실행 파일로 컴파일만</span>
+zig build-exe main.zig
+
+<span class="tok-c"># 프로젝트 (build.zig 사용)</span>
+zig init
+zig build run
+zig build test
+
+<span class="tok-c"># 코드 포매팅</span>
+zig fmt main.zig
+</code></pre>
+      <p class="card-desc">Zig은 Zig으로 작성된 자체 빌드 시스템을 갖고 있습니다 &mdash; Make도 CMake도 필요 없습니다.</p>
+    </div>
+
+    <div class="card" data-keywords="comments doc test">
+      <div class="card-head">
+        <div class="card-title">주석 &amp; 테스트 <span class="tag">// /// test</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// 일반 주석</span>
+<span class="tok-c">/// 문서 주석 (다음 선언에 부착됨)</span>
+<span class="tok-k">pub fn</span> <span class="tok-f">add</span>(a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> a + b;
+}
+
+<span class="tok-k">test</span> <span class="tok-s">"add works"</span> {
+    <span class="tok-k">try</span> std.testing.expectEqual(<span class="tok-n">5</span>, add(<span class="tok-n">2</span>, <span class="tok-n">3</span>));
+}
+</code></pre>
+      <p class="card-desc">테스트는 소스 파일 안에 함께 둡니다. <code>zig test file.zig</code>로 실행하세요.</p>
+    </div>
+
+    <div class="card" data-keywords="philosophy zen">
+      <div class="card-head">
+        <div class="card-title">Zen of Zig <span class="tag">philosophy</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// 1. 의도를 정확히 전달하라.
+// 2. 엣지 케이스가 중요하다.
+// 3. 코드를 쓰는 것보다 읽는 것을 선호하라.
+// 4. 한 가지를 하는 명백한 방법은 하나만.
+// 5. 런타임 크래시가 버그보다 낫다.
+// 6. 컴파일 에러가 런타임 크래시보다 낫다.
+// 7. 점진적 개선.
+// 8. 지역 최댓값을 피하라.
+// 9. 기억해야 할 양을 줄여라.
+// 10. 스타일보다 코드에 집중하라.
+// 11. 자원 할당은 실패할 수 있지만, 해제는 반드시 성공해야 한다.
+// 12. 메모리는 자원이다.
+// 13. 우리 모두 함께 사용자를 섬긴다.</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- VARIABLES -->
+<section class="tab-section" id="vars">
+  <h1>변수</h1>
+  <p class="lead">두 가지 형태가 있습니다: <code>const</code> (불변)와 <code>var</code> (가변). 모든 선언은 사용되어야 합니다 &mdash; 죽은 바인딩은 허용되지 않습니다.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="const var declare">
+      <div class="card-head">
+        <div class="card-title">const vs var <span class="tag">기본</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> name = <span class="tok-s">"Ada"</span>;        <span class="tok-c">// 불변, 타입 추론</span>
+<span class="tok-k">var</span>   counter: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;  <span class="tok-c">// 가변, 명시적 타입</span>
+counter += <span class="tok-n">1</span>;
+
+<span class="tok-c">// 컴파일 에러: const에 재할당</span>
+<span class="tok-c">// name = "Bob";</span>
+
+<span class="tok-c">// 컴파일 에러: 사용되지 않은 지역 변수</span>
+<span class="tok-c">// const x = 5;</span>
+</code></pre>
+      <p class="card-desc">정말 필요하다면 <code>_ = value;</code>로 값을 버릴 수 있습니다.</p>
+    </div>
+
+    <div class="card" data-keywords="comptime constant">
+      <div class="card-head">
+        <div class="card-title">컴파일타임 상수 <span class="tag">comptime</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> PI: <span class="tok-t">f64</span> = <span class="tok-n">3.14159</span>;
+<span class="tok-k">const</span> MAX_USERS = <span class="tok-n">1024</span>;
+
+<span class="tok-c">// 컴파일타임에 평가됨</span>
+<span class="tok-k">comptime</span> {
+    <span class="tok-k">const</span> sum = <span class="tok-n">2</span> + <span class="tok-n">3</span>;
+    <span class="tok-b">@compileLog</span>(<span class="tok-s">"sum is "</span>, sum);
+}
+</code></pre>
+      <p class="card-desc">최상위 <code>const</code>는 암묵적으로 <code>comptime</code>입니다.</p>
+    </div>
+
+    <div class="card" data-keywords="undefined uninitialized">
+      <div class="card-head">
+        <div class="card-title">undefined <span class="tag">선택적 비안전성</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> buf: [<span class="tok-n">256</span>]<span class="tok-t">u8</span> = <span class="tok-k">undefined</span>;
+<span class="tok-c">// 디버그 빌드에서 undefined는 0xAA 바이트로 채워져</span>
+<span class="tok-c">// 초기화되지 않은 읽기를 드러냅니다.</span>
+buf[<span class="tok-n">0</span>] = <span class="tok-n">42</span>;
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="type inference">
+      <div class="card-head">
+        <div class="card-title">타입 추론 <span class="tag">@TypeOf</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> x = <span class="tok-n">42</span>;             <span class="tok-c">// comptime_int</span>
+<span class="tok-k">const</span> y: <span class="tok-t">i32</span> = <span class="tok-n">42</span>;       <span class="tok-c">// i32</span>
+<span class="tok-k">const</span> z = <span class="tok-b">@as</span>(<span class="tok-t">i32</span>, <span class="tok-n">42</span>); <span class="tok-c">// i32</span>
+
+<span class="tok-k">const</span> T = <span class="tok-b">@TypeOf</span>(y); <span class="tok-c">// T == i32</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- NUMBERS -->
+<section class="tab-section" id="numbers">
+  <h1>숫자 &amp; 타입</h1>
+  <p class="lead">Zig은 명시적인 고정 폭 정수를 갖고 있고 오버플로 의미를 그대로 노출합니다. 캐스팅은 항상 명시적입니다.</p>
+
+  <h2>정수 타입</h2>
+  <table>
+    <tr><th>타입</th><th>비트</th><th>범위</th></tr>
+    <tr><td><code>i8 / u8</code></td><td>8</td><td>-128..127 / 0..255</td></tr>
+    <tr><td><code>i16 / u16</code></td><td>16</td><td>부호 있음 / 부호 없음</td></tr>
+    <tr><td><code>i32 / u32</code></td><td>32</td><td>가장 흔히 쓰는 정수</td></tr>
+    <tr><td><code>i64 / u64</code></td><td>64</td><td>큰 정수</td></tr>
+    <tr><td><code>isize / usize</code></td><td>ptr</td><td>포인터 크기; 인덱스에는 usize</td></tr>
+    <tr><td><code>i7 / u23</code></td><td>임의</td><td>임의 폭 &mdash; <code>u3</code>도 유효합니다!</td></tr>
+    <tr><td><code>f16 / f32 / f64 / f128</code></td><td>가변</td><td>IEEE 부동소수점</td></tr>
+  </table>
+
+  <h2>캐스팅 &amp; 오버플로</h2>
+  <div class="grid">
+    <div class="card" data-keywords="cast intCast floatFromInt as">
+      <div class="card-head">
+        <div class="card-title">캐스팅 <span class="tag">@as @intCast</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> a: <span class="tok-t">i32</span> = <span class="tok-n">300</span>;
+<span class="tok-k">const</span> b: <span class="tok-t">u8</span> = <span class="tok-b">@intCast</span>(a);   <span class="tok-c">// 런타임 검사</span>
+<span class="tok-k">const</span> c: <span class="tok-t">f32</span> = <span class="tok-b">@floatFromInt</span>(a);
+<span class="tok-k">const</span> d: <span class="tok-t">i32</span> = <span class="tok-b">@intFromFloat</span>(<span class="tok-n">3.7</span>);
+
+<span class="tok-c">// @as는 강제 변환용 (확장, comptime)</span>
+<span class="tok-k">const</span> e = <span class="tok-b">@as</span>(<span class="tok-t">i64</span>, <span class="tok-n">10</span>);
+</code></pre>
+      <p class="card-desc">값이 들어맞지 않으면 <code>@intCast</code>는 안전 빌드에서 트랩을 발생시킵니다.</p>
+    </div>
+
+    <div class="card" data-keywords="overflow wrap saturate">
+      <div class="card-head">
+        <div class="card-title">오버플로 연산자 <span class="tag">+% +| 등</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// 기본 +는 안전 빌드에서 오버플로 시 트랩</span>
+<span class="tok-k">var</span> x: <span class="tok-t">u8</span> = <span class="tok-n">250</span>;
+
+<span class="tok-c">// 래핑 산술</span>
+<span class="tok-k">const</span> w = x +% <span class="tok-n">10</span>;   <span class="tok-c">// 4로 감싸짐</span>
+
+<span class="tok-c">// 포화 산술</span>
+<span class="tok-k">const</span> s = x +| <span class="tok-n">10</span>;   <span class="tok-c">// 255에 고정</span>
+
+<span class="tok-c">// @addWithOverflow로 오버플로를 잡아내기</span>
+<span class="tok-k">const</span> r = <span class="tok-b">@addWithOverflow</span>(x, <span class="tok-n">10</span>);
+<span class="tok-c">// r은 튜플: { result, did_overflow }</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="literals binary hex octal underscore">
+      <div class="card-head">
+        <div class="card-title">숫자 리터럴 <span class="tag">가독성</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> million = <span class="tok-n">1_000_000</span>;
+<span class="tok-k">const</span> hex     = <span class="tok-n">0xff_ee</span>;
+<span class="tok-k">const</span> oct     = <span class="tok-n">0o755</span>;
+<span class="tok-k">const</span> bin     = <span class="tok-n">0b1010_1010</span>;
+<span class="tok-k">const</span> exp     = <span class="tok-n">1.5e3</span>;
+<span class="tok-k">const</span> hexf    = <span class="tok-n">0x1.fp10</span>;  <span class="tok-c">// 16진 부동소수</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="char ascii utf8">
+      <div class="card-head">
+        <div class="card-title">문자 &amp; 바이트 <span class="tag">u8 'A'</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> letter: <span class="tok-t">u8</span> = <span class="tok-s">'A'</span>;       <span class="tok-c">// 65</span>
+<span class="tok-k">const</span> emoji  : <span class="tok-t">u21</span> = <span class="tok-s">'&#128512;'</span>;     <span class="tok-c">// 코드포인트</span>
+
+<span class="tok-c">// 문자열은 []const u8 (UTF-8 바이트)</span>
+<span class="tok-k">const</span> greeting: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = <span class="tok-s">"hi"</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- CONTROL FLOW -->
+<section class="tab-section" id="control">
+  <h1>제어 흐름</h1>
+  <p class="lead">곳곳이 표현식입니다. <code>if</code>, <code>switch</code>, 블록 모두 값으로 평가됩니다. <code>switch</code>는 반드시 모든 경우를 다뤄야 합니다.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="if else ternary">
+      <div class="card-head">
+        <div class="card-title">표현식으로서의 if <span class="tag">if</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> x = <span class="tok-n">10</span>;
+<span class="tok-k">const</span> sign = <span class="tok-k">if</span> (x &gt; <span class="tok-n">0</span>) <span class="tok-s">"+"</span> <span class="tok-k">else if</span> (x &lt; <span class="tok-n">0</span>) <span class="tok-s">"-"</span> <span class="tok-k">else</span> <span class="tok-s">"0"</span>;
+
+<span class="tok-c">// 옵셔널 페이로드 바인딩</span>
+<span class="tok-k">const</span> maybe: ?<span class="tok-t">i32</span> = <span class="tok-n">42</span>;
+<span class="tok-k">if</span> (maybe) |val| {
+    std.debug.print(<span class="tok-s">"got {d}\n"</span>, .{val});
+} <span class="tok-k">else</span> {
+    std.debug.print(<span class="tok-s">"null\n"</span>, .{});
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="while loop break continue">
+      <div class="card-head">
+        <div class="card-title">while <span class="tag">while</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> i: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;
+<span class="tok-k">while</span> (i &lt; <span class="tok-n">10</span>) : (i += <span class="tok-n">1</span>) {
+    <span class="tok-k">if</span> (i == <span class="tok-n">3</span>) <span class="tok-k">continue</span>;
+    <span class="tok-k">if</span> (i == <span class="tok-n">7</span>) <span class="tok-k">break</span>;
+    std.debug.print(<span class="tok-s">"{d}\n"</span>, .{i});
+}
+
+<span class="tok-c">// 옵셔널과 함께 쓰는 while</span>
+<span class="tok-k">while</span> (it.next()) |item| {
+    process(item);
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="for loop range slice index">
+      <div class="card-head">
+        <div class="card-title">for &mdash; 현대적 문법 <span class="tag">for</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> items = [_]<span class="tok-t">u8</span>{ <span class="tok-n">10</span>, <span class="tok-n">20</span>, <span class="tok-n">30</span> };
+
+<span class="tok-c">// 값을 순회</span>
+<span class="tok-k">for</span> (items) |it| {
+    std.debug.print(<span class="tok-s">"{d}\n"</span>, .{it});
+}
+
+<span class="tok-c">// 범위 문법 (Zig 0.11+)</span>
+<span class="tok-k">for</span> (<span class="tok-n">0</span>..items.len) |i| {
+    std.debug.print(<span class="tok-s">"i={d}\n"</span>, .{i});
+}
+
+<span class="tok-c">// 다중 인자 for로 동시에 둘 다</span>
+<span class="tok-k">for</span> (items, <span class="tok-n">0</span>..) |it, i| {
+    std.debug.print(<span class="tok-s">"{d}: {d}\n"</span>, .{ i, it });
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="switch exhaustive match">
+      <div class="card-head">
+        <div class="card-title">switch <span class="tag">switch</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> n: <span class="tok-t">u8</span> = <span class="tok-n">3</span>;
+<span class="tok-k">const</span> name = <span class="tok-k">switch</span> (n) {
+    <span class="tok-n">0</span> =&gt; <span class="tok-s">"zero"</span>,
+    <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> =&gt; <span class="tok-s">"few"</span>,
+    <span class="tok-n">4</span>...<span class="tok-n">9</span> =&gt; <span class="tok-s">"some"</span>,
+    <span class="tok-k">else</span> =&gt; <span class="tok-s">"many"</span>,
+};
+
+<span class="tok-c">// enum에 대한 switch (모든 경우를 다루면 else 불필요)</span>
+<span class="tok-k">const</span> Color = <span class="tok-k">enum</span> { red, green, blue };
+<span class="tok-k">const</span> hex: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = <span class="tok-k">switch</span> (color) {
+    .red =&gt; <span class="tok-s">"#f00"</span>,
+    .green =&gt; <span class="tok-s">"#0f0"</span>,
+    .blue =&gt; <span class="tok-s">"#00f"</span>,
+};
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="block label break value">
+      <div class="card-head">
+        <div class="card-title">레이블 블록 &amp; 값과 함께하는 break <span class="tag">:label</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> result = blk: {
+    <span class="tok-k">var</span> sum: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;
+    <span class="tok-k">for</span> (items) |x| sum += x;
+    <span class="tok-k">break</span> :blk sum * <span class="tok-n">2</span>;
+};
+
+<span class="tok-c">// 중첩 루프에서 빠져나오기</span>
+outer: <span class="tok-k">for</span> (rows) |row| {
+    <span class="tok-k">for</span> (row) |cell| {
+        <span class="tok-k">if</span> (cell == target) <span class="tok-k">break</span> :outer;
+    }
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="defer">
+      <div class="card-head">
+        <div class="card-title">defer / errdefer <span class="tag">정리</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> file = <span class="tok-k">try</span> std.fs.cwd().openFile(<span class="tok-s">"x"</span>, .{});
+<span class="tok-k">defer</span> file.close();   <span class="tok-c">// 스코프 종료 시 실행</span>
+
+<span class="tok-k">const</span> buf = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">100</span>);
+<span class="tok-k">errdefer</span> alloc.free(buf);  <span class="tok-c">// 에러 경로에서만 실행</span>
+
+<span class="tok-k">try</span> initialize(buf);
+<span class="tok-k">return</span> buf;          <span class="tok-c">// errdefer는 발동되지 않음</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- FUNCTIONS -->
+<section class="tab-section" id="functions">
+  <h1>함수</h1>
+  <p class="lead">매개변수는 불변입니다. 에러는 에러 유니온 반환 타입 <code>!T</code>를 통해 전달됩니다.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="fn function pub return">
+      <div class="card-head">
+        <div class="card-title">기본 함수 <span class="tag">fn</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">pub fn</span> <span class="tok-f">add</span>(a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> a + b;
+}
+
+<span class="tok-c">// 매개변수는 const &mdash; a나 b를 재할당할 수 없습니다</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="error union try catch">
+      <div class="card-head">
+        <div class="card-title">에러 유니온 반환 <span class="tag">!T</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">parse</span>(s: []<span class="tok-k">const</span> <span class="tok-t">u8</span>) <span class="tok-e">!</span><span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> std.fmt.parseInt(<span class="tok-t">i32</span>, s, <span class="tok-n">10</span>);
+}
+
+<span class="tok-k">pub fn</span> <span class="tok-f">main</span>() <span class="tok-e">!</span><span class="tok-t">void</span> {
+    <span class="tok-k">const</span> n = <span class="tok-k">try</span> parse(<span class="tok-s">"42"</span>);  <span class="tok-c">// 에러 전파</span>
+    <span class="tok-k">const</span> m = parse(<span class="tok-s">"oops"</span>) <span class="tok-k">catch</span> <span class="tok-n">0</span>;
+    _ = .{ n, m };
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="multiple return tuple struct">
+      <div class="card-head">
+        <div class="card-title">struct로 다중 반환 <span class="tag">.{}</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">divmod</span>(a: <span class="tok-t">u32</span>, b: <span class="tok-t">u32</span>) <span class="tok-k">struct</span> { q: <span class="tok-t">u32</span>, r: <span class="tok-t">u32</span> } {
+    <span class="tok-k">return</span> .{ .q = a / b, .r = a % b };
+}
+
+<span class="tok-k">const</span> result = divmod(<span class="tok-n">17</span>, <span class="tok-n">5</span>);
+<span class="tok-c">// result.q == 3, result.r == 2</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="anonymous function pointer">
+      <div class="card-head">
+        <div class="card-title">함수 포인터 <span class="tag">*const fn</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Op = *<span class="tok-k">const fn</span>(<span class="tok-t">i32</span>, <span class="tok-t">i32</span>) <span class="tok-t">i32</span>;
+
+<span class="tok-k">fn</span> <span class="tok-f">apply</span>(op: Op, a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> op(a, b);
+}
+
+<span class="tok-c">// const r = apply(add, 2, 3); // 5</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ERRORS -->
+<section class="tab-section" id="errors">
+  <h1>에러</h1>
+  <p class="lead">에러는 값이지만 특별한 종류의 값입니다. 집합을 이루며 <code>try</code>를 통해 전파됩니다.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="error set">
+      <div class="card-head">
+        <div class="card-title">에러 집합 <span class="tag">error{...}</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> ParseError = <span class="tok-k">error</span>{
+    InvalidCharacter,
+    Overflow,
+    Empty,
+};
+
+<span class="tok-k">fn</span> <span class="tok-f">demo</span>() ParseError<span class="tok-e">!</span><span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> <span class="tok-k">error</span>.Empty;
+}
+</code></pre>
+      <p class="card-desc">에러 집합은 명명된 에러들의 유니온입니다. <code>!T</code>는 추론된 집합을 사용합니다.</p>
+    </div>
+
+    <div class="card" data-keywords="try catch error handling">
+      <div class="card-head">
+        <div class="card-title">try와 catch <span class="tag">제어</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// try는 값을 풀거나 에러를 반환</span>
+<span class="tok-k">const</span> n = <span class="tok-k">try</span> parse(input);
+
+<span class="tok-c">// catch는 대체 값을 제공</span>
+<span class="tok-k">const</span> m = parse(input) <span class="tok-k">catch</span> <span class="tok-n">0</span>;
+
+<span class="tok-c">// 페이로드 바인딩이 있는 catch</span>
+<span class="tok-k">const</span> p = parse(input) <span class="tok-k">catch</span> |err| <span class="tok-k">switch</span> (err) {
+    <span class="tok-k">error</span>.Overflow =&gt; <span class="tok-n">9999</span>,
+    <span class="tok-k">else</span> =&gt; <span class="tok-k">return</span> err,
+};
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="errdefer cleanup error">
+      <div class="card-head">
+        <div class="card-title">errdefer <span class="tag">에러 시 정리</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">build</span>(alloc: std.mem.Allocator) <span class="tok-e">!</span>*Thing {
+    <span class="tok-k">const</span> t = <span class="tok-k">try</span> alloc.create(Thing);
+    <span class="tok-k">errdefer</span> alloc.destroy(t);
+
+    <span class="tok-k">try</span> t.init();           <span class="tok-c">// 실패 시 errdefer 실행</span>
+    <span class="tok-k">return</span> t;               <span class="tok-c">// 성공: errdefer는 건너뜀</span>
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="unreachable">
+      <div class="card-head">
+        <div class="card-title">unreachable <span class="tag">단언</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">switch</span> (variant) {
+    .a =&gt; doA(),
+    .b =&gt; doB(),
+    .c =&gt; <span class="tok-k">unreachable</span>,  <span class="tok-c">// 안전 빌드에서는 트랩</span>
+}
+
+<span class="tok-c">// "여기서 파싱이 성공함을 안다"</span>
+<span class="tok-k">const</span> n = parse(<span class="tok-s">"42"</span>) <span class="tok-k">catch</span> <span class="tok-k">unreachable</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- MEMORY -->
+<section class="tab-section" id="memory">
+  <h1>메모리 &amp; 할당자</h1>
+  <p class="lead">숨겨진 할당이 없습니다. 할당하는 모든 함수는 <code>Allocator</code>를 받습니다. 할당한 만큼 직접 해제하거나(아니면 아레나를 사용하세요).</p>
+
+  <h2>할당자 패턴</h2>
+  <div class="grid">
+    <div class="card" data-keywords="GeneralPurposeAllocator GPA gpa">
+      <div class="card-head">
+        <div class="card-title">GeneralPurposeAllocator <span class="tag">디버그 친화</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> gpa = std.heap.GeneralPurposeAllocator(.{}){};
+<span class="tok-k">defer</span> _ = gpa.deinit();
+<span class="tok-k">const</span> alloc = gpa.allocator();
+
+<span class="tok-k">const</span> buf = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">128</span>);
+<span class="tok-k">defer</span> alloc.free(buf);
+</code></pre>
+      <p class="card-desc">GPA는 누수와 이중 해제를 감지합니다. 앱과 테스트에서 사용하세요.</p>
+    </div>
+
+    <div class="card" data-keywords="arena">
+      <div class="card-head">
+        <div class="card-title">ArenaAllocator <span class="tag">일괄 해제</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> arena = std.heap.ArenaAllocator.init(parent_alloc);
+<span class="tok-k">defer</span> arena.deinit();   <span class="tok-c">// 모든 할당을 한 번에 해제</span>
+<span class="tok-k">const</span> alloc = arena.allocator();
+
+<span class="tok-c">// 자유롭게 할당 &mdash; free()는 절대 호출하지 않음</span>
+<span class="tok-k">const</span> a = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">10</span>);
+<span class="tok-k">const</span> b = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">20</span>);
+_ = .{ a, b };
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="page allocator stack">
+      <div class="card-head">
+        <div class="card-title">기타 할당자 <span class="tag">취향대로 고르세요</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// std.heap.page_allocator       &mdash; mmap 기반</span>
+<span class="tok-c">// std.heap.c_allocator          &mdash; libc malloc</span>
+<span class="tok-c">// std.testing.allocator         &mdash; 테스트용</span>
+<span class="tok-c">// std.heap.FixedBufferAllocator &mdash; 스택 버퍼 기반</span>
+
+<span class="tok-k">var</span> buf: [<span class="tok-n">1024</span>]<span class="tok-t">u8</span> = <span class="tok-k">undefined</span>;
+<span class="tok-k">var</span> fba = std.heap.FixedBufferAllocator.init(&amp;buf);
+<span class="tok-k">const</span> alloc = fba.allocator();
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="slice array pointer">
+      <div class="card-head">
+        <div class="card-title">배열 / 슬라이스 / 포인터 <span class="tag">[N]T [_]T []T *T</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> arr: [<span class="tok-n">3</span>]<span class="tok-t">u8</span> = .{ <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> };  <span class="tok-c">// 고정 크기</span>
+<span class="tok-k">const</span> inferred = [_]<span class="tok-t">u8</span>{ <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> };
+
+<span class="tok-k">const</span> slice: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..]; <span class="tok-c">// 포인터 + 길이</span>
+<span class="tok-k">const</span> sub  : []<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..<span class="tok-n">2</span>];
+
+<span class="tok-k">const</span> p: *<span class="tok-k">const</span> <span class="tok-t">u8</span> = &amp;arr[<span class="tok-n">0</span>];      <span class="tok-c">// 단일 항목 포인터</span>
+<span class="tok-k">const</span> many: [*]<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..].ptr; <span class="tok-c">// 다중 항목</span>
+
+<span class="tok-c">// 슬라이스는 길이를 압니다: arr.len</span>
+</code></pre>
+    </div>
+  </div>
+
+  <h2>실시간: defer로 보는 스택 vs 힙</h2>
+  <p class="lead">"실행"을 클릭해서 할당 흐름을 한 단계씩 따라가 보세요. <code>defer</code>는 스코프 종료 시 역순으로 발동됩니다.</p>
+  <div class="practice-panel">
+    <div class="mem">
+      <div class="mem-region">
+        <h4>스택</h4>
+        <div id="mem-stack"></div>
+      </div>
+      <div class="mem-region">
+        <h4>힙</h4>
+        <div id="mem-heap"></div>
+      </div>
+    </div>
+    <div class="mem-controls">
+      <button class="quiz-btn" id="mem-step">다음 단계 &rarr;</button>
+      <button class="quiz-btn secondary" id="mem-reset">초기화</button>
+      <span id="mem-narrator" style="color: var(--muted); font-size: 13px; margin-left: 8px;"></span>
+    </div>
+    <pre id="mem-source" style="margin-top: 12px;"></pre>
+  </div>
+</section>
+
+<!-- STRUCTS -->
+<section class="tab-section" id="structs">
+  <h1>구조체 &amp; 열거형</h1>
+  <p class="lead">구조체는 데이터와 메서드를 담습니다. 열거형은 페이로드를 가질 수 있습니다(태그된 유니온). 둘 다 일급 타입입니다.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="struct method self">
+      <div class="card-head">
+        <div class="card-title">메서드가 있는 struct <span class="tag">struct</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Point = <span class="tok-k">struct</span> {
+    x: <span class="tok-t">f32</span>,
+    y: <span class="tok-t">f32</span>,
+
+    <span class="tok-k">pub fn</span> <span class="tok-f">init</span>(x: <span class="tok-t">f32</span>, y: <span class="tok-t">f32</span>) Point {
+        <span class="tok-k">return</span> .{ .x = x, .y = y };
+    }
+
+    <span class="tok-k">pub fn</span> <span class="tok-f">distance</span>(self: Point, other: Point) <span class="tok-t">f32</span> {
+        <span class="tok-k">const</span> dx = self.x - other.x;
+        <span class="tok-k">const</span> dy = self.y - other.y;
+        <span class="tok-k">return</span> <span class="tok-b">@sqrt</span>(dx*dx + dy*dy);
+    }
+};
+
+<span class="tok-k">const</span> p = Point.init(<span class="tok-n">1</span>, <span class="tok-n">2</span>);
+<span class="tok-k">const</span> d = p.distance(.{ .x = <span class="tok-n">3</span>, .y = <span class="tok-n">4</span> });
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="enum tag">
+      <div class="card-head">
+        <div class="card-title">열거형 <span class="tag">enum</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Direction = <span class="tok-k">enum</span> { north, south, east, west };
+
+<span class="tok-c">// 태그 타입과 명시적인 값 지정</span>
+<span class="tok-k">const</span> Status = <span class="tok-k">enum</span>(<span class="tok-t">u8</span>) {
+    ok = <span class="tok-n">200</span>,
+    not_found = <span class="tok-n">404</span>,
+    server_error = <span class="tok-n">500</span>,
+};
+
+<span class="tok-k">const</span> code = <span class="tok-b">@intFromEnum</span>(Status.ok); <span class="tok-c">// 200</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="union tagged variant">
+      <div class="card-head">
+        <div class="card-title">태그된 유니온 <span class="tag">union(enum)</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Token = <span class="tok-k">union</span>(<span class="tok-k">enum</span>) {
+    int: <span class="tok-t">i64</span>,
+    float: <span class="tok-t">f64</span>,
+    text: []<span class="tok-k">const</span> <span class="tok-t">u8</span>,
+    eof,
+};
+
+<span class="tok-k">const</span> t: Token = .{ .int = <span class="tok-n">42</span> };
+
+<span class="tok-k">switch</span> (t) {
+    .int =&gt; |n| std.debug.print(<span class="tok-s">"int {d}\n"</span>, .{n}),
+    .float =&gt; |f| std.debug.print(<span class="tok-s">"float {d}\n"</span>, .{f}),
+    .text =&gt; |s| std.debug.print(<span class="tok-s">"text {s}\n"</span>, .{s}),
+    .eof =&gt; std.debug.print(<span class="tok-s">"end\n"</span>, .{}),
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="anonymous struct literal">
+      <div class="card-head">
+        <div class="card-title">익명 구조체 리터럴 <span class="tag">.{}</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// 문맥에서 타입 추론</span>
+<span class="tok-k">const</span> p: Point = .{ .x = <span class="tok-n">1</span>, .y = <span class="tok-n">2</span> };
+
+<span class="tok-c">// 튜플 스타일 (위치 기반)</span>
+<span class="tok-k">const</span> tup = .{ <span class="tok-n">42</span>, <span class="tok-s">"hi"</span>, <span class="tok-k">true</span> };
+<span class="tok-c">// 접근: tup[0], tup[1], tup[2]</span>
+
+<span class="tok-c">// print 인자에 폭넓게 사용</span>
+std.debug.print(<span class="tok-s">"{d} {s}\n"</span>, .{ <span class="tok-n">1</span>, <span class="tok-s">"hi"</span> });
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="packed struct bitfield">
+      <div class="card-head">
+        <div class="card-title">packed struct <span class="tag">비트필드</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Flags = <span class="tok-k">packed struct</span> {
+    read:  <span class="tok-t">bool</span>,
+    write: <span class="tok-t">bool</span>,
+    exec:  <span class="tok-t">bool</span>,
+    _pad:  <span class="tok-t">u5</span>,
+};
+<span class="tok-c">// @sizeOf(Flags) == 1 바이트</span>
+
+<span class="tok-k">const</span> f: Flags = .{ .read = <span class="tok-k">true</span>, .write = <span class="tok-k">false</span>, .exec = <span class="tok-k">true</span>, ._pad = <span class="tok-n">0</span> };
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="optional null">
+      <div class="card-head">
+        <div class="card-title">옵셔널 <span class="tag">?T</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> maybe: ?<span class="tok-t">i32</span> = <span class="tok-k">null</span>;
+maybe = <span class="tok-n">42</span>;
+
+<span class="tok-k">if</span> (maybe) |v| {
+    std.debug.print(<span class="tok-s">"got {d}\n"</span>, .{v});
+}
+
+<span class="tok-c">// .?는 값을 풀거나 패닉</span>
+<span class="tok-k">const</span> n = maybe.?;
+
+<span class="tok-c">// orelse는 기본값을 제공</span>
+<span class="tok-k">const</span> m = maybe <span class="tok-k">orelse</span> <span class="tok-n">0</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- COMPTIME -->
+<section class="tab-section" id="comptime">
+  <h1>Comptime</h1>
+  <p class="lead">Zig의 킬러 기능. 컴파일타임에 코드를 실행하고, 타입을 매개변수로 받고, 코드를 생성합니다 &mdash; 모두 평범한 Zig 문법으로요.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="generic comptime type">
+      <div class="card-head">
+        <div class="card-title">컴파일타임 타입을 통한 제네릭 <span class="tag">comptime T</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">max</span>(<span class="tok-k">comptime</span> T: <span class="tok-t">type</span>, a: T, b: T) T {
+    <span class="tok-k">return</span> <span class="tok-k">if</span> (a &gt; b) a <span class="tok-k">else</span> b;
+}
+
+<span class="tok-k">const</span> x = max(<span class="tok-t">i32</span>, <span class="tok-n">3</span>, <span class="tok-n">7</span>);    <span class="tok-c">// 7</span>
+<span class="tok-k">const</span> y = max(<span class="tok-t">f64</span>, <span class="tok-n">1.5</span>, <span class="tok-n">2.5</span>); <span class="tok-c">// 2.5</span>
+</code></pre>
+      <p class="card-desc">호출마다 새로운 특화가 생성됩니다 &mdash; 런타임 비용은 없습니다.</p>
+    </div>
+
+    <div class="card" data-keywords="generic struct list">
+      <div class="card-head">
+        <div class="card-title">제네릭 구조체 <span class="tag">타입을 반환하는 fn</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">List</span>(<span class="tok-k">comptime</span> T: <span class="tok-t">type</span>) <span class="tok-t">type</span> {
+    <span class="tok-k">return struct</span> {
+        items: []T,
+        len: <span class="tok-t">usize</span>,
+    };
+}
+
+<span class="tok-k">const</span> IntList = List(<span class="tok-t">i32</span>);
+<span class="tok-k">var</span> xs: IntList = .{ .items = &amp;[_]<span class="tok-t">i32</span>{}, .len = <span class="tok-n">0</span> };
+_ = xs;
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="inline for unroll">
+      <div class="card-head">
+        <div class="card-title">inline for <span class="tag">언롤된 루프</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// 루프 본문이 컴파일타임에 반복마다 복제됩니다</span>
+<span class="tok-k">const</span> fields = <span class="tok-b">@typeInfo</span>(MyStruct).Struct.fields;
+<span class="tok-k">inline for</span> (fields) |f| {
+    std.debug.print(<span class="tok-s">"field: {s}\n"</span>, .{f.name});
+}
+
+<span class="tok-c">// 범위 형태도 가능</span>
+<span class="tok-k">inline for</span> (<span class="tok-n">0</span>..<span class="tok-n">4</span>) |i| {
+    process(i); <span class="tok-c">// 4번 펼쳐짐</span>
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="compile time fibonacci">
+      <div class="card-head">
+        <div class="card-title">컴파일타임에 코드 실행 <span class="tag">comptime { }</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">fib</span>(n: <span class="tok-t">u32</span>) <span class="tok-t">u64</span> {
+    <span class="tok-k">return</span> <span class="tok-k">if</span> (n &lt; <span class="tok-n">2</span>) n <span class="tok-k">else</span> fib(n - <span class="tok-n">1</span>) + fib(n - <span class="tok-n">2</span>);
+}
+
+<span class="tok-c">// 컴파일 중에 계산됨:</span>
+<span class="tok-k">const</span> tenth = <span class="tok-k">comptime</span> fib(<span class="tok-n">10</span>);  <span class="tok-c">// 55, 결과가 박힘</span>
+</code></pre>
+    </div>
+  </div>
+
+  <h2>Comptime 시각화</h2>
+  <p class="lead">타입을 골라 <code>fn max(comptime T: type, a: T, b: T) T</code>가 단형화되는 모습을 보세요.</p>
+  <div class="practice-panel">
+    <div class="vis-row">
+      <label>T 선택:</label>
+      <select id="vis-type">
+        <option value="i32">i32</option>
+        <option value="u8">u8</option>
+        <option value="f64">f64</option>
+        <option value="usize">usize</option>
+        <option value="i64">i64</option>
+      </select>
+    </div>
+    <pre id="vis-output"></pre>
+    <p class="card-desc" style="padding:0;margin-top:8px;">컴파일러는 <code>max</code>를 호출하는 구체적 타입마다 이런 코드를 하나씩 생성합니다.</p>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section class="tab-section" id="build">
+  <h1>빌드 시스템</h1>
+  <p class="lead"><code>build.zig</code>는 그저 Zig 코드입니다. 빌드 단계의 그래프를 기술하면 컴파일러가 그것을 실행합니다.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="build.zig minimal">
+      <div class="card-head">
+        <div class="card-title">최소한의 build.zig <span class="tag">build.zig</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> std = <span class="tok-b">@import</span>(<span class="tok-s">"std"</span>);
+
+<span class="tok-k">pub fn</span> <span class="tok-f">build</span>(b: *std.Build) <span class="tok-t">void</span> {
+    <span class="tok-k">const</span> target = b.standardTargetOptions(.{});
+    <span class="tok-k">const</span> optimize = b.standardOptimizeOption(.{});
+
+    <span class="tok-k">const</span> exe = b.addExecutable(.{
+        .name = <span class="tok-s">"hello"</span>,
+        .root_source_file = b.path(<span class="tok-s">"src/main.zig"</span>),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(exe);
+
+    <span class="tok-k">const</span> run = b.addRunArtifact(exe);
+    <span class="tok-k">const</span> run_step = b.step(<span class="tok-s">"run"</span>, <span class="tok-s">"Run the app"</span>);
+    run_step.dependOn(&amp;run.step);
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="zig build commands">
+      <div class="card-head">
+        <div class="card-title">자주 쓰는 명령 <span class="tag">cli</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code>zig build              <span class="tok-c"># 기본 install 단계</span>
+zig build run          <span class="tok-c"># 사용자 정의 run 단계</span>
+zig build test         <span class="tok-c"># 테스트 실행</span>
+zig build -Doptimize=ReleaseFast
+zig build -Dtarget=x86_64-linux-gnu
+
+zig build --help       <span class="tok-c"># 사용자 정의 단계/옵션 목록</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="optimize releasefast debug safe">
+      <div class="card-head">
+        <div class="card-title">최적화 모드 <span class="tag">-Doptimize</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c">// Debug      &mdash; 기본; 안전성 켜짐, 최적화 없음
+// ReleaseSafe &mdash; 최적화 + 런타임 안전성 검사
+// ReleaseFast &mdash; 최적화, 안전성 검사 없음
+// ReleaseSmall &mdash; 크기 최적화</span>
+
+zig build -Doptimize=ReleaseSafe
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="cross compilation target">
+      <div class="card-head">
+        <div class="card-title">크로스 컴파일 <span class="tag">일급 지원</span></div>
+        <button class="copy-btn">복사</button>
+      </div>
+      <pre><code><span class="tok-c"># macOS에서 별도 설정 없이 Linux ARM 바이너리 컴파일:</span>
+zig build-exe main.zig -target aarch64-linux-gnu
+
+<span class="tok-c"># 프리스탠딩 wasm:</span>
+zig build-exe main.zig -target wasm32-freestanding
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- PRACTICE -->
+<section class="tab-section" id="practice">
+  <h1>&#127919; 입력 &amp; 연습</h1>
+  <p class="lead">빈칸을 채우세요. Enter로 제출, &rarr;로 다음. 연속 정답을 쌓아보세요. <strong style="color: var(--accent)">근육 기억으로 만드세요.</strong></p>
+
+  <div class="practice-panel">
+    <h3>연습 <span id="quiz-badge" style="font-size:11px; padding: 2px 8px; background: var(--accent); color: #1a1208; border-radius: 999px; font-weight: 800;">문제 1 / 30</span></h3>
+    <p class="sub" id="quiz-topic">주제: ...</p>
+
+    <div class="quiz-card" id="quiz-prompt"></div>
+
+    <input class="quiz-input" id="quiz-input" placeholder="여기에 답을 입력하세요…" autocomplete="off" spellcheck="false" />
+    <div class="quiz-controls">
+      <button class="quiz-btn" id="quiz-submit">제출</button>
+      <button class="quiz-btn secondary" id="quiz-next">다음 &rarr;</button>
+      <button class="quiz-btn secondary" id="quiz-show">정답 보기</button>
+      <button class="quiz-btn secondary" id="quiz-skip">건너뛰기</button>
+    </div>
+    <div class="quiz-feedback" id="quiz-feedback"></div>
+
+    <div class="quiz-stats">
+      <div class="quiz-stat">
+        <span class="num" id="stat-score">0</span>
+        <span class="lbl">점수</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-streak">0 <span class="streak-fire" id="streak-fire">&#128293;</span></span>
+        <span class="lbl">연속 정답</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-best">0</span>
+        <span class="lbl">최고 연속</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-acc">&mdash;</span>
+        <span class="lbl">정확도</span>
+      </div>
+    </div>
+    <div class="quiz-progress-bar"><div id="quiz-progress"></div></div>
+  </div>
+</section>
+
+<!-- REPL -->
+<section class="tab-section" id="repl">
+  <h1>미니 REPL</h1>
+  <p class="lead">아주 작은 가짜 Zig 평가기입니다. <code>1 + 2</code>, <code>"hi".len</code>, <code>@as(u8, 65)</code>, <code>0xff</code>, <code>@min(3,7)</code>, <code>3.14 * 2</code>, <code>true and false</code> 같은 표현식을 시도해 보세요.</p>
+
+  <div class="repl">
+    <input class="repl-input" id="repl-input" placeholder="Zig 표현식을 입력하고 Enter를 누르세요…" autocomplete="off" spellcheck="false" />
+    <div class="repl-history" id="repl-history"></div>
+    <div class="quiz-controls">
+      <button class="quiz-btn secondary" id="repl-clear">지우기</button>
+      <button class="quiz-btn secondary" data-repl-example="1 + 2 * 3">1 + 2 * 3</button>
+      <button class="quiz-btn secondary" data-repl-example="&quot;hi&quot;.len">&quot;hi&quot;.len</button>
+      <button class="quiz-btn secondary" data-repl-example="@min(7, 3)">@min(7, 3)</button>
+      <button class="quiz-btn secondary" data-repl-example="@as(u8, 65)">@as(u8, 65)</button>
+      <button class="quiz-btn secondary" data-repl-example="0xff_00 | 0x00_aa">0xff_00 | 0x00_aa</button>
+      <button class="quiz-btn secondary" data-repl-example="true and (1 &lt; 2)">true and (1 &lt; 2)</button>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:18px;">
+    <strong>솔직한 안내:</strong> 이건 가짜 REPL입니다. Zig을 실제로 컴파일하지 않습니다. 근육 기억을 위해 매우 작은 표현식 부분집합을 패턴 매칭할 뿐입니다. 복잡한 것은 <code>(unsupported)</code>라고 표시됩니다. 진짜 Zig은 <code>zig</code>를 설치하고 <code>zig run</code>을 실행하세요.
+  </div>
+</section>
+
+<div class="no-results" id="no-results">일치하는 결과가 없습니다. 다른 키워드를 시도해 보세요.</div>
+
+</main>
+
+<footer>
+  Zig 0.13+ 학습용 &middot; 단일 파일, 바닐라 JS &middot;
+  <a href="https://ziglang.org" target="_blank" rel="noopener">ziglang.org</a>
+  &middot; <code>/</code>를 눌러 검색에 포커스.
+</footer>
+
+<script>
+// --------------- Tabs ---------------
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    sections.forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+// --------------- Copy buttons ---------------
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const card = btn.closest('.card');
+    const code = card?.querySelector('pre code');
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code.innerText);
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.classList.remove('copied');
+      }, 1200);
+    } catch (err) {
+      btn.textContent = 'Err';
+    }
+  });
+});
+
+// --------------- Search ---------------
+const searchInput = document.getElementById('search');
+const noResults = document.getElementById('no-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  let any = false;
+  document.querySelectorAll('section.tab-section .card').forEach(card => {
+    const text = (card.dataset.keywords || '') + ' ' + card.textContent;
+    const match = !q || text.toLowerCase().includes(q);
+    card.classList.toggle('hidden', !match);
+    if (match) any = true;
+  });
+  // Toggle no-results in active tab if zero matches there
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const visible = active.querySelectorAll('.card:not(.hidden)').length;
+  noResults.style.display = (q && visible === 0) ? 'block' : 'none';
+});
+
+// "/" focuses search
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    searchInput.focus();
+  }
+});
+
+// --------------- Confetti ---------------
+function confetti(originEl) {
+  const layer = document.createElement('div');
+  layer.className = 'confetti-layer';
+  document.body.appendChild(layer);
+  const rect = originEl ? originEl.getBoundingClientRect() : { left: window.innerWidth/2, top: 100, width: 0, height: 0 };
+  const colors = ['#f7a41d', '#ffb84d', '#d97706', '#4ade80', '#79c0ff', '#ff7b9c'];
+  for (let i = 0; i < 28; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = (rect.left + rect.width/2) + 'px';
+    piece.style.top  = (rect.top  + rect.height/2) + 'px';
+    piece.style.background = colors[i % colors.length];
+    piece.style.setProperty('--dx', (Math.random()*400 - 200) + 'px');
+    piece.style.setProperty('--dy', (Math.random()*200 + 80) + 'px');
+    piece.style.setProperty('--rot', (Math.random()*720 - 360) + 'deg');
+    piece.style.transform = `rotate(${Math.random()*180}deg)`;
+    layer.appendChild(piece);
+  }
+  setTimeout(() => layer.remove(), 1300);
+}
+
+// --------------- 퀴즈 ---------------
+const QUIZ = [
+  { topic: 'Hello, Zig', prompt: ['const std = ___("std");'], answers: [['@import']], hint: '내장 함수는 @로 시작' },
+  { topic: 'Hello, Zig', prompt: ['pub fn main() ___ {'], answers: [['!void']], hint: 'main은 에러를 반환할 수 있음' },
+  { topic: '변수', prompt: ['___ name = "Ada";   // 불변'], answers: [['const']], hint: '두 글자: c…' },
+  { topic: '변수', prompt: ['___ counter: u32 = 0;  // 가변'], answers: [['var']], hint: '세 글자' },
+  { topic: '변수', prompt: ['var buf: [256]u8 = ___;  // 미지정 바이트'], answers: [['undefined']], hint: '한 단어 키워드' },
+  { topic: '숫자',   prompt: ['const x: ___ = -100;   // 8비트 부호 있는 정수'], answers: [['i8']], hint: 'i + 비트 수' },
+  { topic: '숫자',   prompt: ['const idx: ___ = 0;    // 포인터 크기 인덱스'], answers: [['usize']], hint: 'unsigned size' },
+  { topic: '숫자',   prompt: ['const b: u8 = ___(a);  // 명시적 좁히기 캐스트'], answers: [['@intCast']], hint: '@로 시작' },
+  { topic: '숫자',   prompt: ['const c = a +___ b;    // 래핑 +'], answers: [['%']], hint: '기호 하나' },
+  { topic: '숫자',   prompt: ['const c = a +___ b;    // 포화 +'], answers: [['|']], hint: '기호 하나' },
+  { topic: '제어',   prompt: ['for (items, ___) |it, i| {  // 인덱스도 함께'], answers: [['0..']], hint: '0 다음 ..' },
+  { topic: '제어',   prompt: ['while (i < 10) : (___) {  // 증가'], answers: [['i += 1']], hint: '계속 표현식' },
+  { topic: '제어',   prompt: ['const r = blk: { break ___ 42; };'], answers: [[':blk']], hint: '콜론 + 레이블' },
+  { topic: '제어',   prompt: ['switch (n) {\n    1, 2, 3 => "few",\n    4...9 => "some",\n    ___ => "many",\n}'], answers: [['else']], hint: '기본 분기' },
+  { topic: '제어',   prompt: ['const f = try std.fs.cwd().openFile("x", .{});\n___ f.close();  // 스코프 종료 시 실행'], answers: [['defer']], hint: '정리 키워드' },
+  { topic: '함수', prompt: ['pub fn add(a: i32, b: i32) ___ { return a + b; }'], answers: [['i32']], hint: '타입만' },
+  { topic: '함수', prompt: ['fn parse(s: []const u8) ___i32 { ... }  // i32 또는 에러 반환'], answers: [['!']], hint: '기호 하나' },
+  { topic: '함수', prompt: ['const n = ___ parse("42");   // 에러 전파'], answers: [['try']], hint: '3글자' },
+  { topic: '함수', prompt: ['const n = parse("x") ___ 0;  // 에러 시 기본값'], answers: [['catch']], hint: '5글자' },
+  { topic: '에러',    prompt: ['const E = ___{ Empty, Overflow };'], answers: [['error']], hint: '소문자 키워드' },
+  { topic: '에러',    prompt: ['___ alloc.destroy(t);  // 에러 경로에서만 발동'], answers: [['errdefer']], hint: 'defer + err' },
+  { topic: '에러',    prompt: ['const n = parse("x") catch ___;  // 절대 일어나지 않음을 안다'], answers: [['unreachable']], hint: '컴파일러 트랩' },
+  { topic: '메모리',    prompt: ['var gpa = std.heap.___(.{}){};'], answers: [['GeneralPurposeAllocator']], hint: 'GPA의 풀 네임' },
+  { topic: '메모리',    prompt: ['const buf = try alloc.___(u8, 128);  // 바이트 요청'], answers: [['alloc']], hint: 'Allocator의 메서드' },
+  { topic: '메모리',    prompt: ['const slice: []const u8 = arr[0..];   // ___ + len'], answers: [['ptr']], hint: 'pointer의 줄임말' },
+  { topic: '구조체',   prompt: ['const Token = ___(enum) { int: i64, eof };'], answers: [['union']], hint: '태그된 변형' },
+  { topic: '구조체',   prompt: ['const Flags = ___ struct { read: bool, write: bool, _pad: u6 };'], answers: [['packed']], hint: '비트필드' },
+  { topic: '구조체',   prompt: ['const x: ?i32 = null;\nconst v = x ___ 0;  // null이면 기본값'], answers: [['orelse']], hint: '한 단어' },
+  { topic: 'Comptime',  prompt: ['fn max(___ T: type, a: T, b: T) T { return if (a > b) a else b; }'], answers: [['comptime']], hint: '매개변수 한정자' },
+  { topic: 'Comptime',  prompt: ['___ for (fields) |f| { /* 언롤됨 */ }'], answers: [['inline']], hint: '루프 언롤' },
+];
+
+let qIndex = 0;
+let score = 0;
+let streak = 0;
+let bestStreak = 0;
+let attempts = 0;
+
+const qTopic = document.getElementById('quiz-topic');
+const qBadge = document.getElementById('quiz-badge');
+const qPrompt = document.getElementById('quiz-prompt');
+const qInput = document.getElementById('quiz-input');
+const qFeedback = document.getElementById('quiz-feedback');
+const qProgress = document.getElementById('quiz-progress');
+const sScore = document.getElementById('stat-score');
+const sStreak = document.getElementById('stat-streak');
+const sBest = document.getElementById('stat-best');
+const sAcc = document.getElementById('stat-acc');
+const fire = document.getElementById('streak-fire');
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderQuiz() {
+  const q = QUIZ[qIndex];
+  qTopic.textContent = '주제: ' + q.topic;
+  qBadge.textContent = `문제 ${qIndex + 1} / ${QUIZ.length}`;
+  // 프롬프트 렌더링; ___을 스타일 적용된 빈칸으로 대체
+  const text = q.prompt[0];
+  qPrompt.innerHTML = escapeHTML(text)
+    .replace(/___/g, '<span class="quiz-blank">' + (q.answers[0][0] ? '?' : '?') + '</span>')
+    .replace(/&#10;/g, '\n');
+  qInput.value = '';
+  qInput.classList.remove('shake', 'flash');
+  qFeedback.classList.remove('show', 'correct', 'wrong');
+  qFeedback.innerHTML = '';
+  qProgress.style.width = ((qIndex / QUIZ.length) * 100) + '%';
+  setTimeout(() => qInput.focus(), 30);
+}
+
+function celebrateOK(msg) {
+  const messages = ['좋아요!', '맞췄어요!', '예리한데요!', '멋져요.', '연속 정답!', '완벽해요.', '예!'];
+  qFeedback.classList.remove('wrong');
+  qFeedback.classList.add('show', 'correct');
+  qFeedback.innerHTML = `<strong>&#10003; ${messages[Math.floor(Math.random()*messages.length)]}</strong> ${msg || ''}`;
+  qInput.classList.add('flash');
+  setTimeout(() => qInput.classList.remove('flash'), 400);
+  if (streak > 0 && streak % 3 === 0) confetti(qInput);
+}
+function showWrong(answer, hint) {
+  qFeedback.classList.remove('correct');
+  qFeedback.classList.add('show', 'wrong');
+  qFeedback.innerHTML = `<strong>&#10007; 아쉽네요.</strong> ${hint ? '<em>힌트: ' + escapeHTML(hint) + '</em>' : ''}<span class="answer">정답: ${escapeHTML(answer)}</span>`;
+  qInput.classList.add('shake');
+  setTimeout(() => qInput.classList.remove('shake'), 280);
+}
+
+function normalizeAns(s) {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function checkAnswer() {
+  const q = QUIZ[qIndex];
+  const user = normalizeAns(qInput.value);
+  if (!user) return;
+  attempts++;
+  const accepted = q.answers[0].map(normalizeAns);
+  const ok = accepted.some(a => a === user || a.toLowerCase() === user.toLowerCase());
+  if (ok) {
+    score++;
+    streak++;
+    if (streak > bestStreak) bestStreak = streak;
+    celebrateOK();
+  } else {
+    streak = 0;
+    showWrong(q.answers[0][0], q.hint);
+  }
+  updateStats();
+}
+
+function updateStats() {
+  sScore.textContent = score;
+  sStreak.firstChild.nodeValue = streak + ' ';
+  sBest.textContent = bestStreak;
+  sAcc.textContent = attempts ? Math.round((score / attempts) * 100) + '%' : '—';
+  fire.classList.toggle('on', streak >= 3);
+}
+
+function nextQuestion() {
+  qIndex = (qIndex + 1) % QUIZ.length;
+  renderQuiz();
+}
+
+document.getElementById('quiz-submit').addEventListener('click', checkAnswer);
+document.getElementById('quiz-next').addEventListener('click', nextQuestion);
+document.getElementById('quiz-skip').addEventListener('click', () => { streak = 0; updateStats(); nextQuestion(); });
+document.getElementById('quiz-show').addEventListener('click', () => {
+  const q = QUIZ[qIndex];
+  showWrong(q.answers[0][0], q.hint);
+  streak = 0; updateStats();
+});
+qInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (qFeedback.classList.contains('correct')) {
+      nextQuestion();
+    } else {
+      checkAnswer();
+    }
+  } else if (e.key === 'ArrowRight' && !qInput.value) {
+    e.preventDefault();
+    nextQuestion();
+  }
+});
+
+renderQuiz();
+updateStats();
+
+// --------------- Mini REPL ---------------
+const replInput = document.getElementById('repl-input');
+const replHistory = document.getElementById('repl-history');
+
+function appendLine(prompt, kind, text) {
+  const div = document.createElement('div');
+  div.className = 'repl-line';
+  if (prompt) {
+    const p = document.createElement('span');
+    p.className = 'prompt';
+    p.textContent = prompt + ' ';
+    div.appendChild(p);
+  }
+  const out = document.createElement('span');
+  out.className = kind;
+  out.textContent = text;
+  div.appendChild(out);
+  replHistory.appendChild(div);
+  replHistory.scrollTop = replHistory.scrollHeight;
+}
+
+// A tiny tokenizer + recursive-descent expression evaluator covering:
+// integers (incl. underscores, 0x, 0b, 0o), floats, strings, bools,
+// + - * / % | & ^ << >>, parentheses, unary -, "and"/"or"/"not",
+// comparisons (== != < <= > >=),
+// builtins @min @max @as, ".len" on strings, casts that just return value.
+function evalZigExpr(src) {
+  let i = 0;
+  const s = src;
+  const peek = () => s[i];
+  const isDigit = c => c >= '0' && c <= '9';
+  const isAlpha = c => /[a-zA-Z_]/.test(c);
+  function skipWS() {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  }
+  function readNumber() {
+    let start = i;
+    if (s[i] === '0' && (s[i+1] === 'x' || s[i+1] === 'X')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[0-9a-fA-F_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 16);
+    }
+    if (s[i] === '0' && (s[i+1] === 'b' || s[i+1] === 'B')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[01_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 2);
+    }
+    if (s[i] === '0' && (s[i+1] === 'o' || s[i+1] === 'O')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[0-7_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 8);
+    }
+    let n = '';
+    let dot = false, exp = false;
+    while (i < s.length && (isDigit(s[i]) || s[i] === '_' || (s[i]==='.' && !dot && !exp) || (s[i]==='e' && !exp) || (exp && (s[i]==='+'||s[i]==='-')))) {
+      if (s[i] === '_') { i++; continue; }
+      if (s[i] === '.') dot = true;
+      if (s[i] === 'e') exp = true;
+      n += s[i]; i++;
+    }
+    return n.includes('.') || n.includes('e') ? parseFloat(n) : parseInt(n, 10);
+  }
+  function readString() {
+    if (s[i] !== '"') throw new Error('expected string');
+    i++;
+    let v = '';
+    while (i < s.length && s[i] !== '"') {
+      if (s[i] === '\\' && i+1 < s.length) {
+        const n = s[i+1];
+        v += { 'n':'\n', 't':'\t', '\\':'\\', '"':'"', '\'':'\'' }[n] ?? n;
+        i += 2;
+      } else { v += s[i]; i++; }
+    }
+    if (s[i] !== '"') throw new Error('unterminated string');
+    i++;
+    return v;
+  }
+  function readIdent() {
+    let start = i;
+    while (i < s.length && (isAlpha(s[i]) || isDigit(s[i]))) i++;
+    return s.slice(start, i);
+  }
+  function parsePrimary() {
+    skipWS();
+    if (i >= s.length) throw new Error('unexpected end');
+    const c = s[i];
+    if (c === '(') { i++; const v = parseExpr(); skipWS(); if (s[i] !== ')') throw new Error('missing )'); i++; return v; }
+    if (c === '"') return readString();
+    if (c === '@') {
+      i++;
+      const name = readIdent();
+      skipWS();
+      if (s[i] !== '(') throw new Error('expected ( after @' + name);
+      i++;
+      const args = [];
+      skipWS();
+      if (s[i] !== ')') {
+        args.push(parseExpr());
+        skipWS();
+        while (s[i] === ',') { i++; args.push(parseExpr()); skipWS(); }
+      }
+      if (s[i] !== ')') throw new Error('missing ) for builtin');
+      i++;
+      switch (name) {
+        case 'min': return Math.min(...args);
+        case 'max': return Math.max(...args);
+        case 'as':  return args[1]; // ignore type
+        case 'intCast': return Math.trunc(args[0]);
+        case 'intFromFloat': return Math.trunc(args[0]);
+        case 'floatFromInt': return args[0] + 0.0;
+        case 'sqrt': return Math.sqrt(args[0]);
+        case 'abs':  return Math.abs(args[0]);
+        case 'mod':  return args[0] % args[1];
+        default: throw new Error('@' + name + ' (unsupported)');
+      }
+    }
+    if (c === '-') { i++; return -parsePrimary(); }
+    if (c === '+') { i++; return parsePrimary(); }
+    if (isDigit(c)) return readNumber();
+    if (isAlpha(c)) {
+      const name = readIdent();
+      if (name === 'true') return true;
+      if (name === 'false') return false;
+      if (name === 'null') return null;
+      if (name === 'not') return !parsePrimary();
+      throw new Error('identifier "' + name + '" (unsupported)');
+    }
+    throw new Error('unexpected char "' + c + '"');
+  }
+  function parsePostfix() {
+    let v = parsePrimary();
+    while (true) {
+      skipWS();
+      if (s.startsWith('.len', i) && typeof v === 'string') {
+        i += 4;
+        v = new TextEncoder().encode(v).length; // utf-8 byte length, true to Zig
+      } else break;
+    }
+    return v;
+  }
+  function parseMul() {
+    let v = parsePostfix();
+    while (true) {
+      skipWS();
+      if (s[i] === '*') { i++; v = v * parsePostfix(); }
+      else if (s[i] === '/') { i++; const r = parsePostfix(); v = (Number.isInteger(v) && Number.isInteger(r)) ? Math.trunc(v / r) : v / r; }
+      else if (s[i] === '%') { i++; v = v % parsePostfix(); }
+      else break;
+    }
+    return v;
+  }
+  function parseAdd() {
+    let v = parseMul();
+    while (true) {
+      skipWS();
+      // Wrapping/saturating operators (treated like normal +/-)
+      if (s[i] === '+' && (s[i+1] === '%' || s[i+1] === '|')) { i += 2; v = v + parseMul(); }
+      else if (s[i] === '-' && (s[i+1] === '%' || s[i+1] === '|')) { i += 2; v = v - parseMul(); }
+      else if (s[i] === '+') { i++; v = v + parseMul(); }
+      else if (s[i] === '-') { i++; v = v - parseMul(); }
+      else break;
+    }
+    return v;
+  }
+  function parseShift() {
+    let v = parseAdd();
+    while (true) {
+      skipWS();
+      if (s.startsWith('<<', i)) { i += 2; v = v << parseAdd(); }
+      else if (s.startsWith('>>', i)) { i += 2; v = v >>> parseAdd(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitAnd() {
+    let v = parseShift();
+    while (true) {
+      skipWS();
+      if (s[i] === '&' && s[i+1] !== '&') { i++; v = v & parseShift(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitXor() {
+    let v = parseBitAnd();
+    while (true) {
+      skipWS();
+      if (s[i] === '^') { i++; v = v ^ parseBitAnd(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitOr() {
+    let v = parseBitXor();
+    while (true) {
+      skipWS();
+      if (s[i] === '|' && s[i+1] !== '|') { i++; v = v | parseBitXor(); }
+      else break;
+    }
+    return v;
+  }
+  function parseCmp() {
+    let v = parseBitOr();
+    skipWS();
+    const ops = ['==','!=','<=','>=','<','>'];
+    for (const op of ops) {
+      if (s.startsWith(op, i)) {
+        i += op.length;
+        const r = parseBitOr();
+        switch (op) {
+          case '==': return v === r;
+          case '!=': return v !== r;
+          case '<':  return v < r;
+          case '<=': return v <= r;
+          case '>':  return v > r;
+          case '>=': return v >= r;
+        }
+      }
+    }
+    return v;
+  }
+  function parseLogic() {
+    let v = parseCmp();
+    while (true) {
+      skipWS();
+      if (s.startsWith('and', i) && !isAlpha(s[i+3] || '')) { i += 3; v = v && parseCmp(); }
+      else if (s.startsWith('or', i) && !isAlpha(s[i+2] || '')) { i += 2; v = v || parseCmp(); }
+      else break;
+    }
+    return v;
+  }
+  function parseExpr() { return parseLogic(); }
+
+  const v = parseExpr();
+  skipWS();
+  if (i < s.length) throw new Error('extra input: "' + s.slice(i) + '"');
+  return v;
+}
+
+function formatVal(v) {
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) return String(v);
+    return v.toString();
+  }
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (v === null) return 'null';
+  return String(v);
+}
+
+function runRepl(src) {
+  const trimmed = src.trim();
+  if (!trimmed) return;
+  appendLine('zig>', '', trimmed);
+  try {
+    const v = evalZigExpr(trimmed);
+    appendLine('', 'output', formatVal(v));
+  } catch (err) {
+    appendLine('', 'err', '! ' + err.message);
+  }
+}
+
+replInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runRepl(replInput.value);
+    replInput.value = '';
+  }
+});
+document.getElementById('repl-clear').addEventListener('click', () => { replHistory.innerHTML = ''; });
+document.querySelectorAll('[data-repl-example]').forEach(b => {
+  b.addEventListener('click', () => {
+    replInput.value = b.dataset.replExample;
+    runRepl(replInput.value);
+    replInput.value = '';
+    replInput.focus();
+  });
+});
+
+// 한 가지 예제로 REPL 시드
+runRepl('1 + 2 * 3');
+
+// --------------- Comptime 시각화 ---------------
+const visType = document.getElementById('vis-type');
+const visOutput = document.getElementById('vis-output');
+function renderVis() {
+  const T = visType.value;
+  visOutput.innerHTML =
+    '<span class="tok-c">// T = ' + T + '에 대해 생성된 특화</span>\n' +
+    '<span class="tok-k">fn</span> <span class="tok-f">max__' + T + '</span>(a: <span class="tok-t">' + T + '</span>, b: <span class="tok-t">' + T + '</span>) <span class="tok-t">' + T + '</span> {\n' +
+    '    <span class="tok-k">return</span> <span class="tok-k">if</span> (a &gt; b) a <span class="tok-k">else</span> b;\n' +
+    '}';
+}
+visType.addEventListener('change', renderVis);
+renderVis();
+
+// --------------- 메모리 다이어그램 ---------------
+const memStack = document.getElementById('mem-stack');
+const memHeap = document.getElementById('mem-heap');
+const memNarrator = document.getElementById('mem-narrator');
+const memSource = document.getElementById('mem-source');
+
+const memSteps = [
+  { line: 0,  narr: '함수 진입. 스택 프레임이 열립니다.', stack: [], heap: [] },
+  { line: 1,  narr: '지역 변수 `i`는 스택에 살고 있습니다.', stack: ['i: u32 = 0'], heap: [] },
+  { line: 2,  narr: '힙에 32바이트를 할당합니다.', stack: ['i: u32 = 0'], heap: ['buf: [32]u8 (heap)'] },
+  { line: 3,  narr: '`defer alloc.free(buf)`가 등록됨 &mdash; 종료 시 실행됩니다.', stack: ['i: u32 = 0', 'defer #1: free(buf)'], heap: ['buf: [32]u8 (heap)'] },
+  { line: 4,  narr: '스택에 Point를 할당합니다.', stack: ['i: u32 = 0', 'defer #1: free(buf)', 'p: Point{2, 3}'], heap: ['buf: [32]u8 (heap)'] },
+  { line: 5,  narr: '함수 반환. defer가 역순으로 발동됩니다.', stack: ['i: u32 = 0', 'defer #1: free(buf)', 'p: Point{2, 3}'], heap: ['buf: [32]u8 (heap)'], firing: true },
+  { line: 6,  narr: 'free(buf) 실행됨 &mdash; 힙이 회수됨.', stack: ['i: u32 = 0', 'p: Point{2, 3}'], heap: [] },
+  { line: 7,  narr: '스택 프레임이 해체됨. 모든 지역이 사라집니다.', stack: [], heap: [] },
+];
+let memStep = 0;
+
+function renderMem() {
+  const st = memSteps[memStep];
+  memNarrator.textContent = st.narr;
+  function render(elem, items, klass) {
+    elem.innerHTML = '';
+    items.forEach((label) => {
+      const d = document.createElement('div');
+      d.className = 'mem-block' + (klass ? ' ' + klass : '');
+      d.textContent = label;
+      if (st.firing && label.startsWith('defer')) {
+        d.style.background = 'rgba(247, 164, 29, 0.25)';
+        d.style.borderLeftColor = 'var(--accent-2)';
+      }
+      elem.appendChild(d);
+    });
+  }
+  render(memStack, st.stack);
+  render(memHeap, st.heap, 'heap');
+
+  const lines = [
+    'fn demo(alloc: std.mem.Allocator) !void {',
+    '    var i: u32 = 0;',
+    '    const buf = try alloc.alloc(u8, 32);',
+    '    defer alloc.free(buf);',
+    '    const p = Point{ .x = 2, .y = 3 };',
+    '    _ = .{ i, p };',
+    '    // (return)',
+    '} // scope ends',
+  ];
+  memSource.innerHTML = lines.map((ln, i) => {
+    const isCur = i === st.line;
+    return `<span style="display:block;${isCur ? 'background: rgba(247,164,29,0.18); color: var(--accent);' : 'color: var(--muted);'}">${escapeHTML(ln)}</span>`;
+  }).join('');
+}
+
+document.getElementById('mem-step').addEventListener('click', () => {
+  memStep = (memStep + 1) % memSteps.length;
+  renderMem();
+});
+document.getElementById('mem-reset').addEventListener('click', () => {
+  memStep = 0;
+  renderMem();
+});
+renderMem();
+
+</script>
+</body>
+</html>

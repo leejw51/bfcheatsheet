@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BERT — 互動式實戰指南</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+<style>
+:root{
+  --bg:#0d1117;
+  --panel:#141a23;
+  --panel-2:#1b2330;
+  --ink:#e8eef7;
+  --muted:#8b97a8;
+  --line:#26303d;
+  --accent:#ffd23f;        /* muppet yellow */
+  --accent-soft:#fff2a8;
+  --accent-deep:#b8860b;
+  --teal:#3ec1b3;
+  --pink:#ff6b9d;
+  --green:#5fe07a;
+  --red:#ff5f6d;
+  --blue:#5ea7ff;
+  --purple:#b97aff;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.55}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* === Top Bar === */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(180deg,rgba(13,17,23,.96),rgba(13,17,23,.85));
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-inner{
+  max-width:1200px;margin:0 auto;padding:14px 24px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px}
+.brand-mark{
+  width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(135deg,var(--accent) 0%,#ff9d2f 100%);
+  display:grid;place-items:center;color:#1a1a1a;font-weight:900;
+  box-shadow:0 4px 14px rgba(255,210,63,.35);
+  font-family:'JetBrains Mono',monospace;
+}
+.stats{display:flex;gap:14px;margin-left:auto;flex-wrap:wrap}
+.stat{
+  background:var(--panel);border:1px solid var(--line);
+  padding:6px 12px;border-radius:8px;font-size:13px;
+  display:flex;align-items:center;gap:8px;
+}
+.stat .label{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.stat .val{font-weight:700;font-family:'JetBrains Mono',monospace}
+.stat.xp .val{color:var(--accent)}
+.stat.lvl .val{color:var(--teal)}
+.stat.combo .val{color:var(--pink)}
+
+/* === Layout === */
+.wrap{max-width:1200px;margin:0 auto;padding:32px 24px 80px}
+.hero{
+  padding:52px 36px;border-radius:18px;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(255,210,63,.18),transparent 60%),
+    radial-gradient(circle at 12% 80%,rgba(62,193,179,.12),transparent 55%),
+    linear-gradient(180deg,#171f2c,#101620);
+  border:1px solid var(--line);
+  position:relative;overflow:hidden;
+}
+.hero h1{
+  font-size:46px;line-height:1.05;margin:0 0 12px;font-weight:800;
+  background:linear-gradient(120deg,#fff 0%,var(--accent) 60%,#ff9d2f 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hero p{font-size:17px;color:var(--muted);max-width:680px;margin:0 0 18px}
+.hero .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.pill{
+  padding:6px 12px;border-radius:999px;font-size:12px;
+  background:rgba(255,210,63,.08);color:var(--accent);
+  border:1px solid rgba(255,210,63,.25);
+  font-family:'JetBrains Mono',monospace;
+}
+.hero-glyph{
+  position:absolute;right:36px;top:36px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  color:var(--muted);opacity:.5;text-align:right;
+}
+
+section{margin-top:48px}
+.section-head{
+  display:flex;align-items:baseline;gap:14px;margin-bottom:18px;
+}
+.section-num{
+  font-family:'JetBrains Mono',monospace;color:var(--accent);
+  font-weight:700;font-size:14px;
+}
+h2{font-size:28px;margin:0;font-weight:700}
+h3{font-size:18px;margin:20px 0 10px;color:var(--ink)}
+p,li{color:#c9d3e1}
+.card{
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:24px;margin-bottom:14px;
+  transition:transform .2s ease,border-color .2s ease;
+}
+.card:hover{border-color:#37445a}
+.cards-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cards-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:820px){.cards-2,.cards-3{grid-template-columns:1fr}}
+
+code,kbd{
+  font-family:'JetBrains Mono','SF Mono',monospace;
+  background:#0a0e14;color:var(--accent-soft);
+  padding:2px 6px;border-radius:4px;font-size:.92em;
+  border:1px solid #1a2230;
+}
+pre{
+  background:#0a0e14;border:1px solid #1a2230;border-radius:10px;
+  padding:16px;overflow-x:auto;
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  color:#c9d3e1;
+}
+pre code{background:none;border:none;padding:0;color:inherit}
+
+/* === Embedding visualizer === */
+.embed-vis{display:grid;gap:8px;margin-top:14px}
+.embed-row{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center}
+.embed-row .label{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)}
+.embed-bars{display:flex;gap:4px;flex-wrap:wrap}
+.embed-cell{
+  height:32px;min-width:46px;flex:1;border-radius:6px;
+  display:grid;place-items:center;font-family:'JetBrains Mono',monospace;
+  font-size:11px;font-weight:700;color:#0d1117;
+  transition:transform .3s ease,box-shadow .3s ease;
+}
+.embed-cell:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 4px 10px rgba(0,0,0,.4)}
+.embed-token{background:var(--accent)}
+.embed-segment{background:var(--teal)}
+.embed-position{background:var(--pink)}
+.embed-sum{background:#fff;color:#0d1117;border:2px solid var(--accent)}
+
+/* === Token / wordpiece display === */
+.token-display{
+  display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding:14px;
+  background:#0a0e14;border-radius:10px;border:1px dashed #2a3548;min-height:60px;
+}
+.token{
+  padding:6px 10px;border-radius:6px;
+  font-family:'JetBrains Mono',monospace;font-size:13px;
+  background:rgba(255,210,63,.12);color:var(--accent-soft);
+  border:1px solid rgba(255,210,63,.3);
+  animation:tokFade .3s ease;
+}
+.token.special{background:rgba(62,193,179,.15);color:var(--teal);border-color:rgba(62,193,179,.4)}
+.token.subword{background:rgba(255,107,157,.12);color:var(--pink);border-color:rgba(255,107,157,.3)}
+@keyframes tokFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+textarea,input[type="text"]{
+  background:#0a0e14;color:var(--ink);
+  border:1px solid #2a3548;border-radius:8px;padding:10px 12px;
+  font-family:'JetBrains Mono',monospace;font-size:14px;
+  width:100%;outline:none;transition:border-color .2s ease,box-shadow .2s ease;
+}
+textarea:focus,input[type="text"]:focus{
+  border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,210,63,.15);
+}
+button.btn{
+  background:var(--accent);color:#1a1a1a;font-weight:700;
+  border:none;padding:10px 18px;border-radius:8px;cursor:pointer;
+  font-family:'Inter',sans-serif;font-size:14px;
+  transition:transform .12s ease,box-shadow .2s ease;
+}
+button.btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(255,210,63,.4)}
+button.btn:active{transform:translateY(0)}
+button.btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(255,210,63,.4)}
+button.btn.ghost:hover{background:rgba(255,210,63,.08)}
+button.btn.tiny{padding:6px 10px;font-size:12px}
+
+/* === MLM Playground === */
+.mlm-sentence{
+  font-size:18px;line-height:2;padding:18px;border-radius:10px;
+  background:#0a0e14;border:1px solid #1a2230;font-family:'JetBrains Mono',monospace;
+}
+.mlm-mask{
+  display:inline-block;background:rgba(255,210,63,.15);
+  color:var(--accent);padding:3px 12px;border-radius:6px;
+  border:1px dashed var(--accent);font-weight:700;
+}
+.mlm-options{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.mlm-opt{
+  padding:10px 16px;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:8px;cursor:pointer;font-family:'JetBrains Mono',monospace;
+  transition:all .2s ease;
+}
+.mlm-opt:hover{border-color:var(--accent);background:rgba(255,210,63,.05)}
+.mlm-opt.correct{background:rgba(95,224,122,.15);border-color:var(--green);color:var(--green)}
+.mlm-opt.wrong{background:rgba(255,95,109,.15);border-color:var(--red);color:var(--red)}
+
+/* === Practice / Typing drills === */
+.drill{
+  background:linear-gradient(180deg,#1a2333,#141a23);
+  border:1px solid var(--line);border-radius:14px;padding:24px;
+  margin-bottom:14px;position:relative;overflow:hidden;
+}
+.drill::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:linear-gradient(180deg,var(--accent),var(--teal));
+}
+.drill-q{font-size:16px;color:#d6dfee;margin-bottom:14px}
+.drill-q code{font-size:14px}
+.drill-input-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.drill-input-row input{flex:1;min-width:200px}
+.drill-feedback{margin-top:10px;font-size:13px;font-family:'JetBrains Mono',monospace;min-height:18px}
+.drill-feedback.ok{color:var(--green)}
+.drill-feedback.bad{color:var(--red)}
+.drill-meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:6px}
+
+@keyframes shake{
+  0%,100%{transform:translateX(0)}
+  25%{transform:translateX(-6px)}
+  75%{transform:translateX(6px)}
+}
+.shake{animation:shake .25s ease}
+
+/* === Confetti === */
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:1000}
+
+/* === Architecture diagram === */
+.arch{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;
+}
+.arch-block{
+  background:var(--panel-2);border:1px solid var(--line);
+  border-radius:12px;padding:18px;text-align:center;
+}
+.arch-block h4{margin:0 0 10px;color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.05em;text-transform:uppercase}
+.arch-num{font-size:42px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--ink)}
+.arch-row{display:flex;justify-content:space-around;margin-top:8px;font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+
+/* === Achievements === */
+.achievements{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:14px}
+.badge{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:10px;
+  padding:14px;text-align:center;opacity:.4;
+  transition:all .3s ease;
+}
+.badge.unlocked{
+  opacity:1;border-color:var(--accent);
+  background:linear-gradient(180deg,rgba(255,210,63,.08),var(--panel-2));
+  box-shadow:0 4px 14px rgba(255,210,63,.15);
+}
+.badge .icon{font-size:30px;margin-bottom:6px;display:block}
+.badge .name{font-size:12px;font-weight:700}
+.badge .desc{font-size:10px;color:var(--muted);margin-top:4px}
+
+/* === Boss round === */
+.boss{
+  background:linear-gradient(135deg,#2a1a3a,#1a1a2e);
+  border:1px solid #5a3a6a;border-radius:14px;padding:28px;
+  position:relative;overflow:hidden;
+}
+.boss::after{
+  content:"";position:absolute;top:-40%;right:-20%;width:300px;height:300px;
+  background:radial-gradient(circle,rgba(185,122,255,.2),transparent 70%);
+  pointer-events:none;
+}
+.boss h3{color:var(--purple);font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px}
+.boss h2{margin-bottom:14px}
+.boss-timer{
+  font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;
+  color:var(--purple);
+}
+.boss-q{font-size:20px;margin:14px 0;font-family:'JetBrains Mono',monospace;min-height:30px}
+.boss-progress{height:6px;background:#1a1a2e;border-radius:3px;overflow:hidden;margin:10px 0}
+.boss-progress-bar{height:100%;background:linear-gradient(90deg,var(--purple),var(--pink));transition:width .3s ease}
+
+/* === Progress bar === */
+.xp-bar{height:8px;background:#0a0e14;border-radius:4px;overflow:hidden;margin-top:6px;border:1px solid #1a2230}
+.xp-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),#ff9d2f);transition:width .4s ease;width:0%}
+
+/* === Tables === */
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+tr:hover td{background:rgba(255,255,255,.02)}
+
+/* SVG transformer block */
+.svg-wrap{display:flex;justify-content:center;margin-top:12px;background:#0a0e14;border-radius:10px;padding:18px;border:1px solid #1a2230}
+
+/* fine-tuning grid */
+.ft-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+@media(max-width:820px){.ft-grid{grid-template-columns:1fr}}
+.ft-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:16px}
+.ft-card h4{margin:0 0 8px;color:var(--accent);font-size:14px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.05em}
+.ft-card .head-vis{
+  height:50px;background:#0a0e14;border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin:8px 0;
+}
+
+/* mode tabs */
+.mode-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.mode-tab{
+  padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;
+  background:var(--panel);border:1px solid var(--line);color:var(--muted);
+  font-family:'JetBrains Mono',monospace;
+}
+.mode-tab.active{color:var(--accent);border-color:var(--accent);background:rgba(255,210,63,.05)}
+.mode-tab:hover:not(.active){background:var(--panel-2)}
+
+.flash{
+  display:inline-block;padding:2px 8px;border-radius:4px;
+  background:rgba(255,210,63,.15);color:var(--accent);
+  font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;
+}
+
+/* Compare bidirectional vs autoregressive */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media(max-width:820px){.compare{grid-template-columns:1fr}}
+.compare-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:16px}
+.compare-card.bert{border-color:rgba(255,210,63,.4)}
+.compare-card.gpt{border-color:rgba(94,167,255,.4)}
+.compare-card h4{margin:0 0 8px;font-family:'JetBrains Mono',monospace;font-size:13px;text-transform:uppercase;letter-spacing:.05em}
+.compare-card.bert h4{color:var(--accent)}
+.compare-card.gpt h4{color:var(--blue)}
+.attn-tokens{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:12px}
+.attn-tok{padding:4px 8px;border-radius:4px;background:#0a0e14;border:1px solid #1a2230}
+.attn-tok.target{background:rgba(255,210,63,.15);color:var(--accent);border-color:var(--accent)}
+.attn-tok.attended{background:rgba(62,193,179,.1);color:var(--teal);border-color:rgba(62,193,179,.4)}
+.attn-tok.blocked{opacity:.3;text-decoration:line-through}
+
+footer{
+  margin-top:80px;padding:30px 0;text-align:center;
+  color:var(--muted);font-size:13px;border-top:1px solid var(--line);
+}
+
+.toast{
+  position:fixed;bottom:20px;right:20px;z-index:200;
+  background:var(--panel);border:1px solid var(--accent);
+  border-radius:10px;padding:12px 16px;
+  box-shadow:0 8px 24px rgba(0,0,0,.4);
+  animation:toastIn .3s ease;
+  display:flex;align-items:center;gap:10px;max-width:320px;
+}
+.toast .toast-icon{font-size:22px}
+.toast .toast-title{font-weight:700;font-size:13px}
+.toast .toast-msg{font-size:12px;color:var(--muted)}
+@keyframes toastIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(20px)}}
+
+.callout{
+  border-left:3px solid var(--accent);
+  padding:12px 16px;background:rgba(255,210,63,.04);
+  border-radius:0 8px 8px 0;margin:14px 0;font-size:14px;
+}
+.callout.teal{border-color:var(--teal);background:rgba(62,193,179,.04)}
+.callout.pink{border-color:var(--pink);background:rgba(255,107,157,.04)}
+
+ul.tight{margin:6px 0 0 0;padding-left:20px}
+ul.tight li{margin:4px 0}
+
+.kbd{
+  display:inline-block;padding:2px 6px;background:#0a0e14;border:1px solid #2a3548;
+  border-bottom-width:2px;border-radius:4px;font-family:'JetBrains Mono',monospace;
+  font-size:11px;color:var(--ink);
+}
+
+.combo-flame{display:inline-block;font-size:14px;animation:flicker .6s infinite alternate}
+@keyframes flicker{from{opacity:.7;transform:scale(.98)}to{opacity:1;transform:scale(1.04)}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <span>BERT 實戰指南</span>
+    </div>
+    <div class="stats">
+      <div class="stat lvl"><span class="label">等級</span><span class="val" id="lvlVal">1</span></div>
+      <div class="stat xp"><span class="label">XP</span><span class="val" id="xpVal">0</span></div>
+      <div class="stat combo"><span class="label">連擊</span><span class="val" id="comboVal">0</span><span class="combo-flame" id="comboFire" style="display:none">🔥</span></div>
+      <div class="stat"><span class="label">準確率</span><span class="val" id="accVal">—</span></div>
+      <button class="btn ghost tiny" onclick="resetProgress()">重置</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="confetti"></canvas>
+
+<div class="wrap">
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-glyph">
+    transformer.encoder.bidirectional<br/>
+    pre-train: MLM + NSP<br/>
+    [CLS] x_1 x_2 ... x_n [SEP]
+  </div>
+  <h1>BERT，真正搞懂它。</h1>
+  <p>Bidirectional Encoder Representations from Transformers——Google 在 2018 年推出的模型，悄悄重新定義了 NLP。本指南結合解說、互動示範與輸入式練習模式，讓架構真正記住。</p>
+  <div class="pills">
+    <span class="pill">~10 分鐘閱讀</span>
+    <span class="pill">15+ 道輸入練習</span>
+    <span class="pill">MLM 樂園</span>
+    <span class="pill">魔王回合</span>
+  </div>
+</div>
+
+<!-- 1. What BERT is -->
+<section id="s1">
+  <div class="section-head"><span class="section-num">01 /</span><h2>BERT 是什麼</h2></div>
+  <div class="card">
+    <p>BERT 是個<b>純 transformer 編碼器</b>模型。與 GPT（純解碼器、自迴歸）不同，每一層中每個 token 都會<b>雙向關注其他所有 token</b>。雙向性正是它的關鍵。</p>
+    <ul class="tight">
+      <li><b>發布時間</b>：2018 年 10 月，由 Devlin 等人（Google AI Language）提出</li>
+      <li><b>架構</b>：transformer 編碼器區塊堆疊（多頭自注意力 + 前饋網路）</li>
+      <li><b>預訓練</b>：在 BooksCorpus（8 億詞）+ 英文維基百科（25 億詞）上自監督訓練</li>
+      <li><b>微調</b>：加上小型任務頭，在標註資料上端到端訓練</li>
+    </ul>
+    <div class="callout">
+      <b>關鍵洞見：</b>讀過數十億個句子並學會填空的模型，對語言知道得很多。在頂端裝個小分類器，下游任務的表現就會超越其體量。
+    </div>
+
+    <div class="svg-wrap">
+      <svg width="560" height="220" viewBox="0 0 560 220">
+        <defs>
+          <linearGradient id="encGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffd23f" stop-opacity=".6"/>
+            <stop offset="1" stop-color="#3ec1b3" stop-opacity=".6"/>
+          </linearGradient>
+        </defs>
+        <!-- input tokens -->
+        <g font-family="JetBrains Mono" font-size="11" fill="#8b97a8">
+          <text x="40" y="200" text-anchor="middle">[CLS]</text>
+          <text x="120" y="200" text-anchor="middle">my</text>
+          <text x="200" y="200" text-anchor="middle">dog</text>
+          <text x="280" y="200" text-anchor="middle">is</text>
+          <text x="360" y="200" text-anchor="middle">cute</text>
+          <text x="440" y="200" text-anchor="middle">[SEP]</text>
+        </g>
+        <!-- encoder stack -->
+        <g>
+          <rect x="20" y="30" width="440" height="36" rx="6" fill="url(#encGrad)" stroke="#26303d"/>
+          <rect x="20" y="74" width="440" height="36" rx="6" fill="url(#encGrad)" stroke="#26303d"/>
+          <rect x="20" y="118" width="440" height="36" rx="6" fill="url(#encGrad)" stroke="#26303d"/>
+          <text x="240" y="52" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#0d1117" font-weight="700">Encoder block × N</text>
+          <text x="240" y="96" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#0d1117" font-weight="700">Encoder block × N</text>
+          <text x="240" y="140" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="#0d1117" font-weight="700">Encoder block × N</text>
+        </g>
+        <text x="540" y="92" text-anchor="end" font-family="JetBrains Mono" font-size="10" fill="#ffd23f">12× (base)</text>
+        <text x="540" y="106" text-anchor="end" font-family="JetBrains Mono" font-size="10" fill="#3ec1b3">24× (large)</text>
+        <!-- arrows -->
+        <g stroke="#26303d" stroke-width="1" fill="none">
+          <line x1="40" y1="180" x2="40" y2="155"/>
+          <line x1="120" y1="180" x2="120" y2="155"/>
+          <line x1="200" y1="180" x2="200" y2="155"/>
+          <line x1="280" y1="180" x2="280" y2="155"/>
+          <line x1="360" y1="180" x2="360" y2="155"/>
+          <line x1="440" y1="180" x2="440" y2="155"/>
+        </g>
+        <text x="240" y="20" text-anchor="middle" font-family="Inter" font-size="12" fill="#e8eef7">脈絡表示 h₁ ... hₙ</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Pre-training -->
+<section id="s2">
+  <div class="section-head"><span class="section-num">02 /</span><h2>預訓練目標</h2></div>
+  <div class="cards-2">
+    <div class="card">
+      <h3>遮罩語言建模（MLM）</h3>
+      <p>隨機遮罩 <b>15%</b> 的 WordPiece token。模型預測原本的 token。損失：僅在被遮罩位置上的交叉熵。</p>
+      <p>那 15% 中：</p>
+      <ul class="tight">
+        <li><b>80%</b> 替換為 <code>[MASK]</code></li>
+        <li><b>10%</b> 替換為隨機 token</li>
+        <li><b>10%</b> 維持不變</li>
+      </ul>
+      <p style="margin-top:10px;color:var(--muted);font-size:13px">10/10 的小技巧避免模型偷懶——只在 <code>[MASK]</code> 位置產出強輸出，因為微調時不會有遮罩。</p>
+      <div class="callout teal">
+        <b>為何雙向？</b>單向語言模型若不洩漏資訊就無法以未來 token 為條件。MLM 讓每個位置都能看到完整的雙向脈絡。
+      </div>
+    </div>
+    <div class="card">
+      <h3>下一句預測（NSP）</h3>
+      <p>給定兩個句子 A 與 B，預測 B 是否真的接在 A 之後（50%），還是來自他處的隨機句子（50%）。對 <code>[CLS]</code> token 的最後隱狀態做二元分類。</p>
+      <pre><code>輸入：[CLS] A₁ A₂ ... [SEP] B₁ B₂ ... [SEP]
+標籤：IsNext / NotNext</code></pre>
+      <div class="callout pink">
+        <b>火辣觀點：</b>RoBERTa（2019）證明 NSP 大致沒用，於是丟掉。SBERT 用句對對比目標取代。現代 BERT 風格的模型常常完全跳過 NSP。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>合併損失</h3>
+    <p>BERT 的預訓練損失是 MLM 與 NSP 損失之和：</p>
+    <p>$$\mathcal{L} = \mathcal{L}_{\text{MLM}} + \mathcal{L}_{\text{NSP}}$$</p>
+    <p>$$\mathcal{L}_{\text{MLM}} = -\sum_{i \in M} \log P(x_i \mid \tilde{x})$$</p>
+    <p>其中 $M$ 是被遮罩位置的集合，$\tilde{x}$ 是被破壞的輸入。</p>
+  </div>
+</section>
+
+<!-- 3. Input format -->
+<section id="s3">
+  <div class="section-head"><span class="section-num">03 /</span><h2>輸入格式</h2></div>
+  <div class="card">
+    <p>每個輸入位置的向量是<b>三個 embedding 的和</b>：token + segment + position。三者皆為大小相同（如 768）的可學習表。</p>
+    <p>$$\mathbf{x}_i = \mathbf{E}_{\text{tok}}(t_i) + \mathbf{E}_{\text{seg}}(s_i) + \mathbf{E}_{\text{pos}}(i)$$</p>
+
+    <h3>視覺化</h3>
+    <p style="color:var(--muted);font-size:13px">將滑鼠移到方格上。每條彩色長條代表一種 embedding。最下面那一列是它們逐元素的和——那就是進入第一個編碼器區塊的內容。</p>
+    <div class="embed-vis" id="embedVis"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn tiny" onclick="reshuffleEmbed()">重新洗牌數值</button>
+      <span style="color:var(--muted);font-size:12px;align-self:center">（數值僅為示意——實際 embedding 為 768 維且為學習得到。）</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>特殊 token</h3>
+    <table>
+      <tr><th>Token</th><th>角色</th></tr>
+      <tr><td><code>[CLS]</code></td><td>第一個位置。其最終隱狀態作為池化後的序列表示，用於分類。</td></tr>
+      <tr><td><code>[SEP]</code></td><td>分隔符。標記段落結束；NSP 與成對任務中需在句子 A 與 B 之間使用。</td></tr>
+      <tr><td><code>[MASK]</code></td><td>用於 MLM 預訓練。推論時不應出現。</td></tr>
+      <tr><td><code>[PAD]</code></td><td>填充以對齊批次中各序列。會被注意力遮罩遮蔽。</td></tr>
+      <tr><td><code>[UNK]</code></td><td>詞彙表外的後備值。WordPiece 下罕見，但仍存在。</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- 4. Architecture -->
+<section id="s4">
+  <div class="section-head"><span class="section-num">04 /</span><h2>架構大小</h2></div>
+  <div class="arch">
+    <div class="arch-block">
+      <h4>BERT-base</h4>
+      <div class="arch-num">110M</div>
+      <div style="color:var(--muted);font-size:12px;margin:4px 0 12px">參數</div>
+      <div class="arch-row">
+        <div><b>L</b>=12</div><div><b>H</b>=768</div><div><b>A</b>=12</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;font-family:'JetBrains Mono',monospace">層 / 隱藏 / 頭</div>
+    </div>
+    <div class="arch-block">
+      <h4>BERT-large</h4>
+      <div class="arch-num">340M</div>
+      <div style="color:var(--muted);font-size:12px;margin:4px 0 12px">參數</div>
+      <div class="arch-row">
+        <div><b>L</b>=24</div><div><b>H</b>=1024</div><div><b>A</b>=16</div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;font-family:'JetBrains Mono',monospace">層 / 隱藏 / 頭</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>一個編碼器區塊內部</h3>
+    <p>L 個區塊每個都是標準的「post-LN」transformer 編碼器：</p>
+    <ol class="tight">
+      <li>多頭自注意力，每個頭 H/A 維度</li>
+      <li>殘差 + LayerNorm</li>
+      <li>逐位置前饋：linear → GELU → linear（隱藏大小 4H）</li>
+      <li>殘差 + LayerNorm</li>
+    </ol>
+    <p>$$\text{Attn}(Q,K,V) = \text{softmax}\!\left(\tfrac{QK^\top}{\sqrt{d_k}}\right)V$$</p>
+    <p>自注意力是完整且雙向的——沒有因果遮罩。</p>
+  </div>
+</section>
+
+<!-- 5. WordPiece -->
+<section id="s5">
+  <div class="section-head"><span class="section-num">05 /</span><h2>WordPiece 分詞</h2></div>
+  <div class="card">
+    <p>BERT 使用 30,522 個 token 的 <b>WordPiece</b> 詞彙表。未知字會被切成已知子片，延續片以 <code>##</code> 為前綴。</p>
+    <pre><code>"playing"     → ["play", "##ing"]
+"unaffable"   → ["un", "##aff", "##able"]
+"transformer" → ["transform", "##er"]
+"BERT"        → ["bert"]   （在 bert-base-uncased 中為小寫）</code></pre>
+
+    <h3>動手試試</h3>
+    <textarea id="tokInput" rows="2" placeholder="輸入句子以分詞...">BERT understands subwording perfectly</textarea>
+    <div style="margin-top:8px"><button class="btn" onclick="runTokenize()">分詞</button></div>
+    <div class="token-display" id="tokOutput"></div>
+    <p style="color:var(--muted);font-size:12px;margin-top:10px">
+      <span class="token special">藍綠色</span> = 特殊 token，
+      <span class="token">黃色</span> = 完整字詞，
+      <span class="token subword">粉紅色</span> = ##延續片
+    </p>
+  </div>
+</section>
+
+<!-- 6. Fine-tuning -->
+<section id="s6">
+  <div class="section-head"><span class="section-num">06 /</span><h2>微調範式</h2></div>
+  <div class="card">
+    <p>一個預訓練好的 BERT，三種（以及更多）下游任務模式。每種情況都加上小型任務專屬頭，端到端訓練，學習率較低（通常 2e-5 到 5e-5），訓練 2-4 個週期。</p>
+    <div class="ft-grid">
+      <div class="ft-card">
+        <h4>序列分類</h4>
+        <p style="font-size:13px">情感、NLI、主題。使用最後的 <code>[CLS]</code> 隱狀態。</p>
+        <div class="head-vis">[CLS] → Linear(H→C) → softmax</div>
+        <p style="font-size:12px;color:var(--muted)">範例：SST-2、MNLI、QNLI</p>
+      </div>
+      <div class="ft-card">
+        <h4>Token 分類</h4>
+        <p style="font-size:13px">NER、POS 標註。對<i>每個</i> token 的隱狀態套用頭。</p>
+        <div class="head-vis">h_i → Linear(H→C) → softmax（每個 token）</div>
+        <p style="font-size:12px;color:var(--muted)">範例：CoNLL-2003 NER</p>
+      </div>
+      <div class="ft-card">
+        <h4>區段抽取（QA）</h4>
+        <p style="font-size:13px">預測答案區段的起始與結束位置。</p>
+        <div class="head-vis">h_i → 2 個 logits（start、end）</div>
+        <p style="font-size:12px;color:var(--muted)">範例：SQuAD 1.1 / 2.0</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Bidirectional vs autoregressive -->
+<section id="s7">
+  <div class="section-head"><span class="section-num">07 /</span><h2>雙向 vs 自迴歸</h2></div>
+  <div class="compare">
+    <div class="compare-card bert">
+      <h4>BERT（純編碼器）</h4>
+      <p style="font-size:13px">在「my dog is __」中以完整脈絡預測 <code>cute</code>：</p>
+      <div class="attn-tokens">
+        <span class="attn-tok attended">my</span>
+        <span class="attn-tok attended">dog</span>
+        <span class="attn-tok attended">is</span>
+        <span class="attn-tok target">[MASK]</span>
+        <span class="attn-tok attended">today</span>
+        <span class="attn-tok attended">.</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">關注<b>兩側</b>。無法自迴歸地產生文字，但能產出強的脈絡表示。</p>
+    </div>
+    <div class="compare-card gpt">
+      <h4>GPT（純解碼器）</h4>
+      <p style="font-size:13px">在「my dog is」之後預測下一個 token：</p>
+      <div class="attn-tokens">
+        <span class="attn-tok attended">my</span>
+        <span class="attn-tok attended">dog</span>
+        <span class="attn-tok attended">is</span>
+        <span class="attn-tok target">?</span>
+        <span class="attn-tok blocked">today</span>
+        <span class="attn-tok blocked">.</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:10px">因果遮罩擋住未來 token。天生適合生成，相同參數量下對理解任務歷史上較弱（不過差距已縮小）。</p>
+    </div>
+  </div>
+</section>
+
+<!-- MLM Playground -->
+<section id="mlm">
+  <div class="section-head"><span class="section-num">★ /</span><h2>MLM 樂園</h2></div>
+  <div class="card">
+    <p style="color:var(--muted);font-size:13px">為被遮罩的位置選出最合理的字。每回合可獲得 XP。建立連擊吧。</p>
+    <div id="mlmHost"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn" onclick="nextMLM()">下一句 ↻</button>
+    </div>
+  </div>
+</section>
+
+<!-- Practice mode -->
+<section id="practice">
+  <div class="section-head"><span class="section-num">⌨ /</span><h2>練習模式——輸入練習</h2></div>
+  <p style="color:var(--muted)">按 <span class="kbd">Enter</span> 提交。答對可獲得 XP 並建立連擊。答錯則中斷連擊。<b>下方有 15+ 道題目。</b></p>
+
+  <div class="mode-tabs">
+    <div class="mode-tab active" data-cat="all">全部</div>
+    <div class="mode-tab" data-cat="vocab">詞彙</div>
+    <div class="mode-tab" data-cat="arch">架構</div>
+    <div class="mode-tab" data-cat="mlm">MLM</div>
+    <div class="mode-tab" data-cat="code">程式碼</div>
+  </div>
+
+  <div id="drillHost"></div>
+</section>
+
+<!-- Achievements -->
+<section id="achievements">
+  <div class="section-head"><span class="section-num">★ /</span><h2>成就</h2></div>
+  <div class="card">
+    <p style="color:var(--muted);font-size:13px">隨進度解鎖徽章，跨工作階段保留。</p>
+    <div class="achievements" id="badgeHost"></div>
+  </div>
+</section>
+
+<!-- Boss round -->
+<section id="boss">
+  <div class="section-head"><span class="section-num">⚔ /</span><h2>BERT 魔王——快問快答</h2></div>
+  <div class="boss">
+    <h3>最終挑戰</h3>
+    <h2>60 秒。打字快。沒有第二次機會。</h2>
+    <div style="display:flex;gap:24px;align-items:center;margin-top:14px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">時間</div>
+        <div class="boss-timer" id="bossTimer">60</div>
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">分數</div>
+        <div class="boss-timer" id="bossScore" style="color:var(--accent)">0</div>
+      </div>
+      <div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">最佳</div>
+        <div class="boss-timer" id="bossBest" style="color:var(--teal)">0</div>
+      </div>
+      <div style="margin-left:auto"><button class="btn" id="bossBtn" onclick="startBoss()">開戰</button></div>
+    </div>
+    <div class="boss-progress"><div class="boss-progress-bar" id="bossBar" style="width:100%"></div></div>
+    <div class="boss-q" id="bossQ">按下開始即開戰。</div>
+    <input id="bossInput" type="text" placeholder="答案..." disabled />
+  </div>
+</section>
+
+<!-- 8. Limitations & successors -->
+<section id="s8">
+  <div class="section-head"><span class="section-num">08 /</span><h2>限制與後繼者</h2></div>
+  <div class="card">
+    <h3>BERT 的弱點</h3>
+    <ul class="tight">
+      <li><b>注意力對序列長度為平方複雜度</b> → 最多 512 token</li>
+      <li><b>無法生成</b>——純編碼器，無法取樣</li>
+      <li><b>預訓練/微調不一致</b>——<code>[MASK]</code> 在推論時不會出現</li>
+      <li><b>NSP 訊號薄弱</b>——後續模型把它丟了</li>
+      <li><b>句子向量開箱即用效果差</b>；平均池化的 <code>[CLS]</code> 表現不佳</li>
+    </ul>
+
+    <h3>後繼者與變體</h3>
+    <table>
+      <tr><th>模型</th><th>年份</th><th>變化</th></tr>
+      <tr><td><b>RoBERTa</b></td><td>2019</td><td>丟棄 NSP，更多資料、更長訓練、動態遮罩</td></tr>
+      <tr><td><b>ALBERT</b></td><td>2019</td><td>跨層共享參數；以句序預測取代 NSP</td></tr>
+      <tr><td><b>DistilBERT</b></td><td>2019</td><td>知識蒸餾，~40% 較小、~60% 較快，保留約 97% 效能</td></tr>
+      <tr><td><b>ELECTRA</b></td><td>2020</td><td>替代 token 偵測——比 MLM 更具樣本效率</td></tr>
+      <tr><td><b>SBERT</b></td><td>2019</td><td>Siamese 網路，透過對比損失產生可用的句子向量</td></tr>
+      <tr><td><b>DeBERTa</b></td><td>2020</td><td>解耦注意力（內容 vs 位置），增強的遮罩解碼器</td></tr>
+      <tr><td><b>ModernBERT</b></td><td>2024</td><td>長脈絡（8K）、Flash Attention，目前同類最佳的編碼器</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <div>BERT 實戰指南——為自學節奏打造</div>
+  <div style="margin-top:6px">原始論文：<a href="https://arxiv.org/abs/1810.04805" target="_blank">Devlin et al. 2018</a> · <a href="#" onclick="resetProgress();return false">重置進度</a></div>
+</footer>
+
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+/* ===========================================================
+   STATE
+   =========================================================== */
+const STATE_KEY = 'bert_field_guide_v1';
+const state = loadState();
+const XP_PER_LEVEL = 100;
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STATE_KEY);
+    if(raw) return Object.assign(defaults(), JSON.parse(raw));
+  }catch(e){}
+  return defaults();
+}
+function defaults(){
+  return {
+    xp:0, level:1, combo:0, bestCombo:0,
+    answered:0, correct:0,
+    badges:{}, drillStatus:{},
+    bossBest:0,
+    mlmAnswered:{},
+  };
+}
+function saveState(){ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+
+function resetProgress(){
+  if(!confirm('重置所有進度？')) return;
+  localStorage.removeItem(STATE_KEY);
+  location.reload();
+}
+
+/* ===========================================================
+   STATS UI
+   =========================================================== */
+function refreshStats(){
+  document.getElementById('lvlVal').textContent = state.level;
+  document.getElementById('xpVal').textContent = `${state.xp % XP_PER_LEVEL}/${XP_PER_LEVEL}`;
+  document.getElementById('comboVal').textContent = state.combo;
+  document.getElementById('comboFire').style.display = state.combo >= 3 ? 'inline' : 'none';
+  document.getElementById('accVal').textContent = state.answered ? Math.round(100*state.correct/state.answered)+'%' : '—';
+  document.getElementById('bossBest').textContent = state.bossBest;
+}
+
+function awardXP(amount, reason){
+  state.xp += amount;
+  while(state.xp >= state.level * XP_PER_LEVEL){
+    state.level++;
+    toast('升級！', `達到等級 ${state.level}。`, '⬆');
+    burst();
+  }
+  saveState(); refreshStats();
+}
+
+function recordAnswer(correct){
+  state.answered++;
+  if(correct){
+    state.correct++;
+    state.combo++;
+    if(state.combo > state.bestCombo) state.bestCombo = state.combo;
+    let xp = 10;
+    if(state.combo >= 5) xp = 18;
+    if(state.combo >= 10) xp = 30;
+    awardXP(xp);
+  } else {
+    state.combo = 0;
+  }
+  checkBadges();
+  saveState(); refreshStats();
+}
+
+/* ===========================================================
+   TOASTS
+   =========================================================== */
+function toast(title, msg, icon='★'){
+  const el = document.createElement('div');
+  el.className='toast';
+  el.innerHTML = `<div class="toast-icon">${icon}</div><div><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div></div>`;
+  document.getElementById('toastHost').appendChild(el);
+  setTimeout(()=>{ el.style.animation='toastOut .3s ease forwards'; setTimeout(()=>el.remove(),320); }, 2600);
+}
+
+/* ===========================================================
+   CONFETTI
+   =========================================================== */
+const cv = document.getElementById('confetti');
+const ctx = cv.getContext('2d');
+function fitCanvas(){ cv.width=innerWidth; cv.height=innerHeight; }
+fitCanvas(); window.addEventListener('resize', fitCanvas);
+let particles = [];
+function burst(x, y){
+  x = x ?? innerWidth/2;
+  y = y ?? innerHeight/2;
+  const colors = ['#ffd23f','#3ec1b3','#ff6b9d','#5fe07a','#5ea7ff','#b97aff'];
+  for(let i=0;i<60;i++){
+    particles.push({
+      x, y,
+      vx:(Math.random()-.5)*8,
+      vy:(Math.random()-.5)*10 - 3,
+      g:0.25, life:60+Math.random()*30,
+      color:colors[Math.floor(Math.random()*colors.length)],
+      size:4+Math.random()*4,
+      rot:Math.random()*Math.PI*2, vr:(Math.random()-.5)*.3,
+    });
+  }
+}
+function tick(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+    ctx.save();
+    ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+    ctx.fillStyle = p.color; ctx.globalAlpha = Math.min(1, p.life/40);
+    ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size);
+    ctx.restore();
+  }
+  requestAnimationFrame(tick);
+}
+tick();
+
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+
+/* ===========================================================
+   EMBEDDING VISUALIZER
+   =========================================================== */
+const embedTokens = ['[CLS]','my','dog','is','cute','[SEP]'];
+function buildEmbed(){
+  const host = document.getElementById('embedVis');
+  host.innerHTML='';
+  const rows = [
+    {label:'Token',  cls:'embed-token',    values:embedTokens},
+    {label:'Segment',cls:'embed-segment',  values:embedTokens.map(()=>'EA')},
+    {label:'Position',cls:'embed-position',values:embedTokens.map((_,i)=>i)},
+    {label:'Σ Sum',  cls:'embed-sum',      values:embedTokens.map(t=>t)},
+  ];
+  for(const r of rows){
+    const row = document.createElement('div'); row.className='embed-row';
+    const lab = document.createElement('div'); lab.className='label'; lab.textContent=r.label;
+    const bars = document.createElement('div'); bars.className='embed-bars';
+    r.values.forEach((v,i)=>{
+      const c = document.createElement('div');
+      c.className=`embed-cell ${r.cls}`;
+      if(r.cls!=='embed-sum'){
+        const tone = 30 + (i*13 + r.label.length*7) % 50;
+        c.style.filter = `brightness(${0.7 + tone/100})`;
+      }
+      c.textContent = r.cls==='embed-sum' ? v : v;
+      bars.appendChild(c);
+    });
+    row.appendChild(lab); row.appendChild(bars); host.appendChild(row);
+  }
+}
+function reshuffleEmbed(){ buildEmbed(); }
+buildEmbed();
+
+/* ===========================================================
+   WORDPIECE TOKENIZER (simulated)
+   =========================================================== */
+const wpVocab = new Set([
+  // common whole words
+  'the','a','an','i','my','you','your','we','he','she','it','they','this','that',
+  'is','was','are','were','be','been','being','do','did','does','have','has','had',
+  'and','or','but','if','then','to','of','in','on','at','for','with','from','by','as',
+  'dog','cat','cute','play','run','walk','book','read','write','code','model','token',
+  'language','learn','train','word','piece','bert','transform','attention','layer','head',
+  'mask','class','label','data','set','test','sentence','context','vector','embed',
+  'go','goes','gone','went','make','made','take','took','see','saw','seen',
+  'understand','perfectly','quickly','slowly','very','really','also','only','just','more','most',
+  'computer','science','math','time','year','day','people','person','question','answer',
+  'good','great','bad','big','small','new','old','high','low','fast','slow',
+  // suffixes (continuation)
+  '##s','##ed','##ing','##er','##est','##ly','##ion','##tion','##ation','##ness','##ity',
+  '##ful','##less','##able','##ible','##ize','##ise','##ment','##al','##ic','##ous',
+  '##en','##y','##e','##a','##o','##i','##u',
+  // common bits
+  '##s','##ng','##th','##nd','##rd','##st','##ck','##sh','##ch','##an','##in','##on','##un',
+  '##aff','##ord','##erst','##ing','##er','##s',
+  // punctuation
+  '.',',','!','?',';',':','(',')','-','"',"'"
+]);
+function wordpieceTokenize(text){
+  const out = ['[CLS]'];
+  const words = text.toLowerCase().match(/[a-z]+|[.,!?;:()\-"']/g) || [];
+  for(const w of words){
+    if(wpVocab.has(w)){ out.push(w); continue; }
+    // try longest-match split
+    const parts = greedyWP(w);
+    out.push(...parts);
+  }
+  out.push('[SEP]');
+  return out;
+}
+function greedyWP(word){
+  const pieces = [];
+  let i = 0;
+  let first = true;
+  while(i < word.length){
+    let end = word.length;
+    let matched = null;
+    while(end > i){
+      const sub = word.slice(i,end);
+      const cand = first ? sub : '##'+sub;
+      if(wpVocab.has(cand)){ matched = cand; break; }
+      end--;
+    }
+    if(matched){
+      pieces.push(matched);
+      i = end;
+      first = false;
+    } else {
+      // single char fallback
+      const cand = first ? word[i] : '##'+word[i];
+      pieces.push(wpVocab.has(cand) ? cand : (first ? word[i] : '##'+word[i]));
+      i++;
+      first = false;
+    }
+  }
+  return pieces;
+}
+
+function runTokenize(){
+  const text = document.getElementById('tokInput').value;
+  const tokens = wordpieceTokenize(text);
+  const host = document.getElementById('tokOutput');
+  host.innerHTML='';
+  tokens.forEach((t,i)=>{
+    const el = document.createElement('span');
+    el.className = 'token';
+    if(t.startsWith('[')) el.classList.add('special');
+    else if(t.startsWith('##')) el.classList.add('subword');
+    el.textContent = t;
+    el.style.animationDelay = `${i*30}ms`;
+    host.appendChild(el);
+  });
+}
+runTokenize();
+
+/* ===========================================================
+   MLM PLAYGROUND
+   =========================================================== */
+const mlmBank = [
+  { sentence:['The','model','learned','to',null,'missing','tokens','during','pre-training','.'],
+    options:['predict','eat','dance','swim'], correct:'predict' },
+  { sentence:['BERT','uses','a','bidirectional',null,'to','encode','context','.'],
+    options:['transformer','airplane','cookbook','telescope'], correct:'transformer' },
+  { sentence:['The','dog','was',null,'in','the','park','.'],
+    options:['running','calculus','photosynthesis','metaphor'], correct:'running' },
+  { sentence:['Wordpiece','splits','rare','words','into',null,'pieces','.'],
+    options:['subword','airplane','molecular','umbrella'], correct:'subword' },
+  { sentence:['The','[CLS]','token','is','used','for',null,'tasks','.'],
+    options:['classification','plumbing','baking','dancing'], correct:'classification' },
+  { sentence:['Self-attention','has','quadratic',null,'in','sequence','length','.'],
+    options:['complexity','simplicity','popularity','humidity'], correct:'complexity' },
+  { sentence:['Fine-tuning','typically','uses','a','low','learning',null,'.'],
+    options:['rate','dog','salad','algorithm'], correct:'rate' },
+];
+let mlmIdx = 0;
+function nextMLM(){
+  mlmIdx = Math.floor(Math.random()*mlmBank.length);
+  renderMLM();
+}
+function renderMLM(){
+  const item = mlmBank[mlmIdx];
+  const host = document.getElementById('mlmHost');
+  host.innerHTML='';
+  const sent = document.createElement('div'); sent.className='mlm-sentence';
+  item.sentence.forEach(w=>{
+    if(w===null){
+      const m = document.createElement('span'); m.className='mlm-mask'; m.textContent='[MASK]';
+      sent.appendChild(m);
+    } else {
+      sent.appendChild(document.createTextNode(' '+w+' '));
+    }
+  });
+  host.appendChild(sent);
+
+  const opts = document.createElement('div'); opts.className='mlm-options';
+  // shuffle options
+  const shuffled = [...item.options].sort(()=>Math.random()-0.5);
+  shuffled.forEach(o=>{
+    const b = document.createElement('div'); b.className='mlm-opt'; b.textContent=o;
+    b.addEventListener('click', ()=>{
+      const correct = (o === item.correct);
+      if(correct){ b.classList.add('correct'); burst(b.getBoundingClientRect().left+30, b.getBoundingClientRect().top+30); toast('正確！', `[MASK] = ${o}`, '✓'); }
+      else { b.classList.add('wrong'); shake(sent);
+        // also highlight correct
+        opts.querySelectorAll('.mlm-opt').forEach(x=>{ if(x.textContent===item.correct) x.classList.add('correct'); });
+      }
+      opts.querySelectorAll('.mlm-opt').forEach(x=>x.style.pointerEvents='none');
+      recordAnswer(correct);
+    });
+    opts.appendChild(b);
+  });
+  host.appendChild(opts);
+}
+nextMLM();
+
+/* ===========================================================
+   PRACTICE DRILLS
+   =========================================================== */
+const drills = [
+  // vocab
+  { id:'v1', cat:'vocab', q:'<code>[CLS]</code> token 代表什麼？（一個英文單字）', accept:['classification','classifier','class'], hint:'用於 ___ 任務' },
+  { id:'v2', cat:'vocab', q:'<code>[SEP]</code> token 代表什麼？（一個英文單字）', accept:['separator','separation','separate'], hint:'位於句子 A 與 B 之間' },
+  { id:'v3', cat:'vocab', q:'BERT 代表：Bidirectional Encoder Representations from ___？', accept:['transformers','transformer'], hint:'底層架構' },
+  { id:'v4', cat:'vocab', q:'遮罩 15% token 的預訓練目標稱為 ___ Language Modeling。', accept:['masked'], hint:'M__' },
+  { id:'v5', cat:'vocab', q:'另一項預訓練任務：___ Sentence Prediction。', accept:['next'], hint:'N__' },
+  // architecture
+  { id:'a1', cat:'arch', q:'BERT-<b>base</b> 有幾層編碼器？', accept:['12'], hint:'一打' },
+  { id:'a2', cat:'arch', q:'BERT-base 的隱藏大小？', accept:['768'], hint:'接近 1000 的 2 的次方左右' },
+  { id:'a3', cat:'arch', q:'BERT-base 的注意力頭數？', accept:['12'], hint:'與層數相同' },
+  { id:'a4', cat:'arch', q:'BERT-<b>large</b> 有幾層編碼器？', accept:['24'], hint:'base 的 2 倍' },
+  { id:'a5', cat:'arch', q:'BERT-large 的隱藏大小？', accept:['1024'], hint:'2^10' },
+  { id:'a6', cat:'arch', q:'BERT-base 約有多少參數，以百萬為單位？（只填數字）', accept:['110'], hint:'剛過一百' },
+  { id:'a7', cat:'arch', q:'原始 BERT 的最大輸入序列長度？', accept:['512'], hint:'2^9' },
+  // mlm
+  { id:'m1', cat:'mlm', q:'MLM 中有多少 % 的 token 被選中遮罩？（只填數字）', accept:['15'], hint:'十五' },
+  { id:'m2', cat:'mlm', q:'被選中的 token 中，有多少 % 替換為 <code>[MASK]</code>？（只填數字）', accept:['80'], hint:'八十' },
+  { id:'m3', cat:'mlm', q:'填空 [MASK]：「the dog is [MASK]」。（一個常見形容詞）', accept:['cute','happy','friendly','barking','small','big','sleeping','playing','running','sweet','good'], hint:'正面的東西' },
+  { id:'m4', cat:'mlm', q:'填空 [MASK]：「BERT is a [MASK] model from Google」。（架構家族）', accept:['transformer','language','bidirectional'], hint:'BERT 中的 T' },
+  // code
+  { id:'c1', cat:'code', q:'在 HuggingFace 中，將句對分詞的函式為 <code>tokenizer.encode_____()</code>。', accept:['plus','_plus'], hint:'..._plus' },
+  { id:'c2', cat:'code', q:'要加入 <code>[CLS]</code> 與 <code>[SEP]</code> 的引數：<code>add_special_____=True</code>。', accept:['tokens'], hint:'複數名詞' },
+  { id:'c3', cat:'code', q:'用於將輸入填充到固定長度的引數：<code>______=True</code>。', accept:['padding','pad'], hint:'p 開頭' },
+  { id:'c4', cat:'code', q:'用於截斷過長輸入的引數：<code>______=True</code>。', accept:['truncation','truncate'], hint:'t 開頭' },
+  { id:'c5', cat:'code', q:'要取回 PyTorch 張量：<code>return_tensors=&quot;____&quot;</code>。', accept:['pt'], hint:'兩個字母' },
+  { id:'c6', cat:'code', q:'用於序列分類的 BERT 類別：<code>BertFor____Classification</code>。', accept:['sequence'], hint:'輸入是一個 ___' },
+];
+
+function renderDrills(filter='all'){
+  const host = document.getElementById('drillHost');
+  host.innerHTML='';
+  const filtered = drills.filter(d=>filter==='all'||d.cat===filter);
+  filtered.forEach((d,idx)=>{
+    const el = document.createElement('div'); el.className='drill';
+    el.dataset.id = d.id;
+    const status = state.drillStatus[d.id];
+    const meta = `${idx+1}/${filtered.length} · ${d.cat.toUpperCase()}${status?' · '+status:''}`;
+    el.innerHTML = `
+      <div class="drill-meta">${meta}</div>
+      <div class="drill-q">${d.q}</div>
+      <div class="drill-input-row">
+        <input type="text" placeholder="輸入答案..." autocomplete="off" />
+        <button class="btn" data-action="submit">送出</button>
+        <button class="btn ghost tiny" data-action="hint">提示</button>
+      </div>
+      <div class="drill-feedback"></div>
+    `;
+    const input = el.querySelector('input');
+    const fb = el.querySelector('.drill-feedback');
+    el.querySelector('[data-action="submit"]').addEventListener('click',()=>handleDrill(d, input, fb, el));
+    el.querySelector('[data-action="hint"]').addEventListener('click',()=>{ fb.className='drill-feedback'; fb.textContent='提示：'+d.hint; });
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') handleDrill(d, input, fb, el); });
+    host.appendChild(el);
+  });
+}
+
+function handleDrill(d, input, fb, card){
+  const raw = input.value.trim().toLowerCase();
+  if(!raw) return;
+  const ok = d.accept.some(a => a.toLowerCase() === raw || raw === a.toLowerCase());
+  if(ok){
+    fb.className='drill-feedback ok'; fb.textContent='正確！+XP';
+    state.drillStatus[d.id] = '✓ 完成';
+    card.style.borderLeftColor = 'var(--green)';
+    burst(card.getBoundingClientRect().left + card.offsetWidth/2, card.getBoundingClientRect().top + 40);
+    recordAnswer(true);
+    input.disabled = true;
+  } else {
+    fb.className='drill-feedback bad'; fb.textContent=`不太對。可接受答案：${d.accept.slice(0,3).join(', ')}${d.accept.length>3?'...':''}`;
+    shake(card);
+    recordAnswer(false);
+  }
+  saveState();
+}
+
+document.querySelectorAll('.mode-tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.mode-tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    renderDrills(t.dataset.cat);
+  });
+});
+renderDrills('all');
+
+/* ===========================================================
+   ACHIEVEMENTS
+   =========================================================== */
+const allBadges = [
+  { id:'first_blood', icon:'🎯', name:'首勝', desc:'答對第一題', test:s=>s.answered>=1 },
+  { id:'streak_3', icon:'🔥', name:'火力全開', desc:'3 題連擊', test:s=>s.bestCombo>=3 },
+  { id:'streak_10', icon:'🚀', name:'勢不可擋', desc:'10 題連擊', test:s=>s.bestCombo>=10 },
+  { id:'level_3', icon:'⬆', name:'學徒', desc:'達到等級 3', test:s=>s.level>=3 },
+  { id:'level_5', icon:'🏅', name:'熟手', desc:'達到等級 5', test:s=>s.level>=5 },
+  { id:'tenth', icon:'🔟', name:'十題達成', desc:'回答 10 題', test:s=>s.answered>=10 },
+  { id:'fiftieth', icon:'💯', name:'半百', desc:'回答 50 題', test:s=>s.answered>=50 },
+  { id:'boss_10', icon:'⚔', name:'魔王挑戰者', desc:'魔王回合得 10 分', test:s=>s.bossBest>=10 },
+  { id:'boss_20', icon:'👑', name:'屠龍者', desc:'魔王回合得 20 分', test:s=>s.bossBest>=20 },
+  { id:'all_arch', icon:'🏗', name:'建築師', desc:'完成所有架構題', test:s=>drills.filter(d=>d.cat==='arch').every(d=>s.drillStatus[d.id]) },
+  { id:'all_code', icon:'💻', name:'程式員', desc:'完成所有程式碼題', test:s=>drills.filter(d=>d.cat==='code').every(d=>s.drillStatus[d.id]) },
+];
+
+function renderBadges(){
+  const host = document.getElementById('badgeHost');
+  host.innerHTML='';
+  for(const b of allBadges){
+    const el = document.createElement('div');
+    el.className = 'badge' + (state.badges[b.id] ? ' unlocked' : '');
+    el.innerHTML = `<span class="icon">${b.icon}</span><div class="name">${b.name}</div><div class="desc">${b.desc}</div>`;
+    host.appendChild(el);
+  }
+}
+function checkBadges(){
+  for(const b of allBadges){
+    if(!state.badges[b.id] && b.test(state)){
+      state.badges[b.id] = true;
+      toast('解鎖徽章！', b.name, b.icon);
+      burst();
+    }
+  }
+  renderBadges();
+}
+renderBadges();
+
+/* ===========================================================
+   BOSS ROUND
+   =========================================================== */
+const bossBank = [
+  { q:'BERT-base 的層數？', a:['12'] },
+  { q:'BERT-base 的隱藏大小？', a:['768'] },
+  { q:'BERT-large 的層數？', a:['24'] },
+  { q:'BERT-large 的隱藏大小？', a:['1024'] },
+  { q:'BERT-base 的頭數？', a:['12'] },
+  { q:'BERT-large 的頭數？', a:['16'] },
+  { q:'最大序列長度？', a:['512'] },
+  { q:'MLM 中遮罩 token 的百分比？', a:['15'] },
+  { q:'被選中 token → [MASK] 的百分比？', a:['80'] },
+  { q:'WordPiece 詞彙表大小（約略，k）？', a:['30','30k','30522'] },
+  { q:'BERT-base 參數量（百萬）？', a:['110'] },
+  { q:'BERT-large 參數量（百萬）？', a:['340'] },
+  { q:'用於分類的特殊 token？', a:['cls','[cls]'] },
+  { q:'用於分隔的特殊 token？', a:['sep','[sep]'] },
+  { q:'用於遮罩的特殊 token？', a:['mask','[mask]'] },
+  { q:'BERT = Bidirectional Encoder Representations from ___', a:['transformers','transformer'] },
+  { q:'NSP 代表 Next ___ Prediction', a:['sentence'] },
+  { q:'MLM 代表 ___ Language Modeling', a:['masked'] },
+  { q:'子字 token 的前綴是...', a:['##'] },
+  { q:'BERT FFN 中的激活函數？', a:['gelu'] },
+  { q:'丟掉 NSP 的後繼模型？', a:['roberta'] },
+  { q:'40% 較小的蒸餾 BERT？', a:['distilbert'] },
+  { q:'產出句子向量的雙生 BERT？', a:['sbert','sentence-bert'] },
+  { q:'替代 token 偵測模型？', a:['electra'] },
+  { q:'BERT 發表的年份？', a:['2018'] },
+];
+
+let bossActive = false;
+let bossTimerId = null;
+let bossTimeLeft = 60;
+let bossScore = 0;
+let bossCurrent = null;
+
+function startBoss(){
+  if(bossActive) return;
+  bossActive = true;
+  bossScore = 0;
+  bossTimeLeft = 60;
+  document.getElementById('bossBtn').textContent = '進行中...';
+  document.getElementById('bossBtn').disabled = true;
+  document.getElementById('bossInput').disabled = false;
+  document.getElementById('bossInput').focus();
+  document.getElementById('bossScore').textContent = 0;
+  updateBossUI();
+  nextBossQ();
+  bossTimerId = setInterval(()=>{
+    bossTimeLeft--;
+    updateBossUI();
+    if(bossTimeLeft<=0) endBoss();
+  }, 1000);
+}
+
+function updateBossUI(){
+  document.getElementById('bossTimer').textContent = bossTimeLeft;
+  document.getElementById('bossBar').style.width = (bossTimeLeft/60*100)+'%';
+}
+
+function nextBossQ(){
+  bossCurrent = bossBank[Math.floor(Math.random()*bossBank.length)];
+  document.getElementById('bossQ').textContent = bossCurrent.q;
+  const inp = document.getElementById('bossInput');
+  inp.value = '';
+  inp.focus();
+}
+
+function endBoss(){
+  clearInterval(bossTimerId);
+  bossActive = false;
+  document.getElementById('bossBtn').textContent = '再戰';
+  document.getElementById('bossBtn').disabled = false;
+  document.getElementById('bossInput').disabled = true;
+  document.getElementById('bossQ').textContent = `時間到！最終分數：${bossScore}。`;
+  if(bossScore > state.bossBest){
+    state.bossBest = bossScore;
+    toast('新魔王紀錄！', `分數：${bossScore}`, '🏆');
+    burst();
+  }
+  awardXP(bossScore * 5);
+  checkBadges();
+  saveState(); refreshStats();
+}
+
+document.getElementById('bossInput').addEventListener('keydown', e=>{
+  if(e.key !== 'Enter' || !bossActive) return;
+  const raw = e.target.value.trim().toLowerCase();
+  if(!raw) return;
+  const ok = bossCurrent.a.some(x => x.toLowerCase() === raw);
+  if(ok){
+    bossScore++;
+    document.getElementById('bossScore').textContent = bossScore;
+    burst(e.target.getBoundingClientRect().left+50, e.target.getBoundingClientRect().top);
+    nextBossQ();
+  } else {
+    shake(document.querySelector('.boss'));
+    e.target.value='';
+  }
+});
+
+/* ===========================================================
+   INIT
+   =========================================================== */
+refreshStats();
+checkBadges();
+
+// Smooth scroll-into-view for hash links etc.
+window.addEventListener('keydown', (e)=>{
+  if(e.key==='r' && (e.metaKey||e.ctrlKey)) return;
+});
+</script>
+</body>
+</html>

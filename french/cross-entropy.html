@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dojo de l'entropie croisée — Apprenez la perte derrière les LLM</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+:root{--bg-0:#0b0d12;--bg-1:#11141c;--bg-2:#181c27;--bg-3:#232838;--ink-0:#f4f6fb;--ink-1:#c8cdda;--ink-2:#8b93a7;--ink-3:#555c70;--accent:#ff5a8a;--accent-2:#ffb347;--accent-3:#5ee8c2;--accent-4:#7c8cff;--good:#34d399;--bad:#ff5a6e;--warn:#ffd166;--line:rgba(255,255,255,0.08);--shadow:0 12px 48px rgba(0,0,0,0.45);--mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;--sans:'Inter',system-ui,-apple-system,'Helvetica Neue',sans-serif}
+*{box-sizing:border-box}html,body{margin:0;padding:0}
+body{font-family:var(--sans);background:radial-gradient(1200px 700px at 80% -10%,rgba(255,90,138,0.10),transparent 60%),radial-gradient(900px 600px at -10% 30%,rgba(124,140,255,0.10),transparent 60%),var(--bg-0);color:var(--ink-0);line-height:1.55;min-height:100vh}
+a{color:var(--accent-4)}
+.hud{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(11,13,18,0.7);border-bottom:1px solid var(--line);padding:10px 22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.hud .brand{font-weight:800;letter-spacing:0.5px;background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent;font-size:18px}
+.hud .stat{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line);font-family:var(--mono);font-size:13px}
+.hud .stat b{color:var(--accent-2)}.hud .stat.combo b{color:var(--accent-3)}.hud .stat.lvl b{color:var(--accent-4)}
+.hud .xpbar{flex:1;min-width:160px;height:8px;background:var(--bg-3);border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+.hud .xpbar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width 0.4s cubic-bezier(.2,.8,.2,1)}
+.hud .reset{background:transparent;color:var(--ink-2);border:1px solid var(--line);padding:6px 12px;border-radius:999px;cursor:pointer;font-size:12px}
+.hud .reset:hover{color:var(--bad);border-color:var(--bad)}
+.hero{padding:60px 24px 30px;max-width:1100px;margin:0 auto;text-align:center}
+.hero h1{font-size:clamp(36px,6vw,64px);margin:0 0 12px;line-height:1.05;background:linear-gradient(120deg,#fff,var(--accent) 50%,var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-1.5px}
+.hero p{color:var(--ink-1);max-width:680px;margin:0 auto;font-size:17px}
+.hero .tag{display:inline-block;padding:4px 12px;border-radius:999px;background:var(--bg-2);border:1px solid var(--line);color:var(--ink-2);font-family:var(--mono);font-size:12px;margin-bottom:18px}
+.container{max-width:1100px;margin:0 auto;padding:0 24px 80px}
+section.card{background:linear-gradient(180deg,var(--bg-1),var(--bg-2));border:1px solid var(--line);border-radius:18px;padding:28px 30px;margin:26px 0;box-shadow:var(--shadow);position:relative;overflow:hidden}
+section.card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-2),var(--accent-3),var(--accent-4));opacity:0.6}
+section.card h2{margin:0 0 8px;font-size:22px;letter-spacing:-0.3px;display:flex;align-items:center;gap:10px}
+section.card h2 .num{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:var(--bg-3);border:1px solid var(--line);font-family:var(--mono);font-size:14px;color:var(--accent-2)}
+section.card h3{font-size:16px;color:var(--ink-1);margin:18px 0 6px}
+section.card p{color:var(--ink-1)}section.card .lead{color:var(--ink-2);font-size:14px;margin-top:0}
+code,.mono{font-family:var(--mono)}
+.pill{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--bg-3);border:1px solid var(--line);font-family:var(--mono);font-size:12px;color:var(--ink-1)}
+.grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.panel{background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:16px}
+.panel.tight{padding:12px 14px}
+.slider-row{display:flex;gap:12px;align-items:center;margin:10px 0}
+.slider-row label{min-width:72px;font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:6px;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--accent-2));outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:18px;height:18px;border-radius:50%;background:var(--ink-0);border:2px solid var(--accent);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);transition:transform 0.15s}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--ink-0);border:2px solid var(--accent);cursor:pointer}
+.val{font-family:var(--mono);font-size:13px;min-width:60px;text-align:right;color:var(--accent-2)}
+canvas.plot{width:100%;max-width:100%;display:block;border-radius:10px;background:var(--bg-1)}
+.practice-card{background:linear-gradient(160deg,rgba(255,90,138,0.08),rgba(124,140,255,0.05));border:1px solid var(--accent)}
+.drill{background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px;transition:all 0.25s}
+.drill.active{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,90,138,0.18)}
+.drill .q{font-size:15px;color:var(--ink-0);margin-bottom:8px}
+.drill .meta{font-size:12px;color:var(--ink-2);font-family:var(--mono);margin-bottom:10px}
+.drill input[type=text]{width:100%;padding:10px 14px;background:var(--bg-1);color:var(--ink-0);border:1px solid var(--line);border-radius:8px;font-family:var(--mono);font-size:14px;outline:none;transition:border 0.2s}
+.drill input[type=text]:focus{border-color:var(--accent)}
+.drill input[type=text].correct{border-color:var(--good);background:rgba(52,211,153,0.1)}
+.drill input[type=text].wrong{border-color:var(--bad);background:rgba(255,90,110,0.1)}
+.drill .feedback{font-size:13px;margin-top:8px;min-height:18px}
+.drill .feedback.good{color:var(--good)}.drill .feedback.bad{color:var(--bad)}
+.drill .preview{margin-top:8px;padding:8px 12px;background:var(--bg-1);border:1px dashed var(--line);border-radius:8px;min-height:30px}
+.drill button.check{margin-top:8px;padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;transition:transform 0.1s}
+.drill button.check:hover{transform:translateY(-1px)}
+.drill button.check:active{transform:translateY(1px)}
+.drill .hint{font-size:12px;color:var(--ink-3);margin-top:6px;cursor:pointer;user-select:none}
+.drill .hint:hover{color:var(--accent-3)}
+.ach-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.ach{padding:12px;border-radius:12px;background:var(--bg-3);border:1px solid var(--line);opacity:0.45;transition:all 0.3s}
+.ach.unlocked{opacity:1;border-color:var(--accent-2);background:linear-gradient(135deg,rgba(255,179,71,0.15),rgba(255,90,138,0.08));box-shadow:0 0 0 1px rgba(255,179,71,0.35)}
+.ach .icon{font-size:20px;margin-bottom:4px}
+.ach .name{font-weight:600;font-size:13px}
+.ach .desc{font-size:11px;color:var(--ink-2);margin-top:2px}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+.shake{animation:shake 0.4s}
+@keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+.pop{animation:pop 0.35s}
+.confetti{position:fixed;pointer-events:none;top:0;left:0;width:100%;height:100%;z-index:100;overflow:hidden}
+.confetti span{position:absolute;width:8px;height:14px;opacity:0.95;animation:fall 1.4s linear forwards}
+@keyframes fall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:14px 22px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:white;font-weight:600;box-shadow:var(--shadow);z-index:200;animation:toast-in 0.4s,toast-out 0.4s 2.4s forwards}
+@keyframes toast-in{from{transform:translate(-50%,60px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+@keyframes toast-out{to{transform:translate(-50%,60px);opacity:0}}
+.dist-row{display:grid;grid-template-columns:30px 1fr 60px 28px;gap:10px;align-items:center;margin:6px 0;font-family:var(--mono);font-size:13px}
+.dist-bar{height:22px;background:var(--bg-1);border:1px solid var(--line);border-radius:6px;position:relative;overflow:hidden}
+.dist-bar>div{height:100%;transition:width 0.2s;background:linear-gradient(90deg,var(--accent-4),var(--accent-3))}
+.dist-row input[type=radio]{accent-color:var(--accent)}
+.dist-row.true-class .dist-bar>div{background:linear-gradient(90deg,var(--accent),var(--accent-2))}
+.boss-card{background:linear-gradient(160deg,rgba(255,90,138,0.18),rgba(124,140,255,0.10));border:1px solid var(--accent)}
+.boss-timer{display:inline-block;padding:6px 14px;border-radius:999px;background:var(--bg-1);border:1px solid var(--accent);font-family:var(--mono);font-size:16px;font-weight:700;color:var(--accent-2)}
+.boss-hp{height:14px;background:var(--bg-1);border:1px solid var(--line);border-radius:999px;overflow:hidden;margin:12px 0}
+.boss-hp>div{height:100%;width:100%;background:linear-gradient(90deg,var(--bad),var(--accent),var(--accent-2));transition:width 0.4s}
+.boss-card button{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:white;border:none;padding:10px 22px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;box-shadow:var(--shadow)}
+.boss-card button:disabled{opacity:0.4;cursor:not-allowed}
+footer{text-align:center;padding:40px 20px;color:var(--ink-3);font-size:13px}
+footer .heart{color:var(--accent)}
+.kbd{display:inline-block;padding:2px 6px;font-family:var(--mono);font-size:11px;background:var(--bg-3);border:1px solid var(--line);border-radius:4px;color:var(--ink-1)}
+.callout{border-left:3px solid var(--accent-2);padding:8px 14px;margin:12px 0;background:rgba(255,179,71,0.06);border-radius:0 8px 8px 0;color:var(--ink-1);font-size:14px}
+.ok{color:var(--good)}.err{color:var(--bad)}
+.num-readout{font-family:var(--mono);font-size:28px;color:var(--accent-2);font-weight:700;text-shadow:0 0 18px rgba(255,179,71,0.35)}
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="brand">CE Dojo</div>
+  <div class="stat lvl">NIV <b id="hud-level">1</b></div>
+  <div class="stat">XP <b id="hud-xp">0</b></div>
+  <div class="stat combo">Combo <b id="hud-combo">0</b></div>
+  <div class="stat">Résolus <b id="hud-solved">0</b></div>
+  <div class="xpbar"><div id="xp-fill"></div></div>
+  <button class="reset" id="btn-reset" title="Réinitialiser toute la progression">reset</button>
+</div>
+
+<div class="hero">
+  <span class="tag">9 sections · 18 exercices de frappe · 1 combat de boss</span>
+  <h1>L'entropie croisée, démystifiée</h1>
+  <p>La fonction de perte qui alimente discrètement chaque modèle de langage transformer. Faites glisser des curseurs, tapez des formules, combattez un boss, et repartez en sachant pourquoi <code>F.cross_entropy</code> est ce qu'elle est.</p>
+</div>
+
+<div class="container">
+
+<section class="card">
+  <h2><span class="num">1</span> Racines en théorie de l'information</h2>
+  <p class="lead">D'où vient l'entropie croisée ? Trois quantités, une seule histoire.</p>
+
+  <h3>Entropie — surprise, en moyenne</h3>
+  <p>L'entropie de Shannon d'une distribution $p$ mesure le nombre attendu de bits (ou nats, selon la base du log) nécessaires pour décrire une issue :</p>
+  <p>$$ H(p) = -\sum_{x} p(x) \log p(x) $$</p>
+  <p>Pile ou face avec $p=0.5$ : incertitude maximale, $H = 1$ bit. Une pièce truquée avec $p=0.99$ : presque aucune surprise, $H \approx 0.08$ bit.</p>
+
+  <h3>Divergence KL — le « coût supplémentaire » d'avoir tort</h3>
+  <p>Si la réalité est $p$ mais que vous encodez avec le modèle $q$, vous payez en plus. Ce supplément est la divergence de Kullback-Leibler :</p>
+  <p>$$ \mathrm{KL}(p \,\|\, q) = \sum_x p(x) \log \frac{p(x)}{q(x)} \ \geq\ 0 $$</p>
+
+  <h3>Entropie croisée = entropie + KL</h3>
+  <p>$$ H(p, q) = -\sum_x p(x) \log q(x) = H(p) + \mathrm{KL}(p \,\|\, q) $$</p>
+  <p>Comme $H(p)$ est fixé par les données, minimiser l'entropie croisée par rapport à $q$ revient exactement à minimiser $\mathrm{KL}(p \,\|\, q)$. C'est pourquoi nous pouvons entraîner des modèles sur $H(p,q)$ et prétendre néanmoins correspondre à la distribution des données.</p>
+  <div class="callout">À retenir : l'entropie croisée est le <i>prix</i> qu'un modèle paie pour ses croyances imparfaites, dans les unités exigées par les données.</div>
+</section>
+
+<section class="card">
+  <h2><span class="num">2</span> La formule</h2>
+  <p>$$ H(p, q) = -\sum_{x} p(x) \log q(x) $$</p>
+  <p>En classification supervisée, la cible $p$ est généralement <b>one-hot</b> : $p(y) = 1$ pour la vraie classe $y$, $0$ partout ailleurs. La somme s'effondre :</p>
+  <p>$$ H(p, q) = -\log q(y) $$</p>
+  <p>C'est la <b>log-vraisemblance négative</b> (NLL) de la vraie classe. Si votre modèle dit « la bonne réponse a une probabilité de 0,9 », la perte est $-\log 0.9 \approx 0.105$. S'il dit 0,01, la perte est $\approx 4.6$. La confiance est récompensée ; l'ignorance est punie — doucement si vous n'êtes pas trop sûr, durement si vous avez tort avec confiance.</p>
+</section>
+
+<section class="card">
+  <h2><span class="num">3</span> Intuition : la courbe de douleur</h2>
+  <p class="lead">Faites glisser la probabilité prédite pour la <b>vraie classe</b> et regardez ce qui se passe. Le modèle est noté.</p>
+  <div class="grid">
+    <div class="panel">
+      <div class="slider-row">
+        <label>q(true)</label>
+        <input type="range" min="0.001" max="1" step="0.001" value="0.7" id="single-slider">
+        <span class="val" id="single-val">0.700</span>
+      </div>
+      <p style="margin-top:14px">Perte $= -\log q(y) = $ <span class="num-readout" id="single-loss">0.357</span></p>
+      <div id="single-formula" style="margin-top:6px;font-family:var(--mono);font-size:13px;color:var(--ink-2)"></div>
+      <div class="callout" id="single-caption">Bonne supposition. Continuez à pousser vers 1.</div>
+    </div>
+    <div class="panel">
+      <canvas class="plot" id="loss-canvas" width="600" height="320"></canvas>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="num">4</span> Pourquoi un logarithme ?</h2>
+  <p>Deux raisons.</p>
+  <p><b>La vraisemblance multiplie ; la perte doit additionner.</b> À travers $N$ exemples indépendants, la vraisemblance jointe est $\prod_i q_i(y_i)$. Prendre $-\log$ transforme un produit en somme, donc la perte totale est la somme des pertes par exemple — exactement ce qu'on veut pour SGD.</p>
+  <p>$$ -\log \prod_i q_i(y_i) = \sum_i -\log q_i(y_i) $$</p>
+  <p><b>Maximum de vraisemblance, autrement habillé.</b> Minimiser $-\log q(y)$ moyen revient à maximiser la log-vraisemblance, qui revient à maximiser la vraisemblance. L'entraînement par entropie croisée n'est donc que MLE en smoking.</p>
+  <p><b>Bonus :</b> $-\log$ est convexe, n'explose qu'à $q = 0$, et sature doucement quand $q \to 1$. Le gradient reste significatif exactement là où vous le voulez : quand le modèle a tort.</p>
+</section>
+
+<section class="card">
+  <h2><span class="num">5</span> Softmax + NLL = entropie croisée</h2>
+  <p>Les modèles produisent des scores non normalisés (« logits ») $z \in \mathbb{R}^K$. On les transforme en distribution avec softmax :</p>
+  <p>$$ q_i = \mathrm{softmax}(z)_i = \frac{e^{z_i}}{\sum_j e^{z_j}} $$</p>
+  <p>Puis on injecte dans NLL : $L = -\log q_y$. Naïvement c'est deux étapes et numériquement dangereux (les $e^{z_i}$ peuvent déborder). L'astuce est <b>log-softmax</b> avec décalage par max :</p>
+  <p>$$ \log q_i = z_i - \max_k z_k - \log \sum_j e^{z_j - \max_k z_k} $$</p>
+  <p>Donc <code>F.cross_entropy(logits, target)</code> en PyTorch et <code>tf.nn.sparse_softmax_cross_entropy_with_logits</code> en TF acceptent des <i>logits</i> directement — ils fusionnent log-softmax et NLL pour la stabilité et la vitesse. Appeler softmax soi-même puis NLL est un bug courant qui détériore silencieusement l'entraînement.</p>
+  <pre style="background:var(--bg-1);padding:14px;border-radius:8px;border:1px solid var(--line);overflow-x:auto;font-size:13px"><code># PyTorch
+loss = F.cross_entropy(logits, target)   # logits, pas des probabilités !
+
+# Manuel (ne livrez pas ça, c'est juste pour la clarté)
+log_probs = F.log_softmax(logits, dim=-1)
+loss = -log_probs.gather(-1, target.unsqueeze(-1)).mean()</code></pre>
+</section>
+
+<section class="card">
+  <h2><span class="num">6</span> CE par token en modélisation de langage</h2>
+  <p class="lead">Un LM transformer est un gigantesque classifieur K-classes (K = taille du vocabulaire) répété à chaque position.</p>
+  <p>Pour une séquence $x_1, \dots, x_T$, la perte du token suivant moyennée sur les positions et le batch est :</p>
+  <p>$$ \mathcal{L} = \frac{1}{B \cdot T} \sum_{b=1}^{B} \sum_{t=1}^{T} -\log q_\theta(x^{(b)}_{t} \mid x^{(b)}_{<t}) $$</p>
+  <p>C'est ce que les scripts d'entraînement loggent comme <code>train/loss</code>. Plus bas est meilleur, mais n'atteint jamais 0 — la langue a une entropie irréductible.</p>
+
+  <h3>Éditeur de distribution — essayez</h3>
+  <p>Choisissez la vraie classe, puis bougez les curseurs de probabilité prédite. Les curseurs se renormalisent automatiquement pour que la somme fasse 1.</p>
+  <div class="panel" id="dist-panel">
+    <div class="dist-row" data-i="0"><label><input type="radio" name="true-class" value="0"> 0</label><input type="range" min="0.001" max="1" step="0.001" value="0.25"><span class="val">0.250</span><span></span></div>
+    <div class="dist-row" data-i="1"><label><input type="radio" name="true-class" value="1" checked> 1</label><input type="range" min="0.001" max="1" step="0.001" value="0.25"><span class="val">0.250</span><span></span></div>
+    <div class="dist-row" data-i="2"><label><input type="radio" name="true-class" value="2"> 2</label><input type="range" min="0.001" max="1" step="0.001" value="0.25"><span class="val">0.250</span><span></span></div>
+    <div class="dist-row" data-i="3"><label><input type="radio" name="true-class" value="3"> 3</label><input type="range" min="0.001" max="1" step="0.001" value="0.25"><span class="val">0.250</span><span></span></div>
+    <p style="margin-top:14px">Perte $=$ <span class="num-readout" id="dist-loss">1.386</span> &nbsp; <span style="color:var(--ink-2);font-size:13px" id="dist-detail"></span></p>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="num">7</span> Le gradient : magnifiquement simple</h2>
+  <p>La raison pour laquelle softmax + entropie croisée est si populaire est le gradient. Soit $z$ les logits, $q = \mathrm{softmax}(z)$, et $y$ la cible one-hot. Alors :</p>
+  <p>$$ \frac{\partial L}{\partial z_i} = q_i - y_i $$</p>
+  <h3>Dérivation</h3>
+  <p>$L = -\sum_k y_k \log q_k$. En utilisant $\partial q_k / \partial z_i = q_k(\delta_{ki} - q_i)$ :</p>
+  <p>$$ \frac{\partial L}{\partial z_i} = -\sum_k y_k \frac{1}{q_k} \cdot q_k(\delta_{ki} - q_i) = -\sum_k y_k(\delta_{ki} - q_i) = q_i \sum_k y_k - y_i = q_i - y_i $$</p>
+  <p>Le gradient est juste <i>prédiction moins cible</i>. Parcimonieux, bien échelonné, et de la même forme que la cible soit one-hot ou une distribution douce.</p>
+</section>
+
+<section class="card">
+  <h2><span class="num">8</span> Lissage de labels</h2>
+  <p class="lead">Au lieu de tout miser sur une classe, laissez un peu de masse de probabilité sur les autres.</p>
+  <p>Pour un facteur de lissage $\varepsilon$ et $K$ classes :</p>
+  <p>$$ \tilde p_k = (1 - \varepsilon)\, y_k + \frac{\varepsilon}{K} $$</p>
+  <p>Cela empêche le modèle de devenir trop confiant, améliore la calibration, et tend à aider la généralisation. La perte est calculée contre la cible lissée, pas one-hot.</p>
+  <div class="panel">
+    <div class="slider-row">
+      <label>ε</label>
+      <input type="range" min="0" max="0.5" step="0.005" value="0.1" id="ls-slider">
+      <span class="val" id="ls-val">0.100</span>
+    </div>
+    <p style="margin-top:8px;font-family:var(--mono);font-size:13px;color:var(--ink-1)" id="ls-target"></p>
+    <p>Perte contre la vraie classe 0, le modèle donne $q = [0.7, 0.1, 0.1, 0.1]$ :&nbsp;<span class="num-readout" id="ls-loss"></span></p>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="num">9</span> Entropie croisée ↔ perplexité</h2>
+  <p>Les gens des modèles de langage adorent citer la perplexité. C'est juste l'entropie croisée en jolis vêtements :</p>
+  <p>$$ \mathrm{PPL} = \exp\bigl( \overline{H}(p, q) \bigr) $$</p>
+  <p>Où $\overline{H}$ est l'entropie croisée moyenne par token. Une perplexité de 9,97 signifie que le modèle est « aussi confus que s'il choisissait uniformément parmi ~10 mots à chaque étape ». Une perplexité de 1,0 est impossiblement bonne ; une perplexité égale à la taille du vocabulaire est aléatoire-uniforme.</p>
+  <div class="panel">
+    <div class="slider-row">
+      <label>CE moyen</label>
+      <input type="range" min="0" max="10" step="0.01" value="2.3" id="ppl-slider">
+      <span class="val" id="ppl-val">2.30</span>
+    </div>
+    <p style="margin-top:8px">Perplexité $=$ <span class="num-readout" id="ppl-out">9.97</span></p>
+  </div>
+</section>
+
+<section class="card practice-card">
+  <h2><span class="num">P</span> Mode pratique — tapez pour gagner de l'XP</h2>
+  <p class="lead">18 exercices. Tapez votre réponse et appuyez sur <span class="kbd">Entrée</span> ou cliquez sur Vérifier. Les réponses numériques sont acceptées avec tolérance. Les séries accordent un bonus combo XP.</p>
+  <div id="drills"></div>
+</section>
+
+<section class="card boss-card">
+  <h2><span class="num">B</span> Boss de la perte — manche finale</h2>
+  <p class="lead">Vous avez 60 secondes. Le boss a 5 PV. Chaque calcul correct de CE/perplexité inflige 1 dégât. Les mauvaises réponses coûtent 5 secondes.</p>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <span class="boss-timer" id="boss-timer">60.0s</span>
+    <span class="pill">PV <span id="boss-hp-num">5</span>/5</span>
+    <button id="boss-start">Engager</button>
+  </div>
+  <div class="boss-hp"><div id="boss-hp-bar"></div></div>
+  <div class="drill" id="boss-drill" style="display:none">
+    <div class="q" id="boss-q"></div>
+    <input type="text" id="boss-input" placeholder="réponse">
+    <div class="feedback" id="boss-fb"></div>
+  </div>
+  <div id="boss-result" style="margin-top:8px;font-weight:600"></div>
+</section>
+
+<section class="card">
+  <h2><span class="num">A</span> Succès</h2>
+  <div class="ach-grid" id="ach-grid"></div>
+</section>
+
+</div>
+
+<footer>
+  Conçu pour la méditation nocturne sur les gradients. <span class="heart">♥</span> &nbsp;Astuce : chaque transformer que vous avez aimé a été minimisé de cette façon.
+</footer>
+
+<script>
+const STATE_KEY = 'ce-dojo-v1';
+const DEFAULT_STATE = {xp:0,level:1,combo:0,bestCombo:0,solved:0,drillsDone:{},achievements:{},bossWon:false,bossBestTime:null};
+let state = loadState();
+function loadState(){try{const raw=localStorage.getItem(STATE_KEY);if(!raw)return{...DEFAULT_STATE};return{...DEFAULT_STATE,...JSON.parse(raw)};}catch{return{...DEFAULT_STATE};}}
+function saveState(){try{localStorage.setItem(STATE_KEY,JSON.stringify(state));}catch{}}
+const ACHIEVEMENTS = [
+  {id:'first',icon:'🎯',name:'Premier sang',desc:'Résoudre votre premier exercice'},
+  {id:'streak3',icon:'🔥',name:'Ça chauffe',desc:'Combo de 3'},
+  {id:'streak7',icon:'⚡',name:'En feu',desc:'Combo de 7'},
+  {id:'entropy',icon:'📚',name:'Explorateur d\'entropie',desc:'Résoudre tous les exercices de théorie info'},
+  {id:'gradient',icon:'🧮',name:'Gourou du gradient',desc:'Réussir l\'exercice de gradient'},
+  {id:'perplex',icon:'🌀',name:'Pro de la perplexité',desc:'Résoudre un exercice de perplexité'},
+  {id:'formula',icon:'✍️',name:'Scribe de formule',desc:'Taper une formule CE correctement'},
+  {id:'softmax',icon:'🥞',name:'Sensei softmax',desc:'Calculer softmax+CE de bout en bout'},
+  {id:'half',icon:'🚀',name:'Héros à mi-chemin',desc:'Terminer 9 exercices'},
+  {id:'allDrills',icon:'👑',name:'Sergent instructeur',desc:'Terminer chaque exercice'},
+  {id:'boss',icon:'🐉',name:'Pourfendeur de boss',desc:'Vaincre le boss de la perte'},
+  {id:'lvl5',icon:'🌟',name:'Niveau 5',desc:'Atteindre le niveau 5'},
+];
+const xpForLevel=(lvl)=>20*lvl+10*lvl*(lvl-1);
+function renderHUD(){document.getElementById('hud-xp').textContent=state.xp;document.getElementById('hud-level').textContent=state.level;document.getElementById('hud-combo').textContent=state.combo;document.getElementById('hud-solved').textContent=state.solved;const cur=xpForLevel(state.level);const next=xpForLevel(state.level+1);const pct=Math.min(100,Math.max(0,((state.xp-cur)/(next-cur))*100));document.getElementById('xp-fill').style.width=pct+'%';}
+function awardXP(n){state.xp+=n;while(state.xp>=xpForLevel(state.level+1)){state.level+=1;toast(`Niveau supérieur ! → NIV ${state.level}`);if(state.level>=5)unlock('lvl5');}renderHUD();saveState();}
+function unlock(id){if(state.achievements[id])return;state.achievements[id]=true;const a=ACHIEVEMENTS.find(x=>x.id===id);toast(`${a.icon} ${a.name} débloqué`);renderAchievements();saveState();}
+function renderAchievements(){const grid=document.getElementById('ach-grid');grid.innerHTML='';for(const a of ACHIEVEMENTS){const div=document.createElement('div');div.className='ach'+(state.achievements[a.id]?' unlocked':'');div.innerHTML=`<div class="icon">${a.icon}</div><div class="name">${a.name}</div><div class="desc">${a.desc}</div>`;grid.appendChild(div);}}
+function confetti(){const colors=['#ff5a8a','#ffb347','#5ee8c2','#7c8cff','#ffd166','#34d399'];const c=document.createElement('div');c.className='confetti';for(let i=0;i<60;i++){const s=document.createElement('span');s.style.left=(Math.random()*100)+'vw';s.style.background=colors[i%colors.length];s.style.animationDelay=(Math.random()*0.3)+'s';s.style.animationDuration=(1+Math.random()*0.8)+'s';c.appendChild(s);}document.body.appendChild(c);setTimeout(()=>c.remove(),2200);}
+function shake(el){el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');}
+function pop(el){el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),3000);}
+const ln=Math.log;
+function ce(p,q){let s=0;for(let i=0;i<p.length;i++){if(p[i]>0)s-=p[i]*ln(Math.max(q[i],1e-12));}return s;}
+function softmax(z){const m=Math.max(...z);const ex=z.map(v=>Math.exp(v-m));const s=ex.reduce((a,b)=>a+b,0);return ex.map(v=>v/s);}
+function approxEq(a,b,tol=0.01){return Math.abs(a-b)<=tol;}
+const singleSlider=document.getElementById('single-slider'),singleVal=document.getElementById('single-val'),singleLoss=document.getElementById('single-loss'),singleFormula=document.getElementById('single-formula'),singleCaption=document.getElementById('single-caption'),lossCanvas=document.getElementById('loss-canvas');
+function captionFor(q){if(q>0.95)return 'Presque certain. Perte proche de zéro — modèle confiant et correct.';if(q>0.7)return 'Bonne supposition. La perte rétrécit joliment.';if(q>0.3)return 'Tiède. Beaucoup de signal de gradient ici.';if(q>0.05)return 'Plutôt faux. La perte grimpe vite.';return 'Confiant et faux — la perte explose vers l\'infini. Douloureux.';}
+function drawLossCurve(highlightQ){const ctx=lossCanvas.getContext('2d');const W=lossCanvas.width,H=lossCanvas.height;ctx.clearRect(0,0,W,H);ctx.strokeStyle='rgba(255,255,255,0.06)';ctx.lineWidth=1;for(let i=0;i<=10;i++){const x=40+i*(W-60)/10;ctx.beginPath();ctx.moveTo(x,20);ctx.lineTo(x,H-30);ctx.stroke();}for(let i=0;i<=5;i++){const y=20+i*(H-50)/5;ctx.beginPath();ctx.moveTo(40,y);ctx.lineTo(W-20,y);ctx.stroke();}ctx.fillStyle='#8b93a7';ctx.font='11px JetBrains Mono, monospace';ctx.fillText('q(true)',W-50,H-10);ctx.fillText('perte',8,20);for(let i=0;i<=5;i++){const v=5-i;ctx.fillText(v.toFixed(0),18,24+i*(H-50)/5);}for(let i=0;i<=10;i+=2){ctx.fillText((i/10).toFixed(1),32+i*(W-60)/10,H-12);}const grad=ctx.createLinearGradient(0,20,0,H-30);grad.addColorStop(0,'#ff5a8a');grad.addColorStop(1,'#ffb347');ctx.strokeStyle=grad;ctx.lineWidth=3;ctx.beginPath();let first=true;for(let q=0.005;q<=1.0001;q+=0.005){const loss=-ln(q);if(loss>5.5)continue;const x=40+q*(W-60);const y=20+(5-loss)*(H-50)/5;if(first){ctx.moveTo(x,y);first=false;}else ctx.lineTo(x,y);}ctx.stroke();if(highlightQ!==undefined){const loss=Math.min(5.5,-ln(Math.max(highlightQ,0.001)));const x=40+highlightQ*(W-60);const y=20+(5-loss)*(H-50)/5;ctx.strokeStyle='rgba(94,232,194,0.4)';ctx.lineWidth=1;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(x,20);ctx.lineTo(x,H-30);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#5ee8c2';ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#0b0d12';ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.stroke();}}
+function updateSingle(){const q=parseFloat(singleSlider.value);const loss=-ln(q);singleVal.textContent=q.toFixed(3);singleLoss.textContent=loss.toFixed(3);pop(singleLoss);if(window.katex){katex.render(`-\\log(${q.toFixed(3)}) = ${loss.toFixed(3)}`,singleFormula,{throwOnError:false});}singleCaption.textContent=captionFor(q);drawLossCurve(q);}
+singleSlider.addEventListener('input',updateSingle);window.addEventListener('load',()=>setTimeout(updateSingle,100));
+const distRows=document.querySelectorAll('#dist-panel .dist-row'),distLossEl=document.getElementById('dist-loss'),distDetail=document.getElementById('dist-detail');
+function renormalizeDist(except){const inputs=Array.from(distRows).map(r=>r.querySelector('input[type=range]'));const vals=inputs.map(i=>parseFloat(i.value));const sumOthers=vals.reduce((a,b,i)=>i===except?a:a+b,0);const target=1-vals[except];if(sumOthers<=0){inputs.forEach((inp,i)=>{if(i!==except)inp.value=(target/3).toFixed(3);});}else{inputs.forEach((inp,i)=>{if(i!==except)inp.value=(vals[i]*(target/sumOthers)).toFixed(3);});}return inputs.map(i=>parseFloat(i.value));}
+function updateDist(changed){const inputs=Array.from(distRows).map(r=>r.querySelector('input[type=range]'));const vals=changed===undefined?inputs.map(i=>parseFloat(i.value)):renormalizeDist(changed);const s=vals.reduce((a,b)=>a+b,0);const norm=vals.map(v=>v/s);const trueIdx=parseInt(document.querySelector('input[name=true-class]:checked').value);distRows.forEach((row,i)=>{const v=norm[i];row.querySelector('.val').textContent=v.toFixed(3);let bar=row.querySelector('.dist-bar');if(!bar){bar=document.createElement('div');bar.className='dist-bar';bar.innerHTML='<div></div>';row.children[1].replaceWith(bar);}bar.firstElementChild.style.width=(v*100)+'%';if(i===trueIdx)row.classList.add('true-class');else row.classList.remove('true-class');});const loss=-ln(Math.max(norm[trueIdx],1e-12));distLossEl.textContent=loss.toFixed(3);pop(distLossEl);distDetail.textContent=`q[true] = ${norm[trueIdx].toFixed(3)}, − log q[true] = ${loss.toFixed(3)}`;}
+distRows.forEach((row,i)=>{const slider=row.querySelector('input[type=range]');const wrapper=document.createElement('div');wrapper.style.display='flex';wrapper.style.flexDirection='column';wrapper.style.gap='4px';const bar=document.createElement('div');bar.className='dist-bar';bar.innerHTML='<div></div>';slider.parentNode.insertBefore(bar,slider);slider.addEventListener('input',()=>updateDist(i));});
+document.querySelectorAll('input[name=true-class]').forEach(r=>r.addEventListener('change',()=>updateDist()));
+window.addEventListener('load',()=>setTimeout(()=>updateDist(),120));
+const lsSlider=document.getElementById('ls-slider'),lsVal=document.getElementById('ls-val'),lsLoss=document.getElementById('ls-loss'),lsTarget=document.getElementById('ls-target');
+function updateLS(){const eps=parseFloat(lsSlider.value);const K=4;const q=[0.7,0.1,0.1,0.1];const ptilde=[0,1,2,3].map(k=>(k===0?1:0)*(1-eps)+eps/K);const loss=ce(ptilde,q);lsVal.textContent=eps.toFixed(3);lsLoss.textContent=loss.toFixed(3);pop(lsLoss);lsTarget.textContent=`cible p̃ = [${ptilde.map(v=>v.toFixed(3)).join(', ')}]`;}
+lsSlider.addEventListener('input',updateLS);window.addEventListener('load',()=>setTimeout(updateLS,100));
+const pplSlider=document.getElementById('ppl-slider'),pplVal=document.getElementById('ppl-val'),pplOut=document.getElementById('ppl-out');
+function updatePPL(){const ce=parseFloat(pplSlider.value);pplVal.textContent=ce.toFixed(2);pplOut.textContent=Math.exp(ce).toFixed(2);pop(pplOut);}
+pplSlider.addEventListener('input',updatePPL);window.addEventListener('load',()=>setTimeout(updatePPL,100));
+const DRILLS = [
+  {id:'d1',tag:'numérique',q:'Index de la vraie classe 2. Probabilités prédites [0.1, 0.2, 0.6, 0.1]. Calculez la perte d\'entropie croisée.',hint:'Cible one-hot → perte = −log q[2] = −log(0.6).',check:(s)=>approxEq(parseFloat(s),-ln(0.6),0.02),answerStr:(-ln(0.6)).toFixed(3)+' ≈ 0.51',onSolve:(id)=>{unlock('first');}},
+  {id:'d2',tag:'numérique',q:'Vraie classe 0. Probas prédites [0.9, 0.05, 0.025, 0.025]. Perte ?',hint:'−log(0.9) est petit.',check:(s)=>approxEq(parseFloat(s),-ln(0.9),0.02),answerStr:(-ln(0.9)).toFixed(3)},
+  {id:'d3',tag:'numérique',q:'Un modèle confiant et faux donne 0.001 à la vraie classe. Perte ?',hint:'−log(0.001) — la confiance dans la mauvaise réponse est brutale.',check:(s)=>approxEq(parseFloat(s),-ln(0.001),0.05),answerStr:(-ln(0.001)).toFixed(3)+' ≈ 6.91'},
+  {id:'d4',tag:'formule',q:'Tapez la formule de l\'entropie croisée pour des distributions générales p, q (utilisez la forme exacte : -sum p log q).',hint:'Écrivez juste -sum p log q — précis au symbole.',check:(s)=>normalizeFormula(s)===normalizeFormula('-sum p log q')||normalizeFormula(s)===normalizeFormula('-Σ p log q')||normalizeFormula(s)===normalizeFormula('-sum_x p(x) log q(x)'),answerStr:'-sum p log q',preview:true,onSolve:(id)=>unlock('formula')},
+  {id:'d5',tag:'formule',q:'Pour une cible one-hot, l\'entropie croisée se réduit à... (tapez le côté droit).',hint:'Log négatif de q à la vraie classe y.',check:(s)=>{const n=normalizeFormula(s);return['-log(q_y)','-log q_y','-log q(y)','-ln(q_y)','-ln q_y','-ln q(y)'].map(normalizeFormula).includes(n);},answerStr:'-log(q_y)',preview:true},
+  {id:'d6',tag:'concept',q:'À quoi est égale l\'entropie croisée quand la distribution prédite q correspond exactement à la cible p ?',hint:'Elle se réduit à l\'entropie de p.',check:(s)=>/entropy.*p|h\(p\)|^h p$|shannon entropy|entropie.*p/i.test(s.trim())||/^entropie de p$/i.test(s.trim()),answerStr:'entropie de p (c.-à-d. H(p))'},
+  {id:'d7',tag:'numérique',q:'p = [0.5, 0.5], q = [0.5, 0.5]. Calculez H(p, q).',hint:'Devrait égaler H(p) = log 2 ≈ 0.693.',check:(s)=>approxEq(parseFloat(s),ln(2),0.02),answerStr:ln(2).toFixed(3)+' ≈ 0.693',onSolve:(id)=>unlock('entropy')},
+  {id:'d8',tag:'gradient',q:'Pour softmax + entropie croisée avec cible one-hot y, quel est ∂L/∂z_i (en fonction de q et y) ?',hint:'Célèbrement simple — prédictions moins cibles.',check:(s)=>{const n=normalizeFormula(s);return['p_i - y_i','q_i - y_i','pi-yi','qi-yi','q-y','p-y'].map(normalizeFormula).includes(n);},answerStr:'q_i - y_i (ou équivalent p_i - y_i)',preview:true,onSolve:(id)=>unlock('gradient')},
+  {id:'d9',tag:'numérique',q:'L\'entropie croisée moyenne par token est 2.30. Quelle est la perplexité ?',hint:'PPL = exp(CE) = exp(2.30).',check:(s)=>approxEq(parseFloat(s),Math.exp(2.30),0.05),answerStr:Math.exp(2.30).toFixed(2)+' ≈ 9.97',onSolve:(id)=>unlock('perplex')},
+  {id:'d10',tag:'numérique',q:'Taille du vocabulaire 50 000. Un modèle avec CE moyen = log(50000) a quelle perplexité ? (un entier suffit.)',hint:'exp(log V) = V. Le modèle est uniforme/aléatoire.',check:(s)=>approxEq(parseFloat(s),50000,50),answerStr:'50000 (uniforme = perplexité max)'},
+  {id:'d11',tag:'softmax',q:'Logits z = [1, 2, 3]. Vraie classe 2. Calculez la perte d\'entropie croisée après softmax.',hint:'log-sum-exp([1,2,3]) ≈ 3.4076. Perte = LSE − z[2] = 0.4076.',check:(s)=>approxEq(parseFloat(s),Math.log(Math.exp(1)+Math.exp(2)+Math.exp(3))-3,0.02),answerStr:'0.4076',onSolve:(id)=>unlock('softmax')},
+  {id:'d12',tag:'numérique',q:'Lissage de labels avec ε = 0.1, K = 4 classes, vraie classe 0. Quelle probabilité est sur la vraie classe dans la cible lissée ?',hint:'(1 − 0.1) + 0.1/4 = 0.9 + 0.025.',check:(s)=>approxEq(parseFloat(s),0.925,0.005),answerStr:'0.925'},
+  {id:'d13',tag:'concept',q:'Pourquoi PyTorch prend des logits, pas des probabilités, pour F.cross_entropy ?',hint:'Deux mots : stabilité numérique.',check:(s)=>/numer|stabil|stable|log[- ]?sum[- ]?exp|overflow|stabilité/i.test(s),answerStr:'stabilité numérique via log-softmax + NLL fusionnés'},
+  {id:'d14',tag:'numérique',q:'CE par token en nats vs bits : un modèle rapportant une perte de 0.693 (nats) correspond à combien de bits par token ?',hint:'Diviser par ln(2). 0.693 / 0.693 = 1.',check:(s)=>approxEq(parseFloat(s),0.693/ln(2),0.02),answerStr:'1.0 bit'},
+  {id:'d15',tag:'numérique',q:'Batch de 3 exemples, pertes CE par exemple [1.2, 0.8, 1.6]. Perte moyenne ?',hint:'Moyenne arithmétique simple.',check:(s)=>approxEq(parseFloat(s),(1.2+0.8+1.6)/3,0.02),answerStr:'1.2'},
+  {id:'d16',tag:'concept',q:'KL(p || q) est toujours ≥ 0. Quelle valeur de q atteint zéro ?',hint:'q doit égaler p presque partout.',check:(s)=>/q\s*=\s*p|equal to p|matches p|same as p|égal à p|égale à p/i.test(s.trim()),answerStr:'q = p'},
+  {id:'d17',tag:'numérique',q:'CE moyen = 0 (impossible en pratique mais admettons). Perplexité ?',hint:'exp(0) = 1.',check:(s)=>approxEq(parseFloat(s),1.0,0.001),answerStr:'1'},
+  {id:'d18',tag:'gradient',q:'Logits z = [2, 1, 0], vraie classe 0. Après softmax q ≈ [0.665, 0.245, 0.090]. Gradient ∂L/∂z_0 ?',hint:'q_0 − y_0 = 0.665 − 1.',check:(s)=>approxEq(parseFloat(s),-0.335,0.02),answerStr:'−0.335'},
+];
+function normalizeFormula(s){return s.toLowerCase().replace(/\s+/g,'').replace(/\\\\?(log|ln)/g,'log').replace(/[{}]/g,'').replace(/\\sum|sum_x|∑|Σ|sigma/g,'sum').replace(/\\,|\\;|\\:/g,'').replace(/\\cdot|·|\*/g,'').replace(/_x|\(x\)/g,'').replace(/p\(y\)/g,'py').replace(/q\(y\)/g,'qy').replace(/q_y/g,'qy').replace(/p_y/g,'py').replace(/q_i/g,'qi').replace(/p_i/g,'pi').replace(/y_i/g,'yi');}
+function buildDrills(){
+  const root=document.getElementById('drills');
+  DRILLS.forEach((d,idx)=>{
+    const div=document.createElement('div');
+    div.className='drill'+(state.drillsDone[d.id]?' done':'');
+    div.id='drill-'+d.id;
+    div.innerHTML=`<div class="meta">exercice ${idx+1}/${DRILLS.length} · ${d.tag} ${state.drillsDone[d.id]?'· <span class="ok">résolu</span>':''}</div><div class="q">${d.q}</div><input type="text" placeholder="tapez votre réponse et appuyez sur Entrée" autocomplete="off" spellcheck="false">${d.preview?'<div class="preview" data-preview></div>':''}<button class="check">Vérifier</button><span class="hint" data-hint>afficher l'indice</span><div class="feedback"></div>`;
+    const input=div.querySelector('input'),fb=div.querySelector('.feedback'),btn=div.querySelector('.check'),hint=div.querySelector('[data-hint]'),preview=div.querySelector('[data-preview]');
+    if(preview){input.addEventListener('input',()=>{if(window.katex){try{katex.render(input.value||'\\text{tapez une formule\\dots}',preview,{throwOnError:false,displayMode:false});}catch{preview.textContent=input.value;}}else{preview.textContent=input.value;}});}
+    hint.addEventListener('click',()=>{hint.textContent=d.hint;hint.style.color='var(--accent-3)';});
+    function submit(){
+      const v=input.value.trim();if(!v)return;
+      const ok=d.check(v);
+      input.classList.remove('correct','wrong');
+      if(ok){
+        input.classList.add('correct');
+        const wasNew=!state.drillsDone[d.id];
+        state.drillsDone[d.id]=true;
+        if(wasNew){
+          state.solved+=1;state.combo+=1;
+          if(state.combo>state.bestCombo)state.bestCombo=state.combo;
+          let xp=10+Math.min(state.combo,8);
+          awardXP(xp);
+          fb.className='feedback good';
+          fb.textContent=`Correct +${xp} XP · combo ×${state.combo}`;
+          confetti();
+          if(state.combo>=3)unlock('streak3');
+          if(state.combo>=7)unlock('streak7');
+          if(state.solved>=9)unlock('half');
+          if(state.solved>=DRILLS.length)unlock('allDrills');
+          if(d.onSolve)d.onSolve(d.id);
+          div.querySelector('.meta').innerHTML=`exercice ${idx+1}/${DRILLS.length} · ${d.tag} · <span class="ok">résolu</span>`;
+        } else {
+          fb.className='feedback good';
+          fb.textContent=`Déjà résolu. Réponse : ${d.answerStr}`;
+          awardXP(2);
+        }
+        saveState();
+      } else {
+        input.classList.add('wrong');
+        state.combo=0;
+        fb.className='feedback bad';
+        fb.textContent=`Pas tout à fait. Réessayez — ou cliquez sur l'indice.`;
+        shake(div);
+        renderHUD();saveState();
+      }
+    }
+    btn.addEventListener('click',submit);
+    input.addEventListener('keydown',(e)=>{if(e.key==='Enter')submit();});
+    root.appendChild(div);
+  });
+}
+const bossTimerEl=document.getElementById('boss-timer'),bossHpNum=document.getElementById('boss-hp-num'),bossHpBar=document.getElementById('boss-hp-bar'),bossDrill=document.getElementById('boss-drill'),bossQ=document.getElementById('boss-q'),bossInput=document.getElementById('boss-input'),bossFb=document.getElementById('boss-fb'),bossStart=document.getElementById('boss-start'),bossResult=document.getElementById('boss-result');
+let bossState=null;
+function genBossProblem(){const r=Math.random();if(r<0.4){const probs=[Math.random(),Math.random(),Math.random(),Math.random()];const s=probs.reduce((a,b)=>a+b,0);const norm=probs.map(p=>p/s);const trueIdx=Math.floor(Math.random()*4);const ans=-ln(norm[trueIdx]);return{q:`Vraie classe ${trueIdx}. Probas prédites [${norm.map(v=>v.toFixed(2)).join(', ')}]. Perte ≈ ?`,check:(s)=>approxEq(parseFloat(s),ans,0.05),ans:ans.toFixed(3)};}else if(r<0.7){const ce=(0.5+Math.random()*4).toFixed(2);const ans=Math.exp(parseFloat(ce));return{q:`CE moyen = ${ce}. Perplexité ≈ ?`,check:(s)=>approxEq(parseFloat(s),ans,Math.max(0.1,ans*0.03)),ans:ans.toFixed(2)};}else if(r<0.85){const z=[Math.random()*4,Math.random()*4,Math.random()*4];const trueIdx=Math.floor(Math.random()*3);const lse=ln(z.map(x=>Math.exp(x)).reduce((a,b)=>a+b,0));const ans=lse-z[trueIdx];return{q:`Logits z = [${z.map(v=>v.toFixed(2)).join(', ')}], vraie classe ${trueIdx}. Perte CE ≈ ?`,check:(s)=>approxEq(parseFloat(s),ans,0.05),ans:ans.toFixed(3)};}else{const q=(0.05+Math.random()*0.9).toFixed(2);const ans=-ln(parseFloat(q));return{q:`q(true) = ${q}. Perte ≈ ?`,check:(s)=>approxEq(parseFloat(s),ans,0.05),ans:ans.toFixed(3)};}}
+function bossNext(){bossState.current=genBossProblem();bossQ.textContent=bossState.current.q;bossInput.value='';bossInput.classList.remove('correct','wrong');bossFb.textContent='';bossInput.focus();}
+function bossEnd(victory){clearInterval(bossState.tick);bossDrill.style.display='none';if(victory){bossResult.innerHTML=`<span class="ok">Victoire ! Boss de la perte vaincu en ${(60-bossState.timeLeft).toFixed(1)}s.</span>`;if(!state.bossWon||state.bossBestTime===null||(60-bossState.timeLeft)<state.bossBestTime){state.bossBestTime=60-bossState.timeLeft;}state.bossWon=true;awardXP(50);unlock('boss');confetti();confetti();saveState();}else{bossResult.innerHTML=`<span class="err">Le boss a survécu. ${5-bossState.hp} dégâts infligés. Réessayez.</span>`;}bossStart.disabled=false;bossStart.textContent='Engager';bossState=null;}
+function bossUpdateHud(){bossHpNum.textContent=bossState.hp;bossHpBar.style.width=(bossState.hp/5*100)+'%';bossTimerEl.textContent=bossState.timeLeft.toFixed(1)+'s';}
+bossStart.addEventListener('click',()=>{if(bossState)return;bossState={hp:5,timeLeft:60,current:null,tick:null};bossDrill.style.display='block';bossResult.textContent='';bossStart.disabled=true;bossStart.textContent='Combat…';bossUpdateHud();bossNext();bossState.tick=setInterval(()=>{bossState.timeLeft-=0.1;if(bossState.timeLeft<=0){bossState.timeLeft=0;bossUpdateHud();bossEnd(false);return;}bossUpdateHud();},100);});
+bossInput.addEventListener('keydown',(e)=>{if(e.key!=='Enter'||!bossState)return;const ok=bossState.current.check(bossInput.value.trim());if(ok){bossInput.classList.add('correct');bossState.hp-=1;bossUpdateHud();if(bossState.hp<=0){bossEnd(true);return;}setTimeout(bossNext,250);}else{bossInput.classList.add('wrong');bossState.timeLeft=Math.max(0,bossState.timeLeft-5);bossFb.textContent=`faux — −5s. (était ${bossState.current.ans})`;shake(bossDrill);bossUpdateHud();setTimeout(bossNext,600);}});
+document.getElementById('btn-reset').addEventListener('click',()=>{if(!confirm('Réinitialiser toute la progression ?'))return;state={...DEFAULT_STATE};saveState();renderHUD();renderAchievements();document.querySelectorAll('.drill input[type=text]').forEach(i=>{i.value='';i.classList.remove('correct','wrong');});document.querySelectorAll('.drill .feedback').forEach(f=>f.textContent='');document.querySelectorAll('#drills .drill .meta').forEach((m,i)=>{const d=DRILLS[i];if(!d)return;m.innerHTML=`exercice ${i+1}/${DRILLS.length} · ${d.tag}`;});toast('Progression réinitialisée');});
+buildDrills();renderHUD();renderAchievements();
+</script>
+</body>
+</html>

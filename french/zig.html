@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antisèche Zig — Interactive</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2229;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #f7a41d;     /* Zig orange/amber */
+    --accent-2: #ffb84d;
+    --accent-3: #d97706;
+    --code-bg: #0a0f15;
+    --keyword: #ff9d5c;
+    --string: #ffd29c;
+    --number: #d2a8ff;
+    --comment: #6b7785;
+    --fn: #ffd29c;
+    --tag: #79c0ff;
+    --type: #f7a41d;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1f1810 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #1a1208;
+    border-radius: 6px; font-weight: 900;
+    box-shadow: 0 0 14px rgba(247, 164, 29, 0.45);
+  }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #1a1208;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(247, 164, 29, 0.12);
+    border-color: rgba(247, 164, 29, 0.4);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag {
+    color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; font-weight: 500;
+  }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--type); font-weight: 600; }
+  .tok-b { color: var(--tag); }   /* builtin like @import */
+  .tok-e { color: #ff7b9c; }      /* error */
+
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; font-size: 13px;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  td code {
+    background: var(--code-bg); padding: 2px 6px; border-radius: 4px;
+    color: var(--tag); font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--panel-2); }
+
+  .note {
+    background: rgba(247, 164, 29, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px;
+    padding: 30px 20px; border-top: 1px solid var(--border); margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .card.hidden { display: none; }
+  .no-results {
+    color: var(--muted); text-align: center;
+    padding: 40px; font-style: italic; display: none;
+  }
+
+  /* Practice */
+  .practice-wrap {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .practice-wrap { grid-template-columns: 1fr; } }
+  .practice-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .practice-panel h3 {
+    margin: 0 0 4px; font-size: 16px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .practice-panel p.sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .quiz-card {
+    background: var(--code-bg); border-radius: 8px; padding: 14px;
+    margin-bottom: 12px; font-family: ui-monospace, monospace;
+    font-size: 14px; min-height: 80px; line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .quiz-prompt-label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .quiz-blank {
+    display: inline-block;
+    min-width: 80px;
+    padding: 2px 6px;
+    margin: 0 2px;
+    border: 1px dashed var(--accent);
+    background: rgba(247, 164, 29, 0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 700;
+  }
+  .quiz-input {
+    width: 100%;
+    background: var(--code-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .quiz-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(247, 164, 29, 0.15); }
+  .quiz-input.shake { animation: shake 240ms ease-in-out; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0);} 25%{transform:translateX(-4px);} 50%{transform:translateX(4px);} 75%{transform:translateX(-2px);}
+  }
+  .quiz-input.flash { animation: flash 380ms ease-out; }
+  @keyframes flash {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); border-color: var(--good); }
+    100% { box-shadow: 0 0 0 12px rgba(74, 222, 128, 0); border-color: var(--border); }
+  }
+  .quiz-controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .quiz-btn {
+    background: var(--accent); color: #1a1208; border: none;
+    border-radius: 6px; padding: 8px 16px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: filter 0.15s; font-family: inherit;
+  }
+  .quiz-btn:hover { filter: brightness(1.1); }
+  .quiz-btn.secondary {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  }
+  .quiz-feedback {
+    margin-top: 12px; padding: 10px 14px; border-radius: 6px;
+    font-size: 13px; display: none;
+  }
+  .quiz-feedback.show { display: block; animation: fade 0.2s ease; }
+  .quiz-feedback.correct {
+    background: rgba(74, 222, 128, 0.1); border-left: 3px solid var(--good); color: #86efac;
+  }
+  .quiz-feedback.wrong {
+    background: rgba(248, 113, 113, 0.1); border-left: 3px solid var(--bad); color: #fca5a5;
+  }
+  .quiz-feedback .answer {
+    display: block; color: var(--string);
+    font-family: ui-monospace, monospace; margin-top: 6px; font-size: 12.5px;
+  }
+  .quiz-stats {
+    display: flex; gap: 16px; justify-content: space-around;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .quiz-stat { text-align: center; }
+  .quiz-stat .num {
+    color: var(--accent); font-size: 22px; font-weight: 800; display: block;
+  }
+  .quiz-stat .lbl {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .quiz-progress-bar {
+    height: 4px; background: var(--panel-2); border-radius: 2px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .quiz-progress-bar > div {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0%; transition: width 0.3s ease;
+  }
+  .streak-fire {
+    display: inline-block; transition: filter 0.3s, transform 0.3s;
+    filter: grayscale(1); opacity: 0.5;
+  }
+  .streak-fire.on { filter: none; opacity: 1; transform: scale(1.15); }
+
+  /* Confetti */
+  .confetti-layer {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1000;
+  }
+  .confetti-piece {
+    position: absolute; width: 8px; height: 12px;
+    opacity: 0; animation: confetti-fall 1100ms ease-out forwards;
+  }
+  @keyframes confetti-fall {
+    0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+    100% { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 200px)) rotate(var(--rot, 360deg)); }
+  }
+
+  /* REPL */
+  .repl {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-top: 16px;
+  }
+  .repl-input {
+    width: 100%;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  .repl-input:focus { border-color: var(--accent); }
+  .repl-history {
+    margin-top: 10px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 12px;
+    max-height: 220px; overflow-y: auto;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .repl-line { margin: 2px 0; }
+  .repl-line .prompt { color: var(--accent); }
+  .repl-line .output { color: var(--good); }
+  .repl-line .err { color: var(--bad); }
+
+  /* Comptime visualizer */
+  .vis-row {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 12px;
+  }
+  .vis-row label { font-size: 13px; color: var(--muted); min-width: 90px; }
+  .vis-row select, .vis-row input {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Memory diagram */
+  .mem {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin-top: 12px;
+  }
+  @media (max-width: 700px) { .mem { grid-template-columns: 1fr; } }
+  .mem-region {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+    min-height: 220px;
+  }
+  .mem-region h4 {
+    margin: 0 0 8px; color: var(--accent); font-size: 13px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .mem-block {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    transition: opacity 350ms, transform 350ms, background 350ms;
+  }
+  .mem-block.heap { border-left-color: #79c0ff; }
+  .mem-block.freed { opacity: 0; transform: translateX(20px); }
+  .mem-controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+<header>
+  <div class="logo"><span class="mark">Z</span> Antisèche Zig <span class="badge">Interactive</span></div>
+  <div class="search">
+    <span class="icon">&#128269;</span>
+    <input id="search" type="text" placeholder="Rechercher : const, defer, comptime, allocator, struct…" />
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="hello" class="active">Bonjour, Zig</button>
+  <button data-tab="vars">Variables</button>
+  <button data-tab="numbers">Nombres</button>
+  <button data-tab="control">Flux de contrôle</button>
+  <button data-tab="functions">Fonctions</button>
+  <button data-tab="errors">Erreurs</button>
+  <button data-tab="memory">Mémoire</button>
+  <button data-tab="structs">Structs et Enums</button>
+  <button data-tab="comptime">Comptime</button>
+  <button data-tab="build">Système de build</button>
+  <button data-tab="practice">&#127919; Pratique</button>
+  <button data-tab="repl">Mini REPL</button>
+</nav>
+</div>
+
+<main>
+
+<!-- HELLO -->
+<section class="tab-section active" id="hello">
+  <h1>Bonjour, Zig</h1>
+  <p class="lead">Un langage petit et simple conçu pour des logiciels robustes, optimaux et réutilisables. Pas de flux de contrôle caché, pas d'allocations cachées.</p>
+
+  <h2>Le programme canonique</h2>
+  <div class="grid">
+    <div class="card" data-keywords="hello main import std debug print">
+      <div class="card-head">
+        <div class="card-title">Hello, World <span class="tag">main.zig</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> std = <span class="tok-b">@import</span>(<span class="tok-s">"std"</span>);
+
+<span class="tok-k">pub fn</span> <span class="tok-f">main</span>() <span class="tok-e">!</span><span class="tok-t">void</span> {
+    <span class="tok-k">const</span> stdout = std.io.getStdOut().writer();
+    <span class="tok-k">try</span> stdout.print(<span class="tok-s">"Hello, {s}!\n"</span>, .{<span class="tok-s">"Zig"</span>});
+}
+</code></pre>
+      <p class="card-desc">Notez le retour <code>!void</code> — main peut retourner des erreurs. <code>try</code> les propage.</p>
+    </div>
+
+    <div class="card" data-keywords="build run zig command">
+      <div class="card-head">
+        <div class="card-title">Compiler et exécuter <span class="tag">terminal</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c"># Compiler + exécuter un seul fichier</span>
+zig run main.zig
+
+<span class="tok-c"># Compiler en exe natif uniquement</span>
+zig build-exe main.zig
+
+<span class="tok-c"># Projet (avec build.zig)</span>
+zig init
+zig build run
+zig build test
+
+<span class="tok-c"># Formater votre code</span>
+zig fmt main.zig
+</code></pre>
+      <p class="card-desc">Zig possède son propre système de build écrit en Zig &mdash; pas de Make, pas de CMake.</p>
+    </div>
+
+    <div class="card" data-keywords="comments doc test">
+      <div class="card-head">
+        <div class="card-title">Commentaires et tests <span class="tag">// /// test</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// commentaire normal</span>
+<span class="tok-c">/// commentaire de doc (rattaché à la déclaration suivante)</span>
+<span class="tok-k">pub fn</span> <span class="tok-f">add</span>(a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> a + b;
+}
+
+<span class="tok-k">test</span> <span class="tok-s">"add works"</span> {
+    <span class="tok-k">try</span> std.testing.expectEqual(<span class="tok-n">5</span>, add(<span class="tok-n">2</span>, <span class="tok-n">3</span>));
+}
+</code></pre>
+      <p class="card-desc">Les tests vivent dans les fichiers source. Lancez avec <code>zig test file.zig</code>.</p>
+    </div>
+
+    <div class="card" data-keywords="philosophy zen">
+      <div class="card-head">
+        <div class="card-title">Le Zen de Zig <span class="tag">philosophie</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// 1. Communiquer l'intention avec précision.
+// 2. Les cas limites comptent.
+// 3. Privilégier la lecture du code à son écriture.
+// 4. Une seule manière évidente de faire les choses.
+// 5. Les plantages à l'exécution valent mieux que les bugs.
+// 6. Les erreurs de compilation valent mieux que les plantages à l'exécution.
+// 7. Améliorations incrémentales.
+// 8. Éviter les maximums locaux.
+// 9. Réduire ce qu'il faut mémoriser.
+// 10. Se concentrer sur le code plutôt que sur le style.
+// 11. L'allocation de ressource peut échouer ; la libération doit réussir.
+// 12. La mémoire est une ressource.
+// 13. Ensemble nous servons les utilisateurs.</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- VARIABLES -->
+<section class="tab-section" id="vars">
+  <h1>Variables</h1>
+  <p class="lead">Deux saveurs : <code>const</code> (immuable) et <code>var</code> (mutable). Toutes les déclarations doivent être utilisées &mdash; pas de liaisons mortes.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="const var declare">
+      <div class="card-head">
+        <div class="card-title">const vs var <span class="tag">bases</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> name = <span class="tok-s">"Ada"</span>;        <span class="tok-c">// immuable, type inféré</span>
+<span class="tok-k">var</span>   counter: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;  <span class="tok-c">// mutable, type explicite</span>
+counter += <span class="tok-n">1</span>;
+
+<span class="tok-c">// Erreur de compilation : affectation à const</span>
+<span class="tok-c">// name = "Bob";</span>
+
+<span class="tok-c">// Erreur de compilation : variable locale non utilisée</span>
+<span class="tok-c">// const x = 5;</span>
+</code></pre>
+      <p class="card-desc">Utilisez <code>_ = value;</code> pour rejeter si vraiment nécessaire.</p>
+    </div>
+
+    <div class="card" data-keywords="comptime constant">
+      <div class="card-head">
+        <div class="card-title">constantes comptime <span class="tag">comptime</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> PI: <span class="tok-t">f64</span> = <span class="tok-n">3.14159</span>;
+<span class="tok-k">const</span> MAX_USERS = <span class="tok-n">1024</span>;
+
+<span class="tok-c">// Évalué à la compilation</span>
+<span class="tok-k">comptime</span> {
+    <span class="tok-k">const</span> sum = <span class="tok-n">2</span> + <span class="tok-n">3</span>;
+    <span class="tok-b">@compileLog</span>(<span class="tok-s">"sum is "</span>, sum);
+}
+</code></pre>
+      <p class="card-desc">Les <code>const</code> au niveau supérieur sont implicitement <code>comptime</code>.</p>
+    </div>
+
+    <div class="card" data-keywords="undefined uninitialized">
+      <div class="card-head">
+        <div class="card-title">undefined <span class="tag">non-sûreté volontaire</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> buf: [<span class="tok-n">256</span>]<span class="tok-t">u8</span> = <span class="tok-k">undefined</span>;
+<span class="tok-c">// En build debug, undefined vaut 0xAA octets</span>
+<span class="tok-c">// pour faire surgir les lectures non initialisées.</span>
+buf[<span class="tok-n">0</span>] = <span class="tok-n">42</span>;
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="type inference">
+      <div class="card-head">
+        <div class="card-title">Inférence de type <span class="tag">@TypeOf</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> x = <span class="tok-n">42</span>;             <span class="tok-c">// comptime_int</span>
+<span class="tok-k">const</span> y: <span class="tok-t">i32</span> = <span class="tok-n">42</span>;       <span class="tok-c">// i32</span>
+<span class="tok-k">const</span> z = <span class="tok-b">@as</span>(<span class="tok-t">i32</span>, <span class="tok-n">42</span>); <span class="tok-c">// i32</span>
+
+<span class="tok-k">const</span> T = <span class="tok-b">@TypeOf</span>(y); <span class="tok-c">// T == i32</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- NUMBERS -->
+<section class="tab-section" id="numbers">
+  <h1>Nombres et types</h1>
+  <p class="lead">Zig a des entiers explicites de largeur fixe et expose la sémantique du dépassement. Le casting est toujours explicite.</p>
+
+  <h2>Types entiers</h2>
+  <table>
+    <tr><th>Type</th><th>Bits</th><th>Plage</th></tr>
+    <tr><td><code>i8 / u8</code></td><td>8</td><td>-128..127 / 0..255</td></tr>
+    <tr><td><code>i16 / u16</code></td><td>16</td><td>signé / non signé</td></tr>
+    <tr><td><code>i32 / u32</code></td><td>32</td><td>entier le plus courant</td></tr>
+    <tr><td><code>i64 / u64</code></td><td>64</td><td>grand entier</td></tr>
+    <tr><td><code>isize / usize</code></td><td>ptr</td><td>taille du pointeur ; usize pour les indices</td></tr>
+    <tr><td><code>i7 / u23</code></td><td>quelconque</td><td>largeur arbitraire &mdash; <code>u3</code> est valide !</td></tr>
+    <tr><td><code>f16 / f32 / f64 / f128</code></td><td>variable</td><td>flottants IEEE</td></tr>
+  </table>
+
+  <h2>Casts et dépassement</h2>
+  <div class="grid">
+    <div class="card" data-keywords="cast intCast floatFromInt as">
+      <div class="card-head">
+        <div class="card-title">Casting <span class="tag">@as @intCast</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> a: <span class="tok-t">i32</span> = <span class="tok-n">300</span>;
+<span class="tok-k">const</span> b: <span class="tok-t">u8</span> = <span class="tok-b">@intCast</span>(a);   <span class="tok-c">// vérifié à l'exécution</span>
+<span class="tok-k">const</span> c: <span class="tok-t">f32</span> = <span class="tok-b">@floatFromInt</span>(a);
+<span class="tok-k">const</span> d: <span class="tok-t">i32</span> = <span class="tok-b">@intFromFloat</span>(<span class="tok-n">3.7</span>);
+
+<span class="tok-c">// @as sert à la coercition (élargissement, comptime)</span>
+<span class="tok-k">const</span> e = <span class="tok-b">@as</span>(<span class="tok-t">i64</span>, <span class="tok-n">10</span>);
+</code></pre>
+      <p class="card-desc"><code>@intCast</code> piège dans les builds sûrs si la valeur ne tient pas.</p>
+    </div>
+
+    <div class="card" data-keywords="overflow wrap saturate">
+      <div class="card-head">
+        <div class="card-title">Opérateurs de dépassement <span class="tag">+% +| etc</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// Le + par défaut piège sur dépassement en build sûr</span>
+<span class="tok-k">var</span> x: <span class="tok-t">u8</span> = <span class="tok-n">250</span>;
+
+<span class="tok-c">// Arithmétique avec wrap</span>
+<span class="tok-k">const</span> w = x +% <span class="tok-n">10</span>;   <span class="tok-c">// se rabat à 4</span>
+
+<span class="tok-c">// Arithmétique saturante</span>
+<span class="tok-k">const</span> s = x +| <span class="tok-n">10</span>;   <span class="tok-c">// plafonné à 255</span>
+
+<span class="tok-c">// Capturer le dépassement avec @addWithOverflow</span>
+<span class="tok-k">const</span> r = <span class="tok-b">@addWithOverflow</span>(x, <span class="tok-n">10</span>);
+<span class="tok-c">// r est un tuple : { result, did_overflow }</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="literals binary hex octal underscore">
+      <div class="card-head">
+        <div class="card-title">Littéraux numériques <span class="tag">lisibilité</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> million = <span class="tok-n">1_000_000</span>;
+<span class="tok-k">const</span> hex     = <span class="tok-n">0xff_ee</span>;
+<span class="tok-k">const</span> oct     = <span class="tok-n">0o755</span>;
+<span class="tok-k">const</span> bin     = <span class="tok-n">0b1010_1010</span>;
+<span class="tok-k">const</span> exp     = <span class="tok-n">1.5e3</span>;
+<span class="tok-k">const</span> hexf    = <span class="tok-n">0x1.fp10</span>;  <span class="tok-c">// flottant hex</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="char ascii utf8">
+      <div class="card-head">
+        <div class="card-title">Caractères et octets <span class="tag">u8 'A'</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> letter: <span class="tok-t">u8</span> = <span class="tok-s">'A'</span>;       <span class="tok-c">// 65</span>
+<span class="tok-k">const</span> emoji  : <span class="tok-t">u21</span> = <span class="tok-s">'&#128512;'</span>;     <span class="tok-c">// point de code</span>
+
+<span class="tok-c">// Les chaînes sont []const u8 (octets UTF-8)</span>
+<span class="tok-k">const</span> greeting: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = <span class="tok-s">"hi"</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- CONTROL FLOW -->
+<section class="tab-section" id="control">
+  <h1>Flux de contrôle</h1>
+  <p class="lead">Des expressions partout. <code>if</code>, <code>switch</code>, les blocs s'évaluent tous en valeurs. <code>switch</code> doit être exhaustif.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="if else ternary">
+      <div class="card-head">
+        <div class="card-title">if comme expression <span class="tag">if</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> x = <span class="tok-n">10</span>;
+<span class="tok-k">const</span> sign = <span class="tok-k">if</span> (x &gt; <span class="tok-n">0</span>) <span class="tok-s">"+"</span> <span class="tok-k">else if</span> (x &lt; <span class="tok-n">0</span>) <span class="tok-s">"-"</span> <span class="tok-k">else</span> <span class="tok-s">"0"</span>;
+
+<span class="tok-c">// Liaison de payload optionnel</span>
+<span class="tok-k">const</span> maybe: ?<span class="tok-t">i32</span> = <span class="tok-n">42</span>;
+<span class="tok-k">if</span> (maybe) |val| {
+    std.debug.print(<span class="tok-s">"got {d}\n"</span>, .{val});
+} <span class="tok-k">else</span> {
+    std.debug.print(<span class="tok-s">"null\n"</span>, .{});
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="while loop break continue">
+      <div class="card-head">
+        <div class="card-title">while <span class="tag">while</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> i: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;
+<span class="tok-k">while</span> (i &lt; <span class="tok-n">10</span>) : (i += <span class="tok-n">1</span>) {
+    <span class="tok-k">if</span> (i == <span class="tok-n">3</span>) <span class="tok-k">continue</span>;
+    <span class="tok-k">if</span> (i == <span class="tok-n">7</span>) <span class="tok-k">break</span>;
+    std.debug.print(<span class="tok-s">"{d}\n"</span>, .{i});
+}
+
+<span class="tok-c">// while avec optionnel</span>
+<span class="tok-k">while</span> (it.next()) |item| {
+    process(item);
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="for loop range slice index">
+      <div class="card-head">
+        <div class="card-title">for &mdash; syntaxe moderne <span class="tag">for</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> items = [_]<span class="tok-t">u8</span>{ <span class="tok-n">10</span>, <span class="tok-n">20</span>, <span class="tok-n">30</span> };
+
+<span class="tok-c">// itérer les valeurs</span>
+<span class="tok-k">for</span> (items) |it| {
+    std.debug.print(<span class="tok-s">"{d}\n"</span>, .{it});
+}
+
+<span class="tok-c">// syntaxe d'intervalle (Zig 0.11+)</span>
+<span class="tok-k">for</span> (<span class="tok-n">0</span>..items.len) |i| {
+    std.debug.print(<span class="tok-s">"i={d}\n"</span>, .{i});
+}
+
+<span class="tok-c">// les deux à la fois avec for multi-arg</span>
+<span class="tok-k">for</span> (items, <span class="tok-n">0</span>..) |it, i| {
+    std.debug.print(<span class="tok-s">"{d}: {d}\n"</span>, .{ i, it });
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="switch exhaustive match">
+      <div class="card-head">
+        <div class="card-title">switch <span class="tag">switch</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> n: <span class="tok-t">u8</span> = <span class="tok-n">3</span>;
+<span class="tok-k">const</span> name = <span class="tok-k">switch</span> (n) {
+    <span class="tok-n">0</span> =&gt; <span class="tok-s">"zero"</span>,
+    <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> =&gt; <span class="tok-s">"few"</span>,
+    <span class="tok-n">4</span>...<span class="tok-n">9</span> =&gt; <span class="tok-s">"some"</span>,
+    <span class="tok-k">else</span> =&gt; <span class="tok-s">"many"</span>,
+};
+
+<span class="tok-c">// Switch sur enum (pas de else si exhaustif)</span>
+<span class="tok-k">const</span> Color = <span class="tok-k">enum</span> { red, green, blue };
+<span class="tok-k">const</span> hex: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = <span class="tok-k">switch</span> (color) {
+    .red =&gt; <span class="tok-s">"#f00"</span>,
+    .green =&gt; <span class="tok-s">"#0f0"</span>,
+    .blue =&gt; <span class="tok-s">"#00f"</span>,
+};
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="block label break value">
+      <div class="card-head">
+        <div class="card-title">Blocs étiquetés et break avec valeur <span class="tag">:label</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> result = blk: {
+    <span class="tok-k">var</span> sum: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;
+    <span class="tok-k">for</span> (items) |x| sum += x;
+    <span class="tok-k">break</span> :blk sum * <span class="tok-n">2</span>;
+};
+
+<span class="tok-c">// Sortir de boucles imbriquées</span>
+outer: <span class="tok-k">for</span> (rows) |row| {
+    <span class="tok-k">for</span> (row) |cell| {
+        <span class="tok-k">if</span> (cell == target) <span class="tok-k">break</span> :outer;
+    }
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="defer">
+      <div class="card-head">
+        <div class="card-title">defer / errdefer <span class="tag">nettoyage</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> file = <span class="tok-k">try</span> std.fs.cwd().openFile(<span class="tok-s">"x"</span>, .{});
+<span class="tok-k">defer</span> file.close();   <span class="tok-c">// s'exécute à la sortie de portée</span>
+
+<span class="tok-k">const</span> buf = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">100</span>);
+<span class="tok-k">errdefer</span> alloc.free(buf);  <span class="tok-c">// uniquement sur le chemin d'erreur</span>
+
+<span class="tok-k">try</span> initialize(buf);
+<span class="tok-k">return</span> buf;          <span class="tok-c">// errdefer ne se déclenche pas</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- FUNCTIONS -->
+<section class="tab-section" id="functions">
+  <h1>Fonctions</h1>
+  <p class="lead">Les paramètres sont immuables. Les erreurs voyagent via les types de retour union d'erreur <code>!T</code>.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="fn function pub return">
+      <div class="card-head">
+        <div class="card-title">Fonction de base <span class="tag">fn</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">pub fn</span> <span class="tok-f">add</span>(a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> a + b;
+}
+
+<span class="tok-c">// Les paramètres sont const &mdash; vous ne pouvez pas réaffecter a ou b</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="error union try catch">
+      <div class="card-head">
+        <div class="card-title">Retour avec union d'erreur <span class="tag">!T</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">parse</span>(s: []<span class="tok-k">const</span> <span class="tok-t">u8</span>) <span class="tok-e">!</span><span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> std.fmt.parseInt(<span class="tok-t">i32</span>, s, <span class="tok-n">10</span>);
+}
+
+<span class="tok-k">pub fn</span> <span class="tok-f">main</span>() <span class="tok-e">!</span><span class="tok-t">void</span> {
+    <span class="tok-k">const</span> n = <span class="tok-k">try</span> parse(<span class="tok-s">"42"</span>);  <span class="tok-c">// propager</span>
+    <span class="tok-k">const</span> m = parse(<span class="tok-s">"oops"</span>) <span class="tok-k">catch</span> <span class="tok-n">0</span>;
+    _ = .{ n, m };
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="multiple return tuple struct">
+      <div class="card-head">
+        <div class="card-title">Retours multiples via struct <span class="tag">.{}</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">divmod</span>(a: <span class="tok-t">u32</span>, b: <span class="tok-t">u32</span>) <span class="tok-k">struct</span> { q: <span class="tok-t">u32</span>, r: <span class="tok-t">u32</span> } {
+    <span class="tok-k">return</span> .{ .q = a / b, .r = a % b };
+}
+
+<span class="tok-k">const</span> result = divmod(<span class="tok-n">17</span>, <span class="tok-n">5</span>);
+<span class="tok-c">// result.q == 3, result.r == 2</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="anonymous function pointer">
+      <div class="card-head">
+        <div class="card-title">Pointeur de fonction <span class="tag">*const fn</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Op = *<span class="tok-k">const fn</span>(<span class="tok-t">i32</span>, <span class="tok-t">i32</span>) <span class="tok-t">i32</span>;
+
+<span class="tok-k">fn</span> <span class="tok-f">apply</span>(op: Op, a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> op(a, b);
+}
+
+<span class="tok-c">// const r = apply(add, 2, 3); // 5</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ERRORS -->
+<section class="tab-section" id="errors">
+  <h1>Erreurs</h1>
+  <p class="lead">Les erreurs sont des valeurs, mais d'un genre particulier. Elles forment des ensembles et se propagent via <code>try</code>.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="error set">
+      <div class="card-head">
+        <div class="card-title">Ensembles d'erreurs <span class="tag">error{...}</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> ParseError = <span class="tok-k">error</span>{
+    InvalidCharacter,
+    Overflow,
+    Empty,
+};
+
+<span class="tok-k">fn</span> <span class="tok-f">demo</span>() ParseError<span class="tok-e">!</span><span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> <span class="tok-k">error</span>.Empty;
+}
+</code></pre>
+      <p class="card-desc">Les ensembles d'erreurs sont des unions d'erreurs nommées. <code>!T</code> utilise un ensemble inféré.</p>
+    </div>
+
+    <div class="card" data-keywords="try catch error handling">
+      <div class="card-head">
+        <div class="card-title">try et catch <span class="tag">contrôle</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// try déballe ou retourne l'erreur</span>
+<span class="tok-k">const</span> n = <span class="tok-k">try</span> parse(input);
+
+<span class="tok-c">// catch substitue une valeur</span>
+<span class="tok-k">const</span> m = parse(input) <span class="tok-k">catch</span> <span class="tok-n">0</span>;
+
+<span class="tok-c">// catch avec liaison du payload</span>
+<span class="tok-k">const</span> p = parse(input) <span class="tok-k">catch</span> |err| <span class="tok-k">switch</span> (err) {
+    <span class="tok-k">error</span>.Overflow =&gt; <span class="tok-n">9999</span>,
+    <span class="tok-k">else</span> =&gt; <span class="tok-k">return</span> err,
+};
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="errdefer cleanup error">
+      <div class="card-head">
+        <div class="card-title">errdefer <span class="tag">nettoyage en cas d'erreur</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">build</span>(alloc: std.mem.Allocator) <span class="tok-e">!</span>*Thing {
+    <span class="tok-k">const</span> t = <span class="tok-k">try</span> alloc.create(Thing);
+    <span class="tok-k">errdefer</span> alloc.destroy(t);
+
+    <span class="tok-k">try</span> t.init();           <span class="tok-c">// si ça échoue, errdefer s'exécute</span>
+    <span class="tok-k">return</span> t;               <span class="tok-c">// succès : errdefer est ignoré</span>
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="unreachable">
+      <div class="card-head">
+        <div class="card-title">unreachable <span class="tag">assertion</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">switch</span> (variant) {
+    .a =&gt; doA(),
+    .b =&gt; doB(),
+    .c =&gt; <span class="tok-k">unreachable</span>,  <span class="tok-c">// piège dans les builds sûrs</span>
+}
+
+<span class="tok-c">// « Je sais que le parsing réussit ici »</span>
+<span class="tok-k">const</span> n = parse(<span class="tok-s">"42"</span>) <span class="tok-k">catch</span> <span class="tok-k">unreachable</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- MEMORY -->
+<section class="tab-section" id="memory">
+  <h1>Mémoire et allocateurs</h1>
+  <p class="lead">Aucune allocation cachée. Chaque fonction qui alloue prend un <code>Allocator</code>. Vous libérez ce que vous allouez (ou utilisez une arène).</p>
+
+  <h2>Patrons d'allocateurs</h2>
+  <div class="grid">
+    <div class="card" data-keywords="GeneralPurposeAllocator GPA gpa">
+      <div class="card-head">
+        <div class="card-title">GeneralPurposeAllocator <span class="tag">utile en debug</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> gpa = std.heap.GeneralPurposeAllocator(.{}){};
+<span class="tok-k">defer</span> _ = gpa.deinit();
+<span class="tok-k">const</span> alloc = gpa.allocator();
+
+<span class="tok-k">const</span> buf = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">128</span>);
+<span class="tok-k">defer</span> alloc.free(buf);
+</code></pre>
+      <p class="card-desc">Le GPA détecte les fuites et les double-free. Utilisez-le dans les apps et les tests.</p>
+    </div>
+
+    <div class="card" data-keywords="arena">
+      <div class="card-head">
+        <div class="card-title">ArenaAllocator <span class="tag">libération en bloc</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> arena = std.heap.ArenaAllocator.init(parent_alloc);
+<span class="tok-k">defer</span> arena.deinit();   <span class="tok-c">// libère tout d'un coup</span>
+<span class="tok-k">const</span> alloc = arena.allocator();
+
+<span class="tok-c">// Allouez librement &mdash; n'appelez jamais free()</span>
+<span class="tok-k">const</span> a = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">10</span>);
+<span class="tok-k">const</span> b = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">20</span>);
+_ = .{ a, b };
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="page allocator stack">
+      <div class="card-head">
+        <div class="card-title">Autres allocateurs <span class="tag">choisissez votre poison</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// std.heap.page_allocator       &mdash; basé sur mmap</span>
+<span class="tok-c">// std.heap.c_allocator          &mdash; malloc de la libc</span>
+<span class="tok-c">// std.testing.allocator         &mdash; pour les tests</span>
+<span class="tok-c">// std.heap.FixedBufferAllocator &mdash; adossé à un tampon de pile</span>
+
+<span class="tok-k">var</span> buf: [<span class="tok-n">1024</span>]<span class="tok-t">u8</span> = <span class="tok-k">undefined</span>;
+<span class="tok-k">var</span> fba = std.heap.FixedBufferAllocator.init(&amp;buf);
+<span class="tok-k">const</span> alloc = fba.allocator();
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="slice array pointer">
+      <div class="card-head">
+        <div class="card-title">Tableaux / slices / pointeurs <span class="tag">[N]T [_]T []T *T</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> arr: [<span class="tok-n">3</span>]<span class="tok-t">u8</span> = .{ <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> };  <span class="tok-c">// taille fixe</span>
+<span class="tok-k">const</span> inferred = [_]<span class="tok-t">u8</span>{ <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> };
+
+<span class="tok-k">const</span> slice: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..]; <span class="tok-c">// ptr + len</span>
+<span class="tok-k">const</span> sub  : []<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..<span class="tok-n">2</span>];
+
+<span class="tok-k">const</span> p: *<span class="tok-k">const</span> <span class="tok-t">u8</span> = &amp;arr[<span class="tok-n">0</span>];      <span class="tok-c">// ptr d'un seul élément</span>
+<span class="tok-k">const</span> many: [*]<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..].ptr; <span class="tok-c">// multi-éléments</span>
+
+<span class="tok-c">// Les slices connaissent leur longueur : arr.len</span>
+</code></pre>
+    </div>
+  </div>
+
+  <h2>En direct : pile vs tas avec defer</h2>
+  <p class="lead">Cliquez sur « exécuter » pour parcourir les allocations. <code>defer</code> se déclenche dans l'ordre inverse à la sortie de portée.</p>
+  <div class="practice-panel">
+    <div class="mem">
+      <div class="mem-region">
+        <h4>Pile</h4>
+        <div id="mem-stack"></div>
+      </div>
+      <div class="mem-region">
+        <h4>Tas</h4>
+        <div id="mem-heap"></div>
+      </div>
+    </div>
+    <div class="mem-controls">
+      <button class="quiz-btn" id="mem-step">Étape suivante &rarr;</button>
+      <button class="quiz-btn secondary" id="mem-reset">Réinitialiser</button>
+      <span id="mem-narrator" style="color: var(--muted); font-size: 13px; margin-left: 8px;"></span>
+    </div>
+    <pre id="mem-source" style="margin-top: 12px;"></pre>
+  </div>
+</section>
+
+<!-- STRUCTS -->
+<section class="tab-section" id="structs">
+  <h1>Structs et enums</h1>
+  <p class="lead">Les structs portent des données et des méthodes. Les enums peuvent transporter des payloads (unions étiquetées). Les deux sont des types de première classe.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="struct method self">
+      <div class="card-head">
+        <div class="card-title">Struct avec méthodes <span class="tag">struct</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Point = <span class="tok-k">struct</span> {
+    x: <span class="tok-t">f32</span>,
+    y: <span class="tok-t">f32</span>,
+
+    <span class="tok-k">pub fn</span> <span class="tok-f">init</span>(x: <span class="tok-t">f32</span>, y: <span class="tok-t">f32</span>) Point {
+        <span class="tok-k">return</span> .{ .x = x, .y = y };
+    }
+
+    <span class="tok-k">pub fn</span> <span class="tok-f">distance</span>(self: Point, other: Point) <span class="tok-t">f32</span> {
+        <span class="tok-k">const</span> dx = self.x - other.x;
+        <span class="tok-k">const</span> dy = self.y - other.y;
+        <span class="tok-k">return</span> <span class="tok-b">@sqrt</span>(dx*dx + dy*dy);
+    }
+};
+
+<span class="tok-k">const</span> p = Point.init(<span class="tok-n">1</span>, <span class="tok-n">2</span>);
+<span class="tok-k">const</span> d = p.distance(.{ .x = <span class="tok-n">3</span>, .y = <span class="tok-n">4</span> });
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="enum tag">
+      <div class="card-head">
+        <div class="card-title">Enum <span class="tag">enum</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Direction = <span class="tok-k">enum</span> { north, south, east, west };
+
+<span class="tok-c">// Spécifier le type de tag et des valeurs explicites</span>
+<span class="tok-k">const</span> Status = <span class="tok-k">enum</span>(<span class="tok-t">u8</span>) {
+    ok = <span class="tok-n">200</span>,
+    not_found = <span class="tok-n">404</span>,
+    server_error = <span class="tok-n">500</span>,
+};
+
+<span class="tok-k">const</span> code = <span class="tok-b">@intFromEnum</span>(Status.ok); <span class="tok-c">// 200</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="union tagged variant">
+      <div class="card-head">
+        <div class="card-title">Union étiquetée <span class="tag">union(enum)</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Token = <span class="tok-k">union</span>(<span class="tok-k">enum</span>) {
+    int: <span class="tok-t">i64</span>,
+    float: <span class="tok-t">f64</span>,
+    text: []<span class="tok-k">const</span> <span class="tok-t">u8</span>,
+    eof,
+};
+
+<span class="tok-k">const</span> t: Token = .{ .int = <span class="tok-n">42</span> };
+
+<span class="tok-k">switch</span> (t) {
+    .int =&gt; |n| std.debug.print(<span class="tok-s">"int {d}\n"</span>, .{n}),
+    .float =&gt; |f| std.debug.print(<span class="tok-s">"float {d}\n"</span>, .{f}),
+    .text =&gt; |s| std.debug.print(<span class="tok-s">"text {s}\n"</span>, .{s}),
+    .eof =&gt; std.debug.print(<span class="tok-s">"end\n"</span>, .{}),
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="anonymous struct literal">
+      <div class="card-head">
+        <div class="card-title">Littéraux de struct anonymes <span class="tag">.{}</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// Type inféré depuis le contexte</span>
+<span class="tok-k">const</span> p: Point = .{ .x = <span class="tok-n">1</span>, .y = <span class="tok-n">2</span> };
+
+<span class="tok-c">// Style tuple (positionnel)</span>
+<span class="tok-k">const</span> tup = .{ <span class="tok-n">42</span>, <span class="tok-s">"hi"</span>, <span class="tok-k">true</span> };
+<span class="tok-c">// accès : tup[0], tup[1], tup[2]</span>
+
+<span class="tok-c">// Utilisé partout pour les arguments de print</span>
+std.debug.print(<span class="tok-s">"{d} {s}\n"</span>, .{ <span class="tok-n">1</span>, <span class="tok-s">"hi"</span> });
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="packed struct bitfield">
+      <div class="card-head">
+        <div class="card-title">packed struct <span class="tag">bitfields</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Flags = <span class="tok-k">packed struct</span> {
+    read:  <span class="tok-t">bool</span>,
+    write: <span class="tok-t">bool</span>,
+    exec:  <span class="tok-t">bool</span>,
+    _pad:  <span class="tok-t">u5</span>,
+};
+<span class="tok-c">// @sizeOf(Flags) == 1 octet</span>
+
+<span class="tok-k">const</span> f: Flags = .{ .read = <span class="tok-k">true</span>, .write = <span class="tok-k">false</span>, .exec = <span class="tok-k">true</span>, ._pad = <span class="tok-n">0</span> };
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="optional null">
+      <div class="card-head">
+        <div class="card-title">Optionnels <span class="tag">?T</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> maybe: ?<span class="tok-t">i32</span> = <span class="tok-k">null</span>;
+maybe = <span class="tok-n">42</span>;
+
+<span class="tok-k">if</span> (maybe) |v| {
+    std.debug.print(<span class="tok-s">"got {d}\n"</span>, .{v});
+}
+
+<span class="tok-c">// .? déballe ou panique</span>
+<span class="tok-k">const</span> n = maybe.?;
+
+<span class="tok-c">// orelse fournit une valeur par défaut</span>
+<span class="tok-k">const</span> m = maybe <span class="tok-k">orelse</span> <span class="tok-n">0</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- COMPTIME -->
+<section class="tab-section" id="comptime">
+  <h1>Comptime</h1>
+  <p class="lead">La fonctionnalité phare de Zig. Exécutez du code à la compilation, prenez des types en paramètres, générez du code &mdash; le tout en syntaxe Zig classique.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="generic comptime type">
+      <div class="card-head">
+        <div class="card-title">Générique via type comptime <span class="tag">comptime T</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">max</span>(<span class="tok-k">comptime</span> T: <span class="tok-t">type</span>, a: T, b: T) T {
+    <span class="tok-k">return</span> <span class="tok-k">if</span> (a &gt; b) a <span class="tok-k">else</span> b;
+}
+
+<span class="tok-k">const</span> x = max(<span class="tok-t">i32</span>, <span class="tok-n">3</span>, <span class="tok-n">7</span>);    <span class="tok-c">// 7</span>
+<span class="tok-k">const</span> y = max(<span class="tok-t">f64</span>, <span class="tok-n">1.5</span>, <span class="tok-n">2.5</span>); <span class="tok-c">// 2.5</span>
+</code></pre>
+      <p class="card-desc">Chaque appel génère une nouvelle spécialisation &mdash; aucun coût à l'exécution.</p>
+    </div>
+
+    <div class="card" data-keywords="generic struct list">
+      <div class="card-head">
+        <div class="card-title">Struct générique <span class="tag">fn retournant un type</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">List</span>(<span class="tok-k">comptime</span> T: <span class="tok-t">type</span>) <span class="tok-t">type</span> {
+    <span class="tok-k">return struct</span> {
+        items: []T,
+        len: <span class="tok-t">usize</span>,
+    };
+}
+
+<span class="tok-k">const</span> IntList = List(<span class="tok-t">i32</span>);
+<span class="tok-k">var</span> xs: IntList = .{ .items = &amp;[_]<span class="tok-t">i32</span>{}, .len = <span class="tok-n">0</span> };
+_ = xs;
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="inline for unroll">
+      <div class="card-head">
+        <div class="card-title">inline for <span class="tag">boucle déroulée</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// Le corps de la boucle est dupliqué par itération à comptime</span>
+<span class="tok-k">const</span> fields = <span class="tok-b">@typeInfo</span>(MyStruct).Struct.fields;
+<span class="tok-k">inline for</span> (fields) |f| {
+    std.debug.print(<span class="tok-s">"field: {s}\n"</span>, .{f.name});
+}
+
+<span class="tok-c">// Forme avec intervalle aussi</span>
+<span class="tok-k">inline for</span> (<span class="tok-n">0</span>..<span class="tok-n">4</span>) |i| {
+    process(i); <span class="tok-c">// déroulé 4 fois</span>
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="compile time fibonacci">
+      <div class="card-head">
+        <div class="card-title">Exécuter du code à la compilation <span class="tag">comptime { }</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">fib</span>(n: <span class="tok-t">u32</span>) <span class="tok-t">u64</span> {
+    <span class="tok-k">return</span> <span class="tok-k">if</span> (n &lt; <span class="tok-n">2</span>) n <span class="tok-k">else</span> fib(n - <span class="tok-n">1</span>) + fib(n - <span class="tok-n">2</span>);
+}
+
+<span class="tok-c">// Calculé pendant la compilation :</span>
+<span class="tok-k">const</span> tenth = <span class="tok-k">comptime</span> fib(<span class="tok-n">10</span>);  <span class="tok-c">// 55, intégré</span>
+</code></pre>
+    </div>
+  </div>
+
+  <h2>Visualiseur comptime</h2>
+  <p class="lead">Choisissez un type pour voir <code>fn max(comptime T: type, a: T, b: T) T</code> monomorphisé.</p>
+  <div class="practice-panel">
+    <div class="vis-row">
+      <label>Choisir T :</label>
+      <select id="vis-type">
+        <option value="i32">i32</option>
+        <option value="u8">u8</option>
+        <option value="f64">f64</option>
+        <option value="usize">usize</option>
+        <option value="i64">i64</option>
+      </select>
+    </div>
+    <pre id="vis-output"></pre>
+    <p class="card-desc" style="padding:0;margin-top:8px;">Le compilateur en génère une par type concret avec lequel vous appelez <code>max</code>.</p>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section class="tab-section" id="build">
+  <h1>Système de build</h1>
+  <p class="lead"><code>build.zig</code> est juste du Zig. Vous décrivez un graphe d'étapes de build ; le compilateur les exécute.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="build.zig minimal">
+      <div class="card-head">
+        <div class="card-title">build.zig minimal <span class="tag">build.zig</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> std = <span class="tok-b">@import</span>(<span class="tok-s">"std"</span>);
+
+<span class="tok-k">pub fn</span> <span class="tok-f">build</span>(b: *std.Build) <span class="tok-t">void</span> {
+    <span class="tok-k">const</span> target = b.standardTargetOptions(.{});
+    <span class="tok-k">const</span> optimize = b.standardOptimizeOption(.{});
+
+    <span class="tok-k">const</span> exe = b.addExecutable(.{
+        .name = <span class="tok-s">"hello"</span>,
+        .root_source_file = b.path(<span class="tok-s">"src/main.zig"</span>),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(exe);
+
+    <span class="tok-k">const</span> run = b.addRunArtifact(exe);
+    <span class="tok-k">const</span> run_step = b.step(<span class="tok-s">"run"</span>, <span class="tok-s">"Run the app"</span>);
+    run_step.dependOn(&amp;run.step);
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="zig build commands">
+      <div class="card-head">
+        <div class="card-title">Commandes courantes <span class="tag">cli</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code>zig build              <span class="tok-c"># étape d'installation par défaut</span>
+zig build run          <span class="tok-c"># étape run personnalisée</span>
+zig build test         <span class="tok-c"># lancer les tests</span>
+zig build -Doptimize=ReleaseFast
+zig build -Dtarget=x86_64-linux-gnu
+
+zig build --help       <span class="tok-c"># lister les étapes/options définies par l'utilisateur</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="optimize releasefast debug safe">
+      <div class="card-head">
+        <div class="card-title">Modes d'optimisation <span class="tag">-Doptimize</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c">// Debug      &mdash; par défaut ; sécurité activée, pas d'optimisation
+// ReleaseSafe &mdash; optimisé + vérifications de sécurité à l'exécution
+// ReleaseFast &mdash; optimisé, sans vérifications de sécurité
+// ReleaseSmall &mdash; optimisé en taille</span>
+
+zig build -Doptimize=ReleaseSafe
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="cross compilation target">
+      <div class="card-head">
+        <div class="card-title">Compilation croisée <span class="tag">de première classe</span></div>
+        <button class="copy-btn">Copier</button>
+      </div>
+      <pre><code><span class="tok-c"># Compiler un binaire Linux ARM sur macOS, sans configuration supplémentaire :</span>
+zig build-exe main.zig -target aarch64-linux-gnu
+
+<span class="tok-c"># wasm autonome :</span>
+zig build-exe main.zig -target wasm32-freestanding
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- PRACTICE -->
+<section class="tab-section" id="practice">
+  <h1>&#127919; Tapez et entraînez-vous</h1>
+  <p class="lead">Remplissez les blancs. Entrée pour valider, &rarr; pour suivant. Constituez votre série. <strong style="color: var(--accent)">Faites-en une mémoire musculaire.</strong></p>
+
+  <div class="practice-panel">
+    <h3>Exercice <span id="quiz-badge" style="font-size:11px; padding: 2px 8px; background: var(--accent); color: #1a1208; border-radius: 999px; font-weight: 800;">Question 1 / 30</span></h3>
+    <p class="sub" id="quiz-topic">Sujet : ...</p>
+
+    <div class="quiz-card" id="quiz-prompt"></div>
+
+    <input class="quiz-input" id="quiz-input" placeholder="Tapez votre réponse ici…" autocomplete="off" spellcheck="false" />
+    <div class="quiz-controls">
+      <button class="quiz-btn" id="quiz-submit">Valider</button>
+      <button class="quiz-btn secondary" id="quiz-next">Suivant &rarr;</button>
+      <button class="quiz-btn secondary" id="quiz-show">Voir la réponse</button>
+      <button class="quiz-btn secondary" id="quiz-skip">Passer</button>
+    </div>
+    <div class="quiz-feedback" id="quiz-feedback"></div>
+
+    <div class="quiz-stats">
+      <div class="quiz-stat">
+        <span class="num" id="stat-score">0</span>
+        <span class="lbl">Score</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-streak">0 <span class="streak-fire" id="streak-fire">&#128293;</span></span>
+        <span class="lbl">Série</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-best">0</span>
+        <span class="lbl">Meilleure série</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-acc">&mdash;</span>
+        <span class="lbl">Précision</span>
+      </div>
+    </div>
+    <div class="quiz-progress-bar"><div id="quiz-progress"></div></div>
+  </div>
+</section>
+
+<!-- REPL -->
+<section class="tab-section" id="repl">
+  <h1>Mini REPL</h1>
+  <p class="lead">Un minuscule évaluateur faux-Zig. Essayez des expressions comme <code>1 + 2</code>, <code>"hi".len</code>, <code>@as(u8, 65)</code>, <code>0xff</code>, <code>@min(3,7)</code>, <code>3.14 * 2</code>, <code>true and false</code>.</p>
+
+  <div class="repl">
+    <input class="repl-input" id="repl-input" placeholder="Tapez une expression Zig et appuyez sur Entrée…" autocomplete="off" spellcheck="false" />
+    <div class="repl-history" id="repl-history"></div>
+    <div class="quiz-controls">
+      <button class="quiz-btn secondary" id="repl-clear">Effacer</button>
+      <button class="quiz-btn secondary" data-repl-example="1 + 2 * 3">1 + 2 * 3</button>
+      <button class="quiz-btn secondary" data-repl-example="&quot;hi&quot;.len">&quot;hi&quot;.len</button>
+      <button class="quiz-btn secondary" data-repl-example="@min(7, 3)">@min(7, 3)</button>
+      <button class="quiz-btn secondary" data-repl-example="@as(u8, 65)">@as(u8, 65)</button>
+      <button class="quiz-btn secondary" data-repl-example="0xff_00 | 0x00_aa">0xff_00 | 0x00_aa</button>
+      <button class="quiz-btn secondary" data-repl-example="true and (1 &lt; 2)">true and (1 &lt; 2)</button>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:18px;">
+    <strong>Avertissement honnête :</strong> ceci est un faux REPL. Il ne compile PAS du Zig. Il fait du pattern matching sur un minuscule sous-ensemble d'expressions purement pour la mémoire musculaire. Tout ce qui est sophistiqué affichera <code>(non supporté)</code>. Vrai Zig : installez <code>zig</code> et lancez <code>zig run</code>.
+  </div>
+</section>
+
+<div class="no-results" id="no-results">Aucune correspondance. Essayez un autre mot-clé.</div>
+
+</main>
+
+<footer>
+  Fait pour apprendre Zig 0.13+ &middot; Fichier unique, vanilla JS &middot;
+  <a href="https://ziglang.org" target="_blank" rel="noopener">ziglang.org</a>
+  &middot; Appuyez sur <code>/</code> pour activer la recherche.
+</footer>
+
+<script>
+// --------------- Tabs ---------------
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    sections.forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+// --------------- Copy buttons ---------------
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const card = btn.closest('.card');
+    const code = card?.querySelector('pre code');
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code.innerText);
+      btn.textContent = 'Copié !';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copier';
+        btn.classList.remove('copied');
+      }, 1200);
+    } catch (err) {
+      btn.textContent = 'Err';
+    }
+  });
+});
+
+// --------------- Search ---------------
+const searchInput = document.getElementById('search');
+const noResults = document.getElementById('no-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  let any = false;
+  document.querySelectorAll('section.tab-section .card').forEach(card => {
+    const text = (card.dataset.keywords || '') + ' ' + card.textContent;
+    const match = !q || text.toLowerCase().includes(q);
+    card.classList.toggle('hidden', !match);
+    if (match) any = true;
+  });
+  // Toggle no-results in active tab if zero matches there
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const visible = active.querySelectorAll('.card:not(.hidden)').length;
+  noResults.style.display = (q && visible === 0) ? 'block' : 'none';
+});
+
+// "/" focuses search
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    searchInput.focus();
+  }
+});
+
+// --------------- Confetti ---------------
+function confetti(originEl) {
+  const layer = document.createElement('div');
+  layer.className = 'confetti-layer';
+  document.body.appendChild(layer);
+  const rect = originEl ? originEl.getBoundingClientRect() : { left: window.innerWidth/2, top: 100, width: 0, height: 0 };
+  const colors = ['#f7a41d', '#ffb84d', '#d97706', '#4ade80', '#79c0ff', '#ff7b9c'];
+  for (let i = 0; i < 28; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = (rect.left + rect.width/2) + 'px';
+    piece.style.top  = (rect.top  + rect.height/2) + 'px';
+    piece.style.background = colors[i % colors.length];
+    piece.style.setProperty('--dx', (Math.random()*400 - 200) + 'px');
+    piece.style.setProperty('--dy', (Math.random()*200 + 80) + 'px');
+    piece.style.setProperty('--rot', (Math.random()*720 - 360) + 'deg');
+    piece.style.transform = `rotate(${Math.random()*180}deg)`;
+    layer.appendChild(piece);
+  }
+  setTimeout(() => layer.remove(), 1300);
+}
+
+// --------------- Quiz ---------------
+const QUIZ = [
+  { topic: 'Bonjour, Zig', prompt: ['const std = ___("std");'], answers: [['@import']], hint: 'Une fonction interne commence par @' },
+  { topic: 'Bonjour, Zig', prompt: ['pub fn main() ___ {'], answers: [['!void']], hint: 'main peut retourner des erreurs' },
+  { topic: 'Variables', prompt: ['___ name = "Ada";   // immuable'], answers: [['const']], hint: 'Cinq lettres : c…' },
+  { topic: 'Variables', prompt: ['___ counter: u32 = 0;  // mutable'], answers: [['var']], hint: 'Trois lettres' },
+  { topic: 'Variables', prompt: ['var buf: [256]u8 = ___;  // octets non spécifiés'], answers: [['undefined']], hint: 'Un seul mot-clé' },
+  { topic: 'Nombres',   prompt: ['const x: ___ = -100;   // entier signé 8 bits'], answers: [['i8']], hint: 'i + bits' },
+  { topic: 'Nombres',   prompt: ['const idx: ___ = 0;    // index de la taille du pointeur'], answers: [['usize']], hint: 'taille non signée' },
+  { topic: 'Nombres',   prompt: ['const b: u8 = ___(a);  // cast explicite avec rétrécissement'], answers: [['@intCast']], hint: 'commence par @' },
+  { topic: 'Nombres',   prompt: ['const c = a +___ b;    // + avec wrap'], answers: [['%']], hint: 'un symbole' },
+  { topic: 'Nombres',   prompt: ['const c = a +___ b;    // + saturant'], answers: [['|']], hint: 'un symbole' },
+  { topic: 'Contrôle',   prompt: ['for (items, ___) |it, i| {  // index en parallèle'], answers: [['0..']], hint: '0 puis ..' },
+  { topic: 'Contrôle',   prompt: ['while (i < 10) : (___) {  // incrément'], answers: [['i += 1']], hint: 'expression de continuation' },
+  { topic: 'Contrôle',   prompt: ['const r = blk: { break ___ 42; };'], answers: [[':blk']], hint: 'deux-points + étiquette' },
+  { topic: 'Contrôle',   prompt: ['switch (n) {\n    1, 2, 3 => "few",\n    4...9 => "some",\n    ___ => "many",\n}'], answers: [['else']], hint: 'branche par défaut' },
+  { topic: 'Contrôle',   prompt: ['const f = try std.fs.cwd().openFile("x", .{});\n___ f.close();  // s\'exécute à la sortie de portée'], answers: [['defer']], hint: 'mot-clé de nettoyage' },
+  { topic: 'Fonctions', prompt: ['pub fn add(a: i32, b: i32) ___ { return a + b; }'], answers: [['i32']], hint: 'juste le type' },
+  { topic: 'Fonctions', prompt: ['fn parse(s: []const u8) ___i32 { ... }  // retourne i32 ou erreur'], answers: [['!']], hint: 'un symbole' },
+  { topic: 'Fonctions', prompt: ['const n = ___ parse("42");   // propager l\'erreur'], answers: [['try']], hint: '3 lettres' },
+  { topic: 'Fonctions', prompt: ['const n = parse("x") ___ 0;  // valeur par défaut sur erreur'], answers: [['catch']], hint: '5 lettres' },
+  { topic: 'Erreurs',    prompt: ['const E = ___{ Empty, Overflow };'], answers: [['error']], hint: 'mot-clé en minuscules' },
+  { topic: 'Erreurs',    prompt: ['___ alloc.destroy(t);  // s\'exécute uniquement sur le chemin d\'erreur'], answers: [['errdefer']], hint: 'defer + err' },
+  { topic: 'Erreurs',    prompt: ['const n = parse("x") catch ___;  // je sais que ça ne peut pas arriver'], answers: [['unreachable']], hint: 'piège du compilateur' },
+  { topic: 'Mémoire',    prompt: ['var gpa = std.heap.___(.{}){};'], answers: [['GeneralPurposeAllocator']], hint: 'GPA en toutes lettres' },
+  { topic: 'Mémoire',    prompt: ['const buf = try alloc.___(u8, 128);  // demander des octets'], answers: [['alloc']], hint: 'méthode sur Allocator' },
+  { topic: 'Mémoire',    prompt: ['const slice: []const u8 = arr[0..];   // ___ + len'], answers: [['ptr']], hint: 'abrégé pour pointeur' },
+  { topic: 'Structs',   prompt: ['const Token = ___(enum) { int: i64, eof };'], answers: [['union']], hint: 'variante étiquetée' },
+  { topic: 'Structs',   prompt: ['const Flags = ___ struct { read: bool, write: bool, _pad: u6 };'], answers: [['packed']], hint: 'bitfields' },
+  { topic: 'Structs',   prompt: ['const x: ?i32 = null;\nconst v = x ___ 0;  // par défaut si null'], answers: [['orelse']], hint: 'un mot' },
+  { topic: 'Comptime',  prompt: ['fn max(___ T: type, a: T, b: T) T { return if (a > b) a else b; }'], answers: [['comptime']], hint: 'modificateur de paramètre' },
+  { topic: 'Comptime',  prompt: ['___ for (fields) |f| { /* déroulé */ }'], answers: [['inline']], hint: 'dérouler la boucle' },
+];
+
+let qIndex = 0;
+let score = 0;
+let streak = 0;
+let bestStreak = 0;
+let attempts = 0;
+
+const qTopic = document.getElementById('quiz-topic');
+const qBadge = document.getElementById('quiz-badge');
+const qPrompt = document.getElementById('quiz-prompt');
+const qInput = document.getElementById('quiz-input');
+const qFeedback = document.getElementById('quiz-feedback');
+const qProgress = document.getElementById('quiz-progress');
+const sScore = document.getElementById('stat-score');
+const sStreak = document.getElementById('stat-streak');
+const sBest = document.getElementById('stat-best');
+const sAcc = document.getElementById('stat-acc');
+const fire = document.getElementById('streak-fire');
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderQuiz() {
+  const q = QUIZ[qIndex];
+  qTopic.textContent = 'Sujet : ' + q.topic;
+  qBadge.textContent = `Question ${qIndex + 1} / ${QUIZ.length}`;
+  // Render prompt; replace ___ with a styled blank
+  const text = q.prompt[0];
+  qPrompt.innerHTML = escapeHTML(text)
+    .replace(/___/g, '<span class="quiz-blank">' + (q.answers[0][0] ? '?' : '?') + '</span>')
+    .replace(/&#10;/g, '\n');
+  qInput.value = '';
+  qInput.classList.remove('shake', 'flash');
+  qFeedback.classList.remove('show', 'correct', 'wrong');
+  qFeedback.innerHTML = '';
+  qProgress.style.width = ((qIndex / QUIZ.length) * 100) + '%';
+  setTimeout(() => qInput.focus(), 30);
+}
+
+function celebrateOK(msg) {
+  const messages = ['Bien !', 'Réussi !', 'Vif !', 'Boum.', 'Série !', 'En place.', 'Oui !'];
+  qFeedback.classList.remove('wrong');
+  qFeedback.classList.add('show', 'correct');
+  qFeedback.innerHTML = `<strong>&#10003; ${messages[Math.floor(Math.random()*messages.length)]}</strong> ${msg || ''}`;
+  qInput.classList.add('flash');
+  setTimeout(() => qInput.classList.remove('flash'), 400);
+  if (streak > 0 && streak % 3 === 0) confetti(qInput);
+}
+function showWrong(answer, hint) {
+  qFeedback.classList.remove('correct');
+  qFeedback.classList.add('show', 'wrong');
+  qFeedback.innerHTML = `<strong>&#10007; Pas tout à fait.</strong> ${hint ? '<em>Indice : ' + escapeHTML(hint) + '</em>' : ''}<span class="answer">Réponse : ${escapeHTML(answer)}</span>`;
+  qInput.classList.add('shake');
+  setTimeout(() => qInput.classList.remove('shake'), 280);
+}
+
+function normalizeAns(s) {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function checkAnswer() {
+  const q = QUIZ[qIndex];
+  const user = normalizeAns(qInput.value);
+  if (!user) return;
+  attempts++;
+  const accepted = q.answers[0].map(normalizeAns);
+  const ok = accepted.some(a => a === user || a.toLowerCase() === user.toLowerCase());
+  if (ok) {
+    score++;
+    streak++;
+    if (streak > bestStreak) bestStreak = streak;
+    celebrateOK();
+  } else {
+    streak = 0;
+    showWrong(q.answers[0][0], q.hint);
+  }
+  updateStats();
+}
+
+function updateStats() {
+  sScore.textContent = score;
+  sStreak.firstChild.nodeValue = streak + ' ';
+  sBest.textContent = bestStreak;
+  sAcc.textContent = attempts ? Math.round((score / attempts) * 100) + '%' : '—';
+  fire.classList.toggle('on', streak >= 3);
+}
+
+function nextQuestion() {
+  qIndex = (qIndex + 1) % QUIZ.length;
+  renderQuiz();
+}
+
+document.getElementById('quiz-submit').addEventListener('click', checkAnswer);
+document.getElementById('quiz-next').addEventListener('click', nextQuestion);
+document.getElementById('quiz-skip').addEventListener('click', () => { streak = 0; updateStats(); nextQuestion(); });
+document.getElementById('quiz-show').addEventListener('click', () => {
+  const q = QUIZ[qIndex];
+  showWrong(q.answers[0][0], q.hint);
+  streak = 0; updateStats();
+});
+qInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (qFeedback.classList.contains('correct')) {
+      nextQuestion();
+    } else {
+      checkAnswer();
+    }
+  } else if (e.key === 'ArrowRight' && !qInput.value) {
+    e.preventDefault();
+    nextQuestion();
+  }
+});
+
+renderQuiz();
+updateStats();
+
+// --------------- Mini REPL ---------------
+const replInput = document.getElementById('repl-input');
+const replHistory = document.getElementById('repl-history');
+
+function appendLine(prompt, kind, text) {
+  const div = document.createElement('div');
+  div.className = 'repl-line';
+  if (prompt) {
+    const p = document.createElement('span');
+    p.className = 'prompt';
+    p.textContent = prompt + ' ';
+    div.appendChild(p);
+  }
+  const out = document.createElement('span');
+  out.className = kind;
+  out.textContent = text;
+  div.appendChild(out);
+  replHistory.appendChild(div);
+  replHistory.scrollTop = replHistory.scrollHeight;
+}
+
+// A tiny tokenizer + recursive-descent expression evaluator covering:
+// integers (incl. underscores, 0x, 0b, 0o), floats, strings, bools,
+// + - * / % | & ^ << >>, parentheses, unary -, "and"/"or"/"not",
+// comparisons (== != < <= > >=),
+// builtins @min @max @as, ".len" on strings, casts that just return value.
+function evalZigExpr(src) {
+  let i = 0;
+  const s = src;
+  const peek = () => s[i];
+  const isDigit = c => c >= '0' && c <= '9';
+  const isAlpha = c => /[a-zA-Z_]/.test(c);
+  function skipWS() {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  }
+  function readNumber() {
+    let start = i;
+    if (s[i] === '0' && (s[i+1] === 'x' || s[i+1] === 'X')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[0-9a-fA-F_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 16);
+    }
+    if (s[i] === '0' && (s[i+1] === 'b' || s[i+1] === 'B')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[01_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 2);
+    }
+    if (s[i] === '0' && (s[i+1] === 'o' || s[i+1] === 'O')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[0-7_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 8);
+    }
+    let n = '';
+    let dot = false, exp = false;
+    while (i < s.length && (isDigit(s[i]) || s[i] === '_' || (s[i]==='.' && !dot && !exp) || (s[i]==='e' && !exp) || (exp && (s[i]==='+'||s[i]==='-')))) {
+      if (s[i] === '_') { i++; continue; }
+      if (s[i] === '.') dot = true;
+      if (s[i] === 'e') exp = true;
+      n += s[i]; i++;
+    }
+    return n.includes('.') || n.includes('e') ? parseFloat(n) : parseInt(n, 10);
+  }
+  function readString() {
+    if (s[i] !== '"') throw new Error('expected string');
+    i++;
+    let v = '';
+    while (i < s.length && s[i] !== '"') {
+      if (s[i] === '\\' && i+1 < s.length) {
+        const n = s[i+1];
+        v += { 'n':'\n', 't':'\t', '\\':'\\', '"':'"', '\'':'\'' }[n] ?? n;
+        i += 2;
+      } else { v += s[i]; i++; }
+    }
+    if (s[i] !== '"') throw new Error('unterminated string');
+    i++;
+    return v;
+  }
+  function readIdent() {
+    let start = i;
+    while (i < s.length && (isAlpha(s[i]) || isDigit(s[i]))) i++;
+    return s.slice(start, i);
+  }
+  function parsePrimary() {
+    skipWS();
+    if (i >= s.length) throw new Error('unexpected end');
+    const c = s[i];
+    if (c === '(') { i++; const v = parseExpr(); skipWS(); if (s[i] !== ')') throw new Error('missing )'); i++; return v; }
+    if (c === '"') return readString();
+    if (c === '@') {
+      i++;
+      const name = readIdent();
+      skipWS();
+      if (s[i] !== '(') throw new Error('expected ( after @' + name);
+      i++;
+      const args = [];
+      skipWS();
+      if (s[i] !== ')') {
+        args.push(parseExpr());
+        skipWS();
+        while (s[i] === ',') { i++; args.push(parseExpr()); skipWS(); }
+      }
+      if (s[i] !== ')') throw new Error('missing ) for builtin');
+      i++;
+      switch (name) {
+        case 'min': return Math.min(...args);
+        case 'max': return Math.max(...args);
+        case 'as':  return args[1]; // ignore type
+        case 'intCast': return Math.trunc(args[0]);
+        case 'intFromFloat': return Math.trunc(args[0]);
+        case 'floatFromInt': return args[0] + 0.0;
+        case 'sqrt': return Math.sqrt(args[0]);
+        case 'abs':  return Math.abs(args[0]);
+        case 'mod':  return args[0] % args[1];
+        default: throw new Error('@' + name + ' (unsupported)');
+      }
+    }
+    if (c === '-') { i++; return -parsePrimary(); }
+    if (c === '+') { i++; return parsePrimary(); }
+    if (isDigit(c)) return readNumber();
+    if (isAlpha(c)) {
+      const name = readIdent();
+      if (name === 'true') return true;
+      if (name === 'false') return false;
+      if (name === 'null') return null;
+      if (name === 'not') return !parsePrimary();
+      throw new Error('identifier "' + name + '" (unsupported)');
+    }
+    throw new Error('unexpected char "' + c + '"');
+  }
+  function parsePostfix() {
+    let v = parsePrimary();
+    while (true) {
+      skipWS();
+      if (s.startsWith('.len', i) && typeof v === 'string') {
+        i += 4;
+        v = new TextEncoder().encode(v).length; // utf-8 byte length, true to Zig
+      } else break;
+    }
+    return v;
+  }
+  function parseMul() {
+    let v = parsePostfix();
+    while (true) {
+      skipWS();
+      if (s[i] === '*') { i++; v = v * parsePostfix(); }
+      else if (s[i] === '/') { i++; const r = parsePostfix(); v = (Number.isInteger(v) && Number.isInteger(r)) ? Math.trunc(v / r) : v / r; }
+      else if (s[i] === '%') { i++; v = v % parsePostfix(); }
+      else break;
+    }
+    return v;
+  }
+  function parseAdd() {
+    let v = parseMul();
+    while (true) {
+      skipWS();
+      // Wrapping/saturating operators (treated like normal +/-)
+      if (s[i] === '+' && (s[i+1] === '%' || s[i+1] === '|')) { i += 2; v = v + parseMul(); }
+      else if (s[i] === '-' && (s[i+1] === '%' || s[i+1] === '|')) { i += 2; v = v - parseMul(); }
+      else if (s[i] === '+') { i++; v = v + parseMul(); }
+      else if (s[i] === '-') { i++; v = v - parseMul(); }
+      else break;
+    }
+    return v;
+  }
+  function parseShift() {
+    let v = parseAdd();
+    while (true) {
+      skipWS();
+      if (s.startsWith('<<', i)) { i += 2; v = v << parseAdd(); }
+      else if (s.startsWith('>>', i)) { i += 2; v = v >>> parseAdd(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitAnd() {
+    let v = parseShift();
+    while (true) {
+      skipWS();
+      if (s[i] === '&' && s[i+1] !== '&') { i++; v = v & parseShift(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitXor() {
+    let v = parseBitAnd();
+    while (true) {
+      skipWS();
+      if (s[i] === '^') { i++; v = v ^ parseBitAnd(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitOr() {
+    let v = parseBitXor();
+    while (true) {
+      skipWS();
+      if (s[i] === '|' && s[i+1] !== '|') { i++; v = v | parseBitXor(); }
+      else break;
+    }
+    return v;
+  }
+  function parseCmp() {
+    let v = parseBitOr();
+    skipWS();
+    const ops = ['==','!=','<=','>=','<','>'];
+    for (const op of ops) {
+      if (s.startsWith(op, i)) {
+        i += op.length;
+        const r = parseBitOr();
+        switch (op) {
+          case '==': return v === r;
+          case '!=': return v !== r;
+          case '<':  return v < r;
+          case '<=': return v <= r;
+          case '>':  return v > r;
+          case '>=': return v >= r;
+        }
+      }
+    }
+    return v;
+  }
+  function parseLogic() {
+    let v = parseCmp();
+    while (true) {
+      skipWS();
+      if (s.startsWith('and', i) && !isAlpha(s[i+3] || '')) { i += 3; v = v && parseCmp(); }
+      else if (s.startsWith('or', i) && !isAlpha(s[i+2] || '')) { i += 2; v = v || parseCmp(); }
+      else break;
+    }
+    return v;
+  }
+  function parseExpr() { return parseLogic(); }
+
+  const v = parseExpr();
+  skipWS();
+  if (i < s.length) throw new Error('extra input: "' + s.slice(i) + '"');
+  return v;
+}
+
+function formatVal(v) {
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) return String(v);
+    return v.toString();
+  }
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (v === null) return 'null';
+  return String(v);
+}
+
+function runRepl(src) {
+  const trimmed = src.trim();
+  if (!trimmed) return;
+  appendLine('zig>', '', trimmed);
+  try {
+    const v = evalZigExpr(trimmed);
+    appendLine('', 'output', formatVal(v));
+  } catch (err) {
+    appendLine('', 'err', '! ' + err.message);
+  }
+}
+
+replInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runRepl(replInput.value);
+    replInput.value = '';
+  }
+});
+document.getElementById('repl-clear').addEventListener('click', () => { replHistory.innerHTML = ''; });
+document.querySelectorAll('[data-repl-example]').forEach(b => {
+  b.addEventListener('click', () => {
+    replInput.value = b.dataset.replExample;
+    runRepl(replInput.value);
+    replInput.value = '';
+    replInput.focus();
+  });
+});
+
+// Seed REPL with one example
+runRepl('1 + 2 * 3');
+
+// --------------- Comptime visualizer ---------------
+const visType = document.getElementById('vis-type');
+const visOutput = document.getElementById('vis-output');
+function renderVis() {
+  const T = visType.value;
+  visOutput.innerHTML =
+    '<span class="tok-c">// Spécialisation générée pour T = ' + T + '</span>\n' +
+    '<span class="tok-k">fn</span> <span class="tok-f">max__' + T + '</span>(a: <span class="tok-t">' + T + '</span>, b: <span class="tok-t">' + T + '</span>) <span class="tok-t">' + T + '</span> {\n' +
+    '    <span class="tok-k">return</span> <span class="tok-k">if</span> (a &gt; b) a <span class="tok-k">else</span> b;\n' +
+    '}';
+}
+visType.addEventListener('change', renderVis);
+renderVis();
+
+// --------------- Memory diagram ---------------
+const memStack = document.getElementById('mem-stack');
+const memHeap = document.getElementById('mem-heap');
+const memNarrator = document.getElementById('mem-narrator');
+const memSource = document.getElementById('mem-source');
+
+const memSteps = [
+  { line: 0,  narr: 'Entrée dans la fonction. Le cadre de pile s\'ouvre.', stack: [], heap: [] },
+  { line: 1,  narr: 'La variable locale `i` vit sur la pile.', stack: ['i: u32 = 0'], heap: [] },
+  { line: 2,  narr: 'Allouer 32 octets sur le tas.', stack: ['i: u32 = 0'], heap: ['buf: [32]u8 (tas)'] },
+  { line: 3,  narr: '`defer alloc.free(buf)` enregistré &mdash; s\'exécutera à la fin.', stack: ['i: u32 = 0', 'defer #1: free(buf)'], heap: ['buf: [32]u8 (tas)'] },
+  { line: 4,  narr: 'Allouer un Point sur la pile.', stack: ['i: u32 = 0', 'defer #1: free(buf)', 'p: Point{2, 3}'], heap: ['buf: [32]u8 (tas)'] },
+  { line: 5,  narr: 'La fonction retourne. Les defers se déclenchent en ordre inverse.', stack: ['i: u32 = 0', 'defer #1: free(buf)', 'p: Point{2, 3}'], heap: ['buf: [32]u8 (tas)'], firing: true },
+  { line: 6,  narr: 'free(buf) exécuté &mdash; tas récupéré.', stack: ['i: u32 = 0', 'p: Point{2, 3}'], heap: [] },
+  { line: 7,  narr: 'Cadre de pile démonté. Toutes les locales disparues.', stack: [], heap: [] },
+];
+let memStep = 0;
+
+function renderMem() {
+  const st = memSteps[memStep];
+  memNarrator.textContent = st.narr;
+  function render(elem, items, klass) {
+    elem.innerHTML = '';
+    items.forEach((label) => {
+      const d = document.createElement('div');
+      d.className = 'mem-block' + (klass ? ' ' + klass : '');
+      d.textContent = label;
+      if (st.firing && label.startsWith('defer')) {
+        d.style.background = 'rgba(247, 164, 29, 0.25)';
+        d.style.borderLeftColor = 'var(--accent-2)';
+      }
+      elem.appendChild(d);
+    });
+  }
+  render(memStack, st.stack);
+  render(memHeap, st.heap, 'heap');
+
+  const lines = [
+    'fn demo(alloc: std.mem.Allocator) !void {',
+    '    var i: u32 = 0;',
+    '    const buf = try alloc.alloc(u8, 32);',
+    '    defer alloc.free(buf);',
+    '    const p = Point{ .x = 2, .y = 3 };',
+    '    _ = .{ i, p };',
+    '    // (return)',
+    '} // scope ends',
+  ];
+  memSource.innerHTML = lines.map((ln, i) => {
+    const isCur = i === st.line;
+    return `<span style="display:block;${isCur ? 'background: rgba(247,164,29,0.18); color: var(--accent);' : 'color: var(--muted);'}">${escapeHTML(ln)}</span>`;
+  }).join('');
+}
+
+document.getElementById('mem-step').addEventListener('click', () => {
+  memStep = (memStep + 1) % memSteps.length;
+  renderMem();
+});
+document.getElementById('mem-reset').addEventListener('click', () => {
+  memStep = 0;
+  renderMem();
+});
+renderMem();
+
+</script>
+</body>
+</html>

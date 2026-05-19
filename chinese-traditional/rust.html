@@ -1,0 +1,3172 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rust，慢慢學 · 互動入門指南</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,300..900,30..100,0..1&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark-dimmed.min.css" id="hljs-theme" />
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/rust.min.js"></script>
+<style>
+  /* ------------------------------------------------------------------
+   *  Tokens
+   * ------------------------------------------------------------------ */
+  :root {
+    --rust:       #ce422b;
+    --rust-soft:  #e26a4f;
+    --rust-deep:  #8a2a18;
+    --ink:        #0d0e10;
+    --char:       #15171b;
+    --slab:       #1c1f25;
+    --line:       #2a2e36;
+    --muted:      #7a8290;
+    --soft:       #b6bdc8;
+    --bone:       #e8e6df;
+    --paper:      #f5f1e8;
+    --gold:       #d6a458;
+    --moss:       #7b8e57;
+    --sky:        #6792b8;
+
+    --bg:         var(--ink);
+    --panel:      var(--char);
+    --panel-2:    var(--slab);
+    --border:     var(--line);
+    --fg:         var(--bone);
+    --fg-soft:    var(--soft);
+    --fg-mute:    var(--muted);
+    --accent:     var(--rust);
+    --accent-2:   var(--rust-soft);
+
+    --serif:      "Fraunces", "Iowan Old Style", "Apple Garamond", Georgia, serif;
+    --sans:       "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:       "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+
+    --radius-s:   4px;
+    --radius:     8px;
+    --radius-l:   14px;
+
+    --shadow-sm:  0 1px 0 rgba(255,255,255,.02), 0 1px 2px rgba(0,0,0,.4);
+    --shadow:     0 12px 40px -12px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.3);
+  }
+
+  [data-theme="light"] {
+    --bg:         var(--paper);
+    --panel:      #ffffff;
+    --panel-2:    #faf6ec;
+    --border:     #e0d9c8;
+    --fg:         #1a1812;
+    --fg-soft:    #4a463d;
+    --fg-mute:    #847e6f;
+    --accent:     var(--rust-deep);
+    --accent-2:   var(--rust);
+  }
+
+  /* ------------------------------------------------------------------
+   *  Reset
+   * ------------------------------------------------------------------ */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.65;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+  body::before {
+    /* fine grain noise */
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: .04;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+
+  ::selection { background: var(--accent); color: white; }
+
+  /* ------------------------------------------------------------------
+   *  Layout shell
+   * ------------------------------------------------------------------ */
+  .shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* ----- Sidebar ----- */
+  aside.nav {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    padding: 32px 24px 24px;
+    border-right: 1px solid var(--border);
+    background:
+      linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent) 6%, transparent) 100%),
+      var(--panel);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  aside.nav::-webkit-scrollbar { width: 6px; }
+  aside.nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .brand {
+    display: flex; align-items: baseline; gap: 10px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand .mark {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: var(--accent);
+    display: grid; place-items: center;
+    font-family: var(--serif);
+    font-weight: 700;
+    color: white;
+    font-size: 18px;
+    font-style: italic;
+    box-shadow: 0 6px 16px -6px var(--accent);
+  }
+  .brand .title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+  }
+  .brand .title em {
+    font-style: italic;
+    color: var(--accent-2);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+  .brand .sub {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--fg-mute);
+    margin-top: 2px;
+  }
+
+  .nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex; flex-direction: column;
+    gap: 1px;
+  }
+  .nav-list .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--fg-mute);
+    padding: 14px 12px 8px;
+  }
+  .nav-list a {
+    display: flex; align-items: center; gap: 12px;
+    padding: 9px 12px;
+    font-size: 14px;
+    color: var(--fg-soft);
+    border-radius: var(--radius-s);
+    border-left: 2px solid transparent;
+    transition: background .18s ease, color .18s ease, border-color .18s ease;
+    font-weight: 400;
+  }
+  .nav-list a:hover {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .nav-list a.active {
+    color: var(--fg);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-left-color: var(--accent);
+    font-weight: 500;
+  }
+  .nav-list a .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-mute);
+    width: 22px;
+  }
+  .nav-list a.active .num { color: var(--accent-2); }
+
+  .progress-card {
+    margin-top: auto;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-card::before {
+    content: "";
+    position: absolute; inset: 0;
+    background: radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%);
+    pointer-events: none;
+  }
+  .progress-card .row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--fg-mute);
+  }
+  .progress-card .count {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 36px;
+    color: var(--fg);
+    font-weight: 400;
+    letter-spacing: -.02em;
+    margin: 6px 0 4px;
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+  .progress-card .count .total { color: var(--fg-mute); font-style: normal; font-family: var(--mono); font-size: 16px; }
+  .progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 10px;
+  }
+  .progress-bar > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .5s cubic-bezier(.4,.0,.2,1);
+  }
+
+  .theme-toggle {
+    margin-top: 14px;
+    display: flex; gap: 8px;
+    align-items: center;
+    font-size: 11px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    cursor: pointer;
+    user-select: none;
+  }
+  .theme-toggle .switch {
+    width: 32px; height: 18px;
+    background: var(--border);
+    border-radius: 999px;
+    position: relative;
+    transition: background .2s;
+  }
+  .theme-toggle .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    background: var(--fg);
+    border-radius: 50%;
+    transition: transform .25s cubic-bezier(.4,.0,.2,1);
+  }
+  [data-theme="light"] .theme-toggle .switch { background: var(--accent); }
+  [data-theme="light"] .theme-toggle .switch::after { transform: translateX(14px); background: white; }
+
+  /* ----- Main column ----- */
+  main {
+    padding: 64px 72px 120px;
+    max-width: 920px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ----- Hero ----- */
+  .hero {
+    margin-bottom: 80px;
+    position: relative;
+  }
+  .hero .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 24px;
+  }
+  .hero .eyebrow::before {
+    content: "";
+    width: 28px; height: 1px; background: var(--accent);
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(44px, 7vw, 84px);
+    line-height: 0.95;
+    letter-spacing: -0.035em;
+    margin: 0 0 28px;
+    color: var(--fg);
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent-2);
+    font-weight: 400;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+  .hero .lede {
+    font-family: var(--serif);
+    font-size: 21px;
+    line-height: 1.5;
+    color: var(--fg-soft);
+    max-width: 640px;
+    font-weight: 300;
+    font-variation-settings: "opsz" 24;
+  }
+  .hero .meta {
+    margin-top: 36px;
+    display: flex; gap: 32px; flex-wrap: wrap;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  .hero .meta strong {
+    display: block;
+    color: var(--fg);
+    font-family: var(--mono);
+    font-size: 14px;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* ----- Section ----- */
+  section.chapter {
+    margin-bottom: 96px;
+    scroll-margin-top: 32px;
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  section.chapter.in-view {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .chapter-head {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 24px;
+    align-items: start;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chapter-num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 64px;
+    line-height: 1;
+    color: var(--accent);
+    letter-spacing: -.04em;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+  .chapter-num .ord {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--fg-mute);
+    display: block;
+    font-style: normal;
+    margin-bottom: 4px;
+    font-weight: 400;
+  }
+  .chapter-head h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 38px;
+    line-height: 1.1;
+    margin: 0 0 8px;
+    letter-spacing: -.02em;
+    font-variation-settings: "opsz" 60;
+  }
+  .chapter-head .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--fg-mute);
+    padding: 3px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+
+  .chapter p {
+    font-size: 16.5px;
+    line-height: 1.72;
+    color: var(--fg-soft);
+    max-width: 68ch;
+    margin: 0 0 20px;
+  }
+  .chapter p strong { color: var(--fg); font-weight: 600; }
+  .chapter p em { color: var(--accent-2); font-style: italic; font-family: var(--serif); font-size: 1.05em; }
+  .chapter p code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--fg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+
+  .chapter h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 22px;
+    letter-spacing: -.01em;
+    margin: 40px 0 14px;
+    color: var(--fg);
+  }
+  .chapter h3::before {
+    content: "§ ";
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  /* ----- Code blocks ----- */
+  .code-wrap {
+    position: relative;
+    margin: 24px 0 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: #0d1117;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+  [data-theme="light"] .code-wrap { background: #fbf7ee; }
+  .code-wrap .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--bg) 50%, transparent);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  .code-wrap .topbar .dots { display: flex; gap: 6px; }
+  .code-wrap .topbar .dots span {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--border);
+  }
+  .code-wrap .topbar .dots span:first-child { background: var(--accent); }
+  .code-wrap pre {
+    margin: 0;
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  .code-wrap pre code.hljs {
+    background: transparent !important;
+    padding: 0 !important;
+    font-family: var(--mono);
+  }
+  [data-theme="light"] .code-wrap pre code.hljs { color: #2a2412; }
+
+  /* ----- Diagrams ----- */
+  .diagram {
+    margin: 32px 0 36px;
+    padding: 28px 24px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    background:
+      radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 50%),
+      var(--panel-2);
+    position: relative;
+  }
+  .diagram .caption {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    color: var(--fg-mute);
+    margin-bottom: 18px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .diagram .caption::before {
+    content: "fig.";
+    color: var(--accent);
+    font-family: var(--serif);
+    font-style: italic;
+    text-transform: lowercase;
+    letter-spacing: 0;
+    font-size: 14px;
+  }
+
+  .diagram svg { width: 100%; height: auto; display: block; }
+
+  .diagram .legend {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    margin-top: 16px;
+    font-size: 12px;
+    color: var(--fg-soft);
+    font-family: var(--mono);
+  }
+  .diagram .legend span { display: flex; align-items: center; gap: 8px; }
+  .diagram .legend i {
+    width: 12px; height: 12px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  /* ----- Callout ----- */
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin: 24px 0;
+    background: color-mix(in srgb, var(--accent) 5%, transparent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 15px;
+    color: var(--fg-soft);
+  }
+  .callout strong {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--accent-2);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    letter-spacing: .01em;
+  }
+
+  /* ----- Practice mode ----- */
+  .practice-section { background:
+      linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 240px);
+    margin: 0 -72px;
+    padding: 80px 72px 64px;
+    border-top: 1px solid var(--border);
+  }
+
+  .exercise {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    background: var(--panel);
+    margin-bottom: 24px;
+    overflow: hidden;
+    transition: border-color .25s, transform .25s;
+  }
+  .exercise:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+  .exercise.solved { border-color: var(--moss); }
+  .exercise.solved .ex-head .badge { background: var(--moss); color: white; border-color: var(--moss); }
+
+  .ex-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 24px 16px;
+    gap: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .ex-head h4 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 19px;
+    margin: 0 0 6px;
+    color: var(--fg);
+    letter-spacing: -.005em;
+  }
+  .ex-head .desc {
+    color: var(--fg-soft);
+    font-size: 14.5px;
+    margin: 0;
+    line-height: 1.55;
+    max-width: 60ch;
+  }
+  .ex-head .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .14em;
+    padding: 3px 9px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--fg-mute);
+    flex-shrink: 0;
+    transition: all .2s;
+  }
+
+  .ex-body { padding: 16px 24px 20px; }
+  .ex-textarea {
+    width: 100%;
+    min-height: 140px;
+    background: #0d1117;
+    color: #d4d0c4;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    resize: vertical;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    tab-size: 4;
+  }
+  [data-theme="light"] .ex-textarea { background: #fbf7ee; color: #2a2412; }
+  .ex-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+
+  .ex-actions {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 14px; gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ex-actions-left { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  button.btn {
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 9px 18px;
+    border-radius: var(--radius-s);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all .18s ease;
+    letter-spacing: .005em;
+  }
+  button.btn-primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  button.btn-primary:hover {
+    background: var(--accent-2);
+    border-color: var(--accent-2);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 14px -6px var(--accent);
+  }
+  button.btn-ghost {
+    background: transparent;
+    color: var(--fg-soft);
+    border-color: var(--border);
+  }
+  button.btn-ghost:hover {
+    background: var(--panel-2);
+    color: var(--fg);
+    border-color: var(--fg-mute);
+  }
+
+  .ex-feedback {
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-family: var(--sans);
+    display: none;
+    border: 1px solid var(--border);
+    line-height: 1.5;
+  }
+  .ex-feedback.show { display: block; animation: feedbackIn .3s cubic-bezier(.4,.0,.2,1); }
+  .ex-feedback.ok {
+    background: color-mix(in srgb, var(--moss) 12%, transparent);
+    border-color: color-mix(in srgb, var(--moss) 50%, var(--border));
+    color: color-mix(in srgb, var(--moss) 60%, var(--fg));
+  }
+  .ex-feedback.ok::before {
+    content: "✓ ";
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--moss);
+    margin-right: 4px;
+  }
+  .ex-feedback.no {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    color: var(--fg-soft);
+  }
+  .ex-feedback.no::before {
+    content: "→ ";
+    font-family: var(--mono);
+    color: var(--accent);
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  @keyframes feedbackIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ----- Footer ----- */
+  footer.colophon {
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+    margin-top: 80px;
+    color: var(--fg-mute);
+    font-size: 12px;
+    font-family: var(--mono);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+  }
+  footer.colophon em {
+    font-family: var(--serif);
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--fg-soft);
+    font-style: italic;
+  }
+
+  /* ----- Mobile ----- */
+  @media (max-width: 920px) {
+    .shell { grid-template-columns: 1fr; }
+    aside.nav {
+      position: relative;
+      height: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+    }
+    .nav-list { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+    .nav-list .label { width: 100%; padding: 8px 0 4px; }
+    .nav-list a { padding: 6px 10px; font-size: 13px; }
+    .progress-card { margin-top: 16px; }
+    main { padding: 40px 24px 80px; }
+    .practice-section { margin: 0 -24px; padding: 56px 24px 48px; }
+    .chapter-head { grid-template-columns: 60px 1fr; gap: 16px; }
+    .chapter-num { font-size: 44px; }
+    .chapter-head h2 { font-size: 28px; }
+    .hero h1 { font-size: 48px; }
+  }
+
+  /* hljs overrides for dimmed-but-warm rust */
+  .hljs-keyword, .hljs-built_in { color: #ff9d70 !important; font-style: normal; }
+  .hljs-string { color: #b8c281 !important; }
+  .hljs-number, .hljs-literal { color: #d6a458 !important; }
+  .hljs-comment { color: #6b7280 !important; font-style: italic; }
+  .hljs-function .hljs-title, .hljs-title.function_ { color: #e8c47a !important; }
+  .hljs-type, .hljs-class, .hljs-title.class_ { color: #6792b8 !important; }
+  .hljs-meta { color: #ce422b !important; }
+  .hljs-symbol, .hljs-variable { color: #d4d0c4 !important; }
+
+  /* ==================================================================
+   *  Game layer — XP, level, combo, badges, boss
+   * ================================================================== */
+
+  /* XP / Level block sits inside the existing .progress-card */
+  .xp-block {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    position: relative;
+  }
+  .xp-block .xp-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--fg-mute);
+  }
+  .xp-block .xp-level {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    color: var(--accent-2);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    line-height: 1.1;
+  }
+  .xp-block .xp-level .lvl-num {
+    font-size: 28px;
+    color: var(--fg);
+    font-style: italic;
+    margin-left: 2px;
+  }
+  .xp-block .xp-amount {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--fg-mute);
+    margin-top: 2px;
+  }
+  .xp-block .xp-amount strong { color: var(--accent-2); font-weight: 600; }
+  .xp-bar {
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+    position: relative;
+  }
+  .xp-bar > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    transition: width .6s cubic-bezier(.4,.0,.2,1);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  .xp-bar.pulse > div::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+    animation: xpShine 1s ease-out;
+  }
+  @keyframes xpShine {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+
+  .day-streak {
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--fg-mute);
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .day-streak .flame { color: var(--accent); font-size: 12px; }
+  .day-streak strong { color: var(--accent-2); font-weight: 600; }
+
+  /* Trophy case */
+  .trophy-case {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel-2);
+  }
+  .trophy-case > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; text-transform: uppercase; letter-spacing: .14em;
+    color: var(--fg-mute);
+    user-select: none;
+  }
+  .trophy-case > summary::-webkit-details-marker { display: none; }
+  .trophy-case > summary::after {
+    content: "+";
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--accent);
+    transition: transform .25s;
+  }
+  .trophy-case[open] > summary::after { transform: rotate(45deg); }
+  .trophy-case > summary .count {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 14px;
+    color: var(--accent-2);
+    text-transform: none;
+    letter-spacing: 0;
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+  }
+  .trophy-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .trophy {
+    aspect-ratio: 1;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--border);
+    background: var(--panel);
+    display: grid; place-items: center;
+    font-size: 18px;
+    cursor: help;
+    position: relative;
+    transition: transform .2s, border-color .2s, background .2s;
+    filter: grayscale(1) brightness(.55);
+    opacity: .55;
+  }
+  .trophy.unlocked {
+    filter: none;
+    opacity: 1;
+    background: linear-gradient(155deg, color-mix(in srgb, var(--accent) 15%, var(--panel)), var(--panel));
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 25%, transparent);
+  }
+  .trophy.unlocked:hover { transform: translateY(-2px); }
+  .trophy.just-unlocked { animation: trophyPop .8s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes trophyPop {
+    0%   { transform: scale(.4) rotate(-15deg); opacity: 0; }
+    60%  { transform: scale(1.18) rotate(8deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+  .trophy .tip {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%; transform: translateX(-50%);
+    background: var(--ink);
+    color: var(--bone);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    padding: 6px 9px;
+    font-family: var(--sans);
+    font-size: 10.5px;
+    line-height: 1.4;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s;
+    z-index: 50;
+    box-shadow: var(--shadow-sm);
+  }
+  .trophy .tip strong { display: block; color: var(--accent-2); font-weight: 600; margin-bottom: 1px; }
+  .trophy .tip .when { color: var(--fg-mute); font-family: var(--mono); font-size: 9.5px; margin-top: 2px; display: block; }
+  .trophy:hover .tip { opacity: 1; }
+
+  /* Combo pill near practice header */
+  .combo-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+    padding: 4px 11px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent-2);
+    letter-spacing: .04em;
+    transition: transform .2s, background .2s;
+    vertical-align: middle;
+  }
+  .combo-pill.zero { opacity: .5; background: transparent; color: var(--fg-mute); border-color: var(--border); }
+  .combo-pill.bump { animation: comboBump .35s cubic-bezier(.34,1.56,.64,1); }
+  .combo-pill .mult {
+    font-family: var(--serif);
+    font-style: italic;
+    color: var(--gold);
+    margin-left: 4px;
+  }
+  @keyframes comboBump {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+
+  /* Confetti canvas overlays the page */
+  #fx-canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* Level-up banner */
+  .level-up-banner {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(.8);
+    pointer-events: none;
+    z-index: 9998;
+    text-align: center;
+    opacity: 0;
+  }
+  .level-up-banner.show { animation: lvlBanner 1.6s cubic-bezier(.4,.0,.2,1) forwards; }
+  .level-up-banner .ring {
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    border: 3px solid var(--accent);
+    margin: 0 auto;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: lvlRing 1.6s cubic-bezier(.4,.0,.2,1) forwards;
+    box-shadow: 0 0 60px color-mix(in srgb, var(--accent) 60%, transparent);
+  }
+  .level-up-banner .word {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .4em;
+    color: var(--accent-2);
+    position: relative;
+    margin-bottom: 4px;
+  }
+  .level-up-banner .num {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 300;
+    font-size: 96px;
+    line-height: 1;
+    color: var(--fg);
+    letter-spacing: -.04em;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+    position: relative;
+  }
+  .level-up-banner .num em { color: var(--accent-2); font-style: italic; }
+  @keyframes lvlBanner {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.7); }
+    18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+    30%  { transform: translate(-50%, -50%) scale(1); }
+    78%  { opacity: 1; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+  }
+  @keyframes lvlRing {
+    0%   { width: 0; height: 0; opacity: 0; border-width: 6px; }
+    25%  { width: 280px; height: 280px; opacity: .9; border-width: 4px; }
+    100% { width: 540px; height: 540px; opacity: 0; border-width: 1px; }
+  }
+
+  /* Screen shake (applied on body) */
+  .shake { animation: shake .15s linear; }
+  @keyframes shake {
+    0%   { transform: translate(0,0); }
+    20%  { transform: translate(-3px, 1px); }
+    40%  { transform: translate(2px, -2px); }
+    60%  { transform: translate(-2px, -1px); }
+    80%  { transform: translate(2px, 1px); }
+    100% { transform: translate(0,0); }
+  }
+
+  /* XP gain floating numbers */
+  .xp-float {
+    position: fixed;
+    z-index: 9997;
+    pointer-events: none;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 22px;
+    color: var(--gold);
+    text-shadow: 0 2px 8px rgba(0,0,0,.4);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    animation: xpFloat 1.2s cubic-bezier(.4,.0,.2,1) forwards;
+  }
+  @keyframes xpFloat {
+    0%   { opacity: 0; transform: translateY(0) scale(.7); }
+    20%  { opacity: 1; transform: translateY(-12px) scale(1.05); }
+    100% { opacity: 0; transform: translateY(-72px) scale(1); }
+  }
+
+  /* Boss section */
+  .boss-section {
+    margin: 80px -72px 0;
+    padding: 72px 72px 72px;
+    border-top: 1px solid var(--border);
+    background:
+      radial-gradient(ellipse at top, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%),
+      linear-gradient(180deg, var(--panel-2), transparent 60%);
+    position: relative;
+  }
+  @media (max-width: 920px) {
+    .boss-section { margin: 56px -24px 0; padding: 56px 24px; }
+  }
+  .boss-section .boss-head {
+    text-align: center;
+    margin-bottom: 36px;
+  }
+  .boss-section .boss-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--accent-2);
+    margin-bottom: 14px;
+  }
+  .boss-section h2 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(36px, 5vw, 56px);
+    line-height: 1;
+    letter-spacing: -.03em;
+    margin: 0 0 12px;
+    color: var(--fg);
+    font-variation-settings: "opsz" 144, "SOFT" 50;
+  }
+  .boss-section h2 em {
+    font-style: italic;
+    color: var(--accent-2);
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+  .boss-section .boss-lede {
+    font-family: var(--serif);
+    font-size: 17px;
+    color: var(--fg-soft);
+    max-width: 560px;
+    margin: 0 auto;
+    line-height: 1.55;
+    font-weight: 300;
+  }
+
+  .boss-arena {
+    max-width: 720px;
+    margin: 0 auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    background: var(--panel);
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .boss-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .boss-stats > div {
+    padding: 14px 18px;
+    border-right: 1px solid var(--border);
+    font-family: var(--mono);
+  }
+  .boss-stats > div:last-child { border-right: 0; }
+  .boss-stats .lbl {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .18em;
+    color: var(--fg-mute);
+    margin-bottom: 4px;
+  }
+  .boss-stats .val {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 26px;
+    color: var(--fg);
+    font-variation-settings: "SOFT" 100, "WONK" 1;
+    line-height: 1;
+  }
+  .boss-stats .val.danger { color: var(--accent); }
+  .boss-stats .val.good { color: var(--moss); }
+
+  .boss-stage {
+    padding: 28px 28px 24px;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .boss-prompt {
+    font-family: var(--serif);
+    font-size: 22px;
+    color: var(--fg);
+    line-height: 1.4;
+    margin-bottom: 18px;
+    font-weight: 400;
+  }
+  .boss-prompt code,
+  .boss-prompt pre {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    background: #0d1117;
+    color: #d4d0c4;
+    padding: 12px 14px;
+    border-radius: var(--radius-s);
+    border: 1px solid var(--border);
+    display: block;
+    margin-top: 10px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  [data-theme="light"] .boss-prompt code,
+  [data-theme="light"] .boss-prompt pre { background: #fbf7ee; color: #2a2412; }
+  .boss-input {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .boss-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .boss-actions {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 28px;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .boss-progress {
+    display: flex; gap: 4px;
+  }
+  .boss-progress span {
+    width: 14px; height: 6px; border-radius: 3px;
+    background: var(--border);
+    transition: background .25s;
+  }
+  .boss-progress span.right { background: var(--moss); }
+  .boss-progress span.wrong { background: var(--accent); }
+  .boss-progress span.now   { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+
+  .boss-result {
+    text-align: center;
+    padding: 36px 28px;
+  }
+  .boss-result .grade {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 64px;
+    line-height: 1;
+    color: var(--fg);
+    margin: 4px 0 8px;
+    font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  }
+  .boss-result .grade.victory { color: var(--gold); }
+  .boss-result .grade.defeat  { color: var(--accent); }
+  .boss-result .summary {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--fg-soft);
+    margin: 8px 0 24px;
+  }
+  .boss-result .summary strong { color: var(--accent-2); }
+
+  .timer-bar {
+    height: 3px;
+    background: var(--border);
+    overflow: hidden;
+    position: relative;
+  }
+  .timer-bar > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--moss), var(--gold), var(--accent));
+    transition: width .25s linear;
+  }
+
+  /* Reduce motion respect */
+  @media (prefers-reduced-motion: reduce) {
+    .level-up-banner.show { animation-duration: .4s; }
+    .level-up-banner .ring { animation-duration: .4s; }
+    .shake { animation: none; }
+    .trophy.just-unlocked { animation-duration: .2s; }
+    .xp-float { animation-duration: .4s; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ============================================================ -->
+  <!-- Sidebar -->
+  <!-- ============================================================ -->
+  <aside class="nav">
+    <div class="brand">
+      <div class="mark">R</div>
+      <div>
+        <div class="title">Rust，<em>慢慢學</em></div>
+        <div class="sub">互動入門指南</div>
+      </div>
+    </div>
+
+    <ul class="nav-list" id="nav-list">
+      <li class="label">章節</li>
+      <li><a href="#ch-1" data-section="ch-1"><span class="num">01</span>所有權與借用</a></li>
+      <li><a href="#ch-2" data-section="ch-2"><span class="num">02</span>生命週期</a></li>
+      <li><a href="#ch-3" data-section="ch-3"><span class="num">03</span>Trait 與泛型</a></li>
+      <li><a href="#ch-4" data-section="ch-4"><span class="num">04</span>Result、Option、?</a></li>
+      <li><a href="#ch-5" data-section="ch-5"><span class="num">05</span>模式比對</a></li>
+      <li><a href="#ch-6" data-section="ch-6"><span class="num">06</span>迭代器與閉包</a></li>
+      <li><a href="#ch-7" data-section="ch-7"><span class="num">07</span>並行</a></li>
+      <li><a href="#ch-8" data-section="ch-8"><span class="num">08</span>Async / Await</a></li>
+      <li><a href="#ch-9" data-section="ch-9"><span class="num">09</span>Cargo 與模組</a></li>
+      <li class="label">工作坊</li>
+      <li><a href="#practice" data-section="practice"><span class="num">∞</span>練習模式</a></li>
+      <li><a href="#boss" data-section="boss"><span class="num">!</span>魔王戰</a></li>
+    </ul>
+
+    <div class="progress-card">
+      <div class="row"><span>進度</span><span id="pct">0%</span></div>
+      <div class="count"><span id="solved">0</span><span class="total"> / <span id="total">9</span></span></div>
+      <div class="progress-bar"><div id="bar" style="width:0%"></div></div>
+      <div class="row" style="margin-top:10px;"><span>已完成練習</span></div>
+
+      <div class="xp-block">
+        <div class="xp-row"><span>經驗值</span><span id="rg-xp-into">0 / 100</span></div>
+        <div class="xp-level">等級<span class="lvl-num" id="rg-level">1</span></div>
+        <div class="xp-amount"><strong id="rg-xp-total">0</strong> 總經驗值</div>
+        <div class="xp-bar" id="rg-xp-bar"><div id="rg-xp-bar-fill" style="width:0%"></div></div>
+        <div class="day-streak"><span class="flame">▲</span>連續天數 <strong id="rg-day-streak">1</strong></div>
+      </div>
+    </div>
+
+    <details class="trophy-case" id="rg-trophy-case">
+      <summary>獎盃櫃 <span class="count"><span id="rg-trophy-have">0</span> / <span id="rg-trophy-total">11</span></span></summary>
+      <div class="trophy-grid" id="rg-trophy-grid"></div>
+    </details>
+
+    <div class="theme-toggle" id="theme-toggle" role="button" tabindex="0" aria-label="切換主題">
+      <div class="switch"></div>
+      <span id="theme-label">深色</span>
+    </div>
+  </aside>
+
+
+  <!-- ============================================================ -->
+  <!-- Main -->
+  <!-- ============================================================ -->
+  <main>
+
+    <!-- HERO -->
+    <header class="hero">
+      <div class="eyebrow">給好奇者的實地指南</div>
+      <h1>學習 <em>Rust</em>，<br />一次借一個。</h1>
+      <p class="lede">
+        Rust 之所以特別挑剔，是有原因的——它的型別系統就像一個小型的記憶體安全證明助理。
+        本入門指南帶你走過最重要的九個觀念，
+        並以圖示和會給你回饋的練習加以說明。
+      </p>
+      <div class="meta">
+        <div>閱讀時間<strong>約 35 分鐘</strong></div>
+        <div>練習題<strong>9 題待解</strong></div>
+        <div>版本<strong>2024 / 1.x</strong></div>
+        <div>風格<strong>慣用寫法</strong></div>
+      </div>
+    </header>
+
+
+    <!-- ============================================================ -->
+    <!-- 1. OWNERSHIP & BORROWING -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-1">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>1<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>所有權與借用 (Ownership &amp; Borrowing)</h2>
+          <span class="tag">Rust 的核心</span>
+        </div>
+      </div>
+
+      <p>
+        Rust 中每個值都有單一的<strong>所有者 (owner)</strong>。當所有者離開作用域時，
+        該值會被丟棄——其記憶體會被釋放、檔案會被關閉、鎖會被釋放。這就是 <em>RAII</em>，
+        而且是在編譯期靜態強制執行的。
+      </p>
+      <p>
+        你可以<strong>移動 (move)</strong> 所有權（轉移所有權），或者你可以<strong>借用 (borrow)</strong>
+        （借出一個參考）。借用遵守兩條規則：<code>&amp;T</code> 共享參考可以同時存在多個，
+        但 <code>&amp;mut T</code> 可變參考必須是排他的。
+        編譯器會在編譯期證明這一點。
+      </p>
+
+      <div class="diagram">
+        <div class="caption">所有權移轉 (move) 與借用的對比</div>
+        <svg viewBox="0 0 720 240" role="img" aria-label="圖示：值從變數 a 移動到 b，相對於借用關係">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>
+            </marker>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="var(--sky)"/>
+            </marker>
+          </defs>
+          <!-- Move scenario -->
+          <text x="20" y="28" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)" letter-spacing="2">MOVE — let b = a;</text>
+          <rect x="20" y="48" width="120" height="56" rx="6" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="80" y="70" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--fg-mute)" text-decoration="line-through">a</text>
+          <text x="80" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">(已失效)</text>
+
+          <line x1="150" y1="76" x2="220" y2="76" stroke="var(--accent)" stroke-width="2" marker-end="url(#arr)"/>
+          <text x="185" y="68" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="12" fill="var(--accent-2)">移動</text>
+
+          <rect x="230" y="48" width="120" height="56" rx="6" fill="var(--accent)" stroke="var(--accent)" opacity="0.85"/>
+          <text x="290" y="72" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="white" font-weight="600">b</text>
+          <text x="290" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="white" opacity=".85">擁有 "hello"</text>
+
+          <!-- Borrow scenario -->
+          <text x="20" y="148" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)" letter-spacing="2">BORROW — let r = &amp;a;</text>
+          <rect x="20" y="168" width="120" height="56" rx="6" fill="var(--accent)" stroke="var(--accent)" opacity="0.85"/>
+          <text x="80" y="192" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="white" font-weight="600">a</text>
+          <text x="80" y="212" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="white" opacity=".85">擁有 "hello"</text>
+
+          <path d="M 230 196 C 195 196, 195 196, 150 196" stroke="var(--sky)" stroke-width="2" fill="none" marker-end="url(#arr2)"/>
+          <text x="190" y="186" text-anchor="middle" font-family="Fraunces" font-style="italic" font-size="12" fill="var(--sky)">指向</text>
+
+          <rect x="230" y="168" width="120" height="56" rx="6" fill="var(--panel)" stroke="var(--sky)" stroke-dasharray="3 3"/>
+          <text x="290" y="192" text-anchor="middle" font-family="JetBrains Mono" font-size="14" fill="var(--sky)">r: &amp;String</text>
+          <text x="290" y="212" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">借用中</text>
+
+          <!-- Stack/heap on the right -->
+          <text x="430" y="28" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)" letter-spacing="2">STACK ───── HEAP</text>
+          <rect x="430" y="48" width="120" height="176" rx="4" fill="none" stroke="var(--border)" stroke-dasharray="2 4"/>
+          <rect x="580" y="48" width="120" height="176" rx="4" fill="none" stroke="var(--border)" stroke-dasharray="2 4"/>
+
+          <rect x="445" y="64" width="90" height="34" rx="3" fill="var(--panel-2)" stroke="var(--border)"/>
+          <text x="490" y="78" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-soft)">a: String</text>
+          <text x="490" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="var(--fg-mute)">ptr, len, cap</text>
+
+          <rect x="595" y="100" width="90" height="34" rx="3" fill="color-mix(in srgb, var(--accent) 20%, transparent)" stroke="var(--accent)"/>
+          <text x="640" y="121" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--accent-2)">"hello"</text>
+
+          <line x1="535" y1="80" x2="595" y2="115" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arr)"/>
+        </svg>
+        <div class="legend">
+          <span><i style="background:var(--accent)"></i>擁有的值</span>
+          <span><i style="background:var(--sky)"></i>借用的參考</span>
+          <span><i style="background:var(--border)"></i>已失效</span>
+        </div>
+      </div>
+
+      <h3>典型的移動 (move)</h3>
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>main.rs</span></div>
+<pre><code class="language-rust">fn main() {
+    let s = String::from("hello");
+    let t = s;                 // s 被移動到 t
+    // println!("{}", s);      // ❌ 錯誤：借用已被移動的值：`s`
+    println!("{}", t);         // ✅
+}</code></pre>
+      </div>
+
+      <h3>共享借用與可變借用</h3>
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>borrow.rs</span></div>
+<pre><code class="language-rust">fn len(s: &amp;String) -&gt; usize { s.len() }
+
+fn push_bang(s: &amp;mut String) { s.push('!'); }
+
+fn main() {
+    let mut greeting = String::from("hi");
+    let n = len(&amp;greeting);          // 共享借用，OK
+    push_bang(&amp;mut greeting);        // 排他借用，OK
+    println!("{} ({} chars)", greeting, n);
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>兩條規則</strong>
+        在任何時刻，你<em>要嘛</em>有一個可變參考，
+        <em>要嘛</em>有任意數量的共享參考。參考必須永遠
+        有效（指向存活的資料）。這就是借用檢查器的全部內容。
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 2. LIFETIMES -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-2">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>2<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>生命週期 (Lifetimes)</h2>
+          <span class="tag">為借用的有效期間命名</span>
+        </div>
+      </div>
+
+      <p>
+        <strong>生命週期 (lifetime)</strong> 只是用來為「參考有效的程式碼區域」命名的名稱。
+        多數生命週期是被推斷出來的（這稱為
+        <em>省略 (elision)</em>）。只有當編譯器無法判斷
+        所回傳的參考來自哪個輸入時，你才需要明確寫出。
+      </p>
+
+      <div class="diagram">
+        <div class="caption">參考不能比所借用的值活得更久</div>
+        <svg viewBox="0 0 720 200" role="img" aria-label="生命週期重疊示意圖">
+          <defs>
+            <linearGradient id="lg1" x1="0" x2="1" y1="0" y2="0">
+              <stop offset="0%" stop-color="var(--accent)" stop-opacity=".2"/>
+              <stop offset="100%" stop-color="var(--accent)" stop-opacity=".8"/>
+            </linearGradient>
+          </defs>
+          <text x="20" y="30" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)" letter-spacing="2">SCOPE TIMELINE →</text>
+
+          <!-- Outer scope a -->
+          <rect x="20" y="50" width="660" height="34" rx="4" fill="url(#lg1)"/>
+          <text x="32" y="72" font-family="JetBrains Mono" font-size="13" fill="var(--fg)" font-weight="600">'a  : let s = String::from("hi");</text>
+          <text x="660" y="72" text-anchor="end" font-family="JetBrains Mono" font-size="11" fill="white">drop(s)</text>
+
+          <!-- Inner reference b nested inside a -->
+          <rect x="180" y="100" width="380" height="34" rx="4" fill="var(--sky)" opacity=".75"/>
+          <text x="192" y="122" font-family="JetBrains Mono" font-size="13" fill="white" font-weight="600">'b  : let r = &amp;s;   // 'b ⊆ 'a  ✓</text>
+
+          <!-- Bad case -->
+          <rect x="80" y="148" width="600" height="34" rx="4" fill="none" stroke="var(--accent)" stroke-dasharray="4 4"/>
+          <text x="92" y="170" font-family="JetBrains Mono" font-size="13" fill="var(--accent-2)">✗  若 'b 延伸超過 'a，r 將成為懸垂參考。</text>
+        </svg>
+        <div class="legend">
+          <span><i style="background:var(--accent);opacity:.7"></i>所有者的生命週期 'a</span>
+          <span><i style="background:var(--sky);opacity:.75"></i>參考的生命週期 'b</span>
+        </div>
+      </div>
+
+      <h3>標註所回傳的參考</h3>
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>lifetimes.rs</span></div>
+<pre><code class="language-rust">// 回傳的 `&amp;str` 必須至少和 x、y 中較短者一樣久。
+fn longest&lt;'a&gt;(x: &amp;'a str, y: &amp;'a str) -&gt; &amp;'a str {
+    if x.len() &gt;= y.len() { x } else { y }
+}
+
+fn main() {
+    let s1 = String::from("long string is long");
+    let result;
+    {
+        let s2 = String::from("short");
+        result = longest(&amp;s1, &amp;s2);
+        println!("{}", result);   // ✅ 兩者都還活著
+    }
+    // println!("{}", result);     // ❌ s2 已被丟棄，會懸垂
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>省略規則</strong>
+        若一個函式接受一個參考並回傳一個參考，Rust 會假設
+        它們共用相同的生命週期。若 <code>&amp;self</code> 是輸入之一，
+        則輸出借用自 <code>&amp;self</code>。你只在這些
+        預設不正確時才需要標註。
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 3. TRAITS & GENERICS -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-3">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>3<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>Trait 與泛型 (Traits &amp; Generics)</h2>
+          <span class="tag">行為的抽象</span>
+        </div>
+      </div>
+
+      <p>
+        <strong>trait</strong> 是型別可以實作的一組方法。
+        <strong>泛型 (generic)</strong> 是以型別為參數的函式或型別。
+        兩者結合，讓你不需繼承就能擁有特設多型 (ad-hoc polymorphism)：
+        <em>「任何能被顯示的 T」</em>、<em>「任何 i32 的迭代器」</em>。
+      </p>
+
+      <div class="diagram">
+        <div class="caption">一個 trait、兩個 impl、一個泛型函式</div>
+        <svg viewBox="0 0 720 230" role="img">
+          <!-- Trait at top -->
+          <rect x="280" y="20" width="160" height="46" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+          <text x="360" y="42" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--accent-2)" font-weight="600">trait Greet</text>
+          <text x="360" y="58" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">fn hello(&amp;self) -> String</text>
+
+          <!-- Two impls -->
+          <line x1="360" y1="66" x2="180" y2="100" stroke="var(--border)" stroke-dasharray="3 3"/>
+          <line x1="360" y1="66" x2="540" y2="100" stroke="var(--border)" stroke-dasharray="3 3"/>
+
+          <rect x="100" y="100" width="160" height="56" rx="6" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="180" y="124" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--fg)" font-weight="600">struct Cat</text>
+          <text x="180" y="142" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">impl Greet → "meow"</text>
+
+          <rect x="460" y="100" width="160" height="56" rx="6" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="540" y="124" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--fg)" font-weight="600">struct Robot</text>
+          <text x="540" y="142" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">impl Greet → "01001..."</text>
+
+          <!-- Generic fn at bottom -->
+          <rect x="180" y="180" width="360" height="40" rx="6" fill="color-mix(in srgb, var(--accent) 14%, transparent)" stroke="var(--accent)"/>
+          <text x="360" y="204" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--accent-2)" font-weight="600">fn welcome&lt;T: Greet&gt;(t: &amp;T)</text>
+
+          <line x1="180" y1="156" x2="320" y2="180" stroke="var(--accent)" stroke-width="1"/>
+          <line x1="540" y1="156" x2="400" y2="180" stroke="var(--accent)" stroke-width="1"/>
+        </svg>
+      </div>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>traits.rs</span></div>
+<pre><code class="language-rust">trait Greet {
+    fn hello(&amp;self) -&gt; String;
+    fn shout(&amp;self) -&gt; String {                 // 預設方法
+        self.hello().to_uppercase()
+    }
+}
+
+struct Cat;
+struct Robot { id: u32 }
+
+impl Greet for Cat   { fn hello(&amp;self) -&gt; String { "meow".into() } }
+impl Greet for Robot { fn hello(&amp;self) -&gt; String { format!("unit-{}", self.id) } }
+
+fn welcome&lt;T: Greet&gt;(t: &amp;T) {
+    println!("{} ({})", t.hello(), t.shout());
+}
+
+fn main() {
+    welcome(&amp;Cat);
+    welcome(&amp;Robot { id: 7 });
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>靜態分派 vs 動態分派</strong>
+        <code>fn welcome&lt;T: Greet&gt;</code> 會為每個具體型別產生一份副本
+        （零成本）。<code>fn welcome(t: &amp;dyn Greet)</code> 接收一個胖指標 (fat pointer)，
+        在執行期才分派——稍微慢一點，但允許你儲存
+        異質的 <code>Vec&lt;Box&lt;dyn Greet&gt;&gt;</code>。
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 4. RESULT / OPTION / ? -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-4">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>4<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>Result、Option 與 ? 運算子</h2>
+          <span class="tag">將錯誤視為值</span>
+        </div>
+      </div>
+
+      <p>
+        Rust 沒有例外。失敗會被編碼在型別中。<code>Option&lt;T&gt;</code>
+        意思是<em>也許有一個 T</em>；<code>Result&lt;T, E&gt;</code> 意思是<em>一個 T 或一個
+        錯誤 E</em>。<code>?</code> 運算子串起這些型別，
+        若沒有值就提早回傳。
+      </p>
+
+      <div class="diagram">
+        <div class="caption">? 運算子：遇錯短路、遇 Ok 解開</div>
+        <svg viewBox="0 0 720 180" role="img">
+          <!-- Result input -->
+          <rect x="20" y="60" width="140" height="60" rx="6" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="90" y="85" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--fg)">Result&lt;T, E&gt;</text>
+          <text x="90" y="104" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">expr?</text>
+
+          <!-- Branches -->
+          <line x1="160" y1="80" x2="240" y2="40" stroke="var(--moss)" stroke-width="2"/>
+          <line x1="160" y1="100" x2="240" y2="140" stroke="var(--accent)" stroke-width="2"/>
+
+          <rect x="240" y="22" width="200" height="48" rx="6" fill="color-mix(in srgb, var(--moss) 22%, transparent)" stroke="var(--moss)"/>
+          <text x="340" y="44" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--moss)" font-weight="600">Ok(t) → 綁定到 t</text>
+          <text x="340" y="60" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">繼續執行</text>
+
+          <rect x="240" y="120" width="200" height="48" rx="6" fill="color-mix(in srgb, var(--accent) 18%, transparent)" stroke="var(--accent)"/>
+          <text x="340" y="142" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--accent-2)" font-weight="600">Err(e) → return Err(e.into())</text>
+          <text x="340" y="158" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">函式提早離開</text>
+
+          <!-- Continuation -->
+          <line x1="440" y1="46" x2="520" y2="80" stroke="var(--moss)" stroke-width="2"/>
+          <rect x="520" y="60" width="180" height="60" rx="6" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="610" y="85" text-anchor="middle" font-family="JetBrains Mono" font-size="13" fill="var(--fg)">…使用 t…</text>
+          <text x="610" y="104" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--fg-mute)">順利路徑</text>
+        </svg>
+      </div>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>parse.rs</span></div>
+<pre><code class="language-rust">use std::num::ParseIntError;
+
+fn double_first(input: &amp;str) -&gt; Result&lt;i32, ParseIntError&gt; {
+    let first = input.split(',').next().unwrap_or("0");
+    let n: i32 = first.trim().parse()?;   // 遇到 Err 時提早回傳
+    Ok(n * 2)
+}
+
+fn main() {
+    match double_first("21, hello") {
+        Ok(v)  =&gt; println!("got {v}"),
+        Err(e) =&gt; eprintln!("bad: {e}"),
+    }
+}</code></pre>
+      </div>
+
+      <h3>簡述 Option</h3>
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>option.rs</span></div>
+<pre><code class="language-rust">fn first_word(s: &amp;str) -&gt; Option&lt;&amp;str&gt; {
+    s.split_whitespace().next()
+}
+
+fn main() {
+    let n = first_word("hello world").map(str::len).unwrap_or(0);
+    println!("{n}");                     // 5
+}</code></pre>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 5. PATTERN MATCHING -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-5">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>5<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>模式比對 (Pattern Matching)</h2>
+          <span class="tag">match、if let、while let</span>
+        </div>
+      </div>
+
+      <p>
+        <code>match</code> 是窮盡的：編譯器會拒絕讓你
+        忽略任何變體。模式可以解構元組 (tuple)、結構 (struct)、列舉 (enum)、
+        切片 (slice)、參考，甚至以 <code>if</code> 條件加上守衛 (guard)。
+      </p>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>match.rs</span></div>
+<pre><code class="language-rust">enum Shape {
+    Circle { r: f64 },
+    Rect   { w: f64, h: f64 },
+    Triangle(f64, f64, f64),
+}
+
+fn area(s: &amp;Shape) -&gt; f64 {
+    match s {
+        Shape::Circle { r }            =&gt; std::f64::consts::PI * r * r,
+        Shape::Rect   { w, h }         =&gt; w * h,
+        Shape::Triangle(a, b, c) if a + b &gt; *c =&gt; {
+            let p = (a + b + c) / 2.0;
+            (p * (p - a) * (p - b) * (p - c)).sqrt()
+        }
+        _ =&gt; f64::NAN,                                  // 不合法的三角形
+    }
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>If let、while let</strong>
+        當你只在意其中一個變體時，<code>if let Some(x) = opt { … }</code>
+        會比完整的 match 更乾淨。<code>while let</code> 會持續執行直到
+        模式不再匹配——很適合用來彈出堆疊。
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 6. ITERATORS & CLOSURES -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-6">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>6<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>迭代器與閉包 (Iterators &amp; Closures)</h2>
+          <span class="tag">惰性、流暢、快速</span>
+        </div>
+      </div>
+
+      <p>
+        迭代器是<em>惰性 (lazy)</em> 的：你不要求，它什麼都不做。閉包
+        會捕捉它的環境，並有三種風味：<code>Fn</code>
+        （借用）、<code>FnMut</code>（可變借用）、<code>FnOnce</code>（消耗所有權）。
+        編譯器會自動挑選最寬鬆的那一種。
+      </p>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>iter.rs</span></div>
+<pre><code class="language-rust">fn main() {
+    let nums = vec![1, 2, 3, 4, 5, 6];
+
+    let sum_of_even_squares: i32 = nums
+        .iter()
+        .filter(|&amp;&amp;n| n % 2 == 0)
+        .map(|&amp;n| n * n)
+        .sum();
+
+    println!("{sum_of_even_squares}");   // 56
+
+    // 閉包與捕捉
+    let factor = 10;
+    let scale = |x: i32| x * factor;     // 借用 factor (Fn)
+    println!("{}", scale(3));            // 30
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>零成本</strong>
+        慣用的迭代器鏈會編譯成與
+        手寫迴圈相同的組合語言。流暢的風格基本上是免費的——有時
+        甚至更快，因為 LLVM 能證明更多不變式 (invariant)。
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 7. CONCURRENCY -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-7">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>7<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>並行 (Concurrency)</h2>
+          <span class="tag">執行緒、send/sync、通道</span>
+        </div>
+      </div>
+
+      <p>
+        兩個標記 trait 把關了並行。<code>Send</code> 表示一個值
+        可以安全地<em>移動</em>到其他執行緒。<code>Sync</code> 表示
+        <code>&amp;T</code> 可以安全地在執行緒間<em>共享</em>。多數型別
+        兩者皆是；<code>Rc&lt;T&gt;</code> 與 <code>RefCell&lt;T&gt;</code> 不是——編譯器會阻止
+        你寫出資料競爭的程式碼。
+      </p>
+
+      <div class="diagram">
+        <div class="caption">通道 (channel)：生產者 → 消費者，並轉移所有權</div>
+        <svg viewBox="0 0 720 160" role="img">
+          <rect x="20" y="40" width="160" height="80" rx="8" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="100" y="70" text-anchor="middle" font-family="Fraunces" font-size="16" font-style="italic" fill="var(--fg)">執行緒 A</text>
+          <text x="100" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--fg-mute)">tx.send(msg)</text>
+          <text x="100" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--accent-2)">移動所有權</text>
+
+          <!-- Channel pipe -->
+          <rect x="200" y="68" width="320" height="24" rx="12" fill="color-mix(in srgb, var(--accent) 18%, transparent)" stroke="var(--accent)"/>
+          <text x="360" y="84" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--accent-2)" font-weight="600">mpsc::channel  ⇒  FIFO 佇列</text>
+
+          <!-- Arrow -->
+          <line x1="180" y1="80" x2="200" y2="80" stroke="var(--accent)" stroke-width="2"/>
+          <line x1="520" y1="80" x2="540" y2="80" stroke="var(--accent)" stroke-width="2"/>
+          <polygon points="540,75 552,80 540,85" fill="var(--accent)"/>
+
+          <rect x="540" y="40" width="160" height="80" rx="8" fill="var(--panel)" stroke="var(--border)"/>
+          <text x="620" y="70" text-anchor="middle" font-family="Fraunces" font-size="16" font-style="italic" fill="var(--fg)">執行緒 B</text>
+          <text x="620" y="92" text-anchor="middle" font-family="JetBrains Mono" font-size="12" fill="var(--fg-mute)">rx.recv()?</text>
+          <text x="620" y="108" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="var(--moss)">取得擁有權</text>
+        </svg>
+      </div>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>channel.rs</span></div>
+<pre><code class="language-rust">use std::sync::mpsc;
+use std::thread;
+
+fn main() {
+    let (tx, rx) = mpsc::channel();
+
+    for i in 0..4 {
+        let tx = tx.clone();
+        thread::spawn(move || {
+            tx.send(format!("hello from worker {i}")).unwrap();
+        });
+    }
+    drop(tx);                     // 關閉原本的傳送端
+
+    while let Ok(msg) = rx.recv() {
+        println!("{msg}");
+    }
+}</code></pre>
+      </div>
+
+      <h3>共享可變狀態</h3>
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>mutex.rs</span></div>
+<pre><code class="language-rust">use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(Mutex::new(0));
+    let mut handles = vec![];
+
+    for _ in 0..10 {
+        let c = Arc::clone(&amp;counter);
+        handles.push(thread::spawn(move || {
+            let mut n = c.lock().unwrap();
+            *n += 1;
+        }));
+    }
+    for h in handles { h.join().unwrap(); }
+    println!("count = {}", *counter.lock().unwrap()); // 10
+}</code></pre>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 8. ASYNC -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-8">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>8<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>Async / Await</h2>
+          <span class="tag">合作式並行</span>
+        </div>
+      </div>
+
+      <p>
+        將函式標記為 <code>async</code>，會把它的本體變成一個
+        實作 <code>Future</code> 的狀態機。呼叫它不會做<em>任何事</em>，
+        除非你 <code>.await</code> 它，或將它交給一個執行期 (runtime)（Tokio、async-std、
+        smol）。每個 <code>.await</code> 都是一個暫停點。
+      </p>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>async_main.rs</span></div>
+<pre><code class="language-rust">use tokio::time::{sleep, Duration};
+
+async fn fetch(name: &amp;str) -&gt; String {
+    sleep(Duration::from_millis(50)).await;
+    format!("hello, {name}")
+}
+
+#[tokio::main]
+async fn main() {
+    let (a, b) = tokio::join!(fetch("alice"), fetch("bob"));
+    println!("{a} | {b}");
+}</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>Async 是一種「顏色」</strong>
+        你可以從 async 中呼叫同步函式，但反過來
+        若沒有執行期就不行。盡早選定執行期（Tokio 是
+        預設首選）並一直使用它。
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- 9. CARGO & MODULES -->
+    <!-- ============================================================ -->
+    <section class="chapter" id="ch-9">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">第</span>9<span class="ord" style="display:inline">章</span></div>
+        <div>
+          <h2>Cargo 與模組 (Cargo &amp; Modules)</h2>
+          <span class="tag">專案結構</span>
+        </div>
+      </div>
+
+      <p>
+        <strong>Cargo</strong> 集建置系統、套件管理員、測試執行器
+        和基準測試框架於一身。一個 <em>crate</em> 是編譯單位。
+        一個 <em>module</em> 是 crate 內部的命名空間。
+        檔案系統會反映出模組樹的結構。
+      </p>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>tree</span></div>
+<pre><code class="language-plaintext">my_app/
+├── Cargo.toml          # 設定檔：名稱、版本、相依套件
+├── Cargo.lock          # 精確的解析版本（執行檔請納入版本控制）
+└── src/
+    ├── main.rs         # 二進位執行檔進入點 →  crate `my_app`
+    ├── lib.rs          # 函式庫根模組         →  crate `my_app`
+    └── parser/
+        ├── mod.rs      # 模組 `parser`
+        └── ast.rs      # 模組 `parser::ast`</code></pre>
+      </div>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>Cargo.toml</span></div>
+<pre><code class="language-toml">[package]
+name    = "my_app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+serde   = { version = "1", features = ["derive"] }
+tokio   = { version = "1", features = ["full"] }
+anyhow  = "1"
+
+[dev-dependencies]
+proptest = "1"</code></pre>
+      </div>
+
+      <div class="code-wrap">
+        <div class="topbar"><div class="dots"><span></span><span></span><span></span></div><span>commands</span></div>
+<pre><code class="language-bash">cargo new my_app             # 建立一個二進位 crate 骨架
+cargo run                    # 編譯並執行
+cargo test                   # 執行單元、整合與文件測試
+cargo clippy -- -D warnings  # 大名鼎鼎的銳利 linter
+cargo fmt                    # rustfmt，固執且最終的格式化器</code></pre>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- PRACTICE MODE -->
+    <!-- ============================================================ -->
+    <section class="chapter practice-section" id="practice">
+      <div class="chapter-head">
+        <div class="chapter-num"><span class="ord">工作坊</span>∞</div>
+        <div>
+          <h2>練習模式 <span class="combo-pill zero" id="rg-combo"><span>連擊</span> <strong id="rg-combo-num">0</strong></span></h2>
+          <span class="tag">9 題手工評分練習</span>
+        </div>
+      </div>
+
+      <p>
+        在每個方框中輸入修正並按下 <strong>檢查</strong>。評分器
+        是一組小型的正則表達式——多種正確答案的形式都會被接受，
+        當你接近時，提示會推你一把。
+        進度會儲存在你的瀏覽器中。
+      </p>
+
+      <div id="exercises"></div>
+
+      <div style="margin-top: 32px; display:flex; gap: 12px;">
+        <button class="btn btn-ghost" id="reset-progress">重設進度</button>
+      </div>
+    </section>
+
+
+    <!-- ============================================================ -->
+    <!-- BOSS BATTLE -->
+    <!-- ============================================================ -->
+    <section class="chapter boss-section" id="boss">
+      <div class="boss-head">
+        <div class="boss-eyebrow">最終遭遇戰</div>
+        <h2><span aria-hidden="true">🦀</span> 借用檢查器 <em>魔王</em></h2>
+        <p class="boss-lede">
+          十題快問快答。倒數六十秒。
+          編譯器絕不眨眼。你也別眨。
+        </p>
+      </div>
+
+      <div class="boss-arena" id="rg-boss-arena">
+        <div class="boss-stats">
+          <div><div class="lbl">回合</div><div class="val" id="rg-boss-round">— / 10</div></div>
+          <div><div class="lbl">得分</div><div class="val good" id="rg-boss-score">0</div></div>
+          <div><div class="lbl">時間</div><div class="val" id="rg-boss-time">60s</div></div>
+        </div>
+        <div class="timer-bar"><div id="rg-boss-timer-fill" style="width:100%"></div></div>
+        <div class="boss-stage" id="rg-boss-stage">
+          <div class="boss-prompt" style="text-align:center; font-style:italic; color:var(--fg-soft);">
+            準備好就按 <strong style="color:var(--accent-2);">開始戰鬥</strong>。<br>
+            <span style="font-size:13px; color:var(--fg-mute); font-style:normal; font-family:var(--mono); display:inline-block; margin-top:10px;">十題全對 → 解鎖「擊敗編譯器魔王」徽章</span>
+          </div>
+        </div>
+        <div class="boss-actions">
+          <div class="boss-progress" id="rg-boss-progress"></div>
+          <button class="btn btn-primary" id="rg-boss-begin">開始戰鬥</button>
+        </div>
+      </div>
+    </section>
+
+
+    <footer class="colophon">
+      <div>使用 <em>Fraunces</em>、<em>Inter</em> 與 <em>JetBrains Mono</em> 排版</div>
+      <div>為慢學者打造 · v 1.0</div>
+    </footer>
+
+  </main>
+
+</div>
+
+
+<!-- ============================================================ -->
+<!-- Behaviour -->
+<!-- ============================================================ -->
+<script>
+(() => {
+
+  /* -------------------------------------------------------------
+   *  Highlight.js init
+   * ------------------------------------------------------------- */
+  if (window.hljs) {
+    hljs.configure({ ignoreUnescapedHTML: true });
+    document.querySelectorAll("pre code").forEach(b => hljs.highlightElement(b));
+  }
+
+  /* -------------------------------------------------------------
+   *  Theme toggle
+   * ------------------------------------------------------------- */
+  const root = document.documentElement;
+  const toggle = document.getElementById("theme-toggle");
+  const label = document.getElementById("theme-label");
+  const stored = localStorage.getItem("rust-theme");
+  if (stored) root.setAttribute("data-theme", stored);
+  syncThemeLabel();
+  toggle.addEventListener("click", flipTheme);
+  toggle.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flipTheme(); }
+  });
+  function flipTheme() {
+    const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    localStorage.setItem("rust-theme", next);
+    syncThemeLabel();
+  }
+  function syncThemeLabel() {
+    label.textContent = root.getAttribute("data-theme") === "dark" ? "深色" : "淺色";
+  }
+
+  /* -------------------------------------------------------------
+   *  Active section highlight (intersection observer)
+   * ------------------------------------------------------------- */
+  const navLinks = document.querySelectorAll(".nav-list a[data-section]");
+  const sections = document.querySelectorAll("section.chapter");
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add("in-view");
+        const id = e.target.id;
+        navLinks.forEach(a => a.classList.toggle("active", a.dataset.section === id));
+      }
+    });
+  }, { threshold: 0.18, rootMargin: "-15% 0px -55% 0px" });
+
+  sections.forEach(s => obs.observe(s));
+
+
+  /* -------------------------------------------------------------
+   *  Exercises
+   * ------------------------------------------------------------- */
+  // Each exercise: id, chapter tag, title, description, starter, hint, regex matchers (any of which counts as correct)
+  const exercises = [
+    {
+      id: "ex1",
+      tag: "借用",
+      title: "借出，不要移動",
+      desc: "改用參考傳遞 String 而非移動，使這段程式能編譯。",
+      starter:
+`fn print_len(s: String) {
+    println!("{}", s.len());
+}
+
+fn main() {
+    let s = String::from("hello");
+    print_len(s);
+    print_len(s);   // still want to call this!
+}`,
+      hint: "把參數型別與兩個呼叫點都改成 &String（或 &str），不要取得所有權。",
+      // We accept either &String or &str on the parameter, and matching call sites.
+      tests: [
+        // signature uses & reference
+        /fn\s+print_len\s*\(\s*s\s*:\s*&(?:str|String)\s*\)/,
+        // both call sites pass &s
+        /print_len\s*\(\s*&s\s*\)[\s\S]*print_len\s*\(\s*&s\s*\)/,
+      ],
+    },
+
+    {
+      id: "ex2",
+      tag: "借用",
+      title: "只要可變一次",
+      desc: "加上正確的關鍵字，使你能在函式內向 vector 推入元素。",
+      starter:
+`fn add_one(v: &Vec<i32>) {
+    v.push(1);
+}
+
+fn main() {
+    let mut nums = vec![1, 2, 3];
+    add_one(&nums);
+    println!("{:?}", nums);
+}`,
+      hint: "函式需要 &mut Vec<i32>，呼叫點需要 &mut nums。",
+      tests: [
+        /fn\s+add_one\s*\(\s*v\s*:\s*&\s*mut\s+Vec\s*<\s*i32\s*>\s*\)/,
+        /add_one\s*\(\s*&\s*mut\s+nums\s*\)/,
+      ],
+    },
+
+    {
+      id: "ex3",
+      tag: "生命週期",
+      title: "為借用命名",
+      desc: "為這個回傳切片的函式加上生命週期參數，使其能編譯。",
+      starter:
+`fn first_word(s: &str) -> &str {
+    s.split_whitespace().next().unwrap_or("")
+}
+
+fn main() {
+    let sentence = String::from("hello there");
+    let w = first_word(&sentence);
+    println!("{}", w);
+}`,
+      hint: "可以倚賴生命週期省略（已經是正確的！），或明確寫出：fn first_word<'a>(s: &'a str) -> &'a str。",
+      tests: [
+        // explicit lifetime
+        /fn\s+first_word\s*<\s*'[a-z]+\s*>\s*\(\s*s\s*:\s*&\s*'[a-z]+\s*str\s*\)\s*->\s*&\s*'[a-z]+\s*str/,
+        // or elided form (the starter already compiles, accept it as proof of understanding only with a comment marker)
+        /\/\/\s*elision/i,
+      ],
+    },
+
+    {
+      id: "ex4",
+      tag: "生命週期",
+      title: "兩者中較長者",
+      desc: "為 `longest` 加上標註，使其回傳兩個 &str 引數中較長者。",
+      starter:
+`fn longest(x: &str, y: &str) -> &str {
+    if x.len() >= y.len() { x } else { y }
+}
+
+fn main() {
+    let a = String::from("longer string");
+    let b = String::from("short");
+    println!("{}", longest(&a, &b));
+}`,
+      hint: "兩個輸入和輸出必須共用相同的生命週期：<'a>、&'a str、&'a str、-> &'a str。",
+      tests: [
+        /fn\s+longest\s*<\s*'([a-z]+)\s*>\s*\(\s*x\s*:\s*&\s*'\1\s*str\s*,\s*y\s*:\s*&\s*'\1\s*str\s*\)\s*->\s*&\s*'\1\s*str/,
+      ],
+    },
+
+    {
+      id: "ex5",
+      tag: "Trait",
+      title: "實作 Display",
+      desc: "為 Point 實作 std::fmt::Display，使 `println!(\"{}\", p)` 印出 `(x, y)`。",
+      starter:
+`use std::fmt;
+
+struct Point { x: i32, y: i32 }
+
+// TODO: impl fmt::Display for Point
+
+fn main() {
+    let p = Point { x: 3, y: 4 };
+    println!("{}", p);   // expected: (3, 4)
+}`,
+      hint: "impl fmt::Display for Point { fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, \"({}, {})\", self.x, self.y) } }",
+      tests: [
+        // accept fmt::Formatter or fmt::Formatter<'_> and writes ({}, {})
+        /impl\s+(?:std::)?fmt::Display\s+for\s+Point\s*\{[\s\S]*fn\s+fmt\s*\(\s*&self\s*,\s*f\s*:\s*&\s*mut\s+(?:std::)?fmt::Formatter(?:<\s*'_\s*>)?\s*\)\s*->\s*(?:std::)?fmt::Result\s*\{[\s\S]*write!\s*\(\s*f\s*,\s*"\(\s*\{\}\s*,\s*\{\}\s*\)"\s*,\s*self\.x\s*,\s*self\.y\s*\)/,
+      ],
+    },
+
+    {
+      id: "ex6",
+      tag: "Trait 與泛型",
+      title: "以 Display 為界限",
+      desc: "把 `print_thing` 改成對任何實作 Display 的 T 都通用的泛型函式。",
+      starter:
+`use std::fmt::Display;
+
+fn print_thing(t: i32) {
+    println!("=> {}", t);
+}
+
+fn main() {
+    print_thing(42);
+    // print_thing("hi");      // ← should also work after your fix
+}`,
+      hint: "可以寫成 fn print_thing<T: Display>(t: T)，或 fn print_thing(t: impl Display)。",
+      tests: [
+        /fn\s+print_thing\s*<\s*T\s*:\s*Display\s*>\s*\(\s*t\s*:\s*T\s*\)/,
+        /fn\s+print_thing\s*\(\s*t\s*:\s*impl\s+Display\s*\)/,
+        /fn\s+print_thing\s*<\s*T\s*>\s*\(\s*t\s*:\s*T\s*\)\s*where\s+T\s*:\s*Display/,
+      ],
+    },
+
+    {
+      id: "ex7",
+      tag: "Result 與 ?",
+      title: "使用問號運算子",
+      desc: "改寫 `read_number`，以 `?` 運算子取代 `match`。",
+      starter:
+`use std::num::ParseIntError;
+
+fn read_number(s: &str) -> Result<i32, ParseIntError> {
+    let trimmed = s.trim();
+    let n = match trimmed.parse::<i32>() {
+        Ok(v)  => v,
+        Err(e) => return Err(e),
+    };
+    Ok(n * 2)
+}`,
+      hint: "把 match 換成：let n: i32 = trimmed.parse()?;（或 trimmed.parse::<i32>()?）。",
+      tests: [
+        // a parse with ? somewhere in the body, no remaining match expression
+        /let\s+n\s*(?::\s*i32)?\s*=\s*trimmed\.parse(?:::<\s*i32\s*>)?\s*\(\s*\)\s*\?\s*;/,
+      ],
+    },
+
+    {
+      id: "ex8",
+      tag: "Option",
+      title: "用 unwrap_or 提供預設值",
+      desc: "避免明確的 match——使用單一 Option 組合子，當迭代器為空時退回 0。",
+      starter:
+`fn first_or_zero(nums: &[i32]) -> i32 {
+    match nums.first() {
+        Some(n) => *n,
+        None    => 0,
+    }
+}`,
+      hint: "nums.first().copied().unwrap_or(0)  — copied() 會把 Option<&i32> 轉成 Option<i32>。",
+      tests: [
+        /nums\.first\s*\(\s*\)\s*\.\s*copied\s*\(\s*\)\s*\.\s*unwrap_or\s*\(\s*0\s*\)/,
+        /nums\.first\s*\(\s*\)\s*\.\s*cloned\s*\(\s*\)\s*\.\s*unwrap_or\s*\(\s*0\s*\)/,
+        /\*?\s*nums\.first\s*\(\s*\)\s*\.\s*unwrap_or\s*\(\s*&\s*0\s*\)/,
+        /nums\.first\s*\(\s*\)\s*\.\s*map\s*\(\s*\|.*\|\s*\*?.*\)\s*\.\s*unwrap_or\s*\(\s*0\s*\)/,
+      ],
+    },
+
+    {
+      id: "ex9",
+      tag: "模式比對",
+      title: "窮盡的 match",
+      desc: "補上缺少的分支，使這個 match 能編譯。對我們不在意的變體回傳 0。",
+      starter:
+`enum Signal { Red, Yellow, Green }
+
+fn go_speed(s: Signal) -> u32 {
+    match s {
+        Signal::Green  => 60,
+        Signal::Yellow => 25,
+        // TODO: handle Red
+    }
+}`,
+      hint: "加一個分支：Signal::Red => 0,——或使用萬用字元 _ => 0,",
+      tests: [
+        /Signal::Red\s*=>\s*0\s*,?/,
+        /_\s*=>\s*0\s*,?/,
+      ],
+    },
+  ];
+
+  // Render exercises
+  const exRoot = document.getElementById("exercises");
+  const total = exercises.length;
+  document.getElementById("total").textContent = total;
+
+  exercises.forEach(ex => {
+    const node = document.createElement("article");
+    node.className = "exercise";
+    node.id = ex.id;
+    node.innerHTML = `
+      <div class="ex-head">
+        <div>
+          <h4>${escapeHtml(ex.title)}</h4>
+          <p class="desc">${escapeHtml(ex.desc)}</p>
+        </div>
+        <span class="badge">${escapeHtml(ex.tag)}</span>
+      </div>
+      <div class="ex-body">
+        <textarea class="ex-textarea" spellcheck="false" autocomplete="off"></textarea>
+        <div class="ex-actions">
+          <div class="ex-actions-left">
+            <button class="btn btn-primary" data-act="check">檢查</button>
+            <button class="btn btn-ghost"   data-act="hint">提示</button>
+            <button class="btn btn-ghost"   data-act="reset">重設</button>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;color:var(--fg-mute);text-transform:uppercase;letter-spacing:.12em;">
+            #${ex.id}
+          </div>
+        </div>
+        <div class="ex-feedback"></div>
+      </div>
+    `;
+    exRoot.appendChild(node);
+
+    const ta = node.querySelector("textarea");
+    const fb = node.querySelector(".ex-feedback");
+
+    // load saved code or use starter
+    const savedCode = localStorage.getItem("rust-code-" + ex.id);
+    ta.value = savedCode != null ? savedCode : ex.starter;
+
+    // restore solved state
+    if (localStorage.getItem("rust-solved-" + ex.id) === "1") {
+      node.classList.add("solved");
+    }
+
+    // persist on input
+    ta.addEventListener("input", () => {
+      localStorage.setItem("rust-code-" + ex.id, ta.value);
+    });
+
+    // tab key inserts indentation
+    ta.addEventListener("keydown", e => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        const start = ta.selectionStart, end = ta.selectionEnd;
+        ta.value = ta.value.slice(0, start) + "    " + ta.value.slice(end);
+        ta.selectionStart = ta.selectionEnd = start + 4;
+      }
+    });
+
+    node.querySelector('[data-act="check"]').addEventListener("click", () => {
+      const code = ta.value;
+      const passed = ex.tests.some(rx => rx.test(code));
+      if (passed) {
+        fb.className = "ex-feedback ok show";
+        fb.textContent = "正確。編譯器笑了。";
+        node.classList.add("solved");
+        localStorage.setItem("rust-solved-" + ex.id, "1");
+        updateProgress();
+      } else {
+        fb.className = "ex-feedback no show";
+        fb.textContent = "還差一點。試試提示，或仔細檢查語法。";
+      }
+    });
+
+    node.querySelector('[data-act="hint"]').addEventListener("click", () => {
+      fb.className = "ex-feedback no show";
+      fb.textContent = "提示 — " + ex.hint;
+    });
+
+    node.querySelector('[data-act="reset"]').addEventListener("click", () => {
+      ta.value = ex.starter;
+      localStorage.removeItem("rust-code-" + ex.id);
+      fb.className = "ex-feedback";
+      fb.textContent = "";
+    });
+  });
+
+  function updateProgress() {
+    let solved = 0;
+    exercises.forEach(ex => {
+      if (localStorage.getItem("rust-solved-" + ex.id) === "1") solved++;
+    });
+    document.getElementById("solved").textContent = solved;
+    const pct = Math.round((solved / total) * 100);
+    document.getElementById("pct").textContent = pct + "%";
+    document.getElementById("bar").style.width = pct + "%";
+  }
+  updateProgress();
+
+  document.getElementById("reset-progress").addEventListener("click", () => {
+    if (!confirm("要清除所有已儲存的練習程式碼與進度嗎？")) return;
+    exercises.forEach(ex => {
+      localStorage.removeItem("rust-code-" + ex.id);
+      localStorage.removeItem("rust-solved-" + ex.id);
+      const card = document.getElementById(ex.id);
+      const ta   = card.querySelector("textarea");
+      const fb   = card.querySelector(".ex-feedback");
+      ta.value = ex.starter;
+      fb.className = "ex-feedback";
+      fb.textContent = "";
+      card.classList.remove("solved");
+    });
+    updateProgress();
+  });
+
+
+  /* -------------------------------------------------------------
+   *  Tiny escape helper (we control all strings, but be safe)
+   * ------------------------------------------------------------- */
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+})();
+</script>
+
+<!-- ============================================================ -->
+<!-- Game layer overlays                                          -->
+<!-- ============================================================ -->
+<canvas id="fx-canvas" aria-hidden="true"></canvas>
+<div class="level-up-banner" id="rg-lvl-banner" aria-hidden="true">
+  <div class="ring"></div>
+  <div class="word">升級</div>
+  <div class="num">Lv <em id="rg-lvl-banner-num">2</em></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- Game layer logic                                             -->
+<!-- ============================================================ -->
+<script>
+(() => {
+  /* ---- Storage namespace ---- */
+  const NS = "rg-";
+  const K = {
+    xp:        NS + "xp",
+    level:     NS + "level",
+    badges:    NS + "badges",         // JSON: { id: isoDate }
+    bestCombo: NS + "best-combo",
+    dayStreak: NS + "day-streak",
+    lastVisit: NS + "last-visit",     // YYYY-MM-DD
+    visited:   NS + "visited",        // JSON: array of section ids visited
+    bossWon:   NS + "boss-won",
+    firstSolve: NS + "first-solve-",  // + ex.id  → "1" once awarded
+  };
+
+  const get  = (k, dflt = null) => { try { const v = localStorage.getItem(k); return v == null ? dflt : v; } catch { return dflt; } };
+  const set  = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  const getJSON = (k, dflt) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : dflt; } catch { return dflt; } };
+  const setJSON = (k, v) => set(k, JSON.stringify(v));
+
+  /* ---- State ---- */
+  let xp        = parseInt(get(K.xp, "0"), 10) || 0;
+  let level     = parseInt(get(K.level, "1"), 10) || 1;
+  let combo     = 0;                        // session-only
+  let bestCombo = parseInt(get(K.bestCombo, "0"), 10) || 0;
+  let badges    = getJSON(K.badges, {});
+  let visited   = new Set(getJSON(K.visited, []));
+
+  const XP_PER_LEVEL = 100;
+
+  /* ---- Badge definitions ---- */
+  const BADGE_DEFS = [
+    { id: "first_borrow",   icon: "📘", name: "第一次借用",       hint: "解出任何一題練習" },
+    { id: "lifetime_master",icon: "♾",  name: "生命週期大師",    hint: "解出生命週期的練習題" },
+    { id: "trait_wizard",   icon: "🧙", name: "Trait 巫師",       hint: "解出 trait/泛型的練習題" },
+    { id: "pattern_hero",   icon: "🎯", name: "模式英雄",       hint: "解出 match 練習題" },
+    { id: "result_right",   icon: "✓",  name: "Result 答對",       hint: "解出 Result/Option 練習題" },
+    { id: "streak_5",       icon: "🔥", name: "連擊 5",           hint: "達成 5 連擊" },
+    { id: "streak_10",      icon: "⚡", name: "連擊 10",          hint: "達成 10 連擊" },
+    { id: "level_5",        icon: "★",  name: "等級 5",            hint: "升至等級 5" },
+    { id: "boss_slain",     icon: "👑", name: "擊敗編譯器魔王",hint: "全部 10 題答對擊敗魔王" },
+    { id: "all_sections",   icon: "📚", name: "走過所有章節",       hint: "瀏覽過每個章節" },
+    { id: "crab_walker",    icon: "🦀", name: "螃蟹漫步者",        hint: "瀏覽每章並解出每題練習" },
+  ];
+
+  /* ---- Map exercise ids → which badge they award ---- */
+  const EX_BADGE = {
+    ex1: "first_borrow",
+    ex2: "first_borrow",
+    ex3: "lifetime_master",
+    ex4: "lifetime_master",
+    ex5: "trait_wizard",
+    ex6: "trait_wizard",
+    ex7: "result_right",
+    ex8: "result_right",
+    ex9: "pattern_hero",
+  };
+
+  const ALL_EX_IDS = ["ex1","ex2","ex3","ex4","ex5","ex6","ex7","ex8","ex9"];
+  const ALL_CHAPTERS = ["ch-1","ch-2","ch-3","ch-4","ch-5","ch-6","ch-7","ch-8","ch-9"];
+
+  /* ---- DOM refs ---- */
+  const elXpInto    = document.getElementById("rg-xp-into");
+  const elLvl       = document.getElementById("rg-level");
+  const elXpTotal   = document.getElementById("rg-xp-total");
+  const elXpBar     = document.getElementById("rg-xp-bar");
+  const elXpFill    = document.getElementById("rg-xp-bar-fill");
+  const elDay       = document.getElementById("rg-day-streak");
+  const elComboPill = document.getElementById("rg-combo");
+  const elComboNum  = document.getElementById("rg-combo-num");
+  const elTrophyGrid= document.getElementById("rg-trophy-grid");
+  const elTrophyHave= document.getElementById("rg-trophy-have");
+  const elTrophyTot = document.getElementById("rg-trophy-total");
+  const elBanner    = document.getElementById("rg-lvl-banner");
+  const elBannerNum = document.getElementById("rg-lvl-banner-num");
+  const fxCanvas    = document.getElementById("fx-canvas");
+
+  elTrophyTot.textContent = BADGE_DEFS.length;
+
+  /* ---- Render trophy case ---- */
+  function renderTrophies(justUnlockedId = null) {
+    elTrophyGrid.innerHTML = "";
+    let have = 0;
+    BADGE_DEFS.forEach(b => {
+      const unlocked = !!badges[b.id];
+      if (unlocked) have++;
+      const div = document.createElement("div");
+      div.className = "trophy" + (unlocked ? " unlocked" : "") + (b.id === justUnlockedId ? " just-unlocked" : "");
+      div.innerHTML = `
+        <span aria-hidden="true">${unlocked ? b.icon : "?"}</span>
+        <span class="tip">
+          <strong>${b.name}</strong>
+          ${b.hint}
+          ${unlocked ? `<span class="when">已解鎖 ${formatDate(badges[b.id])}</span>` : `<span class="when">未解鎖</span>`}
+        </span>
+      `;
+      elTrophyGrid.appendChild(div);
+    });
+    elTrophyHave.textContent = have;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    } catch { return iso; }
+  }
+
+  function unlockBadge(id) {
+    if (badges[id]) return false;
+    badges[id] = new Date().toISOString();
+    setJSON(K.badges, badges);
+    renderTrophies(id);
+    // Open trophy case briefly so user notices
+    const tc = document.getElementById("rg-trophy-case");
+    if (tc && !tc.open) tc.open = true;
+    return true;
+  }
+
+  /* ---- XP / Level UI ---- */
+  function renderXP(animate = false) {
+    const intoLevel = xp - (level - 1) * XP_PER_LEVEL;
+    const pct = Math.max(0, Math.min(100, (intoLevel / XP_PER_LEVEL) * 100));
+    elXpInto.textContent = `${intoLevel} / ${XP_PER_LEVEL}`;
+    elLvl.textContent = level;
+    elXpTotal.textContent = xp;
+    elXpFill.style.width = pct + "%";
+    if (animate) {
+      elXpBar.classList.remove("pulse");
+      void elXpBar.offsetWidth;
+      elXpBar.classList.add("pulse");
+    }
+  }
+
+  function comboMultiplier(c) {
+    if (c >= 8) return 3;
+    if (c >= 5) return 2;
+    if (c >= 3) return 1.5;
+    return 1;
+  }
+
+  function renderCombo(bump = false) {
+    elComboNum.textContent = combo;
+    elComboPill.classList.toggle("zero", combo === 0);
+    const m = comboMultiplier(combo);
+    let mEl = elComboPill.querySelector(".mult");
+    if (m > 1) {
+      if (!mEl) {
+        mEl = document.createElement("span");
+        mEl.className = "mult";
+        elComboPill.appendChild(mEl);
+      }
+      mEl.textContent = `×${m}`;
+    } else if (mEl) {
+      mEl.remove();
+    }
+    if (bump) {
+      elComboPill.classList.remove("bump");
+      void elComboPill.offsetWidth;
+      elComboPill.classList.add("bump");
+    }
+  }
+
+  /* ---- Award XP ---- */
+  function awardXP(base, opts = {}) {
+    const mult = comboMultiplier(combo);
+    const gained = Math.round(base * mult);
+    xp += gained;
+    set(K.xp, xp);
+
+    // floating "+N XP" near event source
+    if (opts.x != null && opts.y != null) {
+      spawnXpFloat(opts.x, opts.y, gained);
+    }
+
+    // Level checks
+    let leveled = false;
+    while (xp >= level * XP_PER_LEVEL) {
+      level += 1;
+      leveled = true;
+    }
+    if (leveled) {
+      set(K.level, level);
+      showLevelUp(level);
+      if (level >= 5) unlockBadge("level_5");
+    }
+    renderXP(true);
+  }
+
+  function spawnXpFloat(x, y, amount) {
+    const f = document.createElement("div");
+    f.className = "xp-float";
+    f.textContent = `+${amount} XP`;
+    f.style.left = x + "px";
+    f.style.top = y + "px";
+    document.body.appendChild(f);
+    setTimeout(() => f.remove(), 1300);
+  }
+
+  function showLevelUp(n) {
+    elBannerNum.textContent = n;
+    elBanner.classList.remove("show");
+    void elBanner.offsetWidth;
+    elBanner.classList.add("show");
+    burstConfetti(window.innerWidth / 2, window.innerHeight / 2, 80);
+    setTimeout(() => elBanner.classList.remove("show"), 1700);
+  }
+
+  /* ---- Confetti ---- */
+  const ctx = fxCanvas.getContext("2d");
+  let particles = [];
+  let rafId = null;
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    fxCanvas.width  = window.innerWidth  * dpr;
+    fxCanvas.height = window.innerHeight * dpr;
+    fxCanvas.style.width  = window.innerWidth + "px";
+    fxCanvas.style.height = window.innerHeight + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+
+  const CONFETTI_COLORS = ["#ce422b","#e26a4f","#d6a458","#7b8e57","#6792b8","#e8e6df"];
+  function burstConfetti(x, y, count = 40) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 6;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        g: 0.18 + Math.random() * 0.1,
+        size: 4 + Math.random() * 5,
+        rot: Math.random() * Math.PI,
+        vr: (Math.random() - 0.5) * 0.3,
+        life: 60 + Math.random() * 40,
+        age: 0,
+        color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+        shape: Math.random() < 0.5 ? "rect" : "circ",
+      });
+    }
+    if (!rafId) rafId = requestAnimationFrame(stepFx);
+  }
+
+  function stepFx() {
+    ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.age++;
+      p.vy += p.g;
+      p.vx *= 0.99;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vr;
+      const alpha = Math.max(0, 1 - p.age / p.life);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      if (p.shape === "rect") {
+        ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.6);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size/2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      if (p.age >= p.life || p.y > window.innerHeight + 40) {
+        particles.splice(i, 1);
+      }
+    }
+    ctx.globalAlpha = 1;
+    if (particles.length > 0) {
+      rafId = requestAnimationFrame(stepFx);
+    } else {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+      ctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    }
+  }
+
+  /* ---- Screen shake ---- */
+  let shakeTimer = null;
+  function screenShake() {
+    document.body.classList.remove("shake");
+    void document.body.offsetWidth;
+    document.body.classList.add("shake");
+    clearTimeout(shakeTimer);
+    shakeTimer = setTimeout(() => document.body.classList.remove("shake"), 200);
+  }
+
+  /* ---- Day streak ---- */
+  function updateDayStreak() {
+    const today = new Date().toISOString().slice(0, 10);
+    const last  = get(K.lastVisit, null);
+    let streak  = parseInt(get(K.dayStreak, "0"), 10) || 0;
+    if (last === today) {
+      // already counted
+      if (streak < 1) streak = 1;
+    } else if (last) {
+      const dayMs = 86400000;
+      const diff = Math.round((new Date(today) - new Date(last)) / dayMs);
+      if (diff === 1)      streak = streak + 1;
+      else if (diff > 1)   streak = 1;
+      else                 streak = Math.max(streak, 1);
+    } else {
+      streak = 1;
+    }
+    set(K.lastVisit, today);
+    set(K.dayStreak, String(streak));
+    elDay.textContent = streak;
+  }
+
+  /* ---- Visit tracking (chapter reads) ---- */
+  function markVisited(id) {
+    if (!ALL_CHAPTERS.includes(id)) return;
+    if (visited.has(id)) return;
+    visited.add(id);
+    setJSON(K.visited, [...visited]);
+    checkVisitBadges();
+  }
+
+  function checkVisitBadges() {
+    if (ALL_CHAPTERS.every(c => visited.has(c))) {
+      unlockBadge("all_sections");
+      checkCrabWalker();
+    }
+  }
+
+  function checkCrabWalker() {
+    const allChapters = ALL_CHAPTERS.every(c => visited.has(c));
+    const allSolved   = ALL_EX_IDS.every(id => localStorage.getItem("rust-solved-" + id) === "1");
+    if (allChapters && allSolved) unlockBadge("crab_walker");
+  }
+
+  /* ---- Hook IntersectionObserver — extend, don't replace ---- */
+  // The existing observer already adds .in-view; we attach our own observer
+  // for the visited set so we don't fight the original.
+  const visitObs = new IntersectionObserver(entries => {
+    entries.forEach(e => { if (e.isIntersecting) markVisited(e.target.id); });
+  }, { threshold: 0.35 });
+  document.querySelectorAll("section.chapter").forEach(s => visitObs.observe(s));
+
+  /* ---- Hook into existing exercise Check buttons ---- */
+  function attachExerciseHooks() {
+    ALL_EX_IDS.forEach(id => {
+      const card = document.getElementById(id);
+      if (!card) return;
+      const btn = card.querySelector('[data-act="check"]');
+      if (!btn || btn.dataset.rgHooked) return;
+      btn.dataset.rgHooked = "1";
+
+      // Listen on click capture phase so we run AFTER the original handler
+      // (the original handler runs first because it was attached first; our
+      // listener must observe the post-state). We use a microtask delay.
+      btn.addEventListener("click", (ev) => {
+        // Defer so the original handler updates DOM/localStorage first.
+        setTimeout(() => {
+          const fb = card.querySelector(".ex-feedback");
+          if (!fb) return;
+          const isOk = fb.classList.contains("ok") && fb.classList.contains("show");
+          const isNo = fb.classList.contains("no") && fb.classList.contains("show");
+          // Discriminate: ".no" is set both by failed Check and by the Hint button.
+          // Hint button never sets "ok", so we only treat "no" as wrong if the
+          // event came from the Check button (it did — we hooked Check).
+          if (isOk) onCorrect(card, id, ev);
+          else if (isNo) onWrong(card, id, ev);
+        }, 0);
+      });
+    });
+  }
+
+  function onCorrect(card, id, ev) {
+    // Only award XP / combo on first solve
+    const firstKey = K.firstSolve + id;
+    const isFirst = get(firstKey, null) !== "1";
+
+    if (!isFirst) return; // already counted; stay quiet on re-checks
+
+    // confetti from the card
+    const rect = card.getBoundingClientRect();
+    const cx = rect.left + Math.min(160, rect.width / 2);
+    const cy = rect.top + Math.min(40, rect.height / 4);
+    burstConfetti(cx, cy, 36);
+
+    set(firstKey, "1");
+    combo += 1;
+    if (combo > bestCombo) {
+      bestCombo = combo;
+      set(K.bestCombo, String(bestCombo));
+    }
+    renderCombo(true);
+    awardXP(10, { x: cx, y: cy });
+
+    // Combo badges
+    if (combo >= 5)  unlockBadge("streak_5");
+    if (combo >= 10) unlockBadge("streak_10");
+
+    // Exercise category badges
+    const bId = EX_BADGE[id];
+    if (bId) unlockBadge(bId);
+
+    checkCrabWalker();
+  }
+
+  function onWrong(card, id, ev) {
+    // Don't reset combo on a re-check of an already-solved exercise that
+    // somehow registered as "no" (shouldn't happen, but guard anyway).
+    if (get(K.firstSolve + id, null) === "1") return;
+    if (combo > 0) {
+      combo = 0;
+      renderCombo(true);
+    } else {
+      renderCombo(false);
+    }
+    screenShake();
+  }
+
+  /* ---- Reset progress hook (extend existing reset) ---- */
+  // The existing reset wipes only rust-* exercise keys. We don't touch ours.
+  // But we DO want to reset combo + first-solve tracking so XP can be re-earned.
+  const existingReset = document.getElementById("reset-progress");
+  if (existingReset) {
+    existingReset.addEventListener("click", () => {
+      // The original click handler runs and confirms; if confirm was true, the
+      // exercise cards are already reset. We mirror that by clearing first-solve
+      // markers (XP keeps, level keeps — those are achievements).
+      // We use a delayed peek: if the cards were reset, ALL ex.solved removed.
+      setTimeout(() => {
+        ALL_EX_IDS.forEach(id => {
+          if (localStorage.getItem("rust-solved-" + id) !== "1") {
+            localStorage.removeItem(K.firstSolve + id);
+          }
+        });
+        combo = 0;
+        renderCombo(false);
+      }, 0);
+    });
+  }
+
+  /* ============================================================
+   *  Boss battle
+   * ============================================================ */
+
+  // Mix of typing prompts + short keyword fill-ins.
+  // Each round has: prompt (HTML), accept (RegExp[]), placeholder (string)
+  const BOSS_BANK = [
+    { prompt: '哪個關鍵字用來開始一個<em>可變</em>綁定？', accept: [/^\s*mut\s*$/], placeholder: "一個關鍵字" },
+    { prompt: '哪個符號用來不可變地<em>借用</em>（單一字元）？', accept: [/^\s*&\s*$/], placeholder: "一個符號" },
+    { prompt: '哪兩個字元組合在一起可建立<em>可變</em>參考？', accept: [/^\s*&\s*mut\s*$/], placeholder: "兩個語彙符號" },
+    { prompt: '哪個運算子在 <code>Err</code> 時短路、在 <code>Ok</code> 時解開？', accept: [/^\s*\?\s*$/], placeholder: "一個符號" },
+    { prompt: '哪個 trait 表示「擁有所有權的值可安全跨執行緒移動」？', accept: [/^\s*Send\s*$/], placeholder: "標記 trait" },
+    { prompt: '哪個 trait 表示「&T 可在執行緒間共享」？', accept: [/^\s*Sync\s*$/], placeholder: "標記 trait" },
+    { prompt: '請寫出 <code>longest</code> 的簽名（一個生命週期、兩個 <code>&str</code>、回傳 <code>&str</code>）。', accept: [
+        /^\s*fn\s+longest\s*<\s*'([a-z]+)\s*>\s*\(\s*x\s*:\s*&\s*'\1\s*str\s*,\s*y\s*:\s*&\s*'\1\s*str\s*\)\s*->\s*&\s*'\1\s*str\s*$/,
+      ], placeholder: "fn longest<'a>(x: &'a str, y: &'a str) -> &'a str" },
+    { prompt: '<code>Option&lt;&i32&gt;</code> 的哪個方法可把它變成 <code>Option&lt;i32&gt;</code>（廉價複製）？', accept: [/^\s*\.?\s*copied\s*\(?\)?\s*$/], placeholder: ".copied()" },
+    { prompt: '<code>Result&lt;T,E&gt;</code> 的哪個方法會回傳 <code>T</code> 或讓程式中止？', accept: [/^\s*\.?\s*unwrap\s*\(?\)?\s*$/], placeholder: ".unwrap()" },
+    { prompt: '哪個關鍵字會把函式本體變成 <code>Future</code>？', accept: [/^\s*async\s*$/], placeholder: "一個關鍵字" },
+    { prompt: '哪個巨集會輸出到 stdout 並換行？', accept: [/^\s*println!?\s*$/, /^\s*println!\s*$/], placeholder: "巨集名稱" },
+    { prompt: '哪個關鍵字把其他模組的名稱引入作用域？', accept: [/^\s*use\s*$/], placeholder: "一個關鍵字" },
+    { prompt: '在 <code>match</code> 中，哪個模式會匹配「其他任何東西」？', accept: [/^\s*_\s*$/], placeholder: "一個符號" },
+    { prompt: '哪個型別包裝共享的、原子參考計數的資料？', accept: [/^\s*Arc(?:<.*>)?\s*$/], placeholder: "Arc<T>" },
+    { prompt: '<code>Option</code> 的兩個變體是 <code>Some</code> 與……？', accept: [/^\s*None\s*$/], placeholder: "一個識別字" },
+    { prompt: '<code>Result</code> 的兩個變體是 <code>Ok</code> 與……？', accept: [/^\s*Err\s*$/], placeholder: "一個識別字" },
+  ];
+
+  // Pick 10 rounds: at least 4 from the BANK keyword challenges, plus
+  // sample a few "type the fix" lines drawn from the existing exercises.
+  const exerciseLite = [
+    // Pull a couple of one-liner challenges from the practice set
+    { prompt: '加上生命週期：在一行中完成 <code>fn longest&lt;__&gt;(x: &amp;__ str, y: &amp;__ str) -&gt; &amp;__ str</code>。', accept: [
+        /^\s*fn\s+longest\s*<\s*'([a-z]+)\s*>\s*\(\s*x\s*:\s*&\s*'\1\s*str\s*,\s*y\s*:\s*&\s*'\1\s*str\s*\)\s*->\s*&\s*'\1\s*str\s*$/,
+      ], placeholder: "fn longest<'a>(x: &'a str, y: &'a str) -> &'a str" },
+    { prompt: '寫出 <code>add_one</code> 的簽名，使其能向 <code>Vec&lt;i32&gt;</code> 推入元素。', accept: [
+        /^\s*fn\s+add_one\s*\(\s*v\s*:\s*&\s*mut\s+Vec\s*<\s*i32\s*>\s*\)\s*$/,
+      ], placeholder: "fn add_one(v: &mut Vec<i32>)" },
+    { prompt: '以 Display 為界限：寫出 <code>print_thing</code> 帶有單一界限的泛型標頭。', accept: [
+        /^\s*fn\s+print_thing\s*<\s*T\s*:\s*Display\s*>\s*\(\s*t\s*:\s*T\s*\)\s*$/,
+        /^\s*fn\s+print_thing\s*\(\s*t\s*:\s*impl\s+Display\s*\)\s*$/,
+      ], placeholder: "fn print_thing<T: Display>(t: T)" },
+  ];
+
+  function pickBossRounds() {
+    const pool = [...BOSS_BANK];
+    // Always include the 3 exerciseLite ones (positions vary)
+    const rounds = [];
+    while (rounds.length < 7 && pool.length) {
+      const i = (Math.random() * pool.length) | 0;
+      rounds.push(pool.splice(i, 1)[0]);
+    }
+    // Mix in 3 longer ones
+    const ex = [...exerciseLite].sort(() => Math.random() - 0.5);
+    rounds.push(...ex);
+    return rounds.sort(() => Math.random() - 0.5).slice(0, 10);
+  }
+
+  /* ---- Boss DOM refs ---- */
+  const elBossArena   = document.getElementById("rg-boss-arena");
+  const elBossRound   = document.getElementById("rg-boss-round");
+  const elBossScore   = document.getElementById("rg-boss-score");
+  const elBossTime    = document.getElementById("rg-boss-time");
+  const elBossTimerFi = document.getElementById("rg-boss-timer-fill");
+  const elBossStage   = document.getElementById("rg-boss-stage");
+  const elBossProgrss = document.getElementById("rg-boss-progress");
+  const elBossBegin   = document.getElementById("rg-boss-begin");
+
+  let boss = null;
+
+  function bossInit() {
+    boss = {
+      rounds: pickBossRounds(),
+      idx: 0,
+      score: 0,
+      tStart: performance.now(),
+      timeLimit: 60_000,
+      results: [],   // 'right' / 'wrong'
+      timerId: null,
+      done: false,
+    };
+    elBossRound.textContent = "1 / 10";
+    elBossScore.textContent = "0";
+    elBossScore.classList.remove("danger");
+    elBossScore.classList.add("good");
+    elBossTime.textContent = "60s";
+    elBossProgrss.innerHTML = boss.rounds.map((_, i) => `<span${i === 0 ? ' class="now"' : ''}></span>`).join("");
+    elBossBegin.textContent = "送出";
+    showRound();
+    startTimer();
+    setTimeout(() => {
+      const inp = elBossStage.querySelector("input.boss-input");
+      if (inp) inp.focus();
+    }, 50);
+  }
+
+  function showRound() {
+    if (!boss || boss.done) return;
+    const r = boss.rounds[boss.idx];
+    elBossStage.innerHTML = `
+      <div class="boss-prompt">${r.prompt}</div>
+      <input class="boss-input" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="${escAttr(r.placeholder || "輸入你的答案")}" />
+    `;
+    const inp = elBossStage.querySelector("input.boss-input");
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); submitRound(); }
+    });
+    elBossRound.textContent = `${boss.idx + 1} / 10`;
+    [...elBossProgrss.children].forEach((sp, i) => {
+      sp.classList.toggle("now", i === boss.idx);
+    });
+  }
+
+  function submitRound() {
+    if (!boss || boss.done) return;
+    const inp = elBossStage.querySelector("input.boss-input");
+    if (!inp) return;
+    const val = inp.value;
+    const r = boss.rounds[boss.idx];
+    const ok = r.accept.some(rx => rx.test(val));
+    const dot = elBossProgrss.children[boss.idx];
+    if (dot) {
+      dot.classList.remove("now");
+      dot.classList.add(ok ? "right" : "wrong");
+    }
+    boss.results.push(ok ? "right" : "wrong");
+    if (ok) {
+      boss.score++;
+      elBossScore.textContent = boss.score;
+      const rect = inp.getBoundingClientRect();
+      burstConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2, 22);
+    } else {
+      screenShake();
+    }
+    boss.idx++;
+    if (boss.idx >= boss.rounds.length) {
+      finishBoss();
+    } else {
+      showRound();
+      const ni = elBossStage.querySelector("input.boss-input");
+      if (ni) ni.focus();
+    }
+  }
+
+  function startTimer() {
+    if (boss.timerId) cancelAnimationFrame(boss.timerId);
+    function tick() {
+      if (!boss || boss.done) return;
+      const elapsed = performance.now() - boss.tStart;
+      const remain = Math.max(0, boss.timeLimit - elapsed);
+      const sec = Math.ceil(remain / 1000);
+      elBossTime.textContent = sec + "s";
+      if (sec <= 10) elBossTime.classList.add("danger");
+      else elBossTime.classList.remove("danger");
+      const pct = (remain / boss.timeLimit) * 100;
+      elBossTimerFi.style.width = pct + "%";
+      if (remain <= 0) {
+        finishBoss(true);
+        return;
+      }
+      boss.timerId = requestAnimationFrame(tick);
+    }
+    boss.timerId = requestAnimationFrame(tick);
+  }
+
+  function finishBoss(timeUp = false) {
+    if (!boss || boss.done) return;
+    boss.done = true;
+    if (boss.timerId) cancelAnimationFrame(boss.timerId);
+
+    // award XP based on score (no combo multiplier — boss is its own arena)
+    const earned = boss.score * 8;
+    if (earned > 0) {
+      xp += earned;
+      set(K.xp, xp);
+      let leveled = false;
+      while (xp >= level * XP_PER_LEVEL) { level += 1; leveled = true; }
+      if (leveled) { set(K.level, level); showLevelUp(level); if (level >= 5) unlockBadge("level_5"); }
+      renderXP(true);
+    }
+
+    const allRight = boss.score === boss.rounds.length;
+    if (allRight) {
+      set(K.bossWon, "1");
+      unlockBadge("boss_slain");
+      burstConfetti(window.innerWidth / 2, 120, 120);
+      burstConfetti(window.innerWidth / 4, 200, 60);
+      burstConfetti((window.innerWidth * 3) / 4, 200, 60);
+    }
+
+    const elapsed = Math.min(60, ((performance.now() - boss.tStart) / 1000)).toFixed(1);
+    const grade = allRight ? "勝利" : (boss.score >= 7 ? "差一點" : (boss.score >= 4 ? "再學習" : "敗北"));
+    const gradeClass = allRight ? "victory" : (boss.score >= 4 ? "" : "defeat");
+    elBossStage.innerHTML = `
+      <div class="boss-result">
+        <div class="boss-eyebrow" style="margin-bottom:0;">${timeUp ? "時間到" : "戰鬥結束"}</div>
+        <div class="grade ${gradeClass}">${grade}</div>
+        <div class="summary">
+          得分 <strong>${boss.score} / ${boss.rounds.length}</strong>
+          · 時間 <strong>${elapsed}s</strong>
+          · 取得經驗值 <strong>+${earned}</strong>
+          ${allRight ? "<br>擊敗編譯器魔王——徽章已解鎖。" : ""}
+        </div>
+      </div>
+    `;
+    elBossBegin.textContent = "再戰一次";
+    elBossTimerFi.style.width = "0%";
+  }
+
+  elBossBegin.addEventListener("click", () => {
+    if (!boss || boss.done) {
+      bossInit();
+    } else {
+      submitRound();
+    }
+  });
+
+  function escAttr(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  /* ---- Initial render ---- */
+  renderXP(false);
+  renderCombo(false);
+  renderTrophies();
+  updateDayStreak();
+  // Mark currently-visible chapters as visited (in case user already scrolled through)
+  // Existing observer already runs; ours will catch up when sections come into view.
+  // Initial badge cross-checks
+  if (level >= 5) unlockBadge("level_5");
+  if (get(K.bossWon, null) === "1") unlockBadge("boss_slain");
+  if (ALL_CHAPTERS.every(c => visited.has(c))) unlockBadge("all_sections");
+  checkCrabWalker();
+
+  // Backfill: if the user already had solved exercises before the game existed,
+  // grant first-solve markers + relevant category badges silently (no XP, no combo).
+  // This avoids re-awarding XP across page loads but lets badges reflect prior work.
+  ALL_EX_IDS.forEach(id => {
+    const solved = localStorage.getItem("rust-solved-" + id) === "1";
+    const tracked = localStorage.getItem(K.firstSolve + id) === "1";
+    if (solved && !tracked) {
+      set(K.firstSolve + id, "1");
+      const bId = EX_BADGE[id];
+      if (bId) unlockBadge(bId);
+    }
+  });
+
+  // Hook exercises after DOM has the cards (the prior IIFE renders synchronously)
+  attachExerciseHooks();
+
+})();
+</script>
+
+</body>
+</html>

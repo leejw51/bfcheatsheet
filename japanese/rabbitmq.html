@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RabbitMQ ラボ — 入力で学ぶ</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --bg-2:#161a22;
+    --panel:#1b212c;
+    --panel-2:#222a36;
+    --line:#2a3242;
+    --text:#e7ecf3;
+    --muted:#8a93a4;
+    --accent:#FF6600;
+    --accent-2:#ffb37a;
+    --good:#3fd17c;
+    --bad:#ff4d6d;
+    --warn:#ffd166;
+    --info:#4dd6ff;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --rounded:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;line-height:1.55}
+  a{color:var(--accent-2)}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:46px;height:46px;border-radius:12px;background:radial-gradient(circle at 30% 30%,#ffb37a,#FF6600 60%,#a93f00);display:grid;place-items:center;box-shadow:var(--shadow)}
+  .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
+  .brand small{color:var(--muted);font-weight:400}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .xpbar{width:170px;height:8px;background:#0b0e13;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,#ffb37a,#FF6600);width:0%}
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 18px}
+  nav.tabs button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px}
+  nav.tabs button.active{background:linear-gradient(180deg,#2a1407,#1d0e05);border-color:var(--accent);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .grid{display:grid;gap:14px}
+  .grid.cols-2{grid-template-columns:1fr 1fr}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:900px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rounded);padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 8px 0;font-size:18px}
+  .card h3{margin:18px 0 6px 0;font-size:15px;color:var(--accent-2)}
+  .card p{color:#cdd5e0;margin:6px 0}
+  .muted{color:var(--muted)}
+  .kbd{background:#0b0e13;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{background:var(--accent);color:#1a0a00;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input[type="text"], select, textarea{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  input[type="text"]:focus, select:focus, textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,102,0,.2)}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .tag{display:inline-block;background:#23170c;border:1px solid #4a2c12;color:#ffd0aa;border-radius:6px;padding:2px 8px;font-size:12px;margin-right:6px}
+  .tag.good{background:#0f2418;border-color:#1d4a30;color:#a8e6c1}
+  .tag.bad{background:#2b0e14;border-color:#5a1a26;color:#ffb1bd}
+  .tag.info{background:#0d1f2a;border-color:#1d4256;color:#a8dff5}
+  .tag.warn{background:#2a2110;border-color:#5a4720;color:#ffe5a3}
+  .step{padding:8px 10px;border-left:3px solid var(--accent);background:#1a1107;border-radius:0 8px 8px 0;margin:8px 0}
+  .scroll{max-height:340px;overflow:auto;padding-right:6px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;margin:3px}
+  .badge.unlocked{border-color:var(--accent);background:#22130a;color:#ffd0aa;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .badge .em{filter:saturate(.6) opacity(.6)}
+  .badge.unlocked .em{filter:none}
+  .progress{height:10px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--good),#7eebac)}
+  /* shake/confetti */
+  .shake{animation:shake .35s ease}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+  .pulse{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(255,102,0,0))}50%{filter:drop-shadow(0 0 6px rgba(255,102,0,.7))}}
+  .hidden{display:none !important}
+  .footer{color:var(--muted);font-size:12px;margin:30px 0 6px;text-align:center}
+  /* simulator */
+  .simwrap{position:relative;background:repeating-linear-gradient(45deg,#0d1118 0 10px,#0b0e13 10px 20px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line);background:#11151d}
+  .controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .legend{display:flex;gap:14px;color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--line);background:#11151d}
+  .log{font-family:ui-monospace,monospace;font-size:12px;background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:160px;overflow:auto;white-space:pre-wrap}
+  .log .ok{color:var(--good)}
+  .log .err{color:var(--bad)}
+  .log .info{color:var(--info)}
+  .log .warn{color:var(--warn)}
+  .log .acc{color:var(--accent-2)}
+  /* practice */
+  .ex-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+  .ex-card .q{font-size:16px;margin-bottom:8px}
+  .ex-card input[type=text]{width:100%}
+  .feedback{margin-top:8px;font-size:13px}
+  .feedback.ok{color:var(--good)}
+  .feedback.err{color:var(--bad)}
+  .feedback.hint{color:var(--muted)}
+  .stagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .timer{font-variant-numeric:tabular-nums;font-weight:700;color:var(--warn)}
+  /* boss */
+  .siren{color:var(--bad);animation:siren .8s linear infinite alternate}
+  @keyframes siren{0%{text-shadow:0 0 0 transparent}100%{text-shadow:0 0 12px rgba(255,77,109,.8)}}
+  /* canvas overlay for confetti */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:9999}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- rabbit silhouette -->
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <path d="M14 50c-2-10 0-22 6-28 1 6 4 8 8 8 1-7 4-12 8-15 1 6 3 9 6 11 5-3 9-3 12 0-2 4-6 6-6 12 0 6 4 8 4 14H14z" fill="#fff"/>
+          <circle cx="40" cy="42" r="2" fill="#1a0a00"/>
+          <circle cx="30" cy="42" r="2" fill="#1a0a00"/>
+          <path d="M34 47c1 1 3 1 4 0" stroke="#1a0a00" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>RabbitMQ ラボ <small>— 入力で学ぶ</small></h1>
+        <div class="muted" style="font-size:13px">AMQP、エクスチェンジ、キュー、パターンに関するインタラクティブでゲーミフィケーションされた入門書。</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="pill"><span class="dot"></span><span>レベル <b id="hud-level">1</b></span></div>
+      <div class="pill">XP <b id="hud-xp">0</b><div class="xpbar" title="次のレベルまでのXP"><div id="hud-xpbar"></div></div></div>
+      <div class="pill">コンボ <b id="hud-combo">0</b>x</div>
+      <div class="pill">ベスト <b id="hud-best">0</b>x</div>
+      <button class="btn ghost small" id="btn-reset">セーブをリセット</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button data-tab="learn" class="active">1. 概念</button>
+    <button data-tab="exchanges">2. エクスチェンジ</button>
+    <button data-tab="reliability">3. 信頼性</button>
+    <button data-tab="qos">4. QoS &amp; クラスタ</button>
+    <button data-tab="patterns">5. パターン</button>
+    <button data-tab="sim">シミュレーター</button>
+    <button data-tab="practice">練習 (入力!)</button>
+    <button data-tab="boss">ボス: 本番障害</button>
+    <button data-tab="badges">バッジ</button>
+  </nav>
+
+  <!-- ========================== TAB: LEARN ========================== -->
+  <section data-panel="learn">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>1. メッセージブローカーとは?</h2>
+        <p><b>メッセージブローカー</b>はプロデューサとコンシューマの間に置かれます。プロデューサはメッセージをブローカーに投げ、すぐ自分の仕事に戻ります。コンシューマは自分のペースで後から取り出します。両者は同時にオンラインである必要も、互いのアドレスを知る必要も、処理速度を合わせる必要もありません。</p>
+        <h3>キューが重要な理由</h3>
+        <ul>
+          <li><b>疎結合</b>: プロデューサを変更せずにコンシューマを変更できる。</li>
+          <li><b>バッファリング</b>: スパイクを平滑化、キューがバーストを吸収。</li>
+          <li><b>信頼性</b>: コンシューマがクラッシュしてもメッセージは残る。</li>
+          <li><b>ファンアウト</b>: 1 つのイベントが独立した多くの反応を引き起こす。</li>
+        </ul>
+        <div class="step"><b>メンタルモデル:</b> プロデューサがハガキを書き、ブローカーが郵便局、キューがメールボックス、コンシューマは自分の都合で読みます。</div>
+      </div>
+
+      <div class="card">
+        <h2>2. AMQP のコア概念</h2>
+        <p>RabbitMQ は <b>AMQP 0-9-1</b> を実装しています。語彙は少ないですが正確です。</p>
+        <ul>
+          <li><span class="tag">プロデューサ</span> メッセージを発行する。</li>
+          <li><span class="tag">コンシューマ</span> 購読してメッセージを処理する。</li>
+          <li><span class="tag">キュー</span> メッセージを格納する名前付きバッファ。</li>
+          <li><span class="tag">エクスチェンジ</span> ルーター。プロデューサはエクスチェンジに発行し、キューに直接は発行しない。</li>
+          <li><span class="tag">バインディング</span> エクスチェンジとキューを (多くはキー付きで) 結ぶルール。</li>
+          <li><span class="tag">ルーティングキー</span> プロデューサがメッセージに付ける文字列。エクスチェンジが配送先を決めるのに使う。</li>
+          <li><span class="tag">仮想ホスト</span> (vhost) ユーザー、エクスチェンジ、キューを区切る名前空間。論理的な分離。</li>
+          <li><span class="tag">コネクション</span> TCP 接続。<span class="tag">チャネル</span> その中の多重化された仮想接続。</li>
+        </ul>
+        <h3>フローの全体像</h3>
+        <pre>producer
+  └─ publish(routing_key) ─▶ exchange
+                              ├─ binding A ─▶ queue 1 ─▶ consumer
+                              └─ binding B ─▶ queue 2 ─▶ consumer</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: EXCHANGES ========================== -->
+  <section data-panel="exchanges" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>3. エクスチェンジ種別 詳説</h2>
+        <h3>Direct</h3>
+        <p><b>ルーティングキーがバインディングキーと完全一致</b>するメッセージをルーティングします。用途: 狙った配送、シンプルなワークキュー、コマンドのルーティング。</p>
+        <pre>binding: queue.email  ⇐ key="email"
+publish key="email"   → queue.email
+publish key="sms"     → 破棄 (またはルートなし)</pre>
+
+        <h3>Fanout</h3>
+        <p>ルーティングキーは無視。<b>バインドされた全キューにブロードキャスト</b>します。用途: pub/sub イベント、キャッシュ無効化、「全員に通知」系。</p>
+        <pre>publish 任意のキー → バインドされた全キューが受信</pre>
+
+        <h3>Topic</h3>
+        <p>パターンによるルーティング。ルーティングキーはドット区切りの単語列で、バインディングパターンで以下が使えます:</p>
+        <ul>
+          <li><code>*</code> は <b>ちょうど 1 単語</b> にマッチ。</li>
+          <li><code>#</code> は <b>0 個以上の単語</b> にマッチ。</li>
+        </ul>
+        <pre>binding "orders.*.us"   マッチ  orders.new.us, orders.cancel.us
+                        ミス    orders.us, orders.new.eu, orders.a.b.us
+binding "orders.#"      マッチ  orders, orders.new, orders.new.us
+binding "*.error.*"     マッチ  app.error.db, web.error.api</pre>
+
+        <h3>Headers</h3>
+        <p>ルーティングキーではなくメッセージのヘッダーを使ってルーティングします。マッチモード <code>x-match: all</code> は全ヘッダー一致が必要、<code>x-match: any</code> は 1 つでも一致すれば OK。</p>
+        <pre>binding headers: {format: pdf, type: report, x-match: all}
+header {format: pdf, type: report}     → マッチ
+header {format: pdf}                    → ノーマッチ</pre>
+      </div>
+
+      <div class="card">
+        <h2>どれを使うか</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:6px 4px">種別</th><th>こんな時に選ぶ&hellip;</th>
+            </tr>
+          </thead>
+          <tbody style="vertical-align:top">
+            <tr><td style="padding:8px 4px"><span class="tag">direct</span></td><td>1 つのキーでポイントツーポイントや厳密な一致がしたい時。</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">fanout</span></td><td>すべての購読者が同じイベントを必要とする時。最も推論しやすい。</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">topic</span></td><td>階層的なイベント: <code>region.service.severity</code>。購読者は部分集合を望む。</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">headers</span></td><td>文字列キーでは表せない複数の属性に依存するルーティング。</td></tr>
+          </tbody>
+        </table>
+        <h3>デフォルトエクスチェンジ</h3>
+        <p>名前のない <code>""</code> エクスチェンジは特別な <b>direct</b> エクスチェンジで、すべてのキューが自身の名前で暗黙的にバインドされています。これが <code>basic_publish(exchange='', routing_key='hello')</code> が <code>hello</code> という名前のキューに直接届く理由です。</p>
+
+        <h3>デッドレターエクスチェンジ (DLX)</h3>
+        <p>キューには <code>x-dead-letter-exchange</code> を設定できます。reject、TTL 期限切れ、オーバーフローしたメッセージは DLX に再発行され、そこから別のバインディングがデッドレターキューに格納し、検査やリトライに使えます。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: RELIABILITY ========================== -->
+  <section data-panel="reliability" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>4. ACK (確認応答)</h2>
+        <h3>auto-ack vs manual ack</h3>
+        <ul>
+          <li><b>auto-ack</b> (<code>auto_ack=True</code>): メッセージが出ていった瞬間にブローカーは配送済みとみなします。<b>速いが安全ではありません。</b> コンシューマが処理中にクラッシュするとメッセージは失われます。</li>
+          <li><b>manual ack</b> (<code>auto_ack=False</code>): コンシューマは成功後に <code>basic_ack(delivery_tag)</code> を呼ぶ必要があります。先に死んだ場合は再接続時にブローカーが <b>再配送</b> します。</li>
+        </ul>
+        <h3>nack &amp; reject</h3>
+        <ul>
+          <li><code>basic_nack(requeue=true)</code> — キューに戻す。</li>
+          <li><code>basic_nack(requeue=false)</code> — 破棄、または設定済みなら DLX に送る。</li>
+          <li><code>basic_reject</code> は単一メッセージ版の nack。</li>
+        </ul>
+        <h3>redelivered フラグ</h3>
+        <p>メッセージが再配送されると、ブローカーは <code>redelivered=true</code> を立てます。コンシューマは慎重さを示すヒントとして扱うべきです: 冪等性、重複排除キー、ヘッダーのリトライカウンタなど。</p>
+      </div>
+
+      <div class="card">
+        <h2>5. 永続性 — 再起動を生き延びるもの</h2>
+        <p>ブローカークラッシュをメッセージが生き延びるには、3 つの独立した条件を <b>すべて</b> 満たす必要があります:</p>
+        <ol>
+          <li><b>永続キュー</b>: <code>queue_declare(durable=True)</code>。これがないとキュー自体が消えます。</li>
+          <li><b>永続メッセージ</b>: <code>delivery_mode=2</code> (または <code>PERSISTENT_TEXT_PLAIN</code>)。これがないとメッセージは RAM 上のみ。</li>
+          <li><b>永続エクスチェンジ</b> (依存している場合): <code>exchange_declare(durable=True)</code>。</li>
+        </ol>
+        <div class="step"><b>注意:</b> 永続化はベストエフォートで、メッセージごとに同期 fsync するわけではありません。ディスクへの書き込みを確実に知ってから上流に ack したい場合は <b>publisher confirms</b> (<code>confirm_delivery</code>) を使いましょう。</div>
+        <h3>publisher confirms vs トランザクション</h3>
+        <p>AMQP トランザクションは存在しますが遅いです。<b>publisher confirms</b> は非同期で、桁違いに高速です: ブローカーが ack フレームで「受け取った」と通知します。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: QoS / CLUSTER ========================== -->
+  <section data-panel="qos" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>6. Prefetch &amp; QoS — 公平なディスパッチ</h2>
+        <p>デフォルトでは RabbitMQ はメッセージをコンシューマにラウンドロビンで配ります。1 つのコンシューマが遅く、もう 1 つが速いと、遅い方に積み上がり速い方は遊んでしまいます。<b>prefetch がそれを解決します。</b></p>
+        <pre>channel.basic_qos(prefetch_count=1)</pre>
+        <p>これはブローカーに「直前のメッセージを ack するまで新しいメッセージを渡すな」と伝えます。これで速いコンシューマがより多く、遅い方が少なく取るようになります。短く均一な作業ならもっと高い値 (例 10〜50) に。</p>
+        <h3>チューニングの目安</h3>
+        <ul>
+          <li>長く不均一なジョブ → <code>prefetch=1</code>。</li>
+          <li>短く均一なジョブ → 高めの prefetch (ラウンドトリップ削減)。</li>
+          <li><b>キュー深さ</b> と <b>コンシューマ稼働率</b> で計測する。</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>7. クラスタリング &amp; quorum キュー</h2>
+        <p>RabbitMQ <b>クラスタ</b> はノード間でユーザー、vhost、エクスチェンジ、バインディングを共有します。キューはデフォルトで単一マスタ。マスタは 1 ノード上に存在し、ミラーリングまたは quorum で置き換えできます。</p>
+        <h3>クラシックなミラードキュー</h3>
+        <p>レガシー。状態をフォロワーへ複製します。現代的な構成では quorum キューに置き換えられました。</p>
+        <h3>Quorum キュー</h3>
+        <ul>
+          <li><b>Raft</b> 合意プロトコルに基づきます。</li>
+          <li><b>強い整合性</b>: 過半数のレプリカが受け取るまで書き込みは ack されません。</li>
+          <li>ノード障害をきれいに乗り越えます。重要なデータには既定の推奨。</li>
+          <li>トレードオフ: クラシックキューよりレイテンシが高く、ディスク I/O も増えます。</li>
+        </ul>
+        <h3>Streams (ボーナス)</h3>
+        <p>高スループットの分析ワークロード向けの、ログ形式の追記キュー。プロトコルもアクセスパターンも別 (オフセット指定で、消費しても消えない)。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PATTERNS ========================== -->
+  <section data-panel="patterns" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>8. よくあるパターン</h2>
+        <h3>ワークキュー (タスク分散)</h3>
+        <p>1 つのキュー、複数のワーカー、manual ack、prefetch=1。画像リサイズ、メール送信、動画エンコードなどに。</p>
+        <pre>producer ─▶ "" ─▶ queue:tasks ─▶ worker1
+                              └▶ worker2
+                              └▶ worker3</pre>
+
+        <h3>Publish/Subscribe</h3>
+        <p>fanout エクスチェンジ。各購読者は自分のキュー経由で全メッセージを受け取ります。</p>
+        <pre>producer ─▶ fanout:events ─┬─▶ queue:audit       ─▶ logger
+                            ├─▶ queue:cache_invl  ─▶ cache
+                            └─▶ queue:notify      ─▶ pusher</pre>
+      </div>
+
+      <div class="card">
+        <h2>その他のパターン</h2>
+        <h3>トピックルーティング</h3>
+        <p>階層的なイベント。異なる形のキューが異なるパターンを購読します。</p>
+        <pre>topic:logs
+  binding "*.error.*"  ─▶ queue:alerts
+  binding "db.#"       ─▶ queue:dba
+  binding "#"          ─▶ queue:audit</pre>
+
+        <h3>RPC (リクエスト/リプライ)</h3>
+        <p>プロデューサが <code>reply_to</code> (一時的・排他キュー) と <code>correlation_id</code> をセットします。コンシューマは応答を <code>reply_to</code> に発行。プロデューサは <code>correlation_id</code> で応答を突き合わせます。</p>
+        <pre>client → publish(reply_to=Q1, correlation_id=abc)
+server → consume → publish(exchange='', routing_key=Q1, correlation_id=abc)
+client → abc にマッチ、Promise を解決</pre>
+        <div class="step"><b>ヒント:</b> reply キューに TTL を設定して、リークしたクライアントが孤児キューを溜めないようにしましょう。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: SIMULATOR ========================== -->
+  <section data-panel="sim" class="hidden">
+    <div class="card">
+      <h2>インタラクティブシミュレーター</h2>
+      <p class="muted">エクスチェンジ種別を選び、バインディングを宣言、メッセージを発行してフローを観察しましょう。コンシューマの挙動を切り替えて、ack/nack と再配送の動きを確認できます。発行成功ごとに XP を獲得します。</p>
+
+      <div class="simwrap">
+        <div class="controls">
+          <label>エクスチェンジ種別
+            <select id="sim-extype">
+              <option value="direct">direct</option>
+              <option value="fanout">fanout</option>
+              <option value="topic" selected>topic</option>
+              <option value="headers">headers</option>
+            </select>
+          </label>
+          <label>ルーティングキー
+            <input type="text" id="sim-rk" value="orders.new.us" style="width:160px"/>
+          </label>
+          <label>ヘッダー (k=v,k=v) <span class="muted">headers エクスチェンジのみ</span>
+            <input type="text" id="sim-headers" value="format=pdf,type=report" style="width:200px"/>
+          </label>
+          <label>ペイロード
+            <input type="text" id="sim-payload" value="hello-world" style="width:140px"/>
+          </label>
+          <button class="btn" id="sim-publish">発行 ▶</button>
+          <button class="btn ghost small" id="sim-add-binding">+ バインディング</button>
+          <button class="btn ghost small" id="sim-clear">ログをクリア</button>
+        </div>
+
+        <svg id="sim-svg" viewBox="0 0 1000 360" style="display:block;width:100%;height:360px;background:#0a0d12">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#FF6600"/>
+            </marker>
+            <radialGradient id="g-prod" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd0aa"/>
+              <stop offset="100%" stop-color="#FF6600"/>
+            </radialGradient>
+            <radialGradient id="g-ex" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8dff5"/>
+              <stop offset="100%" stop-color="#1a6c95"/>
+            </radialGradient>
+            <radialGradient id="g-q" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8e6c1"/>
+              <stop offset="100%" stop-color="#1f7045"/>
+            </radialGradient>
+            <radialGradient id="g-c" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffe5a3"/>
+              <stop offset="100%" stop-color="#a07a14"/>
+            </radialGradient>
+          </defs>
+
+          <!-- producer -->
+          <g id="node-producer">
+            <rect x="20" y="140" width="140" height="80" rx="14" fill="url(#g-prod)" stroke="#FF6600"/>
+            <text x="90" y="175" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="14">プロデューサ</text>
+            <text x="90" y="195" text-anchor="middle" fill="#1a0a00" font-size="11">basic_publish</text>
+          </g>
+
+          <!-- exchange -->
+          <g id="node-exchange">
+            <polygon points="380,180 440,140 500,180 440,220" fill="url(#g-ex)" stroke="#4dd6ff"/>
+            <text x="440" y="184" text-anchor="middle" fill="#062231" font-weight="700" font-size="13" id="sim-extype-label">topic</text>
+            <text x="440" y="200" text-anchor="middle" fill="#062231" font-size="10">エクスチェンジ</text>
+          </g>
+
+          <!-- queues will be appended here -->
+          <g id="queues-layer"></g>
+          <g id="bindings-layer"></g>
+          <g id="consumers-layer"></g>
+
+          <!-- producer-to-exchange path -->
+          <path d="M160,180 L380,180" stroke="#FF6600" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        </svg>
+
+        <div class="legend">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#FF6600;border-radius:50%;margin-right:6px"></span>プロデューサ</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1a6c95;border-radius:2px;margin-right:6px"></span>エクスチェンジ</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1f7045;border-radius:2px;margin-right:6px"></span>キュー</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#a07a14;border-radius:2px;margin-right:6px"></span>コンシューマ</span>
+          <span class="muted">drop-off = 未ルーティング (mandatory off → 静かに失われる)</span>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">バインディング</h3>
+          <div id="bindings-list"></div>
+          <p class="muted" style="font-size:12px">バインディングをクリックすると削除できます。</p>
+        </div>
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">コンシューマ</h3>
+          <div id="consumers-list"></div>
+          <button class="btn ghost small" id="sim-add-consumer">+ コンシューマ追加</button>
+          <p class="muted" style="font-size:12px">各コンシューマの ack モードを切り替えます (auto / manual-ack / manual-nack-requeue / manual-nack-DLX)。</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-top:0;color:var(--accent-2)">アクティビティログ</h3>
+        <div class="log" id="sim-log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PRACTICE ========================== -->
+  <section data-panel="practice" class="hidden">
+    <div class="card">
+      <h2>練習モード — 答えを入力</h2>
+      <p class="muted">選択肢はありません。用語、コマンド、引数、または <b>yes</b>/<b>no</b> を入力します。比較は大文字小文字を区別せず、語彙/yes-no 問題は小さな打ち間違いを許容しますが、コマンドとコードは完全一致が必要です。</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">ステージ <b id="prac-i">1</b> / <b id="prac-n">18</b></span>
+          <span class="tag info" id="prac-kind">vocab</span>
+          <span class="tag good" id="prac-correct">0 正解</span>
+          <span class="tag bad" id="prac-wrong">0 不正解</span>
+        </div>
+        <div class="row">
+          <button class="btn ghost small" id="prac-skip">スキップ</button>
+          <button class="btn ghost small" id="prac-restart">やり直す</button>
+        </div>
+      </div>
+      <div class="progress"><div id="prac-progress"></div></div>
+      <div id="prac-mount"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BOSS ========================== -->
+  <section data-panel="boss" class="hidden">
+    <div class="card">
+      <h2><span class="siren">●</span> ボスモード: 本番障害</h2>
+      <p>ポケベルが鳴りました。1 問あたり <b>30 秒</b>、全 10 問。コマンド、用語、または 1 語の答えを入力します。正解 = +50 XP。誤答またはタイムアウト = コンボ消失。10 問生き延びると <b>Outage Crusher</b> がアンロック。</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">問題 <b id="boss-i">1</b> / 10</span>
+          <span class="tag warn">残り時間 <span class="timer" id="boss-timer">30</span>秒</span>
+          <span class="tag good" id="boss-correct">0 正解</span>
+        </div>
+        <div class="row">
+          <button class="btn" id="boss-start">障害対応開始</button>
+          <button class="btn ghost small" id="boss-quit">終了</button>
+        </div>
+      </div>
+      <div class="progress"><div id="boss-progress"></div></div>
+      <div id="boss-mount" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BADGES ========================== -->
+  <section data-panel="badges" class="hidden">
+    <div class="card">
+      <h2>バッジコレクション</h2>
+      <p class="muted">シミュレーターを遊び、練習を完了し、障害対応を生き延びることでアンロックします。</p>
+      <div id="badges-mount"></div>
+    </div>
+  </section>
+
+  <p class="footer">学習用に作成。進捗はブラウザに保存されます。いつでもリセット可能。</p>
+</div>
+
+<script>
+/* =========================================================
+   STATE & PERSISTENCE
+   ========================================================= */
+const SAVE_KEY = 'rmq-lab-v1';
+const DEFAULT_STATE = {
+  xp: 0,
+  level: 1,
+  combo: 0,
+  bestCombo: 0,
+  badges: {},
+  practiceDone: false,
+  bossDone: false,
+  publishCount: 0,
+  ackCount: 0,
+  nackCount: 0,
+  topicMatchSolved: 0,
+  dlxRoutes: 0,
+};
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return structuredClone(DEFAULT_STATE);
+    return Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(raw));
+  }catch(e){ return structuredClone(DEFAULT_STATE); }
+}
+function saveState(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
+
+function xpForLevel(lvl){ return 100 + (lvl-1)*60; }
+function addXP(n, reason){
+  state.xp += n;
+  while(state.xp >= xpForLevel(state.level)){
+    state.xp -= xpForLevel(state.level);
+    state.level++;
+    toast(`レベルアップ! → レベル ${state.level}`, 'good');
+    confettiBurst(140);
+  }
+  saveState(); renderHUD();
+  if(reason) flashLog(`+${n} XP — ${reason}`, 'acc');
+}
+function bumpCombo(){
+  state.combo++;
+  if(state.combo > state.bestCombo) state.bestCombo = state.combo;
+  if(state.combo===5) unlockBadge('combo5');
+  if(state.combo===10) unlockBadge('combo10');
+  if(state.combo===20) unlockBadge('combo20');
+  saveState(); renderHUD();
+}
+function breakCombo(){ state.combo = 0; saveState(); renderHUD(); }
+
+function renderHUD(){
+  document.getElementById('hud-level').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-combo').textContent = state.combo;
+  document.getElementById('hud-best').textContent = state.bestCombo;
+  const need = xpForLevel(state.level);
+  document.getElementById('hud-xpbar').style.width = Math.min(100, (state.xp/need)*100) + '%';
+}
+renderHUD();
+
+/* =========================================================
+   BADGES
+   ========================================================= */
+const BADGES = [
+  {id:'firstPublish', name:'初回発行', icon:'🚀', desc:'シミュレーターで初めてメッセージを発行する。'},
+  {id:'fanoutFan', name:'Fanout 推し', icon:'📡', desc:'fanout で 3 つ以上のキューに同時発行する。'},
+  {id:'topicMaster', name:'トピックマスター', icon:'🧩', desc:'トピックルーティングのパズルを連続 5 問正解する。'},
+  {id:'ackAttack', name:'Ack 攻め', icon:'✅', desc:'メッセージを 5 件手動で ack する。'},
+  {id:'dlxDefender', name:'DLX 防衛', icon:'🛡️', desc:'デッドレターエクスチェンジに 3 件ルーティングする。'},
+  {id:'durableDevotee', name:'永続主義者', icon:'💾', desc:'練習の永続性問題をすべて正解する。'},
+  {id:'rpcRanger', name:'RPC レンジャー', icon:'📞', desc:'RPC の reply_to/correlation_id 問題を正しく入力する。'},
+  {id:'practiceComplete', name:'練習パーフェクト', icon:'🎓', desc:'18 問すべての練習問題を完了する。'},
+  {id:'outageCrusher', name:'障害クラッシャー', icon:'🔥', desc:'本番障害ボスモードを生き延びる。'},
+  {id:'combo5', name:'のってきた', icon:'🎯', desc:'連続 5 問正解。'},
+  {id:'combo10', name:'絶好調', icon:'⚡', desc:'連続 10 問正解。'},
+  {id:'combo20', name:'止められない', icon:'🌟', desc:'連続 20 問正解。'},
+];
+function unlockBadge(id){
+  if(state.badges[id]) return;
+  state.badges[id] = Date.now();
+  const b = BADGES.find(x=>x.id===id);
+  if(b){ toast(`バッジ獲得: ${b.icon} ${b.name}`, 'good'); confettiBurst(120); }
+  saveState(); renderBadges();
+}
+function renderBadges(){
+  const m = document.getElementById('badges-mount');
+  if(!m) return;
+  m.innerHTML = BADGES.map(b=>{
+    const on = !!state.badges[b.id];
+    return `<div class="badge ${on?'unlocked':''}" title="${b.desc}">
+      <span class="em">${b.icon}</span>
+      <span>${b.name}</span>
+      ${on?'<span style="color:var(--good);font-size:11px">獲得済み</span>':'<span class="muted" style="font-size:11px">未獲得</span>'}
+    </div>`;
+  }).join('');
+}
+renderBadges();
+
+/* =========================================================
+   TOAST + FX
+   ========================================================= */
+const fx = document.getElementById('fx');
+const fctx = fx.getContext('2d');
+function resizeFX(){ fx.width = innerWidth; fx.height = innerHeight; }
+addEventListener('resize', resizeFX); resizeFX();
+let particles = [];
+function confettiBurst(n=80){
+  const colors = ['#FF6600','#ffb37a','#3fd17c','#4dd6ff','#ffd166','#ff4d6d'];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*120,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*8,
+      vy: (Math.random()-1.2)*9,
+      g: .25,
+      life: 90 + Math.random()*40,
+      c: colors[(Math.random()*colors.length)|0],
+      s: 4 + Math.random()*4,
+      r: Math.random()*Math.PI
+    });
+  }
+}
+function tickFX(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.life--; p.r += .15;
+    fctx.save(); fctx.translate(p.x,p.y); fctx.rotate(p.r);
+    fctx.fillStyle = p.c;
+    fctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*1.4);
+    fctx.restore();
+  });
+  requestAnimationFrame(tickFX);
+}
+tickFX();
+
+const toastBox = (function(){
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;right:18px;top:18px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:320px';
+  document.body.appendChild(el); return el;
+})();
+function toast(msg, kind='info'){
+  const t = document.createElement('div');
+  const c = kind==='good'?'#3fd17c':kind==='bad'?'#ff4d6d':kind==='warn'?'#ffd166':'#4dd6ff';
+  t.style.cssText = `background:#161a22;border:1px solid ${c}55;color:#e7ecf3;padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px;border-left:4px solid ${c};animation:slideIn .25s ease`;
+  t.textContent = msg;
+  toastBox.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 2400);
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function flashLog(msg, kind='info'){
+  const log = document.getElementById('sim-log');
+  if(!log) return;
+  const span = document.createElement('div');
+  span.className = kind;
+  const t = new Date().toLocaleTimeString();
+  span.textContent = `[${t}] ${msg}`;
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* =========================================================
+   TABS
+   ========================================================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('section[data-panel]').forEach(s=>{
+      s.classList.toggle('hidden', s.dataset.panel !== tab);
+    });
+  });
+});
+
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(confirm('進捗、バッジ、XP をすべてリセットしますか?')){
+    state = structuredClone(DEFAULT_STATE);
+    saveState(); renderHUD(); renderBadges();
+    toast('セーブをリセットしました。', 'warn');
+  }
+});
+
+/* =========================================================
+   SIMULATOR
+   ========================================================= */
+const SIM = {
+  exchangeType: 'topic',
+  bindings: [], // {id, queue, key, headers:{}, xMatch:'all'}
+  consumers: [], // {id, queue, mode}
+  queueIds: 0,
+  consumerIds: 0,
+  bindingIds: 0,
+  // queueId -> [pending message ids]
+  pending: {},
+};
+
+function simAddBinding(queue, key, headers={}, xMatch='all'){
+  SIM.bindingIds++;
+  const id = 'b'+SIM.bindingIds;
+  // queue object created if not present
+  if(!queue) queue = `q.${SIM.queueIds+1}`;
+  SIM.bindings.push({id, queue, key, headers, xMatch});
+  // make sure queue has at least one consumer slot, optional
+  redrawSim();
+}
+
+function simRemoveBinding(id){
+  SIM.bindings = SIM.bindings.filter(b=>b.id!==id);
+  redrawSim();
+}
+
+function simAddConsumer(queue, mode='manual-ack'){
+  SIM.consumerIds++;
+  if(!queue){
+    // attach to first available queue
+    const queues = uniqueQueues();
+    queue = queues[0] || 'q.1';
+  }
+  const id = 'c'+SIM.consumerIds;
+  SIM.consumers.push({id, queue, mode});
+  redrawSim();
+}
+
+function uniqueQueues(){
+  const set = new Set();
+  SIM.bindings.forEach(b=>set.add(b.queue));
+  SIM.consumers.forEach(c=>set.add(c.queue));
+  return [...set];
+}
+
+function topicMatch(pattern, key){
+  // AMQP topic: '*' = ちょうど 1 単語、'#' = 0 個以上の単語
+  const pp = pattern.split('.');
+  const kk = key.split('.');
+  // dynamic programming
+  function rec(i,j){
+    if(i===pp.length && j===kk.length) return true;
+    if(i===pp.length) return false;
+    if(pp[i]==='#'){
+      // match zero or more words
+      for(let x=j;x<=kk.length;x++){
+        if(rec(i+1,x)) return true;
+      }
+      // also support trailing # at end
+      return rec(i+1,j) && j===kk.length;
+    }
+    if(j===kk.length) return false;
+    if(pp[i]==='*' || pp[i]===kk[j]) return rec(i+1,j+1);
+    return false;
+  }
+  return rec(0,0);
+}
+
+function headersMatch(bindHdr, msgHdr, xMatch){
+  const keys = Object.keys(bindHdr);
+  if(keys.length===0) return false;
+  if(xMatch==='any'){
+    return keys.some(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+  }
+  return keys.every(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+}
+
+function routeMessage(extype, key, headers){
+  const matched = new Set();
+  SIM.bindings.forEach(b=>{
+    if(extype==='fanout'){ matched.add(b.queue); return; }
+    if(extype==='direct'){ if(b.key===key) matched.add(b.queue); return; }
+    if(extype==='topic'){ if(topicMatch(b.key, key)) matched.add(b.queue); return; }
+    if(extype==='headers'){ if(headersMatch(b.headers||{}, headers||{}, b.xMatch||'all')) matched.add(b.queue); return; }
+  });
+  return [...matched];
+}
+
+function redrawSim(){
+  const extype = SIM.exchangeType;
+  document.getElementById('sim-extype-label').textContent = extype;
+  // queues layout
+  const queues = uniqueQueues();
+  if(queues.length===0){
+    // ensure at least one default
+  }
+  const qLayer = document.getElementById('queues-layer');
+  const cLayer = document.getElementById('consumers-layer');
+  const bLayer = document.getElementById('bindings-layer');
+  qLayer.innerHTML=''; cLayer.innerHTML=''; bLayer.innerHTML='';
+
+  const startY = 40, gap = (queues.length>0) ? Math.max(60, 280/queues.length) : 280;
+  queues.forEach((q,i)=>{
+    const y = startY + i*gap + 20;
+    // queue rect
+    qLayer.insertAdjacentHTML('beforeend',
+      `<g data-q="${q}">
+         <rect x="640" y="${y-22}" width="140" height="44" rx="8" fill="url(#g-q)" stroke="#3fd17c"/>
+         <text x="710" y="${y+5}" text-anchor="middle" fill="#06190f" font-weight="700" font-size="13">${q}</text>
+         <g class="q-msgs" data-q="${q}" transform="translate(648,${y-6})"></g>
+       </g>`);
+    // binding line(s)
+    SIM.bindings.filter(b=>b.queue===q).forEach((b,idx)=>{
+      const offset = (idx-(SIM.bindings.filter(bb=>bb.queue===q).length-1)/2)*8;
+      bLayer.insertAdjacentHTML('beforeend',
+        `<path d="M500,${180+offset} C570,${180+offset} 600,${y} 640,${y}" stroke="#FF6600" stroke-width="1.6" fill="none" opacity=".7"/>
+         <text x="555" y="${(180+y)/2 - 4 + offset}" text-anchor="middle" fill="#ffb37a" font-size="10">${escapeHtml(extype==='headers'? bindingHdrLabel(b) : b.key||'""')}</text>`);
+    });
+    // consumers for this queue
+    const cs = SIM.consumers.filter(c=>c.queue===q);
+    cs.forEach((c,j)=>{
+      const cx = 860, cy = y + (j-(cs.length-1)/2)*36;
+      cLayer.insertAdjacentHTML('beforeend',
+        `<g data-c="${c.id}">
+           <rect x="${cx}" y="${cy-18}" width="120" height="36" rx="8" fill="url(#g-c)" stroke="#ffd166"/>
+           <text x="${cx+60}" y="${cy+2}" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="12">${c.id}</text>
+           <text x="${cx+60}" y="${cy+14}" text-anchor="middle" fill="#1a0a00" font-size="9">${c.mode}</text>
+         </g>
+         <path d="M780,${y} L${cx},${cy}" stroke="#ffd166" stroke-width="1.4" fill="none" opacity=".7" marker-end="url(#arrow)"/>`);
+    });
+  });
+
+  // bindings list
+  const bl = document.getElementById('bindings-list');
+  if(SIM.bindings.length===0){
+    bl.innerHTML = '<p class="muted" style="font-size:13px">バインディングはまだありません。上の <b>+ バインディング</b> をクリック。</p>';
+  } else {
+    bl.innerHTML = SIM.bindings.map(b=>{
+      const label = SIM.exchangeType==='headers' ? bindingHdrLabel(b) : (b.key||'""');
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag info">${b.queue}</span>
+        <span class="tag">${escapeHtml(label)}</span>
+        <button class="btn ghost small" data-rm-binding="${b.id}">削除</button>
+      </div>`;
+    }).join('');
+    bl.querySelectorAll('[data-rm-binding]').forEach(btn=>{
+      btn.addEventListener('click',()=>simRemoveBinding(btn.dataset.rmBinding));
+    });
+  }
+
+  // consumers list
+  const cl = document.getElementById('consumers-list');
+  if(SIM.consumers.length===0){
+    cl.innerHTML = '<p class="muted" style="font-size:13px">コンシューマはまだありません。1 つ追加して配送を確認しましょう。</p>';
+  } else {
+    cl.innerHTML = SIM.consumers.map(c=>{
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag warn">${c.id}</span>
+        <span class="tag">キュー ${c.queue}</span>
+        <select data-c-mode="${c.id}">
+          ${['auto-ack','manual-ack','manual-nack-requeue','manual-nack-DLX'].map(m=>`<option ${c.mode===m?'selected':''} value="${m}">${m}</option>`).join('')}
+        </select>
+        <button class="btn ghost small" data-rm-c="${c.id}">削除</button>
+      </div>`;
+    }).join('');
+    cl.querySelectorAll('[data-c-mode]').forEach(sel=>{
+      sel.addEventListener('change',()=>{
+        const c = SIM.consumers.find(x=>x.id===sel.dataset.cMode);
+        c.mode = sel.value; redrawSim();
+      });
+    });
+    cl.querySelectorAll('[data-rm-c]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        SIM.consumers = SIM.consumers.filter(c=>c.id!==btn.dataset.rmC);
+        redrawSim();
+      });
+    });
+  }
+}
+
+function bindingHdrLabel(b){
+  const h = b.headers||{};
+  const inside = Object.entries(h).map(([k,v])=>`${k}=${v}`).join(',');
+  return `{${inside||'∅'}|x-match=${b.xMatch||'all'}}`;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* animate a publish: dot goes prod→exchange→queue(s)→consumer (or drops) */
+function animateFlow(matched, payload, key){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  // 1) producer to exchange
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 6);
+  dot.setAttribute('fill','#FF6600');
+  dot.setAttribute('cx', 160); dot.setAttribute('cy', 180);
+  svg.appendChild(dot);
+  const label = document.createElementNS(NS,'text');
+  label.setAttribute('fill','#ffd0aa'); label.setAttribute('font-size','10');
+  label.setAttribute('text-anchor','middle');
+  label.textContent = key;
+  label.setAttribute('x', 160); label.setAttribute('y', 170);
+  svg.appendChild(label);
+
+  let t = 0;
+  const dur1 = 30; // frames to exchange
+  function step1(){
+    t++;
+    const p = t/dur1;
+    const x = 160 + (380-160)*p;
+    dot.setAttribute('cx', x);
+    label.setAttribute('x', x);
+    if(t<dur1) requestAnimationFrame(step1);
+    else {
+      label.remove();
+      // pulse the exchange
+      const exNode = document.querySelector('#node-exchange polygon');
+      exNode.classList.add('pulse');
+      setTimeout(()=>exNode.classList.remove('pulse'), 700);
+      if(matched.length===0){
+        // 破棄
+        flashLog(`✗ ルートなし: key="${key}" にマッチするバインディングなし (メッセージ破棄)`,'err');
+        // shake the canvas
+        shake(document.querySelector('.simwrap'));
+        // fade dot down
+        let a=1;
+        const fall = ()=>{
+          a-=.05;
+          dot.setAttribute('opacity', Math.max(0,a));
+          dot.setAttribute('cy', 180 + (1-a)*60);
+          if(a>0) requestAnimationFrame(fall);
+          else dot.remove();
+        };
+        fall();
+        breakCombo();
+        return;
+      }
+      // 2) exchange -> each matched queue
+      matched.forEach(q=>{
+        const dot2 = dot.cloneNode();
+        svg.appendChild(dot2);
+        const target = svg.querySelector(`g[data-q="${CSS.escape(q)}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+70;
+        const ty = parseFloat(target.getAttribute('y'))+22;
+        let s=0;
+        const dur2 = 26;
+        const cb = ()=>{
+          s++;
+          const p = s/dur2;
+          const cx = 440 + (tx-440)*p;
+          const cy = 180 + (ty-180)*p;
+          dot2.setAttribute('cx', cx);
+          dot2.setAttribute('cy', cy);
+          if(s<dur2) requestAnimationFrame(cb);
+          else { dot2.remove(); enqueueAndDeliver(q, payload); }
+        };
+        requestAnimationFrame(cb);
+      });
+      dot.remove();
+      bumpCombo();
+      addXP(10 + Math.min(20, matched.length*5), `${matched.length} 個のキューに発行`);
+      flashLog(`✓ ルート key="${key}" → ${matched.join(', ')}`,'ok');
+      if(matched.length>=3 && SIM.exchangeType==='fanout') unlockBadge('fanoutFan');
+    }
+  }
+  step1();
+}
+
+function enqueueAndDeliver(queue, payload){
+  // pick a consumer (round-robin) of that queue
+  const cs = SIM.consumers.filter(c=>c.queue===queue);
+  if(cs.length===0){
+    flashLog(`… キュー ${queue}: エンキュー、コンシューマなし (メッセージ滞留)`,'warn');
+    drawQMessage(queue, payload, false);
+    return;
+  }
+  const c = cs[Math.floor(Math.random()*cs.length)];
+  const dot = drawQMessage(queue, payload, true);
+  // animate to consumer
+  const svg = document.getElementById('sim-svg');
+  const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+  const tx = parseFloat(target.getAttribute('x'))+60;
+  const ty = parseFloat(target.getAttribute('y'))+18;
+  const startX = parseFloat(dot.getAttribute('cx'));
+  const startY = parseFloat(dot.getAttribute('cy'));
+  let s=0; const dur=22;
+  const cb = ()=>{
+    s++;
+    const p = s/dur;
+    dot.setAttribute('cx', startX + (tx-startX)*p);
+    dot.setAttribute('cy', startY + (ty-startY)*p);
+    if(s<dur) requestAnimationFrame(cb);
+    else { dot.remove(); handleConsumerOutcome(c, payload, queue); }
+  };
+  requestAnimationFrame(cb);
+}
+
+function drawQMessage(queue, payload, willMove){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const target = svg.querySelector(`g[data-q="${CSS.escape(queue)}"] rect`);
+  const cx = parseFloat(target.getAttribute('x')) + 70;
+  const cy = parseFloat(target.getAttribute('y')) + 22;
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 5);
+  dot.setAttribute('fill', '#FF6600');
+  dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','1');
+  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+  svg.appendChild(dot);
+  if(!willMove){
+    // small shake
+    let i=0;
+    const wob=()=>{
+      i++;
+      dot.setAttribute('cx', cx + Math.sin(i/3)*2);
+      if(i<300) requestAnimationFrame(wob);
+    };
+    wob();
+  }
+  return dot;
+}
+
+function handleConsumerOutcome(c, payload, queue){
+  switch(c.mode){
+    case 'auto-ack':
+      flashLog(`⇢ ${c.id} (auto-ack): "${payload}" を消費 — 速いが安全でない`,'info');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-ack':
+      flashLog(`✓ ${c.id} (manual-ack): "${payload}" を処理、basic_ack 送信`,'ok');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-nack-requeue':
+      flashLog(`↺ ${c.id} (nack, requeue=true): "${payload}" を再配送として ${queue} に戻す`,'warn');
+      state.nackCount++;
+      // 遅延後の再配送をシミュレート
+      setTimeout(()=>{
+        flashLog(`↻ 再配送: ${queue} → ${c.id} (redelivered=true)`,'warn');
+        // re-deliver to same consumer
+        const dot = drawQMessage(queue, payload+'*', true);
+        const svg = document.getElementById('sim-svg');
+        const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+60;
+        const ty = parseFloat(target.getAttribute('y'))+18;
+        let s=0; const dur=22;
+        const startX = parseFloat(dot.getAttribute('cx'));
+        const startY = parseFloat(dot.getAttribute('cy'));
+        const cb=()=>{
+          s++;
+          const p=s/dur;
+          dot.setAttribute('cx', startX+(tx-startX)*p);
+          dot.setAttribute('cy', startY+(ty-startY)*p);
+          if(s<dur) requestAnimationFrame(cb);
+          else { dot.remove(); flashLog(`✓ ${c.id} がリトライで再配送を処理`, 'ok'); }
+        };
+        requestAnimationFrame(cb);
+      }, 700);
+      break;
+    case 'manual-nack-DLX':
+      flashLog(`☠ ${c.id} (nack, requeue=false): "${payload}" → DLX (デッドレターエクスチェンジ)`,'err');
+      state.dlxRoutes++;
+      if(state.dlxRoutes>=3) unlockBadge('dlxDefender');
+      break;
+  }
+  saveState();
+}
+
+/* simulator wiring */
+document.getElementById('sim-extype').addEventListener('change', e=>{
+  SIM.exchangeType = e.target.value;
+  redrawSim();
+});
+document.getElementById('sim-add-binding').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  let key = '';
+  let headers = {};
+  let xMatch = 'all';
+  let queue = prompt('キュー名は?', `q.${SIM.queueIds+1}`);
+  if(!queue) return;
+  SIM.queueIds++;
+  if(extype==='headers'){
+    const raw = prompt('ヘッダーバインディング (k=v, カンマ区切り)', 'format=pdf,type=report');
+    if(raw===null) return;
+    raw.split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+    xMatch = (prompt('x-match: all か any か?','all')||'all').toLowerCase()==='any'?'any':'all';
+  } else if(extype==='fanout'){
+    key = ''; // 無視される
+  } else {
+    key = prompt('バインディングキー (例 orders.*.us)', 'orders.*.us') || '';
+  }
+  simAddBinding(queue, key, headers, xMatch);
+});
+document.getElementById('sim-add-consumer').addEventListener('click', ()=>{
+  const queues = uniqueQueues();
+  let queue;
+  if(queues.length===0){
+    queue = prompt('キューがまだありません。コンシューマを紐付けるキュー名:', 'q.1');
+    if(!queue) return;
+    SIM.queueIds = Math.max(SIM.queueIds, 1);
+  } else if(queues.length===1){
+    queue = queues[0];
+  } else {
+    queue = prompt('どのキューにコンシューマを紐付けますか? '+queues.join(', '), queues[0]);
+    if(!queue) return;
+  }
+  simAddConsumer(queue, 'manual-ack');
+});
+document.getElementById('sim-publish').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  const key = document.getElementById('sim-rk').value || '';
+  const payload = document.getElementById('sim-payload').value || 'msg';
+  let headers = {};
+  if(extype==='headers'){
+    (document.getElementById('sim-headers').value||'').split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+  }
+  const matched = routeMessage(extype, key, headers);
+  state.publishCount++;
+  if(state.publishCount===1) unlockBadge('firstPublish');
+  saveState();
+  animateFlow(matched, payload, extype==='headers' ? JSON.stringify(headers) : key);
+});
+document.getElementById('sim-clear').addEventListener('click', ()=>{
+  document.getElementById('sim-log').innerHTML='';
+});
+
+// seed simulator with a topic example
+simAddBinding('q.alerts','*.error.*');
+simAddBinding('q.us-orders','orders.*.us');
+simAddBinding('q.audit','#');
+simAddConsumer('q.alerts','manual-ack');
+simAddConsumer('q.us-orders','manual-ack');
+simAddConsumer('q.audit','auto-ack');
+
+/* =========================================================
+   PRACTICE — typing exercises
+   ========================================================= */
+const PRACTICE = [
+  // VOCAB
+  { kind:'vocab', q:'コンシューマが取り出すまでメッセージを保持する名前付きバッファ。用語を入力:', a:'queue', xp:15 },
+  { kind:'vocab', q:'プロデューサが送るルーター。キューがバインドされる。用語を入力:', a:'exchange', xp:15 },
+  { kind:'vocab', q:'ユーザー、キュー、エクスチェンジを名前空間で論理的に分離する境界。略語 (3-5 文字) を入力:', a:'vhost', xp:15, accept:['virtual host'] },
+  { kind:'vocab', q:'プロデューサがメッセージに付ける文字列で、エクスチェンジが配送先決定に使うもの。2 単語:', a:'routing key', xp:15 },
+  { kind:'vocab', q:'reject、期限切れ、オーバーフローしたメッセージを受け取るエクスチェンジ。3 文字 (頭字語):', a:'dlx', xp:20, accept:['dead letter exchange','dead-letter exchange'] },
+  // CLI
+  { kind:'cli', q:'すべてのキューを一覧する rabbitmqctl コマンドを入力:', a:'rabbitmqctl list_queues', xp:20, strict:true },
+  { kind:'cli', q:'すべてのエクスチェンジを一覧するコマンド (rabbitmqctl) を入力:', a:'rabbitmqctl list_exchanges', xp:20, strict:true },
+  { kind:'cli', q:'すべてのバインディングを一覧するコマンド (rabbitmqctl) を入力:', a:'rabbitmqctl list_bindings', xp:20, strict:true },
+  { kind:'cli', q:'"billing" という新しい vhost を追加する。rabbitmqctl ___:', a:'rabbitmqctl add_vhost billing', xp:20, strict:true },
+  // CODE (pika)
+  { kind:'code', q:'pika: "tasks" という永続キューを宣言する。関数名を埋める:\nchannel.____(queue="tasks", durable=True)', a:'queue_declare', xp:20, strict:true },
+  { kind:'code', q:'pika: デフォルトエクスチェンジ経由で "tasks" キューに "hi" を発行、永続マーク付き。\nchannel.basic_publish(exchange="", routing_key="tasks", body="hi", properties=pika.BasicProperties(delivery_mode=__))\n足りない数値を入力:', a:'2', xp:20, strict:true, accept:['PERSISTENT_DELIVERY_MODE'] },
+  { kind:'code', q:'pika: 配送を ack する。足りないメソッドを埋める:\nch.____(delivery_tag=method.delivery_tag)', a:'basic_ack', xp:20, strict:true },
+  { kind:'code', q:'pika: コンシューマあたり同時 1 件の配送で公平ディスパッチを有効化:\nchannel.____(prefetch_count=1)', a:'basic_qos', xp:20, strict:true },
+  { kind:'code', q:'pika: "tasks" を manual ack で消費するコールバックを登録。埋める:\nchannel.____(queue="tasks", on_message_callback=cb, auto_ack=False)', a:'basic_consume', xp:20, strict:true },
+  // TOPIC PUZZLES (yes/no)
+  { kind:'topic', q:'バインディング "orders.*.us" vs ルーティングキー "orders.new.us"。マッチする? (yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'バインディング "orders.*.us" vs ルーティングキー "orders.us"。マッチする? (yes/no)', a:'no', xp:15 },
+  { kind:'topic', q:'バインディング "orders.#" vs ルーティングキー "orders.new.us.express"。マッチする? (yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'バインディング "*.error.*" vs ルーティングキー "db.error"。マッチする? (yes/no)', a:'no', xp:15 },
+];
+
+const pracState = {
+  i: 0,
+  correct: 0,
+  wrong: 0,
+  topicStreak: 0,
+  durableStreak: 0,
+  rpcStreak: 0,
+};
+function normalize(s){ return String(s).trim().toLowerCase().replace(/\s+/g,' '); }
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function answerMatches(ex, input){
+  const v = normalize(input);
+  const accepts = [ex.a, ...(ex.accept||[])].map(normalize);
+  if(ex.strict){
+    return accepts.includes(v);
+  }
+  // tolerant: exact OR accept OR small distance for short answers
+  for(const a of accepts){
+    if(v===a) return true;
+    if(a.length<=8 && levenshtein(v,a)<=1) return true;
+    if(a.length<=14 && levenshtein(v,a)<=2) return true;
+  }
+  return false;
+}
+
+function renderPractice(){
+  const total = PRACTICE.length;
+  document.getElementById('prac-n').textContent = total;
+  const i = pracState.i;
+  document.getElementById('prac-i').textContent = Math.min(i+1, total);
+  document.getElementById('prac-correct').textContent = `${pracState.correct} 正解`;
+  document.getElementById('prac-wrong').textContent = `${pracState.wrong} 不正解`;
+  document.getElementById('prac-progress').style.width = (i/total*100)+'%';
+
+  const mount = document.getElementById('prac-mount');
+  if(i>=total){
+    mount.innerHTML = `<div class="ex-card">
+      <div class="q"><b>完了!</b> ${pracState.correct}/${total} 問正解しました。</div>
+      <p class="muted">いつでもやり直せます。ボスモードに進んでも OK。</p>
+    </div>`;
+    if(pracState.correct === total){ unlockBadge('practiceComplete'); }
+    state.practiceDone = true; saveState();
+    return;
+  }
+  const ex = PRACTICE[i];
+  document.getElementById('prac-kind').textContent = ex.kind;
+  mount.innerHTML = `<div class="ex-card" id="ex-${i}">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="prac-input" autocomplete="off" spellcheck="false" placeholder="答えを入力して Enter…" style="flex:1;min-width:260px"/>
+      <button class="btn" id="prac-submit">送信</button>
+    </div>
+    <div class="feedback hint" id="prac-feedback">ヒント: ${ex.kind==='topic' ? '"yes" か "no" で答える' : ex.kind==='cli' ? '完全一致が必要' : ex.kind==='code' ? '完全一致が必要' : '小さな打ち間違いは許容されます'}</div>
+  </div>`;
+  const input = document.getElementById('prac-input');
+  input.focus();
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter') submitPractice();
+  });
+  document.getElementById('prac-submit').addEventListener('click', submitPractice);
+}
+function linkifyHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+function submitPractice(){
+  const ex = PRACTICE[pracState.i];
+  const val = document.getElementById('prac-input').value;
+  const ok = answerMatches(ex, val);
+  const fb = document.getElementById('prac-feedback');
+  if(ok){
+    fb.className='feedback ok';
+    fb.textContent = `✓ 正解! +${ex.xp} XP`;
+    addXP(ex.xp, `練習 ${ex.kind}`);
+    bumpCombo();
+    pracState.correct++;
+    if(ex.kind==='topic'){ pracState.topicStreak++; if(pracState.topicStreak>=5) unlockBadge('topicMaster'); state.topicMatchSolved++; }
+    else pracState.topicStreak=0;
+    confettiBurst(60);
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 500);
+  } else {
+    fb.className='feedback err';
+    fb.textContent = `✗ 違います。期待: ${ex.a}`;
+    breakCombo();
+    pracState.wrong++;
+    pracState.topicStreak=0;
+    shake(document.getElementById('ex-'+pracState.i));
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 1100);
+  }
+}
+document.getElementById('prac-skip').addEventListener('click', ()=>{
+  pracState.wrong++; pracState.i++; breakCombo(); renderPractice();
+});
+document.getElementById('prac-restart').addEventListener('click', ()=>{
+  pracState.i=0; pracState.correct=0; pracState.wrong=0; pracState.topicStreak=0; renderPractice();
+});
+renderPractice();
+
+/* =========================================================
+   BOSS MODE — 10 timed scenario questions
+   ========================================================= */
+const BOSS_QUESTIONS = [
+  { q:'ワーカーがジョブの途中でクラッシュし、メッセージが消えています。コンシューマは auto_ack=True で開始されました。False に切り替えるべき真偽値の引数名は?', a:'auto_ack' },
+  { q:'ブローカーを再起動したらキューが消えました。queue_declare に付け忘れたフラグは?', a:'durable' },
+  { q:'メッセージはキューを生き延びましたが、ブローカークラッシュで蒸発します。メッセージに不足しているプロパティは? (1 つの数値)', a:'2', accept:['delivery_mode=2','persistent'] },
+  { q:'1 人の遅いワーカーが仕事を抱え込み、速いワーカーが遊んでいます。公平ディスパッチを修正する pika メソッドは?', a:'basic_qos' },
+  { q:'Raft による強い整合性でノード障害を生き延びるキューが必要です。キュー種別は? (1 単語)', a:'quorum' },
+  { q:'毒メッセージが永遠に再キューされ続けます。修正は requeue=false で nack し、特別なエクスチェンジに送ること。3 文字の頭字語は?', a:'dlx' },
+  { q:'ルーティングキーに関係なく全購読者にイベントを届けたい。エクスチェンジ種別は? (1 単語)', a:'fanout' },
+  { q:'購読者が "*.error.*" や "db.#" のようなパターンでフィルタしたい。エクスチェンジ種別は? (1 単語)', a:'topic' },
+  { q:'ブローカーが発行メッセージを受信し永続化したことを確認したい。有効化すべき非同期機能は? (2 単語)', a:'publisher confirms', accept:['publisher confirm','confirm select'] },
+  { q:'RPC クライアントの reply キューがリークし続けています。自動で期限切れにするキュー引数は? (3 文字の略語)', a:'ttl', accept:['x-message-ttl','x-expires'] },
+];
+const BOSS = { i:0, correct:0, timer:null, secs:30, active:false };
+function startBoss(){
+  if(BOSS.active) return;
+  BOSS.active = true; BOSS.i=0; BOSS.correct=0;
+  document.getElementById('boss-correct').textContent='0 正解';
+  document.getElementById('boss-progress').style.width='0%';
+  showBossQ();
+}
+function showBossQ(){
+  const total = BOSS_QUESTIONS.length;
+  if(BOSS.i>=total){
+    finishBoss(); return;
+  }
+  document.getElementById('boss-i').textContent = BOSS.i+1;
+  document.getElementById('boss-progress').style.width = (BOSS.i/total*100)+'%';
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const mount = document.getElementById('boss-mount');
+  mount.innerHTML = `<div class="ex-card" id="boss-card">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="boss-input" placeholder="入力して Enter…" autocomplete="off" spellcheck="false" style="flex:1;min-width:260px"/>
+      <button class="btn" id="boss-submit">送信</button>
+    </div>
+    <div class="feedback hint" id="boss-feedback">ヒント: 短く正確に。打ち間違いは数文字まで許容。</div>
+  </div>`;
+  const inp = document.getElementById('boss-input'); inp.focus();
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitBoss(); });
+  document.getElementById('boss-submit').addEventListener('click', submitBoss);
+  // timer
+  BOSS.secs = 30;
+  document.getElementById('boss-timer').textContent = BOSS.secs;
+  clearInterval(BOSS.timer);
+  BOSS.timer = setInterval(()=>{
+    BOSS.secs--;
+    document.getElementById('boss-timer').textContent = BOSS.secs;
+    if(BOSS.secs<=0){
+      clearInterval(BOSS.timer);
+      handleBossOutcome(false, ex);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const val = document.getElementById('boss-input').value;
+  const ok = answerMatches(ex, val);
+  clearInterval(BOSS.timer);
+  handleBossOutcome(ok, ex);
+}
+function handleBossOutcome(ok, ex){
+  const fb = document.getElementById('boss-feedback');
+  if(ok){
+    fb.className='feedback ok'; fb.textContent='✓ 正解! +50 XP';
+    addXP(50, 'ボス正解'); bumpCombo();
+    BOSS.correct++;
+    document.getElementById('boss-correct').textContent = `${BOSS.correct} 正解`;
+    confettiBurst(80);
+  } else {
+    fb.className='feedback err'; fb.textContent=`✗ 不正解。期待: ${ex.a}`;
+    breakCombo();
+    shake(document.getElementById('boss-card'));
+  }
+  setTimeout(()=>{ BOSS.i++; showBossQ(); }, 700);
+}
+function finishBoss(){
+  BOSS.active = false;
+  clearInterval(BOSS.timer);
+  const total = BOSS_QUESTIONS.length;
+  document.getElementById('boss-progress').style.width = '100%';
+  const survived = BOSS.correct >= total - 2; // 2 ミスまで許容
+  const mount = document.getElementById('boss-mount');
+  if(survived){
+    unlockBadge('outageCrusher');
+    state.bossDone = true; saveState();
+    mount.innerHTML = `<div class="ex-card"><div class="q">🏆 障害収束 — ${BOSS.correct}/${total}。<b>Outage Crusher</b> をアンロックしました。</div></div>`;
+    confettiBurst(220);
+  } else {
+    mount.innerHTML = `<div class="ex-card"><div class="q">🚨 障害が悪化 — ${BOSS.correct}/${total}。8/10 でバッジアンロック。</div></div>`;
+  }
+}
+document.getElementById('boss-start').addEventListener('click', startBoss);
+document.getElementById('boss-quit').addEventListener('click', ()=>{
+  BOSS.active=false; clearInterval(BOSS.timer);
+  document.getElementById('boss-mount').innerHTML='';
+});
+
+/* =========================================================
+   INITIAL RENDER
+   ========================================================= */
+redrawSim();
+flashLog('ラボ準備完了。バインディング 3 つ + コンシューマ 3 つを初期投入済み。topic エクスチェンジで key="orders.new.us" を発行してみましょう。','info');
+</script>
+</body>
+</html>

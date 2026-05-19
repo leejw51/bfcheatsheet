@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Labo RabbitMQ — Apprendre en tapant</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --bg-2:#161a22;
+    --panel:#1b212c;
+    --panel-2:#222a36;
+    --line:#2a3242;
+    --text:#e7ecf3;
+    --muted:#8a93a4;
+    --accent:#FF6600;
+    --accent-2:#ffb37a;
+    --good:#3fd17c;
+    --bad:#ff4d6d;
+    --warn:#ffd166;
+    --info:#4dd6ff;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --rounded:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;line-height:1.55}
+  a{color:var(--accent-2)}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:46px;height:46px;border-radius:12px;background:radial-gradient(circle at 30% 30%,#ffb37a,#FF6600 60%,#a93f00);display:grid;place-items:center;box-shadow:var(--shadow)}
+  .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
+  .brand small{color:var(--muted);font-weight:400}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .xpbar{width:170px;height:8px;background:#0b0e13;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,#ffb37a,#FF6600);width:0%}
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 18px}
+  nav.tabs button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px}
+  nav.tabs button.active{background:linear-gradient(180deg,#2a1407,#1d0e05);border-color:var(--accent);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .grid{display:grid;gap:14px}
+  .grid.cols-2{grid-template-columns:1fr 1fr}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:900px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rounded);padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 8px 0;font-size:18px}
+  .card h3{margin:18px 0 6px 0;font-size:15px;color:var(--accent-2)}
+  .card p{color:#cdd5e0;margin:6px 0}
+  .muted{color:var(--muted)}
+  .kbd{background:#0b0e13;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{background:var(--accent);color:#1a0a00;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input[type="text"], select, textarea{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  input[type="text"]:focus, select:focus, textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,102,0,.2)}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .tag{display:inline-block;background:#23170c;border:1px solid #4a2c12;color:#ffd0aa;border-radius:6px;padding:2px 8px;font-size:12px;margin-right:6px}
+  .tag.good{background:#0f2418;border-color:#1d4a30;color:#a8e6c1}
+  .tag.bad{background:#2b0e14;border-color:#5a1a26;color:#ffb1bd}
+  .tag.info{background:#0d1f2a;border-color:#1d4256;color:#a8dff5}
+  .tag.warn{background:#2a2110;border-color:#5a4720;color:#ffe5a3}
+  .step{padding:8px 10px;border-left:3px solid var(--accent);background:#1a1107;border-radius:0 8px 8px 0;margin:8px 0}
+  .scroll{max-height:340px;overflow:auto;padding-right:6px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;margin:3px}
+  .badge.unlocked{border-color:var(--accent);background:#22130a;color:#ffd0aa;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .badge .em{filter:saturate(.6) opacity(.6)}
+  .badge.unlocked .em{filter:none}
+  .progress{height:10px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--good),#7eebac)}
+  /* shake/confetti */
+  .shake{animation:shake .35s ease}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+  .pulse{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(255,102,0,0))}50%{filter:drop-shadow(0 0 6px rgba(255,102,0,.7))}}
+  .hidden{display:none !important}
+  .footer{color:var(--muted);font-size:12px;margin:30px 0 6px;text-align:center}
+  /* simulator */
+  .simwrap{position:relative;background:repeating-linear-gradient(45deg,#0d1118 0 10px,#0b0e13 10px 20px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line);background:#11151d}
+  .controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .legend{display:flex;gap:14px;color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--line);background:#11151d}
+  .log{font-family:ui-monospace,monospace;font-size:12px;background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:160px;overflow:auto;white-space:pre-wrap}
+  .log .ok{color:var(--good)}
+  .log .err{color:var(--bad)}
+  .log .info{color:var(--info)}
+  .log .warn{color:var(--warn)}
+  .log .acc{color:var(--accent-2)}
+  /* practice */
+  .ex-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+  .ex-card .q{font-size:16px;margin-bottom:8px}
+  .ex-card input[type=text]{width:100%}
+  .feedback{margin-top:8px;font-size:13px}
+  .feedback.ok{color:var(--good)}
+  .feedback.err{color:var(--bad)}
+  .feedback.hint{color:var(--muted)}
+  .stagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .timer{font-variant-numeric:tabular-nums;font-weight:700;color:var(--warn)}
+  /* boss */
+  .siren{color:var(--bad);animation:siren .8s linear infinite alternate}
+  @keyframes siren{0%{text-shadow:0 0 0 transparent}100%{text-shadow:0 0 12px rgba(255,77,109,.8)}}
+  /* canvas overlay for confetti */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:9999}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- silhouette de lapin -->
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <path d="M14 50c-2-10 0-22 6-28 1 6 4 8 8 8 1-7 4-12 8-15 1 6 3 9 6 11 5-3 9-3 12 0-2 4-6 6-6 12 0 6 4 8 4 14H14z" fill="#fff"/>
+          <circle cx="40" cy="42" r="2" fill="#1a0a00"/>
+          <circle cx="30" cy="42" r="2" fill="#1a0a00"/>
+          <path d="M34 47c1 1 3 1 4 0" stroke="#1a0a00" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Labo RabbitMQ <small>— apprendre en tapant</small></h1>
+        <div class="muted" style="font-size:13px">Une initiation interactive et ludique à AMQP, aux échanges, aux files d'attente et aux patrons.</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="pill"><span class="dot"></span><span>Niv <b id="hud-level">1</b></span></div>
+      <div class="pill">XP <b id="hud-xp">0</b><div class="xpbar" title="XP avant le prochain niveau"><div id="hud-xpbar"></div></div></div>
+      <div class="pill">Combo <b id="hud-combo">0</b>x</div>
+      <div class="pill">Meilleur <b id="hud-best">0</b>x</div>
+      <button class="btn ghost small" id="btn-reset">Réinitialiser</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button data-tab="learn" class="active">1. Concepts</button>
+    <button data-tab="exchanges">2. Échanges</button>
+    <button data-tab="reliability">3. Fiabilité</button>
+    <button data-tab="qos">4. QoS et Cluster</button>
+    <button data-tab="patterns">5. Patrons</button>
+    <button data-tab="sim">Simulateur</button>
+    <button data-tab="practice">Pratique (Tapez !)</button>
+    <button data-tab="boss">Boss : Panne en production</button>
+    <button data-tab="badges">Badges</button>
+  </nav>
+
+  <!-- ========================== TAB: LEARN ========================== -->
+  <section data-panel="learn">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>1. Qu'est-ce qu'un courtier de messages ?</h2>
+        <p>Un <b>courtier de messages</b> (message broker) se place entre les producteurs et les consommateurs. Le producteur dépose un message dans le courtier et retourne à son travail. Le consommateur le récupère plus tard, à son propre rythme. Les deux n'ont jamais besoin d'être en ligne en même temps, ni de connaître l'adresse de l'autre, ni de s'accorder sur la vitesse de traitement.</p>
+        <h3>Pourquoi les files d'attente comptent</h3>
+        <ul>
+          <li><b>Découplage</b> : changez les consommateurs sans changer les producteurs.</li>
+          <li><b>Tampon</b> : lissez les pics ; la file absorbe les rafales.</li>
+          <li><b>Fiabilité</b> : si un consommateur plante, le message est toujours là.</li>
+          <li><b>Diffusion</b> : un événement déclenche de nombreuses réactions indépendantes.</li>
+        </ul>
+        <div class="step"><b>Modèle mental :</b> les producteurs écrivent des cartes postales, le courtier est la poste, les files sont des boîtes aux lettres, les consommateurs lisent à leur rythme.</div>
+      </div>
+
+      <div class="card">
+        <h2>2. Concepts fondamentaux d'AMQP</h2>
+        <p>RabbitMQ implémente <b>AMQP 0-9-1</b>. Le vocabulaire est restreint mais précis.</p>
+        <ul>
+          <li><span class="tag">Producer</span> publie des messages.</li>
+          <li><span class="tag">Consumer</span> s'abonne et traite les messages.</li>
+          <li><span class="tag">Queue</span> tampon nommé qui stocke les messages.</li>
+          <li><span class="tag">Exchange</span> le routeur ; les producteurs publient vers les échanges, jamais directement vers les files.</li>
+          <li><span class="tag">Binding</span> règle qui relie un échange à une file (souvent avec une clé).</li>
+          <li><span class="tag">Routing Key</span> chaîne que le producteur attache à un message ; l'échange l'utilise pour décider où livrer.</li>
+          <li><span class="tag">Virtual host</span> (vhost) espace de noms partitionnant utilisateurs, échanges et files ; isolation logique.</li>
+          <li><span class="tag">Connection</span> connexion TCP. <span class="tag">Channel</span> connexion virtuelle multiplexée à l'intérieur.</li>
+        </ul>
+        <h3>Flux en un coup d'œil</h3>
+        <pre>producer
+  └─ publish(routing_key) ─▶ exchange
+                              ├─ binding A ─▶ queue 1 ─▶ consumer
+                              └─ binding B ─▶ queue 2 ─▶ consumer</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: EXCHANGES ========================== -->
+  <section data-panel="exchanges" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>3. Plongée dans les types d'échanges</h2>
+        <h3>Direct</h3>
+        <p>Achemine les messages dont la <b>clé de routage correspond exactement</b> à une clé de liaison. À utiliser pour : livraison ciblée, files de travail simples, routage de commandes.</p>
+        <pre>binding: queue.email  ⇐ key="email"
+publish key="email"   → queue.email
+publish key="sms"     → dropped (or unrouted)</pre>
+
+        <h3>Fanout</h3>
+        <p>Ignore la clé de routage. <b>Diffuse vers chaque file liée.</b> À utiliser pour : événements pub/sub, invalidation de cache, notifications « avertir tout le monde ».</p>
+        <pre>publish ANY key → all bound queues receive it</pre>
+
+        <h3>Topic</h3>
+        <p>Achemine selon un motif. Les clés de routage sont des mots séparés par des points ; les motifs de liaison peuvent utiliser :</p>
+        <ul>
+          <li><code>*</code> correspond à <b>exactement un</b> mot.</li>
+          <li><code>#</code> correspond à <b>zéro ou plusieurs</b> mots.</li>
+        </ul>
+        <pre>binding "orders.*.us"   matches  orders.new.us, orders.cancel.us
+                        misses   orders.us, orders.new.eu, orders.a.b.us
+binding "orders.#"      matches  orders, orders.new, orders.new.us
+binding "*.error.*"     matches  app.error.db, web.error.api</pre>
+
+        <h3>Headers</h3>
+        <p>Achemine selon les en-têtes du message, pas la clé de routage. Le mode <code>x-match: all</code> exige que chaque en-tête corresponde ; <code>x-match: any</code> en exige au moins un.</p>
+        <pre>binding headers: {format: pdf, type: report, x-match: all}
+header {format: pdf, type: report}     → match
+header {format: pdf}                    → no match</pre>
+      </div>
+
+      <div class="card">
+        <h2>Quand utiliser quoi</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:6px 4px">Type</th><th>Choisissez quand&hellip;</th>
+            </tr>
+          </thead>
+          <tbody style="vertical-align:top">
+            <tr><td style="padding:8px 4px"><span class="tag">direct</span></td><td>Vous voulez du point-à-point ou une égalité stricte sur une clé unique.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">fanout</span></td><td>Chaque abonné a besoin du même événement. Le plus simple à raisonner.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">topic</span></td><td>Événements hiérarchiques : <code>region.service.severity</code>. Les abonnés veulent des sous-ensembles.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">headers</span></td><td>Le routage dépend de plusieurs attributs qui ne tiennent pas dans une clé chaîne.</td></tr>
+          </tbody>
+        </table>
+        <h3>Échange par défaut</h3>
+        <p>L'échange anonyme <code>""</code> est un échange <b>direct</b> spécial dans lequel chaque file est implicitement liée par son nom. C'est pourquoi <code>basic_publish(exchange='', routing_key='hello')</code> va directement à la file nommée <code>hello</code>.</p>
+
+        <h3>Échange de lettres mortes (DLX)</h3>
+        <p>Une file peut être configurée avec <code>x-dead-letter-exchange</code>. Les messages rejetés, expirés ou en débordement sont republiés vers le DLX, où une autre liaison les stationne dans une file de lettres mortes pour inspection ou nouvelle tentative.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: RELIABILITY ========================== -->
+  <section data-panel="reliability" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>4. Accusés de réception</h2>
+        <h3>Auto-ack vs manual ack</h3>
+        <ul>
+          <li><b>Auto-ack</b> (<code>auto_ack=True</code>) : le courtier considère le message comme livré dès qu'il sort. <b>Rapide et risqué.</b> Si le consommateur plante en plein traitement, le message est perdu.</li>
+          <li><b>Manual ack</b> (<code>auto_ack=False</code>) : le consommateur doit appeler <code>basic_ack(delivery_tag)</code> après succès. S'il meurt avant, le courtier <b>retransmet</b> à la reconnexion.</li>
+        </ul>
+        <h3>nack et reject</h3>
+        <ul>
+          <li><code>basic_nack(requeue=true)</code> — le remettre dans la file.</li>
+          <li><code>basic_nack(requeue=false)</code> — le supprimer ou l'envoyer au DLX si configuré.</li>
+          <li><code>basic_reject</code> est la forme single-message de nack.</li>
+        </ul>
+        <h3>Indicateur de retransmission</h3>
+        <p>Quand un message est retransmis, le courtier positionne <code>redelivered=true</code>. Les consommateurs doivent traiter cela comme un signal de prudence : idempotence, clés de déduplication, compteurs de réessais dans les en-têtes.</p>
+      </div>
+
+      <div class="card">
+        <h2>5. Durabilité — ce qui survit à un redémarrage</h2>
+        <p>Trois choses indépendantes doivent <b>toutes</b> être positionnées pour qu'un message survive à un crash du courtier :</p>
+        <ol>
+          <li><b>File durable</b> : <code>queue_declare(durable=True)</code>. Sinon la file elle-même disparaît.</li>
+          <li><b>Message persistant</b> : <code>delivery_mode=2</code> (ou <code>PERSISTENT_TEXT_PLAIN</code>). Sans cela, le message reste en RAM seulement.</li>
+          <li><b>Échange durable</b> (si vous en dépendez) : <code>exchange_declare(durable=True)</code>.</li>
+        </ol>
+        <div class="step"><b>Piège :</b> la persistance est en best-effort, pas un fsync synchrone par message. Utilisez les <b>publisher confirms</b> (<code>confirm_delivery</code>) si vous devez savoir qu'un message est sur disque avant d'accuser réception en amont.</div>
+        <h3>Publisher confirms vs transactions</h3>
+        <p>Les transactions AMQP existent mais sont lentes. Les <b>publisher confirms</b> sont asynchrones et plus rapides de plusieurs ordres de grandeur : le courtier vous dit « je l'ai bien reçu » avec une trame ack.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: QoS / CLUSTER ========================== -->
+  <section data-panel="qos" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>6. Prefetch et QoS — distribution équitable</h2>
+        <p>Par défaut, RabbitMQ distribue les messages aux consommateurs en tourniquet. Si un consommateur est lent et un autre rapide, le lent s'engorge tandis que le rapide reste oisif. <b>Prefetch corrige cela.</b></p>
+        <pre>channel.basic_qos(prefetch_count=1)</pre>
+        <p>Cela dit au courtier : « ne me donne pas de nouveau message tant que je n'ai pas accusé réception du précédent ». Désormais le consommateur rapide tire plus de travail, le lent en tire moins. Augmentez (par ex. 10–50) pour des tâches courtes et uniformes.</p>
+        <h3>Règle d'optimisation empirique</h3>
+        <ul>
+          <li>Travaux longs et hétérogènes → <code>prefetch=1</code>.</li>
+          <li>Travaux courts et uniformes → prefetch plus élevé (moins de surcoût aller-retour).</li>
+          <li>Mesurez avec la <b>profondeur de file</b> et l'<b>utilisation des consommateurs</b>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>7. Clustering et files quorum</h2>
+        <p>Un <b>cluster</b> RabbitMQ partage utilisateurs, vhosts, échanges et liaisons à travers les nœuds. Les files sont par défaut une entité à un seul maître ; le maître réside sur un nœud et peut être miroité ou remplacé par un quorum.</p>
+        <h3>Files miroir classiques</h3>
+        <p>Héritage. Réplique l'état vers les suiveurs. Remplacée dans les déploiements modernes par les files quorum.</p>
+        <h3>Files quorum</h3>
+        <ul>
+          <li>Construites sur le protocole de consensus <b>Raft</b>.</li>
+          <li><b>Cohérence forte</b> : une écriture n'est acquittée qu'une fois qu'une majorité de réplicas l'a.</li>
+          <li>Survit proprement aux pannes de nœuds. Recommandé par défaut pour les données importantes.</li>
+          <li>Compromis : latence plus élevée que les files classiques, plus d'E/S disque.</li>
+        </ul>
+        <h3>Streams (bonus)</h3>
+        <p>Files en mode log-append pour des charges analytiques à haut débit. Protocole différent, modèle d'accès différent (offsets, pas de consommation destructive).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PATTERNS ========================== -->
+  <section data-panel="patterns" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>8. Patrons courants</h2>
+        <h3>Files de travail (distribution de tâches)</h3>
+        <p>Une file, plusieurs workers, ack manuel, prefetch=1. À utiliser pour le redimensionnement d'images, l'envoi d'e-mails, l'encodage vidéo.</p>
+        <pre>producer ─▶ "" ─▶ queue:tasks ─▶ worker1
+                              └▶ worker2
+                              └▶ worker3</pre>
+
+        <h3>Publish/Subscribe</h3>
+        <p>Échange fanout, chaque abonné reçoit chaque message via sa propre file.</p>
+        <pre>producer ─▶ fanout:events ─┬─▶ queue:audit       ─▶ logger
+                            ├─▶ queue:cache_invl  ─▶ cache
+                            └─▶ queue:notify      ─▶ pusher</pre>
+      </div>
+
+      <div class="card">
+        <h2>Plus de patrons</h2>
+        <h3>Routage par topic</h3>
+        <p>Événements hiérarchiques. Différentes files s'abonnent à différentes formes.</p>
+        <pre>topic:logs
+  binding "*.error.*"  ─▶ queue:alerts
+  binding "db.#"       ─▶ queue:dba
+  binding "#"          ─▶ queue:audit</pre>
+
+        <h3>RPC (requête/réponse)</h3>
+        <p>Le producteur positionne <code>reply_to</code> (une file temporaire et exclusive) et <code>correlation_id</code>. Le consommateur publie la réponse vers <code>reply_to</code>. Le producteur apparie les réponses par <code>correlation_id</code>.</p>
+        <pre>client → publish(reply_to=Q1, correlation_id=abc)
+server → consume → publish(exchange='', routing_key=Q1, correlation_id=abc)
+client → matches abc, resolves promise</pre>
+        <div class="step"><b>Astuce :</b> mettez un TTL sur la file de réponse pour éviter que des clients fuités n'accumulent des files orphelines.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: SIMULATOR ========================== -->
+  <section data-panel="sim" class="hidden">
+    <div class="card">
+      <h2>Simulateur interactif</h2>
+      <p class="muted">Choisissez un type d'échange, déclarez des liaisons, puis publiez des messages et regardez-les circuler. Basculez le comportement du consommateur pour voir l'ack/nack et la retransmission en action. Gagnez de l'XP à chaque publication réussie.</p>
+
+      <div class="simwrap">
+        <div class="controls">
+          <label>Type d'échange
+            <select id="sim-extype">
+              <option value="direct">direct</option>
+              <option value="fanout">fanout</option>
+              <option value="topic" selected>topic</option>
+              <option value="headers">headers</option>
+            </select>
+          </label>
+          <label>Clé de routage
+            <input type="text" id="sim-rk" value="orders.new.us" style="width:160px"/>
+          </label>
+          <label>Headers (k=v,k=v) <span class="muted">échange headers seulement</span>
+            <input type="text" id="sim-headers" value="format=pdf,type=report" style="width:200px"/>
+          </label>
+          <label>Charge utile
+            <input type="text" id="sim-payload" value="hello-world" style="width:140px"/>
+          </label>
+          <button class="btn" id="sim-publish">Publier ▶</button>
+          <button class="btn ghost small" id="sim-add-binding">+ Liaison</button>
+          <button class="btn ghost small" id="sim-clear">Effacer le journal</button>
+        </div>
+
+        <svg id="sim-svg" viewBox="0 0 1000 360" style="display:block;width:100%;height:360px;background:#0a0d12">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#FF6600"/>
+            </marker>
+            <radialGradient id="g-prod" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd0aa"/>
+              <stop offset="100%" stop-color="#FF6600"/>
+            </radialGradient>
+            <radialGradient id="g-ex" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8dff5"/>
+              <stop offset="100%" stop-color="#1a6c95"/>
+            </radialGradient>
+            <radialGradient id="g-q" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8e6c1"/>
+              <stop offset="100%" stop-color="#1f7045"/>
+            </radialGradient>
+            <radialGradient id="g-c" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffe5a3"/>
+              <stop offset="100%" stop-color="#a07a14"/>
+            </radialGradient>
+          </defs>
+
+          <!-- producer -->
+          <g id="node-producer">
+            <rect x="20" y="140" width="140" height="80" rx="14" fill="url(#g-prod)" stroke="#FF6600"/>
+            <text x="90" y="175" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="14">Producer</text>
+            <text x="90" y="195" text-anchor="middle" fill="#1a0a00" font-size="11">basic_publish</text>
+          </g>
+
+          <!-- exchange -->
+          <g id="node-exchange">
+            <polygon points="380,180 440,140 500,180 440,220" fill="url(#g-ex)" stroke="#4dd6ff"/>
+            <text x="440" y="184" text-anchor="middle" fill="#062231" font-weight="700" font-size="13" id="sim-extype-label">topic</text>
+            <text x="440" y="200" text-anchor="middle" fill="#062231" font-size="10">exchange</text>
+          </g>
+
+          <!-- queues will be appended here -->
+          <g id="queues-layer"></g>
+          <g id="bindings-layer"></g>
+          <g id="consumers-layer"></g>
+
+          <!-- producer-to-exchange path -->
+          <path d="M160,180 L380,180" stroke="#FF6600" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        </svg>
+
+        <div class="legend">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#FF6600;border-radius:50%;margin-right:6px"></span>producer</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1a6c95;border-radius:2px;margin-right:6px"></span>exchange</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1f7045;border-radius:2px;margin-right:6px"></span>queue</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#a07a14;border-radius:2px;margin-right:6px"></span>consumer</span>
+          <span class="muted">drop-off = non routé (mandatory off → silencieusement perdu)</span>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">Liaisons</h3>
+          <div id="bindings-list"></div>
+          <p class="muted" style="font-size:12px">Cliquez sur une liaison pour la supprimer.</p>
+        </div>
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">Consommateurs</h3>
+          <div id="consumers-list"></div>
+          <button class="btn ghost small" id="sim-add-consumer">+ Ajouter un consommateur</button>
+          <p class="muted" style="font-size:12px">Basculez le mode d'ack de chaque consommateur (auto / manual-ack / manual-nack-requeue / manual-nack-DLX).</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-top:0;color:var(--accent-2)">Journal d'activité</h3>
+        <div class="log" id="sim-log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PRACTICE ========================== -->
+  <section data-panel="practice" class="hidden">
+    <div class="card">
+      <h2>Mode pratique — tapez la réponse</h2>
+      <p class="muted">Pas de QCM. Tapez le terme, la commande, l'argument, ou <b>yes</b>/<b>no</b>. La comparaison est insensible à la casse et tolère de petites coquilles dans les questions de vocabulaire/oui-non, mais les commandes et le code doivent correspondre exactement.</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">Étape <b id="prac-i">1</b> / <b id="prac-n">18</b></span>
+          <span class="tag info" id="prac-kind">vocab</span>
+          <span class="tag good" id="prac-correct">0 correct</span>
+          <span class="tag bad" id="prac-wrong">0 erreur</span>
+        </div>
+        <div class="row">
+          <button class="btn ghost small" id="prac-skip">Passer</button>
+          <button class="btn ghost small" id="prac-restart">Recommencer</button>
+        </div>
+      </div>
+      <div class="progress"><div id="prac-progress"></div></div>
+      <div id="prac-mount"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BOSS ========================== -->
+  <section data-panel="boss" class="hidden">
+    <div class="card">
+      <h2><span class="siren">●</span> Mode boss : Panne en production</h2>
+      <p>Le bipeur sonne. Vous avez <b>30 secondes</b> par question, 10 questions. Tapez la commande, le terme, ou la réponse en un mot. Bonne réponse = +50 XP. Erreur ou délai dépassé = combo brisé. Survivez aux 10 pour débloquer <b>Outage Crusher</b>.</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">Question <b id="boss-i">1</b> / 10</span>
+          <span class="tag warn">Temps <span class="timer" id="boss-timer">30</span>s</span>
+          <span class="tag good" id="boss-correct">0 correct</span>
+        </div>
+        <div class="row">
+          <button class="btn" id="boss-start">Démarrer la panne</button>
+          <button class="btn ghost small" id="boss-quit">Quitter</button>
+        </div>
+      </div>
+      <div class="progress"><div id="boss-progress"></div></div>
+      <div id="boss-mount" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BADGES ========================== -->
+  <section data-panel="badges" class="hidden">
+    <div class="card">
+      <h2>Vitrine des badges</h2>
+      <p class="muted">Débloquez en jouant au simulateur, en finissant la pratique et en survivant à la panne.</p>
+      <div id="badges-mount"></div>
+    </div>
+  </section>
+
+  <p class="footer">Conçu pour l'apprentissage. La progression est sauvegardée dans votre navigateur. Réinitialisable à tout moment.</p>
+</div>
+
+<script>
+/* =========================================================
+   STATE & PERSISTENCE
+   ========================================================= */
+const SAVE_KEY = 'rmq-lab-v1';
+const DEFAULT_STATE = {
+  xp: 0,
+  level: 1,
+  combo: 0,
+  bestCombo: 0,
+  badges: {},
+  practiceDone: false,
+  bossDone: false,
+  publishCount: 0,
+  ackCount: 0,
+  nackCount: 0,
+  topicMatchSolved: 0,
+  dlxRoutes: 0,
+};
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return structuredClone(DEFAULT_STATE);
+    return Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(raw));
+  }catch(e){ return structuredClone(DEFAULT_STATE); }
+}
+function saveState(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
+
+function xpForLevel(lvl){ return 100 + (lvl-1)*60; }
+function addXP(n, reason){
+  state.xp += n;
+  while(state.xp >= xpForLevel(state.level)){
+    state.xp -= xpForLevel(state.level);
+    state.level++;
+    toast(`Niveau supérieur ! → Niv ${state.level}`, 'good');
+    confettiBurst(140);
+  }
+  saveState(); renderHUD();
+  if(reason) flashLog(`+${n} XP — ${reason}`, 'acc');
+}
+function bumpCombo(){
+  state.combo++;
+  if(state.combo > state.bestCombo) state.bestCombo = state.combo;
+  if(state.combo===5) unlockBadge('combo5');
+  if(state.combo===10) unlockBadge('combo10');
+  if(state.combo===20) unlockBadge('combo20');
+  saveState(); renderHUD();
+}
+function breakCombo(){ state.combo = 0; saveState(); renderHUD(); }
+
+function renderHUD(){
+  document.getElementById('hud-level').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-combo').textContent = state.combo;
+  document.getElementById('hud-best').textContent = state.bestCombo;
+  const need = xpForLevel(state.level);
+  document.getElementById('hud-xpbar').style.width = Math.min(100, (state.xp/need)*100) + '%';
+}
+renderHUD();
+
+/* =========================================================
+   BADGES
+   ========================================================= */
+const BADGES = [
+  {id:'firstPublish', name:'First Publish', icon:'🚀', desc:'Publiez votre premier message dans le simulateur.'},
+  {id:'fanoutFan', name:'Fanout Fan', icon:'📡', desc:'Publiez avec succès vers 3 files ou plus en une fois via fanout.'},
+  {id:'topicMaster', name:'Topic Master', icon:'🧩', desc:'Résolvez 5 énigmes de routage topic d\'affilée.'},
+  {id:'ackAttack', name:'Ack Attack', icon:'✅', desc:'Acquittez manuellement 5 messages.'},
+  {id:'dlxDefender', name:'DLX Defender', icon:'🛡️', desc:'Acheminez 3 messages vers un échange de lettres mortes.'},
+  {id:'durableDevotee', name:'Durable Devotee', icon:'💾', desc:'Réussissez toutes les questions de durabilité en pratique.'},
+  {id:'rpcRanger', name:'RPC Ranger', icon:'📞', desc:'Tapez correctement les réponses RPC reply_to/correlation_id.'},
+  {id:'practiceComplete', name:'Practice Perfect', icon:'🎓', desc:'Terminez les 18 exercices de pratique.'},
+  {id:'outageCrusher', name:'Outage Crusher', icon:'🔥', desc:'Survivez au mode boss panne en production.'},
+  {id:'combo5', name:'On a Roll', icon:'🎯', desc:'5 bonnes réponses d\'affilée.'},
+  {id:'combo10', name:'Hot Streak', icon:'⚡', desc:'10 bonnes réponses d\'affilée.'},
+  {id:'combo20', name:'Unstoppable', icon:'🌟', desc:'20 bonnes réponses d\'affilée.'},
+];
+function unlockBadge(id){
+  if(state.badges[id]) return;
+  state.badges[id] = Date.now();
+  const b = BADGES.find(x=>x.id===id);
+  if(b){ toast(`Badge débloqué : ${b.icon} ${b.name}`, 'good'); confettiBurst(120); }
+  saveState(); renderBadges();
+}
+function renderBadges(){
+  const m = document.getElementById('badges-mount');
+  if(!m) return;
+  m.innerHTML = BADGES.map(b=>{
+    const on = !!state.badges[b.id];
+    return `<div class="badge ${on?'unlocked':''}" title="${b.desc}">
+      <span class="em">${b.icon}</span>
+      <span>${b.name}</span>
+      ${on?'<span style="color:var(--good);font-size:11px">débloqué</span>':'<span class="muted" style="font-size:11px">verrouillé</span>'}
+    </div>`;
+  }).join('');
+}
+renderBadges();
+
+/* =========================================================
+   TOAST + FX
+   ========================================================= */
+const fx = document.getElementById('fx');
+const fctx = fx.getContext('2d');
+function resizeFX(){ fx.width = innerWidth; fx.height = innerHeight; }
+addEventListener('resize', resizeFX); resizeFX();
+let particles = [];
+function confettiBurst(n=80){
+  const colors = ['#FF6600','#ffb37a','#3fd17c','#4dd6ff','#ffd166','#ff4d6d'];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*120,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*8,
+      vy: (Math.random()-1.2)*9,
+      g: .25,
+      life: 90 + Math.random()*40,
+      c: colors[(Math.random()*colors.length)|0],
+      s: 4 + Math.random()*4,
+      r: Math.random()*Math.PI
+    });
+  }
+}
+function tickFX(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.life--; p.r += .15;
+    fctx.save(); fctx.translate(p.x,p.y); fctx.rotate(p.r);
+    fctx.fillStyle = p.c;
+    fctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*1.4);
+    fctx.restore();
+  });
+  requestAnimationFrame(tickFX);
+}
+tickFX();
+
+const toastBox = (function(){
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;right:18px;top:18px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:320px';
+  document.body.appendChild(el); return el;
+})();
+function toast(msg, kind='info'){
+  const t = document.createElement('div');
+  const c = kind==='good'?'#3fd17c':kind==='bad'?'#ff4d6d':kind==='warn'?'#ffd166':'#4dd6ff';
+  t.style.cssText = `background:#161a22;border:1px solid ${c}55;color:#e7ecf3;padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px;border-left:4px solid ${c};animation:slideIn .25s ease`;
+  t.textContent = msg;
+  toastBox.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 2400);
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function flashLog(msg, kind='info'){
+  const log = document.getElementById('sim-log');
+  if(!log) return;
+  const span = document.createElement('div');
+  span.className = kind;
+  const t = new Date().toLocaleTimeString();
+  span.textContent = `[${t}] ${msg}`;
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* =========================================================
+   TABS
+   ========================================================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('section[data-panel]').forEach(s=>{
+      s.classList.toggle('hidden', s.dataset.panel !== tab);
+    });
+  });
+});
+
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(confirm('Réinitialiser toute la progression, les badges et l\'XP ?')){
+    state = structuredClone(DEFAULT_STATE);
+    saveState(); renderHUD(); renderBadges();
+    toast('Sauvegarde réinitialisée.', 'warn');
+  }
+});
+
+/* =========================================================
+   SIMULATOR
+   ========================================================= */
+const SIM = {
+  exchangeType: 'topic',
+  bindings: [], // {id, queue, key, headers:{}, xMatch:'all'}
+  consumers: [], // {id, queue, mode}
+  queueIds: 0,
+  consumerIds: 0,
+  bindingIds: 0,
+  // queueId -> [pending message ids]
+  pending: {},
+};
+
+function simAddBinding(queue, key, headers={}, xMatch='all'){
+  SIM.bindingIds++;
+  const id = 'b'+SIM.bindingIds;
+  // queue object created if not present
+  if(!queue) queue = `q.${SIM.queueIds+1}`;
+  SIM.bindings.push({id, queue, key, headers, xMatch});
+  // make sure queue has at least one consumer slot, optional
+  redrawSim();
+}
+
+function simRemoveBinding(id){
+  SIM.bindings = SIM.bindings.filter(b=>b.id!==id);
+  redrawSim();
+}
+
+function simAddConsumer(queue, mode='manual-ack'){
+  SIM.consumerIds++;
+  if(!queue){
+    // attach to first available queue
+    const queues = uniqueQueues();
+    queue = queues[0] || 'q.1';
+  }
+  const id = 'c'+SIM.consumerIds;
+  SIM.consumers.push({id, queue, mode});
+  redrawSim();
+}
+
+function uniqueQueues(){
+  const set = new Set();
+  SIM.bindings.forEach(b=>set.add(b.queue));
+  SIM.consumers.forEach(c=>set.add(c.queue));
+  return [...set];
+}
+
+function topicMatch(pattern, key){
+  // amqp topic: '*' = exactly one word, '#' = zero or more words
+  const pp = pattern.split('.');
+  const kk = key.split('.');
+  // dynamic programming
+  function rec(i,j){
+    if(i===pp.length && j===kk.length) return true;
+    if(i===pp.length) return false;
+    if(pp[i]==='#'){
+      // match zero or more words
+      for(let x=j;x<=kk.length;x++){
+        if(rec(i+1,x)) return true;
+      }
+      // also support trailing # at end
+      return rec(i+1,j) && j===kk.length;
+    }
+    if(j===kk.length) return false;
+    if(pp[i]==='*' || pp[i]===kk[j]) return rec(i+1,j+1);
+    return false;
+  }
+  return rec(0,0);
+}
+
+function headersMatch(bindHdr, msgHdr, xMatch){
+  const keys = Object.keys(bindHdr);
+  if(keys.length===0) return false;
+  if(xMatch==='any'){
+    return keys.some(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+  }
+  return keys.every(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+}
+
+function routeMessage(extype, key, headers){
+  const matched = new Set();
+  SIM.bindings.forEach(b=>{
+    if(extype==='fanout'){ matched.add(b.queue); return; }
+    if(extype==='direct'){ if(b.key===key) matched.add(b.queue); return; }
+    if(extype==='topic'){ if(topicMatch(b.key, key)) matched.add(b.queue); return; }
+    if(extype==='headers'){ if(headersMatch(b.headers||{}, headers||{}, b.xMatch||'all')) matched.add(b.queue); return; }
+  });
+  return [...matched];
+}
+
+function redrawSim(){
+  const extype = SIM.exchangeType;
+  document.getElementById('sim-extype-label').textContent = extype;
+  // queues layout
+  const queues = uniqueQueues();
+  if(queues.length===0){
+    // ensure at least one default
+  }
+  const qLayer = document.getElementById('queues-layer');
+  const cLayer = document.getElementById('consumers-layer');
+  const bLayer = document.getElementById('bindings-layer');
+  qLayer.innerHTML=''; cLayer.innerHTML=''; bLayer.innerHTML='';
+
+  const startY = 40, gap = (queues.length>0) ? Math.max(60, 280/queues.length) : 280;
+  queues.forEach((q,i)=>{
+    const y = startY + i*gap + 20;
+    // queue rect
+    qLayer.insertAdjacentHTML('beforeend',
+      `<g data-q="${q}">
+         <rect x="640" y="${y-22}" width="140" height="44" rx="8" fill="url(#g-q)" stroke="#3fd17c"/>
+         <text x="710" y="${y+5}" text-anchor="middle" fill="#06190f" font-weight="700" font-size="13">${q}</text>
+         <g class="q-msgs" data-q="${q}" transform="translate(648,${y-6})"></g>
+       </g>`);
+    // binding line(s)
+    SIM.bindings.filter(b=>b.queue===q).forEach((b,idx)=>{
+      const offset = (idx-(SIM.bindings.filter(bb=>bb.queue===q).length-1)/2)*8;
+      bLayer.insertAdjacentHTML('beforeend',
+        `<path d="M500,${180+offset} C570,${180+offset} 600,${y} 640,${y}" stroke="#FF6600" stroke-width="1.6" fill="none" opacity=".7"/>
+         <text x="555" y="${(180+y)/2 - 4 + offset}" text-anchor="middle" fill="#ffb37a" font-size="10">${escapeHtml(extype==='headers'? bindingHdrLabel(b) : b.key||'""')}</text>`);
+    });
+    // consumers for this queue
+    const cs = SIM.consumers.filter(c=>c.queue===q);
+    cs.forEach((c,j)=>{
+      const cx = 860, cy = y + (j-(cs.length-1)/2)*36;
+      cLayer.insertAdjacentHTML('beforeend',
+        `<g data-c="${c.id}">
+           <rect x="${cx}" y="${cy-18}" width="120" height="36" rx="8" fill="url(#g-c)" stroke="#ffd166"/>
+           <text x="${cx+60}" y="${cy+2}" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="12">${c.id}</text>
+           <text x="${cx+60}" y="${cy+14}" text-anchor="middle" fill="#1a0a00" font-size="9">${c.mode}</text>
+         </g>
+         <path d="M780,${y} L${cx},${cy}" stroke="#ffd166" stroke-width="1.4" fill="none" opacity=".7" marker-end="url(#arrow)"/>`);
+    });
+  });
+
+  // bindings list
+  const bl = document.getElementById('bindings-list');
+  if(SIM.bindings.length===0){
+    bl.innerHTML = '<p class="muted" style="font-size:13px">Aucune liaison pour l\'instant. Cliquez sur <b>+ Liaison</b> ci-dessus.</p>';
+  } else {
+    bl.innerHTML = SIM.bindings.map(b=>{
+      const label = SIM.exchangeType==='headers' ? bindingHdrLabel(b) : (b.key||'""');
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag info">${b.queue}</span>
+        <span class="tag">${escapeHtml(label)}</span>
+        <button class="btn ghost small" data-rm-binding="${b.id}">supprimer</button>
+      </div>`;
+    }).join('');
+    bl.querySelectorAll('[data-rm-binding]').forEach(btn=>{
+      btn.addEventListener('click',()=>simRemoveBinding(btn.dataset.rmBinding));
+    });
+  }
+
+  // consumers list
+  const cl = document.getElementById('consumers-list');
+  if(SIM.consumers.length===0){
+    cl.innerHTML = '<p class="muted" style="font-size:13px">Aucun consommateur pour l\'instant. Ajoutez-en un pour voir les livraisons.</p>';
+  } else {
+    cl.innerHTML = SIM.consumers.map(c=>{
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag warn">${c.id}</span>
+        <span class="tag">queue ${c.queue}</span>
+        <select data-c-mode="${c.id}">
+          ${['auto-ack','manual-ack','manual-nack-requeue','manual-nack-DLX'].map(m=>`<option ${c.mode===m?'selected':''} value="${m}">${m}</option>`).join('')}
+        </select>
+        <button class="btn ghost small" data-rm-c="${c.id}">supprimer</button>
+      </div>`;
+    }).join('');
+    cl.querySelectorAll('[data-c-mode]').forEach(sel=>{
+      sel.addEventListener('change',()=>{
+        const c = SIM.consumers.find(x=>x.id===sel.dataset.cMode);
+        c.mode = sel.value; redrawSim();
+      });
+    });
+    cl.querySelectorAll('[data-rm-c]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        SIM.consumers = SIM.consumers.filter(c=>c.id!==btn.dataset.rmC);
+        redrawSim();
+      });
+    });
+  }
+}
+
+function bindingHdrLabel(b){
+  const h = b.headers||{};
+  const inside = Object.entries(h).map(([k,v])=>`${k}=${v}`).join(',');
+  return `{${inside||'∅'}|x-match=${b.xMatch||'all'}}`;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* animate a publish: dot goes prod→exchange→queue(s)→consumer (or drops) */
+function animateFlow(matched, payload, key){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  // 1) producer to exchange
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 6);
+  dot.setAttribute('fill','#FF6600');
+  dot.setAttribute('cx', 160); dot.setAttribute('cy', 180);
+  svg.appendChild(dot);
+  const label = document.createElementNS(NS,'text');
+  label.setAttribute('fill','#ffd0aa'); label.setAttribute('font-size','10');
+  label.setAttribute('text-anchor','middle');
+  label.textContent = key;
+  label.setAttribute('x', 160); label.setAttribute('y', 170);
+  svg.appendChild(label);
+
+  let t = 0;
+  const dur1 = 30; // frames to exchange
+  function step1(){
+    t++;
+    const p = t/dur1;
+    const x = 160 + (380-160)*p;
+    dot.setAttribute('cx', x);
+    label.setAttribute('x', x);
+    if(t<dur1) requestAnimationFrame(step1);
+    else {
+      label.remove();
+      // pulse the exchange
+      const exNode = document.querySelector('#node-exchange polygon');
+      exNode.classList.add('pulse');
+      setTimeout(()=>exNode.classList.remove('pulse'), 700);
+      if(matched.length===0){
+        // drop
+        flashLog(`✗ non routé : key="${key}" n'a aucune liaison correspondante (message perdu)`,'err');
+        // shake the canvas
+        shake(document.querySelector('.simwrap'));
+        // fade dot down
+        let a=1;
+        const fall = ()=>{
+          a-=.05;
+          dot.setAttribute('opacity', Math.max(0,a));
+          dot.setAttribute('cy', 180 + (1-a)*60);
+          if(a>0) requestAnimationFrame(fall);
+          else dot.remove();
+        };
+        fall();
+        breakCombo();
+        return;
+      }
+      // 2) exchange -> each matched queue
+      matched.forEach(q=>{
+        const dot2 = dot.cloneNode();
+        svg.appendChild(dot2);
+        const target = svg.querySelector(`g[data-q="${CSS.escape(q)}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+70;
+        const ty = parseFloat(target.getAttribute('y'))+22;
+        let s=0;
+        const dur2 = 26;
+        const cb = ()=>{
+          s++;
+          const p = s/dur2;
+          const cx = 440 + (tx-440)*p;
+          const cy = 180 + (ty-180)*p;
+          dot2.setAttribute('cx', cx);
+          dot2.setAttribute('cy', cy);
+          if(s<dur2) requestAnimationFrame(cb);
+          else { dot2.remove(); enqueueAndDeliver(q, payload); }
+        };
+        requestAnimationFrame(cb);
+      });
+      dot.remove();
+      bumpCombo();
+      addXP(10 + Math.min(20, matched.length*5), `publié vers ${matched.length} file(s)`);
+      flashLog(`✓ acheminé key="${key}" → ${matched.join(', ')}`,'ok');
+      if(matched.length>=3 && SIM.exchangeType==='fanout') unlockBadge('fanoutFan');
+    }
+  }
+  step1();
+}
+
+function enqueueAndDeliver(queue, payload){
+  // pick a consumer (round-robin) of that queue
+  const cs = SIM.consumers.filter(c=>c.queue===queue);
+  if(cs.length===0){
+    flashLog(`… queue ${queue} : mis en file, aucun consommateur (msg stationné)`,'warn');
+    drawQMessage(queue, payload, false);
+    return;
+  }
+  const c = cs[Math.floor(Math.random()*cs.length)];
+  const dot = drawQMessage(queue, payload, true);
+  // animate to consumer
+  const svg = document.getElementById('sim-svg');
+  const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+  const tx = parseFloat(target.getAttribute('x'))+60;
+  const ty = parseFloat(target.getAttribute('y'))+18;
+  const startX = parseFloat(dot.getAttribute('cx'));
+  const startY = parseFloat(dot.getAttribute('cy'));
+  let s=0; const dur=22;
+  const cb = ()=>{
+    s++;
+    const p = s/dur;
+    dot.setAttribute('cx', startX + (tx-startX)*p);
+    dot.setAttribute('cy', startY + (ty-startY)*p);
+    if(s<dur) requestAnimationFrame(cb);
+    else { dot.remove(); handleConsumerOutcome(c, payload, queue); }
+  };
+  requestAnimationFrame(cb);
+}
+
+function drawQMessage(queue, payload, willMove){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const target = svg.querySelector(`g[data-q="${CSS.escape(queue)}"] rect`);
+  const cx = parseFloat(target.getAttribute('x')) + 70;
+  const cy = parseFloat(target.getAttribute('y')) + 22;
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 5);
+  dot.setAttribute('fill', '#FF6600');
+  dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','1');
+  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+  svg.appendChild(dot);
+  if(!willMove){
+    // small shake
+    let i=0;
+    const wob=()=>{
+      i++;
+      dot.setAttribute('cx', cx + Math.sin(i/3)*2);
+      if(i<300) requestAnimationFrame(wob);
+    };
+    wob();
+  }
+  return dot;
+}
+
+function handleConsumerOutcome(c, payload, queue){
+  switch(c.mode){
+    case 'auto-ack':
+      flashLog(`⇢ ${c.id} (auto-ack) : a consommé "${payload}" — rapide et risqué`,'info');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-ack':
+      flashLog(`✓ ${c.id} (manual-ack) : a traité "${payload}", basic_ack envoyé`,'ok');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-nack-requeue':
+      flashLog(`↺ ${c.id} (nack, requeue=true) : "${payload}" retourne dans ${queue} marqué comme retransmis`,'warn');
+      state.nackCount++;
+      // simulate redelivery after a delay
+      setTimeout(()=>{
+        flashLog(`↻ retransmission : ${queue} → ${c.id} (redelivered=true)`,'warn');
+        // re-deliver to same consumer
+        const dot = drawQMessage(queue, payload+'*', true);
+        const svg = document.getElementById('sim-svg');
+        const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+60;
+        const ty = parseFloat(target.getAttribute('y'))+18;
+        let s=0; const dur=22;
+        const startX = parseFloat(dot.getAttribute('cx'));
+        const startY = parseFloat(dot.getAttribute('cy'));
+        const cb=()=>{
+          s++;
+          const p=s/dur;
+          dot.setAttribute('cx', startX+(tx-startX)*p);
+          dot.setAttribute('cy', startY+(ty-startY)*p);
+          if(s<dur) requestAnimationFrame(cb);
+          else { dot.remove(); flashLog(`✓ ${c.id} a traité la retransmission au nouvel essai`, 'ok'); }
+        };
+        requestAnimationFrame(cb);
+      }, 700);
+      break;
+    case 'manual-nack-DLX':
+      flashLog(`☠ ${c.id} (nack, requeue=false) : "${payload}" → DLX (échange de lettres mortes)`,'err');
+      state.dlxRoutes++;
+      if(state.dlxRoutes>=3) unlockBadge('dlxDefender');
+      break;
+  }
+  saveState();
+}
+
+/* simulator wiring */
+document.getElementById('sim-extype').addEventListener('change', e=>{
+  SIM.exchangeType = e.target.value;
+  redrawSim();
+});
+document.getElementById('sim-add-binding').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  let key = '';
+  let headers = {};
+  let xMatch = 'all';
+  let queue = prompt('Nom de la file ?', `q.${SIM.queueIds+1}`);
+  if(!queue) return;
+  SIM.queueIds++;
+  if(extype==='headers'){
+    const raw = prompt('Liaison par en-têtes (k=v, séparés par des virgules)', 'format=pdf,type=report');
+    if(raw===null) return;
+    raw.split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+    xMatch = (prompt('x-match : all ou any ?','all')||'all').toLowerCase()==='any'?'any':'all';
+  } else if(extype==='fanout'){
+    key = ''; // ignored
+  } else {
+    key = prompt('Clé de liaison (par ex. orders.*.us)', 'orders.*.us') || '';
+  }
+  simAddBinding(queue, key, headers, xMatch);
+});
+document.getElementById('sim-add-consumer').addEventListener('click', ()=>{
+  const queues = uniqueQueues();
+  let queue;
+  if(queues.length===0){
+    queue = prompt('Aucune file pour l\'instant. Nom de la file à laquelle attacher le consommateur :', 'q.1');
+    if(!queue) return;
+    SIM.queueIds = Math.max(SIM.queueIds, 1);
+  } else if(queues.length===1){
+    queue = queues[0];
+  } else {
+    queue = prompt('Attacher le consommateur à quelle file ? '+queues.join(', '), queues[0]);
+    if(!queue) return;
+  }
+  simAddConsumer(queue, 'manual-ack');
+});
+document.getElementById('sim-publish').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  const key = document.getElementById('sim-rk').value || '';
+  const payload = document.getElementById('sim-payload').value || 'msg';
+  let headers = {};
+  if(extype==='headers'){
+    (document.getElementById('sim-headers').value||'').split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+  }
+  const matched = routeMessage(extype, key, headers);
+  state.publishCount++;
+  if(state.publishCount===1) unlockBadge('firstPublish');
+  saveState();
+  animateFlow(matched, payload, extype==='headers' ? JSON.stringify(headers) : key);
+});
+document.getElementById('sim-clear').addEventListener('click', ()=>{
+  document.getElementById('sim-log').innerHTML='';
+});
+
+// seed simulator with a topic example
+simAddBinding('q.alerts','*.error.*');
+simAddBinding('q.us-orders','orders.*.us');
+simAddBinding('q.audit','#');
+simAddConsumer('q.alerts','manual-ack');
+simAddConsumer('q.us-orders','manual-ack');
+simAddConsumer('q.audit','auto-ack');
+
+/* =========================================================
+   PRACTICE — typing exercises
+   ========================================================= */
+const PRACTICE = [
+  // VOCAB
+  { kind:'vocab', q:'Tampon nommé qui stocke les messages jusqu\'à ce que les consommateurs les retirent. Tapez le terme :', a:'queue', xp:15 },
+  { kind:'vocab', q:'Le routeur auquel les producteurs envoient ; les files s\'y lient. Tapez le terme :', a:'exchange', xp:15 },
+  { kind:'vocab', q:'Une frontière d\'isolation logique qui crée un espace de noms pour utilisateurs, files et échanges. Tapez l\'abréviation (5 lettres) :', a:'vhost', xp:15, accept:['virtual host'] },
+  { kind:'vocab', q:'La chaîne qu\'un producteur attache à un message et que l\'échange utilise pour décider où il va. Deux mots :', a:'routing key', xp:15 },
+  { kind:'vocab', q:'Un échange qui reçoit les messages rejetés, expirés ou en débordement d\'une file. Trois lettres (acronyme) :', a:'dlx', xp:20, accept:['dead letter exchange','dead-letter exchange'] },
+  // CLI
+  { kind:'cli', q:'Tapez la commande rabbitmqctl qui liste toutes les files :', a:'rabbitmqctl list_queues', xp:20, strict:true },
+  { kind:'cli', q:'Tapez la commande pour lister tous les échanges (rabbitmqctl) :', a:'rabbitmqctl list_exchanges', xp:20, strict:true },
+  { kind:'cli', q:'Tapez la commande pour lister toutes les liaisons (rabbitmqctl) :', a:'rabbitmqctl list_bindings', xp:20, strict:true },
+  { kind:'cli', q:'Ajoutez un nouveau vhost nommé « billing ». rabbitmqctl ___ :', a:'rabbitmqctl add_vhost billing', xp:20, strict:true },
+  // CODE (pika)
+  { kind:'code', q:'pika : déclarer une file durable nommée « tasks ». Complétez le nom de fonction :\nchannel.____(queue="tasks", durable=True)', a:'queue_declare', xp:20, strict:true },
+  { kind:'code', q:'pika : publier « hi » vers l\'échange par défaut, file « tasks », marqué persistant.\nchannel.basic_publish(exchange="", routing_key="tasks", body="hi", properties=pika.BasicProperties(delivery_mode=__))\nTapez le nombre manquant :', a:'2', xp:20, strict:true, accept:['PERSISTENT_DELIVERY_MODE'] },
+  { kind:'code', q:'pika : acquitter une livraison. Complétez la méthode manquante :\nch.____(delivery_tag=method.delivery_tag)', a:'basic_ack', xp:20, strict:true },
+  { kind:'code', q:'pika : activer la distribution équitable avec une seule livraison en attente par consommateur :\nchannel.____(prefetch_count=1)', a:'basic_qos', xp:20, strict:true },
+  { kind:'code', q:'pika : enregistrer un callback pour consommer « tasks » avec ack manuel. Complétez :\nchannel.____(queue="tasks", on_message_callback=cb, auto_ack=False)', a:'basic_consume', xp:20, strict:true },
+  // TOPIC PUZZLES (yes/no)
+  { kind:'topic', q:'Liaison « orders.*.us »  vs  clé de routage « orders.new.us ». Correspondance ? (yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'Liaison « orders.*.us »  vs  clé de routage « orders.us ». Correspondance ? (yes/no)', a:'no', xp:15 },
+  { kind:'topic', q:'Liaison « orders.# »  vs  clé de routage « orders.new.us.express ». Correspondance ? (yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'Liaison « *.error.* »  vs  clé de routage « db.error ». Correspondance ? (yes/no)', a:'no', xp:15 },
+];
+
+const pracState = {
+  i: 0,
+  correct: 0,
+  wrong: 0,
+  topicStreak: 0,
+  durableStreak: 0,
+  rpcStreak: 0,
+};
+function normalize(s){ return String(s).trim().toLowerCase().replace(/\s+/g,' '); }
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function answerMatches(ex, input){
+  const v = normalize(input);
+  const accepts = [ex.a, ...(ex.accept||[])].map(normalize);
+  if(ex.strict){
+    return accepts.includes(v);
+  }
+  // tolerant: exact OR accept OR small distance for short answers
+  for(const a of accepts){
+    if(v===a) return true;
+    if(a.length<=8 && levenshtein(v,a)<=1) return true;
+    if(a.length<=14 && levenshtein(v,a)<=2) return true;
+  }
+  return false;
+}
+
+function renderPractice(){
+  const total = PRACTICE.length;
+  document.getElementById('prac-n').textContent = total;
+  const i = pracState.i;
+  document.getElementById('prac-i').textContent = Math.min(i+1, total);
+  document.getElementById('prac-correct').textContent = `${pracState.correct} correct`;
+  document.getElementById('prac-wrong').textContent = `${pracState.wrong} erreur`;
+  document.getElementById('prac-progress').style.width = (i/total*100)+'%';
+
+  const mount = document.getElementById('prac-mount');
+  if(i>=total){
+    mount.innerHTML = `<div class="ex-card">
+      <div class="q"><b>Terminé !</b> Vous avez fini ${pracState.correct}/${total} correctement.</div>
+      <p class="muted">Recommencez à tout moment, ou passez en mode boss.</p>
+    </div>`;
+    if(pracState.correct === total){ unlockBadge('practiceComplete'); }
+    state.practiceDone = true; saveState();
+    return;
+  }
+  const ex = PRACTICE[i];
+  document.getElementById('prac-kind').textContent = ex.kind;
+  mount.innerHTML = `<div class="ex-card" id="ex-${i}">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="prac-input" autocomplete="off" spellcheck="false" placeholder="tapez votre réponse et appuyez sur Entrée…" style="flex:1;min-width:260px"/>
+      <button class="btn" id="prac-submit">Valider</button>
+    </div>
+    <div class="feedback hint" id="prac-feedback">Indice : ${ex.kind==='topic' ? 'répondez « yes » ou « no »' : ex.kind==='cli' ? 'correspondance exacte requise' : ex.kind==='code' ? 'correspondance exacte requise' : 'les petites coquilles sont pardonnées'}</div>
+  </div>`;
+  const input = document.getElementById('prac-input');
+  input.focus();
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter') submitPractice();
+  });
+  document.getElementById('prac-submit').addEventListener('click', submitPractice);
+}
+function linkifyHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+function submitPractice(){
+  const ex = PRACTICE[pracState.i];
+  const val = document.getElementById('prac-input').value;
+  const ok = answerMatches(ex, val);
+  const fb = document.getElementById('prac-feedback');
+  if(ok){
+    fb.className='feedback ok';
+    fb.textContent = `✓ Correct ! +${ex.xp} XP`;
+    addXP(ex.xp, `pratique ${ex.kind}`);
+    bumpCombo();
+    pracState.correct++;
+    if(ex.kind==='topic'){ pracState.topicStreak++; if(pracState.topicStreak>=5) unlockBadge('topicMaster'); state.topicMatchSolved++; }
+    else pracState.topicStreak=0;
+    confettiBurst(60);
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 500);
+  } else {
+    fb.className='feedback err';
+    fb.textContent = `✗ Pas tout à fait. Attendu : ${ex.a}`;
+    breakCombo();
+    pracState.wrong++;
+    pracState.topicStreak=0;
+    shake(document.getElementById('ex-'+pracState.i));
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 1100);
+  }
+}
+document.getElementById('prac-skip').addEventListener('click', ()=>{
+  pracState.wrong++; pracState.i++; breakCombo(); renderPractice();
+});
+document.getElementById('prac-restart').addEventListener('click', ()=>{
+  pracState.i=0; pracState.correct=0; pracState.wrong=0; pracState.topicStreak=0; renderPractice();
+});
+renderPractice();
+
+/* =========================================================
+   BOSS MODE — 10 timed scenario questions
+   ========================================================= */
+const BOSS_QUESTIONS = [
+  { q:'Les workers plantent en plein traitement et les messages disparaissent. Le consommateur a été démarré avec auto_ack=True. Quel argument booléen unique faut-il passer à False ?', a:'auto_ack' },
+  { q:'Vous avez redémarré le courtier et votre file a disparu. Quel drapeau avez-vous oublié sur queue_declare ?', a:'durable' },
+  { q:'Les messages survivent à la file mais s\'évaporent lors d\'un crash du courtier. Quelle propriété manque sur le message ? (un nombre)', a:'2', accept:['delivery_mode=2','persistent'] },
+  { q:'Un worker lent accapare le travail tandis qu\'un worker rapide reste oisif. Tapez la méthode pika qui corrige la distribution équitable :', a:'basic_qos' },
+  { q:'Vous avez besoin d\'une file qui survit aux pannes de nœuds avec une cohérence forte via Raft. Quel type de file ? (un mot)', a:'quorum' },
+  { q:'Un message empoisonné est remis en file en boucle. La solution est de nack avec requeue=false et de l\'acheminer vers un échange spécial. Quel est son acronyme à 3 lettres ?', a:'dlx' },
+  { q:'Vous voulez que chaque événement soit livré à tous les abonnés indépendamment de la clé de routage. Quel type d\'échange ? (un mot)', a:'fanout' },
+  { q:'Vous voulez que les abonnés filtrent par motifs comme « *.error.* » ou « db.# ». Quel type d\'échange ? (un mot)', a:'topic' },
+  { q:'Vous devez confirmer que le courtier a bien reçu et persisté un message publié. Quelle fonctionnalité asynchrone activer ? (deux mots)', a:'publisher confirms', accept:['publisher confirm','confirm select'] },
+  { q:'Les files de réponse des clients RPC fuient. Vous devez ajouter un argument de file pour qu\'elles expirent automatiquement. Quel argument ? (abrév. à 3 lettres)', a:'ttl', accept:['x-message-ttl','x-expires'] },
+];
+const BOSS = { i:0, correct:0, timer:null, secs:30, active:false };
+function startBoss(){
+  if(BOSS.active) return;
+  BOSS.active = true; BOSS.i=0; BOSS.correct=0;
+  document.getElementById('boss-correct').textContent='0 correct';
+  document.getElementById('boss-progress').style.width='0%';
+  showBossQ();
+}
+function showBossQ(){
+  const total = BOSS_QUESTIONS.length;
+  if(BOSS.i>=total){
+    finishBoss(); return;
+  }
+  document.getElementById('boss-i').textContent = BOSS.i+1;
+  document.getElementById('boss-progress').style.width = (BOSS.i/total*100)+'%';
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const mount = document.getElementById('boss-mount');
+  mount.innerHTML = `<div class="ex-card" id="boss-card">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="boss-input" placeholder="tapez et appuyez sur Entrée…" autocomplete="off" spellcheck="false" style="flex:1;min-width:260px"/>
+      <button class="btn" id="boss-submit">Valider</button>
+    </div>
+    <div class="feedback hint" id="boss-feedback">Astuce : réponses courtes et précises. Coquilles pardonnées à quelques caractères près.</div>
+  </div>`;
+  const inp = document.getElementById('boss-input'); inp.focus();
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitBoss(); });
+  document.getElementById('boss-submit').addEventListener('click', submitBoss);
+  // timer
+  BOSS.secs = 30;
+  document.getElementById('boss-timer').textContent = BOSS.secs;
+  clearInterval(BOSS.timer);
+  BOSS.timer = setInterval(()=>{
+    BOSS.secs--;
+    document.getElementById('boss-timer').textContent = BOSS.secs;
+    if(BOSS.secs<=0){
+      clearInterval(BOSS.timer);
+      handleBossOutcome(false, ex);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const val = document.getElementById('boss-input').value;
+  const ok = answerMatches(ex, val);
+  clearInterval(BOSS.timer);
+  handleBossOutcome(ok, ex);
+}
+function handleBossOutcome(ok, ex){
+  const fb = document.getElementById('boss-feedback');
+  if(ok){
+    fb.className='feedback ok'; fb.textContent='✓ Correct ! +50 XP';
+    addXP(50, 'boss correct'); bumpCombo();
+    BOSS.correct++;
+    document.getElementById('boss-correct').textContent = `${BOSS.correct} correct`;
+    confettiBurst(80);
+  } else {
+    fb.className='feedback err'; fb.textContent=`✗ Faux. Attendu : ${ex.a}`;
+    breakCombo();
+    shake(document.getElementById('boss-card'));
+  }
+  setTimeout(()=>{ BOSS.i++; showBossQ(); }, 700);
+}
+function finishBoss(){
+  BOSS.active = false;
+  clearInterval(BOSS.timer);
+  const total = BOSS_QUESTIONS.length;
+  document.getElementById('boss-progress').style.width = '100%';
+  const survived = BOSS.correct >= total - 2; // allow 2 mistakes
+  const mount = document.getElementById('boss-mount');
+  if(survived){
+    unlockBadge('outageCrusher');
+    state.bossDone = true; saveState();
+    mount.innerHTML = `<div class="ex-card"><div class="q">🏆 Panne contenue — ${BOSS.correct}/${total}. Vous avez débloqué <b>Outage Crusher</b>.</div></div>`;
+    confettiBurst(220);
+  } else {
+    mount.innerHTML = `<div class="ex-card"><div class="q">🚨 Panne aggravée — ${BOSS.correct}/${total}. Atteignez 8/10 pour débloquer le badge.</div></div>`;
+  }
+}
+document.getElementById('boss-start').addEventListener('click', startBoss);
+document.getElementById('boss-quit').addEventListener('click', ()=>{
+  BOSS.active=false; clearInterval(BOSS.timer);
+  document.getElementById('boss-mount').innerHTML='';
+});
+
+/* =========================================================
+   INITIAL RENDER
+   ========================================================= */
+redrawSim();
+flashLog('Labo prêt. Trois liaisons d\'exemple + trois consommateurs amorcés. Essayez de publier key="orders.new.us" avec un échange topic.','info');
+</script>
+</body>
+</html>

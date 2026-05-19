@@ -1,0 +1,1480 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TRANSFORMER ACADEMY // 注意力时代的键入道场</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,800;1,9..144,500&family=JetBrains+Mono:wght@300;400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+
+<style>
+:root{
+  --bg:#07070b;
+  --bg2:#0d0d14;
+  --ink:#eef0f7;
+  --ink-dim:#8a8fa3;
+  --line:#1e2030;
+  --neon:#39ff14;       /* lime */
+  --neon2:#00f0ff;      /* cyan */
+  --neon3:#ff2bd6;      /* magenta */
+  --neon4:#ffd23f;      /* xp gold */
+  --warn:#ff5d5d;
+  --good:#39ff14;
+  --shadow:0 0 0 1px var(--line), 0 20px 40px -20px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+
+/* CRT atmosphere */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+body::after{
+  content:"";position:fixed;inset:-50%;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(57,255,20,.08), transparent 50%),
+    radial-gradient(circle at 85% 90%, rgba(255,43,214,.10), transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(0,240,255,.05), transparent 70%);
+  filter:blur(40px);
+}
+
+/* layout */
+.app{display:grid;grid-template-columns:280px 1fr 320px;min-height:100vh}
+@media (max-width:1100px){.app{grid-template-columns:240px 1fr}.rightbar{display:none}}
+@media (max-width:760px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+
+/* ---- SIDEBAR ---- */
+.sidebar{
+  border-right:1px dashed var(--line);
+  padding:28px 22px;position:sticky;top:0;height:100vh;overflow:auto;
+  background:linear-gradient(180deg,#0a0a12 0%, #07070b 100%);
+}
+.brand{
+  font-family:'Fraunces',serif;font-style:italic;font-weight:800;
+  font-size:28px;line-height:.95;letter-spacing:-.02em;
+  color:var(--ink);
+}
+.brand .dot{display:inline-block;width:10px;height:10px;background:var(--neon3);border-radius:50%;box-shadow:0 0 12px var(--neon3);margin-left:4px;animation:pulse 1.4s ease-in-out infinite}
+.brand-sub{margin-top:4px;font-size:10px;letter-spacing:.25em;color:var(--ink-dim);text-transform:uppercase}
+@keyframes pulse{50%{opacity:.4}}
+
+.nav{margin-top:32px;display:flex;flex-direction:column;gap:2px}
+.nav button{
+  all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:6px;font-size:12.5px;color:var(--ink-dim);
+  transition:all .15s;
+}
+.nav button:hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.nav button.active{
+  color:var(--neon);background:rgba(57,255,20,.06);
+  box-shadow:inset 2px 0 0 var(--neon);
+}
+.nav .num{font-family:'Space Mono',monospace;font-size:10px;color:var(--neon3);width:22px}
+.nav .sep{font-size:10px;color:var(--ink-dim);letter-spacing:.25em;margin:14px 8px 6px;text-transform:uppercase}
+
+/* ---- MAIN ---- */
+.main{padding:48px 56px 120px;max-width:980px}
+@media (max-width:760px){.main{padding:24px 20px 80px}}
+
+.eyebrow{font-size:10px;letter-spacing:.3em;color:var(--neon2);text-transform:uppercase;margin-bottom:14px}
+.eyebrow::before{content:"◆ ";color:var(--neon3)}
+h1.huge{
+  font-family:'Fraunces',serif;font-weight:300;font-size:clamp(40px,7vw,84px);
+  line-height:.95;letter-spacing:-.035em;margin:0 0 18px;
+}
+h1.huge em{font-style:italic;color:var(--neon);font-weight:500}
+h2{font-family:'Fraunces',serif;font-weight:500;font-size:34px;letter-spacing:-.02em;margin:48px 0 14px}
+h2 .nm{font-family:'Space Mono',monospace;font-size:13px;color:var(--neon3);margin-right:14px;vertical-align:middle}
+h3{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--neon2);margin:28px 0 10px}
+p{color:#c8ccdb;max-width:62ch}
+p strong{color:var(--ink);font-weight:600}
+code{font-family:'JetBrains Mono',monospace;background:rgba(0,240,255,.07);padding:1px 6px;border-radius:3px;color:var(--neon2);font-size:.92em}
+.kbd{display:inline-block;border:1px solid var(--line);background:#13131c;padding:1px 6px;border-radius:4px;font-size:10px;color:var(--ink-dim)}
+
+.section{display:none;animation:fadein .35s ease}
+.section.active{display:block}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* cards */
+.card{
+  border:1px solid var(--line);border-radius:8px;padding:22px;margin:18px 0;
+  background:linear-gradient(180deg,rgba(255,255,255,.015),transparent);
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--neon2),transparent);
+  opacity:.5;
+}
+.card.demo{border-color:rgba(0,240,255,.3)}
+.card.practice{border-color:rgba(57,255,20,.4);background:linear-gradient(180deg,rgba(57,255,20,.03),transparent)}
+.card.boss{border:2px solid var(--neon3);background:linear-gradient(180deg,rgba(255,43,214,.05),transparent)}
+
+.card-label{
+  position:absolute;top:0;right:14px;
+  background:var(--neon2);color:#000;font-size:9px;letter-spacing:.2em;
+  padding:3px 8px;font-weight:800;
+}
+.card.practice .card-label{background:var(--neon)}
+.card.boss .card-label{background:var(--neon3);color:#fff}
+
+/* token chips */
+.token-input{
+  width:100%;background:#0a0a14;border:1px solid var(--line);
+  color:var(--ink);font-family:inherit;padding:12px;border-radius:6px;
+  font-size:14px;resize:vertical;min-height:60px;
+}
+.token-input:focus{outline:none;border-color:var(--neon2);box-shadow:0 0 0 3px rgba(0,240,255,.15)}
+.token-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;min-height:32px}
+.chip{
+  font-family:'Space Mono',monospace;font-size:12px;padding:4px 10px;border-radius:4px;
+  background:#1a1a26;border:1px solid var(--line);
+  position:relative;animation:chipin .25s ease;
+}
+.chip .id{font-size:9px;color:var(--ink-dim);margin-left:6px}
+@keyframes chipin{from{transform:translateY(8px) scale(.8);opacity:0}to{transform:none;opacity:1}}
+.chip.c0{color:#39ff14;border-color:rgba(57,255,20,.3)}
+.chip.c1{color:#00f0ff;border-color:rgba(0,240,255,.3)}
+.chip.c2{color:#ff2bd6;border-color:rgba(255,43,214,.3)}
+.chip.c3{color:#ffd23f;border-color:rgba(255,210,63,.3)}
+.chip.c4{color:#ff8b4a;border-color:rgba(255,139,74,.3)}
+
+/* attention heatmap */
+.heatmap{display:grid;gap:2px;margin:16px 0;font-family:'Space Mono',monospace;font-size:10px}
+.hm-row{display:grid;gap:2px;align-items:center}
+.hm-cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  border-radius:2px;cursor:pointer;transition:transform .1s, box-shadow .1s;
+  color:#fff;text-shadow:0 0 4px #000;
+}
+.hm-cell:hover{transform:scale(1.15);box-shadow:0 0 0 2px var(--neon),0 0 16px var(--neon);z-index:2;position:relative}
+.hm-label{font-size:10px;color:var(--ink-dim);text-align:right;padding-right:8px}
+.hm-toplabel{font-size:10px;color:var(--ink-dim);text-align:center;writing-mode:vertical-rl;transform:rotate(180deg);height:80px}
+.hm-out{margin-top:10px;font-size:11px;color:var(--neon2);min-height:18px;font-family:'Space Mono',monospace}
+
+/* qkv stepper */
+.qkv-stage{
+  background:#0a0a14;border:1px dashed var(--line);border-radius:6px;
+  padding:18px;margin-top:14px;font-family:'Space Mono',monospace;font-size:12px;
+  min-height:140px;
+}
+.qkv-stage .matrix{display:inline-block;margin:6px 12px;vertical-align:middle}
+.qkv-stage .matrix .label{font-size:10px;color:var(--neon3);text-transform:uppercase;letter-spacing:.15em;margin-bottom:4px;text-align:center}
+.qkv-stage .matrix table{border-collapse:collapse}
+.qkv-stage .matrix td{padding:3px 8px;border:1px solid var(--line);text-align:center;font-size:11px;background:#13131c}
+.qkv-stage .matrix .hl{background:rgba(57,255,20,.18);color:var(--neon)}
+.qkv-stage .arrow{display:inline-block;font-size:18px;color:var(--neon2);margin:0 6px}
+
+button.btn{
+  all:unset;cursor:pointer;font-family:'JetBrains Mono',monospace;font-weight:600;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  padding:9px 16px;background:var(--neon);color:#000;
+  border-radius:4px;transition:transform .1s, box-shadow .15s;
+}
+button.btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px -6px var(--neon)}
+button.btn:active{transform:translateY(1px)}
+button.btn.alt{background:transparent;color:var(--neon2);box-shadow:inset 0 0 0 1px var(--neon2)}
+button.btn.alt:hover{background:rgba(0,240,255,.08);box-shadow:inset 0 0 0 1px var(--neon2),0 0 20px -5px var(--neon2)}
+button.btn.danger{background:var(--neon3);color:#fff}
+
+/* practice input */
+.practice{margin:16px 0}
+.practice-q{font-size:14px;color:#c8ccdb;margin-bottom:12px}
+.practice-q .blank{
+  display:inline-block;border-bottom:2px solid var(--neon);
+  min-width:120px;color:var(--neon);font-weight:600;padding:0 4px;
+}
+.practice-input{
+  width:100%;font-family:'JetBrains Mono',monospace;font-size:15px;
+  background:#0a0a14;border:1px solid var(--line);color:var(--neon);
+  padding:12px 14px;border-radius:6px;letter-spacing:.02em;
+}
+.practice-input:focus{outline:none;border-color:var(--neon);box-shadow:0 0 0 3px rgba(57,255,20,.15)}
+.practice-input.wrong{border-color:var(--warn);color:var(--warn);animation:shake .35s}
+.practice-input.right{border-color:var(--neon);color:var(--neon);box-shadow:0 0 24px -6px var(--neon)}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+.practice-fb{margin-top:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;min-height:14px}
+.practice-fb.ok{color:var(--neon)}
+.practice-fb.no{color:var(--warn)}
+.practice-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.2em;margin-bottom:8px}
+.practice-progress{height:3px;background:#13131c;border-radius:2px;margin:6px 0 12px;overflow:hidden}
+.practice-progress-bar{height:100%;background:var(--neon);transition:width .3s}
+
+/* code drill */
+.codeblock{
+  background:#0a0a14;border:1px solid var(--line);border-radius:6px;
+  padding:18px;font-size:13px;line-height:1.7;
+  font-family:'JetBrains Mono',monospace;color:#c8ccdb;
+  white-space:pre;overflow-x:auto;
+}
+.codeblock .kw{color:#ff2bd6}
+.codeblock .fn{color:var(--neon2)}
+.codeblock .num{color:var(--neon4)}
+.codeblock .str{color:var(--neon)}
+.codeblock .cm{color:var(--ink-dim);font-style:italic}
+.code-blank{
+  display:inline-block;background:#000;border:1px solid var(--neon);
+  color:var(--neon);font-family:inherit;font-size:13px;
+  padding:0 6px;border-radius:3px;min-width:90px;outline:none;
+}
+.code-blank.right{border-color:var(--neon);box-shadow:0 0 12px -2px var(--neon)}
+.code-blank.wrong{border-color:var(--warn);color:var(--warn);animation:shake .3s}
+
+/* ---- RIGHT BAR (HUD) ---- */
+.rightbar{
+  border-left:1px dashed var(--line);
+  padding:28px 22px;position:sticky;top:0;height:100vh;overflow:auto;
+  background:#08080f;
+}
+.hud-card{
+  border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:14px;
+  background:linear-gradient(180deg,rgba(57,255,20,.04),transparent);
+}
+.hud-label{font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--ink-dim)}
+.hud-val{font-family:'Fraunces',serif;font-weight:500;font-size:34px;color:var(--neon);line-height:1;margin-top:4px;letter-spacing:-.02em}
+.hud-val.gold{color:var(--neon4)}
+.hud-val.cyan{color:var(--neon2)}
+.hud-val.mag{color:var(--neon3)}
+.hud-sub{font-size:10px;color:var(--ink-dim);margin-top:4px;font-family:'Space Mono',monospace}
+
+.lvl-bar{height:6px;background:#13131c;border-radius:3px;margin-top:8px;overflow:hidden;position:relative}
+.lvl-bar-fill{height:100%;background:linear-gradient(90deg,var(--neon4),var(--neon3));transition:width .5s cubic-bezier(.5,0,.2,1.4);box-shadow:0 0 8px var(--neon4)}
+
+.combo-flame{display:inline-flex;align-items:baseline;gap:4px}
+.combo-flame .x{font-size:14px;color:var(--neon3)}
+
+.badges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.badge{
+  aspect-ratio:1;border:1px solid var(--line);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  background:#0a0a14;position:relative;cursor:default;transition:all .2s;
+  filter:grayscale(1) brightness(.4);
+}
+.badge.unlocked{filter:none;border-color:var(--neon);box-shadow:0 0 12px -4px var(--neon);animation:badgeunlock .6s ease-out}
+.badge.unlocked.gold{border-color:var(--neon4);box-shadow:0 0 12px -4px var(--neon4)}
+.badge.unlocked.mag{border-color:var(--neon3);box-shadow:0 0 12px -4px var(--neon3)}
+.badge:hover .badge-tip{opacity:1;transform:translateY(-4px)}
+.badge-tip{
+  position:absolute;bottom:100%;left:50%;transform:translate(-50%,0);
+  background:#000;border:1px solid var(--line);font-size:9px;
+  padding:4px 8px;white-space:nowrap;border-radius:3px;
+  opacity:0;pointer-events:none;transition:.2s;color:var(--ink);
+  letter-spacing:.1em;text-transform:uppercase;z-index:10;
+}
+@keyframes badgeunlock{0%{transform:scale(0) rotate(-180deg)}60%{transform:scale(1.3) rotate(20deg)}100%{transform:none}}
+
+.streak-flame{font-size:24px;display:inline-block;animation:flicker 1.6s ease-in-out infinite}
+@keyframes flicker{0%,100%{transform:scale(1) rotate(-2deg)}50%{transform:scale(1.08) rotate(2deg)}}
+
+/* level up overlay */
+.lvlup{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:1000;pointer-events:none;
+}
+.lvlup.show{display:flex}
+.lvlup-card{
+  background:#000;border:2px solid var(--neon4);border-radius:12px;
+  padding:40px 60px;text-align:center;
+  box-shadow:0 0 0 6px rgba(255,210,63,.1),0 0 60px var(--neon4);
+  animation:lvlpop .9s cubic-bezier(.5,0,.2,1.6);
+}
+@keyframes lvlpop{0%{transform:scale(0) rotate(-12deg)}60%{transform:scale(1.1) rotate(3deg)}100%{transform:scale(1)}}
+.lvlup-card .small{font-size:11px;letter-spacing:.4em;color:var(--neon4);text-transform:uppercase}
+.lvlup-card .big{font-family:'Fraunces',serif;font-size:80px;font-weight:300;line-height:1;color:#fff;margin:8px 0}
+.lvlup-card .big em{color:var(--neon4);font-style:italic}
+
+/* particles canvas */
+canvas#particles{position:fixed;inset:0;pointer-events:none;z-index:998}
+
+/* svg figures */
+.fig{margin:18px 0;border:1px dashed var(--line);border-radius:8px;padding:18px;background:#08080f}
+.fig svg{display:block;width:100%;height:auto;max-width:760px;margin:0 auto}
+.fig .cap{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);margin-top:10px;text-align:center}
+
+/* boss fight */
+.boss-arena{text-align:center}
+.boss-timer{
+  font-family:'Fraunces',serif;font-size:90px;font-weight:300;line-height:1;
+  color:var(--neon3);margin:8px 0;letter-spacing:-.02em;
+}
+.boss-timer.warn{color:var(--warn);animation:flicker 0.4s ease-in-out infinite}
+.boss-prog{display:flex;gap:6px;justify-content:center;margin:14px 0}
+.boss-prog div{width:24px;height:6px;background:#13131c;border-radius:1px}
+.boss-prog div.ok{background:var(--neon)}
+.boss-prog div.no{background:var(--warn)}
+.boss-prog div.cur{background:var(--neon3);animation:pulse 1s infinite}
+.boss-q{font-size:18px;margin:24px 0 14px;color:#fff;font-family:'Fraunces',serif;font-weight:500;letter-spacing:-.01em}
+.boss-final{
+  font-family:'Fraunces',serif;font-size:64px;font-weight:300;
+  color:var(--neon4);letter-spacing:-.02em;line-height:1;margin:12px 0;
+}
+
+.toggle-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+ul.bullets{list-style:none;padding:0}
+ul.bullets li{padding:6px 0 6px 22px;position:relative;color:#c8ccdb}
+ul.bullets li::before{content:"▸";position:absolute;left:0;color:var(--neon3)}
+
+.shapebox{display:inline-block;font-family:'Space Mono',monospace;font-size:11px;color:var(--neon4);background:rgba(255,210,63,.08);padding:1px 6px;border-radius:3px;margin:0 2px}
+
+/* sin/cos canvas */
+canvas.poscanvas{width:100%;max-width:760px;height:240px;display:block;margin:0 auto;background:#08080f;border:1px dashed var(--line);border-radius:6px}
+
+footer.foot{
+  margin-top:80px;padding-top:24px;border-top:1px dashed var(--line);
+  font-size:10px;color:var(--ink-dim);letter-spacing:.2em;text-transform:uppercase;
+  display:flex;justify-content:space-between;
+}
+
+/* mobile HUD */
+.mobile-hud{display:none;position:sticky;top:0;z-index:50;background:#000;border-bottom:1px solid var(--line);padding:8px 14px;font-size:11px;justify-content:space-between}
+@media (max-width:1100px){.mobile-hud{display:flex}}
+</style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<div class="lvlup" id="lvlup">
+  <div class="lvlup-card">
+    <div class="small">level up</div>
+    <div class="big">LV·<em id="lvlup-num">2</em></div>
+    <div class="small" id="lvlup-msg">attention is paying off</div>
+  </div>
+</div>
+
+<div class="app">
+
+<!-- =========== SIDEBAR =========== -->
+<aside class="sidebar">
+  <div class="brand">Transformer<br>Academy<span class="dot"></span></div>
+  <div class="brand-sub">键入道场 · v1.0</div>
+
+  <nav class="nav" id="nav">
+    <div class="sep">课程</div>
+    <button data-sec="intro" class="active"><span class="num">00</span>欢迎</button>
+    <button data-sec="why"><span class="num">01</span>为何要 transformer</button>
+    <button data-sec="tok"><span class="num">02</span>Token 与 embedding</button>
+    <button data-sec="pos"><span class="num">03</span>位置编码</button>
+    <button data-sec="attn"><span class="num">04</span>自注意力</button>
+    <button data-sec="multi"><span class="num">05</span>多头注意力</button>
+    <button data-sec="ffn"><span class="num">06</span>FFN、残差、归一化</button>
+    <button data-sec="encdec"><span class="num">07</span>编码器 vs 解码器</button>
+    <button data-sec="train"><span class="num">08</span>训练目标</button>
+    <div class="sep">练习</div>
+    <button data-sec="vocab"><span class="num">DR</span>词汇练习</button>
+    <button data-sec="formula"><span class="num">DR</span>公式键入</button>
+    <button data-sec="code"><span class="num">DR</span>代码补全</button>
+    <div class="sep">竞技场</div>
+    <button data-sec="boss"><span class="num">★</span>Boss 战</button>
+  </nav>
+</aside>
+
+<!-- =========== MAIN =========== -->
+<main class="main">
+
+<div class="mobile-hud">
+  <span>LV <b id="m-lvl">1</b> · <b id="m-xp">0</b> XP</span>
+  <span>连击 <b id="m-combo">×1</b></span>
+  <span>连胜 <b id="m-streak">0</b> 🔥</span>
+</div>
+
+<!-- INTRO -->
+<section class="section active" data-sec="intro">
+  <div class="eyebrow">关卡 00 // 入门</div>
+  <h1 class="huge">边敲键盘，<br>边走向 <em>注意力</em> 之巅。</h1>
+  <p style="font-size:16px;max-width:60ch;margin-top:18px">一份自包含的 Transformer 架构速成 —— 数学、矩阵、代码。你不只是阅读，更要<strong>键入</strong>：词汇、公式、PyTorch。赚 XP、累连击、解锁徽章，最后挺过 Boss 战。</p>
+
+  <div class="card">
+    <div class="card-label">使用方式</div>
+    <ul class="bullets">
+      <li>八章端到端讲完架构，配实时演示和 SVG 图。</li>
+      <li>三个练习区（词汇 · 公式 · 代码）累积 XP、连击与连胜。</li>
+      <li>每答对 = <b>10 XP</b>；3 连击翻倍；5 连击三倍。</li>
+      <li>到 <b>100 XP</b> 升级。一路解锁徽章。</li>
+      <li><b style="color:var(--neon3)">Boss 战</b>是 90 秒内 10 道混合题。</li>
+      <li>进度自动保存（localStorage）。按 <span class="kbd">Tab</span>/<span class="kbd">Enter</span> 提交答案。</li>
+    </ul>
+    <div style="margin-top:16px"><button class="btn" onclick="go('why')">开始课程 →</button>  <button class="btn alt" onclick="go('vocab')">直接做题</button></div>
+  </div>
+
+  <div class="fig">
+    <svg viewBox="0 0 760 220" aria-label="编码器-解码器示意图">
+      <defs>
+        <linearGradient id="gradEnc" x1="0" x2="1"><stop offset="0" stop-color="#00f0ff" stop-opacity=".25"/><stop offset="1" stop-color="#00f0ff" stop-opacity="0"/></linearGradient>
+        <linearGradient id="gradDec" x1="0" x2="1"><stop offset="0" stop-color="#ff2bd6" stop-opacity=".25"/><stop offset="1" stop-color="#ff2bd6" stop-opacity="0"/></linearGradient>
+      </defs>
+      <!-- encoder stack -->
+      <g transform="translate(60,30)">
+        <rect width="280" height="160" rx="6" fill="url(#gradEnc)" stroke="#00f0ff" stroke-dasharray="3 3"/>
+        <text x="140" y="-8" fill="#00f0ff" font-family="JetBrains Mono" font-size="11" text-anchor="middle" letter-spacing="3">ENCODER ×N</text>
+        <g font-family="Space Mono" font-size="10" fill="#eef0f7">
+          <rect x="20" y="20" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="35" text-anchor="middle">Multi-Head Self-Attention</text>
+          <rect x="20" y="50" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="65" text-anchor="middle">Add &amp; Norm</text>
+          <rect x="20" y="80" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="95" text-anchor="middle">Feed-Forward</text>
+          <rect x="20" y="110" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="125" text-anchor="middle">Add &amp; Norm</text>
+        </g>
+      </g>
+      <!-- arrow -->
+      <g stroke="#39ff14" stroke-width="1.5" fill="none">
+        <path d="M340,110 L420,110" marker-end="url(#arrow)"/>
+      </g>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#39ff14"/></marker>
+      </defs>
+      <!-- decoder stack -->
+      <g transform="translate(420,30)">
+        <rect width="280" height="160" rx="6" fill="url(#gradDec)" stroke="#ff2bd6" stroke-dasharray="3 3"/>
+        <text x="140" y="-8" fill="#ff2bd6" font-family="JetBrains Mono" font-size="11" text-anchor="middle" letter-spacing="3">DECODER ×N</text>
+        <g font-family="Space Mono" font-size="10" fill="#eef0f7">
+          <rect x="20" y="20" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="35" text-anchor="middle">Masked Self-Attention</text>
+          <rect x="20" y="50" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="65" text-anchor="middle">Cross-Attention</text>
+          <rect x="20" y="80" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="95" text-anchor="middle">Feed-Forward</text>
+          <rect x="20" y="110" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="125" text-anchor="middle">Add &amp; Norm</text>
+        </g>
+      </g>
+    </svg>
+    <div class="cap">图 00 — 原版编码器-解码器 transformer (Vaswani et al., 2017)</div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section class="section" data-sec="why">
+  <div class="eyebrow">关卡 01 // 动机</div>
+  <h2><span class="nm">§01</span>为何要 transformer？</h2>
+  <p>2017 年之前，主流的序列模型是 <strong>RNN</strong> 与 <strong>LSTM</strong>。它们逐 token 处理，一边把隐状态向前推。这有三个致命问题：</p>
+  <ul class="bullets">
+    <li><b>顺序瓶颈。</b>时间维无法并行 —— token <code>t</code> 必须等 <code>t-1</code>。</li>
+    <li><b>长距离梯度消失。</b>token 1 的信息要被压过每一步才能到达 token 100。</li>
+    <li><b>固定大小的隐状态。</b>整个过去都得塞进一个向量。长程记忆很脆弱。</li>
+  </ul>
+
+  <div class="card demo">
+    <div class="card-label">关键洞见</div>
+    <h3>Attention is all you need</h3>
+    <p>Vaswani 等人发问：如果每个 token 都能<strong>直接</strong>看到其他每个 token，并在一步内并行完成，会怎样？没有循环，没有卷积，只有一个让每个位置以学到的权重关注每个位置的机制。</p>
+    <p>结果：训练随硬件线性扩展，梯度按 O(1) 跳数流动，模型原则上可以把段落首词与末词建立联系，就像与近邻一样轻松。</p>
+  </div>
+
+  <div class="fig">
+    <svg viewBox="0 0 760 200">
+      <g font-family="Space Mono" font-size="10">
+        <text x="20" y="20" fill="#8a8fa3" letter-spacing="2">RNN — 顺序处理</text>
+        <g transform="translate(20,40)">
+          <g fill="#13131c" stroke="#1e2030">
+            <rect x="0" y="0" width="60" height="28" rx="3"/>
+            <rect x="80" y="0" width="60" height="28" rx="3"/>
+            <rect x="160" y="0" width="60" height="28" rx="3"/>
+            <rect x="240" y="0" width="60" height="28" rx="3"/>
+            <rect x="320" y="0" width="60" height="28" rx="3"/>
+          </g>
+          <g fill="#eef0f7" text-anchor="middle">
+            <text x="30" y="18">the</text><text x="110" y="18">cat</text><text x="190" y="18">sat</text><text x="270" y="18">on</text><text x="350" y="18">mat</text>
+          </g>
+          <g stroke="#ff2bd6" fill="none" marker-end="url(#arr2)">
+            <path d="M60,14 L80,14"/><path d="M140,14 L160,14"/><path d="M220,14 L240,14"/><path d="M300,14 L320,14"/>
+          </g>
+        </g>
+        <text x="20" y="100" fill="#8a8fa3" letter-spacing="2">TRANSFORMER — 每个 token 并行关注每个 token</text>
+        <g transform="translate(20,120)">
+          <g fill="#13131c" stroke="#1e2030">
+            <rect x="0" y="0" width="60" height="28" rx="3"/>
+            <rect x="80" y="0" width="60" height="28" rx="3"/>
+            <rect x="160" y="0" width="60" height="28" rx="3"/>
+            <rect x="240" y="0" width="60" height="28" rx="3"/>
+            <rect x="320" y="0" width="60" height="28" rx="3"/>
+          </g>
+          <g fill="#eef0f7" text-anchor="middle">
+            <text x="30" y="18">the</text><text x="110" y="18">cat</text><text x="190" y="18">sat</text><text x="270" y="18">on</text><text x="350" y="18">mat</text>
+          </g>
+          <g stroke="#39ff14" stroke-width=".7" fill="none" opacity=".7">
+            <path d="M30,28 Q80,60 110,28"/><path d="M30,28 Q120,70 190,28"/><path d="M30,28 Q160,80 270,28"/><path d="M30,28 Q200,90 350,28"/>
+            <path d="M110,28 Q150,60 190,28"/><path d="M110,28 Q190,70 270,28"/><path d="M110,28 Q230,80 350,28"/>
+            <path d="M190,28 Q230,60 270,28"/><path d="M190,28 Q270,70 350,28"/>
+            <path d="M270,28 Q310,60 350,28"/>
+          </g>
+        </g>
+      </g>
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff2bd6"/></marker>
+      </defs>
+    </svg>
+    <div class="cap">图 01 — 循环 vs 注意力</div>
+  </div>
+</section>
+
+<!-- TOKENS -->
+<section class="section" data-sec="tok">
+  <div class="eyebrow">关卡 02 // 输入</div>
+  <h2><span class="nm">§02</span>分词与 embedding</h2>
+  <p>transformer 不读文本，它读<strong>整数 ID</strong>。分词是一种有损压缩：把字符串变成来自固定词表（通常 30k–200k 项）的 token ID 序列。现代分词器（BPE、WordPiece、Unigram、Tiktoken）按子词切分，让稀有词变成多个常见片段，而不是一个未知 token。</p>
+  <p>每个整数 ID 再通过 <strong>embedding 矩阵</strong> $E \in \mathbb{R}^{V \times d_{model}}$ 映射成稠密向量，$V$ 是词表大小。查表 = 取一行。结果：长度 $L$ 的 token 序列得到形状 <span class="shapebox">[L, d_model]</span> 的张量。</p>
+
+  <div class="card demo">
+    <div class="card-label">实时演示</div>
+    <h3>键入一句话 — 看它的 token</h3>
+    <textarea class="token-input" id="tokIn" placeholder="The cat sat on the mat.">The cat sat on the mat.</textarea>
+    <div class="token-row" id="tokOut"></div>
+    <div class="hud-sub" id="tokStat" style="margin-top:10px"></div>
+  </div>
+
+  <p>注意：这只是个按空格+标点切分的玩具分词器。真实 BPE 会把 <code>tokenization</code> 切成类似 <code>token</code> + <code>ization</code> 的片段。</p>
+</section>
+
+<!-- POSITIONAL -->
+<section class="section" data-sec="pos">
+  <div class="eyebrow">关卡 03 // 顺序</div>
+  <h2><span class="nm">§03</span>位置编码</h2>
+  <p>自注意力是<strong>置换不变</strong>的：打乱输入 token，（不带位置信息）输出相同。这对语言而言是问题。修复办法：在喂入堆栈前给每个 token embedding 加一个与位置相关的向量。</p>
+
+  <p>原始论文使用波长按几何级数增长的正弦/余弦：</p>
+  <p>$$PE_{(pos,\,2i)} = \sin\!\Big(\tfrac{pos}{10000^{2i/d_{model}}}\Big), \qquad PE_{(pos,\,2i+1)} = \cos\!\Big(\tfrac{pos}{10000^{2i/d_{model}}}\Big)$$</p>
+
+  <div class="card demo">
+    <div class="card-label">可视化</div>
+    <h3>正弦位置波</h3>
+    <p style="font-size:12px;color:var(--ink-dim)">每行是一个维度 <code>i</code>。低维振荡快（位置之间区分明显）；高维平滑（粗粒度顺序）。</p>
+    <canvas class="poscanvas" id="posCanvas"></canvas>
+  </div>
+
+  <p>巧妙之处：$PE_{pos+k}$ 是 $PE_{pos}$ 的固定线性函数，模型很容易学到相对偏移。现代变体（RoPE、ALiBi、可学习绝对位置）权衡不同，但目标一致 —— 注入顺序信息。</p>
+</section>
+
+<!-- ATTENTION -->
+<section class="section" data-sec="attn">
+  <div class="eyebrow">关卡 04 // 核心</div>
+  <h2><span class="nm">§04</span>自注意力（Q · K · V）</h2>
+  <p>每个输入 token 通过三组学习矩阵 $W^Q, W^K, W^V \in \mathbb{R}^{d_{model} \times d_k}$ 投影成三个向量：</p>
+  <ul class="bullets">
+    <li><strong>Query (Q)</strong> — 「我在找什么？」</li>
+    <li><strong>Key (K)</strong> — 「我里头有什么？」</li>
+    <li><strong>Value (V)</strong> — 「若被关注，我提供什么？」</li>
+  </ul>
+
+  <p>缩放点积注意力为：</p>
+  <p>$$\mathrm{Attention}(Q,K,V) = \mathrm{softmax}\!\Big(\tfrac{QK^\top}{\sqrt{d_k}}\Big)\,V$$</p>
+
+  <p>序列长 $L$、头维 $d_k$ 时的形状：<span class="shapebox">Q: [L, d_k]</span> <span class="shapebox">K: [L, d_k]</span> <span class="shapebox">V: [L, d_k]</span>。$QK^\top$ 形状 <span class="shapebox">[L, L]</span> —— 每对 (query, key) 一个相似度分数。沿行做 softmax 变成注意力<em>权重</em>，再用它给 $V$ 加权。</p>
+
+  <div class="card demo">
+    <div class="card-label">交互热力图</div>
+    <h3>注意力权重 — 鼠标悬停</h3>
+    <p style="font-size:12px;color:var(--ink-dim)">下面句子上的 6×6 玩具注意力矩阵。亮 = 高注意力。悬停查看哪个 token 关注哪个 token。</p>
+    <div id="heatmapHost"></div>
+    <div class="hm-out" id="heatOut">→ 鼠标悬停任一格</div>
+  </div>
+
+  <div class="card demo">
+    <div class="card-label">逐步演示</div>
+    <h3>3 token 上的 Q · K · V</h3>
+    <p style="font-size:12px;color:var(--ink-dim)">玩具示例 $d_{model}=4$，$d_k=2$，序列 “AI is fun” → 3 个 token。点 <b>下一步</b> 走流程。</p>
+    <div class="qkv-stage" id="qkvStage"></div>
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn" id="qkvNext">下一步 →</button> <button class="btn alt" id="qkvReset">重置</button></div>
+  </div>
+</section>
+
+<!-- MULTI-HEAD -->
+<section class="section" data-sec="multi">
+  <div class="eyebrow">关卡 05 // 集成</div>
+  <h2><span class="nm">§05</span>多头注意力</h2>
+  <p>单一注意力模式往往不够。<strong>多头注意力</strong>并行运行 $h$ 次注意力，每次有自己的 $W_i^Q, W_i^K, W_i^V$ 投影，再把结果拼接：</p>
+  <p>$$\mathrm{MHA}(X) = \mathrm{Concat}(\mathrm{head}_1, \ldots, \mathrm{head}_h)\,W^O$$</p>
+  <p>不同的头学到不同的关系模式 —— 一个头跟踪句法依存，另一个跟踪指代，另一个跟踪简单的位置偏移。拆分让总计算量大致与单头持平：$h=8$ 头时取 $d_k = d_{model}/h$。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 760 220" id="mhaFig">
+      <g font-family="Space Mono" font-size="10" fill="#eef0f7">
+        <rect x="320" y="10" width="120" height="28" rx="3" fill="#13131c" stroke="#39ff14"/>
+        <text x="380" y="28" text-anchor="middle" fill="#39ff14">Input X [L, d_model]</text>
+        <!-- split lines -->
+        <g stroke="#00f0ff" fill="none" opacity=".6">
+          <path d="M380,38 L120,90"/><path d="M380,38 L260,90"/><path d="M380,38 L400,90"/><path d="M380,38 L540,90"/><path d="M380,38 L660,90"/>
+        </g>
+        <!-- heads -->
+        <g>
+          <g><rect x="80" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="130" y="110" text-anchor="middle" fill="#00f0ff">head₁</text><text x="130" y="125" text-anchor="middle" fill="#8a8fa3" font-size="9">Q,K,V·W₁</text></g>
+          <g><rect x="220" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="270" y="110" text-anchor="middle" fill="#00f0ff">head₂</text></g>
+          <g><rect x="360" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="410" y="110" text-anchor="middle" fill="#00f0ff">head₃</text></g>
+          <g><rect x="500" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="550" y="110" text-anchor="middle" fill="#00f0ff">head₄</text></g>
+          <g><rect x="620" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="670" y="110" text-anchor="middle" fill="#00f0ff">…head_h</text></g>
+        </g>
+        <!-- concat -->
+        <g stroke="#ff2bd6" fill="none" opacity=".6">
+          <path d="M130,140 L380,180"/><path d="M270,140 L380,180"/><path d="M410,140 L380,180"/><path d="M550,140 L380,180"/><path d="M670,140 L380,180"/>
+        </g>
+        <rect x="280" y="180" width="200" height="28" rx="3" fill="#13131c" stroke="#ff2bd6"/>
+        <text x="380" y="198" text-anchor="middle" fill="#ff2bd6">Concat → W^O → [L, d_model]</text>
+      </g>
+    </svg>
+    <div class="cap">fig.05 — split into h heads, attend in parallel, concat, project</div>
+  </div>
+</section>
+
+<!-- FFN -->
+<section class="section" data-sec="ffn">
+  <div class="eyebrow">level 06 // glue</div>
+  <h2><span class="nm">§06</span>前馈 · 残差 · 归一化</h2>
+  <p>注意力之后，每个位置过一个逐位置的<strong>前馈网络</strong> —— 两个线性层中间夹一个非线性（最初是 ReLU，今天通常是 GELU 或 SwiGLU）：</p>
+  <p>$$\mathrm{FFN}(x) = \max(0,\, xW_1+b_1)\,W_2 + b_2$$</p>
+  <p>隐藏宽度通常为 <code>4·d_model</code>。模型大部分参数都驻留在这里 —— 一个流行假设是该层充当存储事实知识的 key-value 记忆。</p>
+
+  <h3>残差连接</h3>
+  <p>注意力子层与 FFN 子层都被裹在<strong>残差连接</strong> + <strong>层归一化</strong>里：</p>
+  <p>$$x \leftarrow \mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))$$</p>
+  <p>为何？残差为梯度从损失到输入开了一条高速公路，让数百层稳定训练。LayerNorm 在特征维上让激活居中且缩放，把每层的优化彼此解耦。</p>
+
+  <p style="font-size:12px;color:var(--ink-dim)">现代变体偏好<strong>pre-norm</strong>：$x \leftarrow x + \mathrm{Sublayer}(\mathrm{LayerNorm}(x))$ —— 在深层下训练更稳。</p>
+</section>
+
+<!-- ENC vs DEC -->
+<section class="section" data-sec="encdec">
+  <div class="eyebrow">关卡 07 // 拓扑</div>
+  <h2><span class="nm">§07</span>编码器 · 解码器 · 掩码</h2>
+  <p>当今主流的三种架构：</p>
+  <ul class="bullets">
+    <li><b style="color:var(--neon2)">仅编码器</b>（BERT）— 双向自注意力。每个 token 都看到其他每个 token。理解类任务（分类、检索）很强。</li>
+    <li><b style="color:var(--neon3)">仅解码器</b>（GPT）— <strong>因果/掩码</strong>自注意力。token <code>t</code> 只能看到位置 $\le t$ 的 token。生成很强。这是当今多数 LLM 的形态。</li>
+    <li><b style="color:var(--neon4)">编码器-解码器</b>（T5、原始 NMT）— 编码器读源序列，解码器生成目标序列同时跨注意力到编码器输出。</li>
+  </ul>
+
+  <h3>因果掩码 — 怎么做？</h3>
+  <p>在 softmax 之前，把分数矩阵的上三角设为 $-\infty$。$\mathrm{softmax}(-\infty) = 0$ —— 模型在数学上无法看到未来：</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 360 200">
+      <g font-family="Space Mono" font-size="11">
+        <text x="180" y="14" text-anchor="middle" fill="#8a8fa3" letter-spacing="3">因果掩码（下三角）</text>
+        <g transform="translate(60,30)">
+          <!-- 6x6 mask -->
+        </g>
+      </g>
+      <g id="maskGrid"></g>
+    </svg>
+    <div class="cap">图 07 — 绿 = 允许，深色 = 掩码到 −∞</div>
+  </div>
+</section>
+
+<!-- TRAINING -->
+<section class="section" data-sec="train">
+  <div class="eyebrow">关卡 08 // 目标</div>
+  <h2><span class="nm">§08</span>训练：下一 token 预测</h2>
+  <p>对仅解码器 LLM（GPT 家族），整个训练目标简单到惊人：</p>
+  <p><strong>给定 token 1..t，预测 token t+1。</strong></p>
+  <p>模型在每个位置输出词表上的概率分布。损失是对真实下一 token 的平均<strong>交叉熵</strong>：</p>
+  <p>$$\mathcal{L} = -\frac{1}{N}\sum_{t=1}^{N} \log P_\theta(x_{t+1} \mid x_1, \ldots, x_t)$$</p>
+  <p>因果掩码让这个目标很高效：长 $N$ 的序列一次前向，并行得到 $N$ 个预测，每个位置一个。除了把标签整体右移一位，不需要其他 teacher forcing 技巧。</p>
+  <p>其他一切 —— 指令微调、RLHF、工具使用 —— 都建立在这个目标之上。预训练吞下互联网规模的数据并让模型学到「一切」；微调塑造其行为。</p>
+
+  <div class="card">
+    <div class="card-label">回顾</div>
+    <h3>完整管道</h3>
+    <ul class="bullets">
+      <li>1. token → 整数 ID → embedding（+ 位置编码）</li>
+      <li>2. N 个 transformer 块的堆叠：<code>MHA → Add&Norm → FFN → Add&Norm</code></li>
+      <li>3. 最终线性投影到词表大小，softmax → 下一 token 分布</li>
+      <li>4. 与真实下一 token 的交叉熵损失，按位置求和</li>
+      <li>5. 反传到每个权重。重复约 10²² 次。完事。</li>
+    </ul>
+    <p style="margin-top:14px">来，开始练。</p>
+    <div class="toggle-row"><button class="btn" onclick="go('vocab')">词汇练习 →</button><button class="btn alt" onclick="go('formula')">公式键入</button><button class="btn alt" onclick="go('code')">代码补全</button></div>
+  </div>
+</section>
+
+<!-- VOCAB DRILL -->
+<section class="section" data-sec="vocab">
+  <div class="eyebrow">练习 // 词汇</div>
+  <h2><span class="nm">DR1</span>词汇练习</h2>
+  <p>读定义。键入术语。大小写不敏感，偶尔接受小拼写错。</p>
+  <div class="card practice" id="vocabHost"></div>
+</section>
+
+<!-- FORMULA DRILL -->
+<section class="section" data-sec="formula">
+  <div class="eyebrow">drill // formulas</div>
+  <h2><span class="nm">DR2</span>公式键入</h2>
+  <p>Reproduce the formula in plain text. Use <code>^</code> for transpose, <code>sqrt(...)</code>, <code>*</code> for multiply. Whitespace ignored. Multiple spellings accepted.</p>
+  <div class="card practice" id="formulaHost"></div>
+</section>
+
+<!-- CODE DRILL -->
+<section class="section" data-sec="code">
+  <div class="eyebrow">drill // pytorch</div>
+  <h2><span class="nm">DR3</span>代码补全</h2>
+  <p>Fill in the blanks in this minimal scaled-dot-product attention implementation. <span class="kbd">Tab</span> moves to the next blank.</p>
+  <div class="card practice" id="codeHost"></div>
+</section>
+
+<!-- BOSS -->
+<section class="section" data-sec="boss">
+  <div class="eyebrow">★ boss fight</div>
+  <h2><span class="nm">★</span>终极 Boss — 10 题，90 秒</h2>
+  <p style="color:var(--ink-dim)">Mixed vocab, formulas, and code. No hints. Combo carries over. The clock is your enemy.</p>
+  <div class="card boss" id="bossHost">
+    <div class="card-label">arena</div>
+    <div class="boss-arena" id="bossArena">
+      <p style="margin:24px 0 8px;font-family:'Fraunces',serif;font-size:24px">Are you ready?</p>
+      <div class="hud-sub">+30 XP per correct · 2× combo bonus on streaks of 3+</div>
+      <div style="margin-top:24px"><button class="btn danger" id="bossStart">开战 ▸</button></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div>© Transformer Academy</div>
+  <div>typing > clicking</div>
+  <div id="footStat">LV 1 · 0 XP</div>
+</footer>
+
+</main>
+
+<!-- =========== RIGHTBAR HUD =========== -->
+<aside class="rightbar">
+  <div class="hud-card">
+    <div class="hud-label">Level</div>
+    <div class="hud-val" id="hud-lvl">1</div>
+    <div class="hud-sub"><span id="hud-xp">0</span> / <span id="hud-xpmax">100</span> XP</div>
+    <div class="lvl-bar"><div class="lvl-bar-fill" id="hud-bar" style="width:0%"></div></div>
+  </div>
+
+  <div class="hud-card">
+    <div class="hud-label">Combo</div>
+    <div class="hud-val mag combo-flame">×<span id="hud-combo">1</span></div>
+    <div class="hud-sub"><span id="hud-streak">0</span> in a row · best <span id="hud-best">0</span></div>
+  </div>
+
+  <div class="hud-card">
+    <div class="hud-label">Daily streak</div>
+    <div class="hud-val gold"><span class="streak-flame">🔥</span> <span id="hud-daily">1</span></div>
+    <div class="hud-sub">last visit <span id="hud-last">today</span></div>
+  </div>
+
+  <div class="hud-card">
+    <div class="hud-label">Trophy case</div>
+    <div class="badges" id="badges"></div>
+  </div>
+
+  <div class="hud-card" style="font-size:10px;color:var(--ink-dim);line-height:1.7">
+    <div class="hud-label" style="margin-bottom:6px">Cheat sheet</div>
+    Q · K · V — <span style="color:var(--neon2)">Query</span>, <span style="color:var(--neon3)">Key</span>, <span style="color:var(--neon)">Value</span><br>
+    softmax(QK^T / √d_k) V<br>
+    LN(x + Sublayer(x))
+  </div>
+
+  <button class="btn alt" style="width:100%;text-align:center" onclick="resetProgress()">重置进度</button>
+</aside>
+
+</div>
+
+<script>
+/* ===========================
+   STATE + STORAGE
+   =========================== */
+const STORAGE_KEY = 'transformer-academy-v1';
+const state = {
+  xp:0, level:1, combo:1, streak:0, bestStreak:0,
+  badges:{}, daily:1, lastDate:null,
+  vocabIdx:0, formulaIdx:0,
+};
+const BADGES = [
+  {id:'first',     emoji:'🎯', name:'First Attention', desc:'first correct answer'},
+  {id:'streak3',   emoji:'⚡', name:'Triple Strike',    desc:'streak of 3'},
+  {id:'streak10',  emoji:'🔥', name:'10 Streak',        desc:'streak of 10', cls:'mag'},
+  {id:'mathmaster',emoji:'∑',  name:'Math Master',      desc:'all formulas correct', cls:'gold'},
+  {id:'wordsmith', emoji:'📚', name:'Wordsmith',        desc:'all vocab correct'},
+  {id:'coder',     emoji:'⌨︎', name:'Coder',            desc:'all code blanks correct'},
+  {id:'lvl5',      emoji:'★', name:'Level 5',          desc:'reach level 5', cls:'gold'},
+  {id:'lvl10',     emoji:'☄', name:'Level 10',         desc:'reach level 10', cls:'mag'},
+  {id:'boss',      emoji:'👑', name:'Boss Slayer',      desc:'win the boss fight', cls:'gold'},
+];
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      Object.assign(state, JSON.parse(raw));
+    }
+  }catch(e){}
+  // daily streak logic
+  const today = new Date().toISOString().slice(0,10);
+  if(state.lastDate !== today){
+    if(state.lastDate){
+      const diff = (Date.parse(today) - Date.parse(state.lastDate)) / 86400000;
+      if(diff === 1) state.daily += 1;
+      else if(diff > 1) state.daily = 1;
+    }
+    state.lastDate = today;
+    save();
+  }
+}
+function save(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function resetProgress(){
+  if(!confirm('Wipe all XP, levels, and badges?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  Object.assign(state, {xp:0,level:1,combo:1,streak:0,bestStreak:0,badges:{},daily:1,lastDate:null,vocabIdx:0,formulaIdx:0});
+  load();
+  renderHUD();
+  buildVocab();buildFormula();buildCode();
+}
+
+/* ===========================
+   XP / COMBO / LEVEL
+   =========================== */
+function comboMult(){ return state.streak >= 5 ? 3 : state.streak >= 3 ? 2 : 1; }
+function gainXP(base){
+  const gained = base * comboMult();
+  const oldLvl = state.level;
+  state.xp += gained;
+  while(state.xp >= state.level * 100){
+    state.xp -= state.level * 100;
+    state.level += 1;
+  }
+  if(state.level > oldLvl){ levelUp(state.level); }
+  if(state.level >= 5) unlock('lvl5');
+  if(state.level >= 10) unlock('lvl10');
+  save(); renderHUD();
+  return gained;
+}
+function correct(base=10){
+  state.streak += 1;
+  state.combo = comboMult();
+  if(state.streak > state.bestStreak) state.bestStreak = state.streak;
+  if(state.streak >= 1) unlock('first');
+  if(state.streak >= 3) unlock('streak3');
+  if(state.streak >= 10) unlock('streak10');
+  const g = gainXP(base);
+  burst();
+  return g;
+}
+function wrong(){
+  state.streak = 0; state.combo = 1;
+  shakeBody();
+  save(); renderHUD();
+}
+function unlock(id){
+  if(state.badges[id]) return;
+  state.badges[id] = true; save(); renderHUD();
+}
+
+/* ===========================
+   PARTICLE BURST + SHAKE + LEVELUP
+   =========================== */
+const pcanvas = document.getElementById('particles');
+const pctx = pcanvas.getContext('2d');
+let particles = [];
+function resizeCanvas(){ pcanvas.width = innerWidth; pcanvas.height = innerHeight; }
+addEventListener('resize', resizeCanvas); resizeCanvas();
+function burst(x, y){
+  // default to right-bar HUD area
+  if(x === undefined){
+    const r = document.querySelector('.hud-val');
+    if(r){ const b = r.getBoundingClientRect(); x = b.left + b.width/2; y = b.top + b.height/2; }
+    else { x = innerWidth/2; y = innerHeight/2; }
+  }
+  const colors = ['#39ff14','#00f0ff','#ff2bd6','#ffd23f','#ffffff'];
+  for(let i=0;i<28;i++){
+    const a = Math.random()*Math.PI*2, s = 2 + Math.random()*5;
+    particles.push({
+      x, y,
+      vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2,
+      life: 60 + Math.random()*30,
+      size: 2 + Math.random()*3,
+      color: colors[i%colors.length]
+    });
+  }
+}
+function tick(){
+  pctx.clearRect(0,0,pcanvas.width,pcanvas.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy += 0.15; p.x += p.vx; p.y += p.vy;
+    p.life--;
+    pctx.globalAlpha = Math.max(0, p.life/60);
+    pctx.fillStyle = p.color;
+    pctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+  pctx.globalAlpha = 1;
+  requestAnimationFrame(tick);
+}
+tick();
+
+function shakeBody(){
+  document.body.animate(
+    [{transform:'translate(0,0)'},{transform:'translate(-6px,2px)'},{transform:'translate(6px,-2px)'},{transform:'translate(0,0)'}],
+    {duration:280,easing:'ease-out'}
+  );
+}
+function levelUp(n){
+  const o = document.getElementById('lvlup');
+  document.getElementById('lvlup-num').textContent = n;
+  const msgs = ['attention is paying off','Q,K,V mastered','your gradients flow','heads up — multi-head','the loss is decreasing','softmax of joy','you are the boss now'];
+  document.getElementById('lvlup-msg').textContent = msgs[(n-2) % msgs.length] || 'transcendence';
+  o.classList.add('show');
+  // big confetti
+  for(let k=0;k<6;k++) setTimeout(()=>burst(innerWidth*Math.random(), innerHeight*0.4*Math.random()+innerHeight*0.2), k*60);
+  setTimeout(()=>o.classList.remove('show'), 1800);
+}
+
+/* ===========================
+   HUD RENDER
+   =========================== */
+function renderHUD(){
+  document.getElementById('hud-lvl').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-xpmax').textContent = state.level * 100;
+  document.getElementById('hud-bar').style.width = (state.xp / (state.level*100) * 100) + '%';
+  document.getElementById('hud-combo').textContent = comboMult();
+  document.getElementById('hud-streak').textContent = state.streak;
+  document.getElementById('hud-best').textContent = state.bestStreak;
+  document.getElementById('hud-daily').textContent = state.daily;
+  document.getElementById('hud-last').textContent = state.lastDate || 'today';
+  // mobile
+  const m = id => document.getElementById(id);
+  if(m('m-lvl')){ m('m-lvl').textContent = state.level; m('m-xp').textContent = state.xp; m('m-combo').textContent = '×'+comboMult(); m('m-streak').textContent = state.streak; }
+  // foot
+  document.getElementById('footStat').textContent = `LV ${state.level} · ${state.xp} XP · best streak ${state.bestStreak}`;
+  // badges
+  const host = document.getElementById('badges');
+  host.innerHTML = '';
+  for(const b of BADGES){
+    const div = document.createElement('div');
+    div.className = 'badge' + (state.badges[b.id]?' unlocked':'') + (b.cls?' '+b.cls:'');
+    div.innerHTML = `${b.emoji}<span class="badge-tip">${b.name} — ${b.desc}</span>`;
+    host.appendChild(div);
+  }
+}
+
+/* ===========================
+   NAV
+   =========================== */
+function go(secId){
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active', s.dataset.sec===secId));
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.sec===secId));
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(secId === 'pos') drawPos();
+  if(secId === 'tok') tokenize();
+  if(window.renderMathInElement){ try{ renderMathInElement(document.querySelector(`[data-sec="${secId}"]`),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]}); }catch(e){} }
+}
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.sec)));
+
+/* ===========================
+   TOKENIZER (toy)
+   =========================== */
+const tokIn = document.getElementById('tokIn');
+const tokOut = document.getElementById('tokOut');
+const tokStat = document.getElementById('tokStat');
+function tokenize(){
+  const s = tokIn.value;
+  // toy regex: words + punctuation
+  const tokens = s.match(/[a-zA-Z']+|[0-9]+|[^\sa-zA-Z0-9']/g) || [];
+  tokOut.innerHTML = '';
+  tokens.forEach((t,i)=>{
+    const c = document.createElement('span');
+    c.className = 'chip c'+(i%5);
+    c.innerHTML = `${t}<span class="id">#${(hashStr(t)%9999).toString().padStart(4,'0')}</span>`;
+    c.style.animationDelay = (i*30)+'ms';
+    tokOut.appendChild(c);
+  });
+  tokStat.textContent = `${tokens.length} tokens · ${s.length} chars · ${(tokens.length/Math.max(1,s.split(/\s+/).filter(Boolean).length)).toFixed(2)} tokens/word`;
+}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return Math.abs(h)}
+tokIn.addEventListener('input', tokenize);
+tokenize();
+
+/* ===========================
+   POSITIONAL ENCODING CANVAS
+   =========================== */
+function drawPos(){
+  const c = document.getElementById('posCanvas');
+  if(!c) return;
+  const dpr = devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = 240 * dpr;
+  const ctx = c.getContext('2d'); ctx.scale(dpr,dpr);
+  const W = c.clientWidth, H = 240;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle = '#13131c'; ctx.lineWidth = 1;
+  for(let i=0;i<10;i++){ctx.beginPath();ctx.moveTo(i*W/10,0);ctx.lineTo(i*W/10,H);ctx.stroke()}
+  // sinusoids
+  const dims = [0,2,6,16,40];
+  const colors=['#39ff14','#00f0ff','#ff2bd6','#ffd23f','#ff8b4a'];
+  const dmodel = 64;
+  dims.forEach((i,idx)=>{
+    ctx.strokeStyle = colors[idx]; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    for(let pos=0; pos<W; pos++){
+      const x = pos;
+      const t = pos / 6; // visual scaling
+      const v = Math.sin(t / Math.pow(10000, (2*i)/dmodel));
+      const y = H/2 - v * H*0.4;
+      if(pos===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    // label
+    ctx.fillStyle = colors[idx]; ctx.font = '10px Space Mono, monospace';
+    ctx.fillText('dim '+i, 10, 18 + idx*14);
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ===========================
+   ATTENTION HEATMAP
+   =========================== */
+const HEAT_TOKENS = ['The','cat','sat','on','the','mat'];
+const HEAT_W = [
+  [0.65,0.05,0.10,0.05,0.10,0.05],
+  [0.05,0.55,0.20,0.05,0.05,0.10],
+  [0.05,0.40,0.30,0.10,0.05,0.10],
+  [0.05,0.10,0.10,0.40,0.05,0.30],
+  [0.45,0.05,0.05,0.10,0.30,0.05],
+  [0.05,0.30,0.10,0.20,0.05,0.30],
+];
+function buildHeatmap(){
+  const host = document.getElementById('heatmapHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const tableCols = HEAT_TOKENS.length;
+  const grid = document.createElement('div');
+  grid.className = 'heatmap';
+  grid.style.gridTemplateColumns = `60px repeat(${tableCols}, 1fr)`;
+
+  // top label row
+  const blank = document.createElement('div'); grid.appendChild(blank);
+  HEAT_TOKENS.forEach(t=>{
+    const d = document.createElement('div');
+    d.style.fontSize='10px'; d.style.color='#8a8fa3'; d.style.textAlign='center';
+    d.textContent = t;
+    grid.appendChild(d);
+  });
+
+  HEAT_W.forEach((row,i)=>{
+    const lab = document.createElement('div');
+    lab.className = 'hm-label'; lab.textContent = HEAT_TOKENS[i];
+    grid.appendChild(lab);
+    row.forEach((w,j)=>{
+      const c = document.createElement('div');
+      c.className = 'hm-cell';
+      const a = w;
+      c.style.background = `rgba(57,255,20,${0.05 + a*0.95})`;
+      c.style.minHeight = '32px';
+      c.title = `${HEAT_TOKENS[i]} → ${HEAT_TOKENS[j]} : ${a.toFixed(2)}`;
+      c.addEventListener('mouseenter', ()=>{
+        document.getElementById('heatOut').textContent = `▸ "${HEAT_TOKENS[i]}" attends to "${HEAT_TOKENS[j]}" with weight ${a.toFixed(3)}`;
+      });
+      grid.appendChild(c);
+    });
+  });
+  host.appendChild(grid);
+}
+buildHeatmap();
+
+/* ===========================
+   QKV STEPPER
+   =========================== */
+const QKV_STEPS = [
+  {title:'Step 0 — input embeddings X', html:`X = <br><br>
+    <span class="matrix"><div class="label">X (3×4)</div><table><tr><td>1</td><td>0</td><td>1</td><td>0</td></tr><tr><td>0</td><td>2</td><td>0</td><td>2</td></tr><tr><td>1</td><td>1</td><td>1</td><td>1</td></tr></table></span><br>
+    Three tokens, each a 4-dim embedding. Rows = tokens "AI", "is", "fun".`},
+  {title:'Step 1 — project to Q, K, V', html:`Apply W^Q, W^K, W^V (each 4×2). The result for d_k=2:<br><br>
+    <span class="matrix"><div class="label">Q (3×2)</div><table><tr><td>1</td><td>0</td></tr><tr><td>0</td><td>2</td></tr><tr><td>1</td><td>1</td></tr></table></span>
+    <span class="matrix"><div class="label">K (3×2)</div><table><tr><td>1</td><td>0</td></tr><tr><td>0</td><td>1</td></tr><tr><td>1</td><td>0</td></tr></table></span>
+    <span class="matrix"><div class="label">V (3×2)</div><table><tr><td>1</td><td>2</td></tr><tr><td>2</td><td>0</td></tr><tr><td>1</td><td>1</td></tr></table></span>`},
+  {title:'Step 2 — scores = QK^T (3×3)', html:`Each entry is a dot product q_i · k_j:<br><br>
+    <span class="matrix"><div class="label">QK^T</div><table>
+      <tr><td>1</td><td>0</td><td>1</td></tr>
+      <tr><td>0</td><td>2</td><td>0</td></tr>
+      <tr><td>1</td><td>1</td><td>1</td></tr>
+    </table></span>
+    <br>Row i tells us how much token i wants to listen to each other token.`},
+  {title:'Step 3 — scale by √d_k = √2 ≈ 1.41', html:`Divide every entry by ≈1.41:<br><br>
+    <span class="matrix"><div class="label">QK^T / √d_k</div><table>
+      <tr><td>0.71</td><td>0</td><td>0.71</td></tr>
+      <tr><td>0</td><td>1.41</td><td>0</td></tr>
+      <tr><td>0.71</td><td>0.71</td><td>0.71</td></tr>
+    </table></span><br>
+    Why scale? Without it, large d_k pushes softmax into a regime where gradients vanish.`},
+  {title:'Step 4 — softmax row-wise', html:`Each row becomes a probability distribution:<br><br>
+    <span class="matrix"><div class="label">A = softmax(QK^T/√d_k)</div><table>
+      <tr><td class="hl">0.41</td><td>0.18</td><td class="hl">0.41</td></tr>
+      <tr><td>0.18</td><td class="hl">0.64</td><td>0.18</td></tr>
+      <tr><td>0.33</td><td>0.33</td><td>0.33</td></tr>
+    </table></span><br>
+    Token "AI" splits its attention between itself and "fun"; "is" focuses mostly on itself; "fun" attends uniformly.`},
+  {title:'Step 5 — multiply by V → output', html:`Output = A · V (3×2):<br><br>
+    <span class="matrix"><div class="label">Output</div><table>
+      <tr><td>1.18</td><td>1.23</td></tr>
+      <tr><td>1.46</td><td>0.76</td></tr>
+      <tr><td>1.33</td><td>1.00</td></tr>
+    </table></span><br>
+    Each row is a weighted blend of value vectors — token-specific contextual representation. Done.`},
+];
+let qkvStep = 0;
+function renderQKV(){
+  const host = document.getElementById('qkvStage');
+  const s = QKV_STEPS[qkvStep];
+  host.innerHTML = `<div style="color:var(--neon3);font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px">${s.title}</div>${s.html}`;
+}
+document.getElementById('qkvNext').addEventListener('click', ()=>{
+  qkvStep = (qkvStep+1) % QKV_STEPS.length;
+  renderQKV();
+});
+document.getElementById('qkvReset').addEventListener('click', ()=>{ qkvStep=0; renderQKV(); });
+renderQKV();
+
+/* ===========================
+   CAUSAL MASK GRID
+   =========================== */
+(function buildMask(){
+  const host = document.getElementById('maskGrid');
+  if(!host) return;
+  const N = 6, sz = 30, ox = 60, oy = 30;
+  let svg = '';
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    const allowed = j <= i;
+    const x = ox + j*sz, y = oy + i*sz;
+    svg += `<rect x="${x}" y="${y}" width="${sz-2}" height="${sz-2}" rx="2" fill="${allowed?'rgba(57,255,20,.4)':'#13131c'}" stroke="#1e2030"/>`;
+    if(allowed) svg += `<text x="${x+sz/2-1}" y="${y+sz/2+3}" text-anchor="middle" font-size="9" fill="#0a0a14" font-family="Space Mono">w</text>`;
+    else svg += `<text x="${x+sz/2-1}" y="${y+sz/2+3}" text-anchor="middle" font-size="9" fill="#3a3a4a" font-family="Space Mono">−∞</text>`;
+  }
+  host.innerHTML = svg;
+})();
+
+/* ===========================
+   PRACTICE: VOCAB
+   =========================== */
+const VOCAB = [
+  {def:'The matrix used to compute relevance scores between tokens — "what am I looking for?"', a:'query', alt:['q']},
+  {def:'The matrix that represents what each token contains — answers the query.', a:'key', alt:['k']},
+  {def:'The matrix that holds the actual content vectors blended into the output.', a:'value', alt:['v']},
+  {def:'The function applied to attention scores so each row sums to 1.', a:'softmax'},
+  {def:'The architectural component that lets each token look at every other token.', a:'attention', alt:['self-attention']},
+  {def:'Running multiple parallel attention operations and concatenating them is called ___ attention.', a:'multi-head', alt:['multihead','multi head']},
+  {def:'Sin/cos curves added to embeddings so the model knows token order.', a:'positional encoding', alt:['positional','position encoding','positional embeddings']},
+  {def:'A connection that adds the input back to the output of a sublayer (gradient highway).', a:'residual', alt:['skip connection','residual connection']},
+  {def:'The technique that prevents a token from attending to future positions in a decoder.', a:'masking', alt:['causal masking','causal mask','mask']},
+  {def:'The two-linear-layer module applied position-wise after attention (ReLU/GELU between).', a:'ffn', alt:['feed forward','feedforward','feed-forward','feed-forward network']},
+  {def:'Normalises activations across the feature dimension within one example.', a:'layer norm', alt:['layernorm','layer normalization','layer normalisation']},
+  {def:'Loss function used for next-token prediction.', a:'cross-entropy', alt:['cross entropy','crossentropy']},
+  {def:'Family of LLMs that uses only the decoder stack with causal masking.', a:'gpt', alt:['decoder-only','decoder only']},
+];
+
+function buildVocab(){
+  const host = document.getElementById('vocabHost');
+  host.innerHTML = '';
+  const i = state.vocabIdx % VOCAB.length;
+  const item = VOCAB[i];
+  host.innerHTML = `
+    <div class="card-label">${i+1} / ${VOCAB.length}</div>
+    <div class="practice-meta"><span>VOCABULARY · +10 XP</span><span>combo ×${comboMult()}</span></div>
+    <div class="practice-progress"><div class="practice-progress-bar" style="width:${(i)/VOCAB.length*100}%"></div></div>
+    <div class="practice-q">${item.def}</div>
+    <input class="practice-input" id="vocabInput" autocomplete="off" placeholder="type your answer & press Enter…">
+    <div class="practice-fb" id="vocabFb">&nbsp;</div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between">
+      <button class="btn alt" id="vocabSkip">Skip ↻</button>
+      <button class="btn" id="vocabNext" disabled>Next →</button>
+    </div>
+  `;
+  const input = document.getElementById('vocabInput');
+  const fb = document.getElementById('vocabFb');
+  const next = document.getElementById('vocabNext');
+  let answered = false;
+  function check(){
+    if(answered) return;
+    const v = input.value.trim().toLowerCase();
+    if(!v) return;
+    const ok = v === item.a.toLowerCase() || (item.alt||[]).some(x=>x.toLowerCase()===v);
+    if(ok){
+      answered = true;
+      input.classList.add('right'); input.disabled = true;
+      const g = correct(10);
+      fb.textContent = `correct · +${g} XP`; fb.className = 'practice-fb ok';
+      next.disabled = false; next.focus();
+      // wordsmith badge if we've completed everything
+      if(state.vocabIdx >= VOCAB.length-1) unlock('wordsmith');
+    } else {
+      wrong();
+      input.classList.add('wrong');
+      fb.textContent = 'not quite — try again or skip'; fb.className='practice-fb no';
+      setTimeout(()=>input.classList.remove('wrong'), 350);
+    }
+  }
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ if(answered){ next.click(); } else check(); } });
+  next.addEventListener('click', ()=>{ state.vocabIdx += 1; save(); buildVocab(); });
+  document.getElementById('vocabSkip').addEventListener('click', ()=>{ wrong(); state.vocabIdx += 1; save(); buildVocab(); });
+  setTimeout(()=>input.focus(), 100);
+}
+
+/* ===========================
+   PRACTICE: FORMULA
+   =========================== */
+const FORMULAS = [
+  {prompt:'Scaled dot-product attention: Attention(Q,K,V) = ___', a:'softmax(qk^t/sqrt(d_k))v', accept:[
+    'softmax(qk^t/sqrt(d_k))v','softmax(qk^t/sqrt(dk))v','softmax((qk^t)/sqrt(d_k))v','softmax(q*k^t/sqrt(d_k))v','softmax(qkt/sqrt(d_k))v'
+  ]},
+  {prompt:'Residual + norm: x ← LayerNorm(___ )', a:'x+sublayer(x)', accept:['x+sublayer(x)','x + sublayer(x)']},
+  {prompt:'FFN(x) = max(0, xW₁+b₁) ___ + b₂', a:'w_2', accept:['w2','w_2','*w2','*w_2']},
+  {prompt:'Cross-entropy loss ∝ −Σ log P(___)', a:'x_{t+1}|x_1..x_t', accept:['x_t+1|x_1..x_t','x_t+1','xt+1','x_(t+1)']},
+  {prompt:'Position encoding (sin half): PE(pos, 2i) = sin(pos / 10000^(___))', a:'2i/d_model', accept:['2i/d','2i/dmodel','2i/d_model','(2i)/d_model']},
+  {prompt:'Multi-head: MHA(X) = Concat(head₁,…,head_h) · ___', a:'w^o', accept:['w^o','wo','w_o','*w^o']},
+  {prompt:'Each head: head_i = Attention(X·W_i^Q, X·W_i^K, ___)', a:'x*w_i^v', accept:['x*w_i^v','xw_i^v','x w_i^v','x·w_i^v','xw^v_i','xwiv']},
+  {prompt:'Softmax(z)_i = ___ / Σⱼ exp(zⱼ)', a:'exp(z_i)', accept:['exp(z_i)','exp(zi)','e^z_i','e^(z_i)']},
+];
+
+function normalize(s){ return s.replace(/\s+/g,'').toLowerCase().replace(/[`"']/g,''); }
+
+function buildFormula(){
+  const host = document.getElementById('formulaHost');
+  host.innerHTML = '';
+  const i = state.formulaIdx % FORMULAS.length;
+  const item = FORMULAS[i];
+  host.innerHTML = `
+    <div class="card-label">${i+1} / ${FORMULAS.length}</div>
+    <div class="practice-meta"><span>FORMULA · +15 XP</span><span>combo ×${comboMult()}</span></div>
+    <div class="practice-progress"><div class="practice-progress-bar" style="width:${(i)/FORMULAS.length*100}%"></div></div>
+    <div class="practice-q" style="font-family:'Space Mono',monospace;font-size:15px">${item.prompt.replace('___','<span class="blank">?</span>')}</div>
+    <input class="practice-input" id="fInput" autocomplete="off" placeholder="type the missing piece — symbols ok…">
+    <div class="practice-fb" id="fFb">&nbsp;</div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between">
+      <button class="btn alt" id="fSkip">Skip ↻</button>
+      <button class="btn" id="fNext" disabled>Next →</button>
+    </div>
+  `;
+  const input = document.getElementById('fInput');
+  const fb = document.getElementById('fFb');
+  const next = document.getElementById('fNext');
+  let answered = false;
+  function check(){
+    if(answered) return;
+    const v = normalize(input.value);
+    if(!v) return;
+    const accepts = (item.accept||[item.a]).map(normalize);
+    const ok = accepts.includes(v);
+    if(ok){
+      answered = true;
+      input.classList.add('right'); input.disabled = true;
+      const g = correct(15);
+      fb.textContent = `nailed it · +${g} XP`; fb.className = 'practice-fb ok';
+      next.disabled = false; next.focus();
+      if(state.formulaIdx >= FORMULAS.length-1) unlock('mathmaster');
+    } else {
+      wrong();
+      input.classList.add('wrong');
+      fb.textContent = 'try a variation — sqrt(), ^T, *, _'; fb.className='practice-fb no';
+      setTimeout(()=>input.classList.remove('wrong'), 350);
+    }
+  }
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ if(answered){ next.click(); } else check(); } });
+  next.addEventListener('click', ()=>{ state.formulaIdx += 1; save(); buildFormula(); });
+  document.getElementById('fSkip').addEventListener('click', ()=>{ wrong(); state.formulaIdx += 1; save(); buildFormula(); });
+  setTimeout(()=>input.focus(), 100);
+}
+
+/* ===========================
+   PRACTICE: CODE COMPLETION (multi-blank PyTorch attention)
+   =========================== */
+const CODE_BLANKS = [
+  {id:'b1', accept:['matmul','torch.matmul','@'], hint:'multiply Q by K^T'},
+  {id:'b2', accept:['transpose','t','.t'], hint:'flip last two dims'},
+  {id:'b3', accept:['math.sqrt','sqrt','sqrt(d_k)','math.sqrt(d_k)'], hint:'scaling factor'},
+  {id:'b4', accept:['masked_fill','masked_fill_'], hint:'apply causal mask'},
+  {id:'b5', accept:['softmax','f.softmax','torch.softmax'], hint:'turn scores → probabilities'},
+  {id:'b6', accept:['matmul','torch.matmul','@'], hint:'apply weights to values'},
+];
+
+function buildCode(){
+  const host = document.getElementById('codeHost');
+  host.innerHTML = `
+    <div class="card-label">6 blanks · +15 XP each</div>
+    <div class="practice-meta"><span>PYTORCH SCALED-DOT-PRODUCT ATTENTION</span><span>combo ×${comboMult()}</span></div>
+<pre class="codeblock">
+<span class="kw">import</span> torch, math
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">def</span> <span class="fn">scaled_dot_product_attention</span>(Q, K, V, mask=<span class="kw">None</span>):
+    <span class="cm"># Q,K,V shape: [batch, heads, seq, d_k]</span>
+    d_k = Q.size(<span class="num">-1</span>)
+    scores = torch.<input class="code-blank" data-id="b1" placeholder="?">(Q, K.<input class="code-blank" data-id="b2" placeholder="?">(<span class="num">-2</span>, <span class="num">-1</span>))
+    scores = scores / <input class="code-blank" data-id="b3" placeholder="?">(d_k)
+    <span class="kw">if</span> mask <span class="kw">is not</span> <span class="kw">None</span>:
+        scores = scores.<input class="code-blank" data-id="b4" placeholder="?">(mask == <span class="num">0</span>, <span class="num">-1e9</span>)
+    weights = F.<input class="code-blank" data-id="b5" placeholder="?">(scores, dim=<span class="num">-1</span>)
+    out = torch.<input class="code-blank" data-id="b6" placeholder="?">(weights, V)
+    <span class="kw">return</span> out, weights
+</pre>
+    <div class="practice-fb" id="cFb">&nbsp;</div>
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn" id="cCheck">Check ↵</button> <button class="btn alt" id="cReveal">Reveal answers</button></div>
+  `;
+  const inputs = host.querySelectorAll('.code-blank');
+  const fb = document.getElementById('cFb');
+  const tabOrder = Array.from(inputs);
+  tabOrder.forEach((inp,idx)=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cCheck').click(); }
+    });
+  });
+  document.getElementById('cCheck').addEventListener('click', ()=>{
+    let allRight = true, anyWrong = false, gained = 0;
+    inputs.forEach(inp=>{
+      const id = inp.dataset.id;
+      const target = CODE_BLANKS.find(b=>b.id===id);
+      const v = inp.value.trim().toLowerCase();
+      if(inp.classList.contains('right')) return; // already
+      if(target.accept.map(x=>x.toLowerCase()).includes(v)){
+        inp.classList.add('right'); inp.disabled = true;
+        gained += correct(15);
+      } else if(v) {
+        inp.classList.add('wrong'); allRight = false; anyWrong = true;
+        setTimeout(()=>inp.classList.remove('wrong'), 350);
+      } else {
+        allRight = false;
+      }
+    });
+    if(anyWrong) wrong();
+    if(allRight && Array.from(inputs).every(i=>i.classList.contains('right'))){
+      fb.textContent = `all blanks correct · +${gained} XP total`; fb.className='practice-fb ok';
+      unlock('coder');
+    } else {
+      fb.textContent = gained ? `+${gained} XP — keep going on the rest` : 'check the hints below the code';
+      fb.className = gained ? 'practice-fb ok':'practice-fb no';
+    }
+  });
+  document.getElementById('cReveal').addEventListener('click', ()=>{
+    inputs.forEach(inp=>{
+      const t = CODE_BLANKS.find(b=>b.id===inp.dataset.id);
+      inp.value = t.accept[0]; inp.disabled = true;
+      inp.classList.add('wrong'); inp.style.opacity='.6';
+    });
+    fb.textContent = 'revealed (no XP awarded)'; fb.className='practice-fb no';
+  });
+}
+
+/* ===========================
+   BOSS FIGHT
+   =========================== */
+const BOSS_BANK = [
+  {q:'The matrix used to compute relevance — type the word.', a:'query', alt:['q']},
+  {q:'The function that turns scores into probabilities.', a:'softmax'},
+  {q:'Add ___ + Norm', a:'residual', alt:['x','skip']},
+  {q:'Sublayer wrapping in original transformer: x ← LN(x + Sublayer(x)). Type LN abbreviation.', a:'layernorm', alt:['layer norm','layer normalization']},
+  {q:'Attention scaling factor (text): sqrt(___)', a:'d_k', alt:['dk']},
+  {q:'How many heads does the original transformer use?', a:'8', alt:['eight']},
+  {q:'Causal masking sets future scores to ___ before softmax.', a:'-inf', alt:['-infinity','minus infinity','-∞','negative infinity']},
+  {q:'Concat(head₁,…,head_h) is multiplied by which matrix?', a:'w^o', alt:['wo','w_o']},
+  {q:'In FFN, hidden width is typically ___ × d_model.', a:'4'},
+  {q:'Family name for GPT-style architecture (one word).', a:'decoder', alt:['decoder-only','decoder only']},
+  {q:'Loss function for next-token prediction.', a:'cross-entropy', alt:['cross entropy','ce']},
+  {q:'Position encoding base in the original paper.', a:'10000', alt:['10,000']},
+];
+
+let bossState = null;
+function startBoss(){
+  bossState = { idx:0, correct:0, wrong:0, time:90, results:[], questions:shuffle([...BOSS_BANK]).slice(0,10) };
+  bossTick();
+  bossInterval = setInterval(()=>{
+    bossState.time -= 1;
+    if(bossState.time <= 0){ endBoss(false); return; }
+    renderBoss();
+  }, 1000);
+  renderBoss();
+}
+let bossInterval = null;
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function renderBoss(){
+  const host = document.getElementById('bossArena');
+  if(!bossState) return;
+  const q = bossState.questions[bossState.idx];
+  const tcls = bossState.time <= 15 ? 'boss-timer warn' : 'boss-timer';
+  host.innerHTML = `
+    <div class="hud-sub">${bossState.idx+1} / 10 · combo ×${comboMult()}</div>
+    <div class="${tcls}">${String(Math.max(0,bossState.time)).padStart(2,'0')}<span style="font-size:18px;color:var(--ink-dim)">s</span></div>
+    <div class="boss-prog" id="bossProg"></div>
+    <div class="boss-q">${q.q}</div>
+    <input class="practice-input" id="bossInput" placeholder="answer ↵" autocomplete="off">
+    <div class="practice-fb" id="bossFb">&nbsp;</div>
+  `;
+  // progress dots
+  const prog = document.getElementById('bossProg');
+  prog.innerHTML = '';
+  for(let i=0;i<10;i++){
+    const d = document.createElement('div');
+    if(i < bossState.idx){ d.className = bossState.results[i] ? 'ok':'no'; }
+    else if(i === bossState.idx){ d.className = 'cur'; }
+    prog.appendChild(d);
+  }
+  const input = document.getElementById('bossInput');
+  setTimeout(()=>input.focus(), 30);
+  input.addEventListener('keydown', e=>{
+    if(e.key !== 'Enter') return;
+    const v = input.value.trim().toLowerCase();
+    if(!v) return;
+    const ok = v === q.a.toLowerCase() || (q.alt||[]).some(x=>x.toLowerCase()===v);
+    bossState.results.push(ok);
+    if(ok){
+      bossState.correct += 1;
+      correct(30);
+      document.getElementById('bossFb').textContent = '+30 XP';
+      document.getElementById('bossFb').className = 'practice-fb ok';
+    } else {
+      bossState.wrong += 1; wrong();
+      document.getElementById('bossFb').textContent = `wrong — answer was "${q.a}"`;
+      document.getElementById('bossFb').className = 'practice-fb no';
+    }
+    bossState.idx += 1;
+    if(bossState.idx >= 10){ setTimeout(()=>endBoss(true), 600); }
+    else { setTimeout(renderBoss, 350); }
+  });
+}
+function bossTick(){}
+function endBoss(finished){
+  clearInterval(bossInterval);
+  const host = document.getElementById('bossArena');
+  const score = bossState.correct;
+  const won = score >= 7;
+  if(won) unlock('boss');
+  host.innerHTML = `
+    <div class="hud-sub">${finished?'finished':'time over'}</div>
+    <div class="boss-final">${score} / 10</div>
+    <div class="hud-sub">${won?'★ victory · boss slayer unlocked':'try again — 7+ to win'}</div>
+    <div style="margin-top:24px"><button class="btn danger" onclick="startBoss()">Run it back ▸</button></div>
+  `;
+  bossState = null;
+}
+document.getElementById('bossStart').addEventListener('click', startBoss);
+
+/* ===========================
+   BOOT
+   =========================== */
+load();
+renderHUD();
+buildVocab();
+buildFormula();
+buildCode();
+drawPos();
+
+// keyboard shortcuts: g+number to jump (optional nicety)
+let gkey = false;
+addEventListener('keydown', e=>{
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if(e.key === 'g'){ gkey = true; setTimeout(()=>gkey=false, 800); return; }
+  if(gkey){
+    const map = {'1':'why','2':'tok','3':'pos','4':'attn','5':'multi','6':'ffn','7':'encdec','8':'train','v':'vocab','f':'formula','c':'code','b':'boss'};
+    if(map[e.key]) go(map[e.key]);
+  }
+});
+</script>
+
+</body>
+</html>

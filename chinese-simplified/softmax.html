@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Softmax · 交互式训练</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root{
+    --bg:#0c0d12;
+    --panel:#13151d;
+    --panel2:#191c26;
+    --ink:#e8ecf3;
+    --ink-dim:#9aa3b2;
+    --line:#262a36;
+    --accent:#ff5d9e;     /* hot pink */
+    --accent2:#7c5cff;    /* violet */
+    --good:#3ddc97;
+    --bad:#ff6b6b;
+    --warn:#ffd166;
+    --bar1:#ff5d9e;
+    --bar2:#7c5cff;
+    --bar3:#3ddc97;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  code,kbd{font-family:var(--mono)}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 120px}
+  header.hero{position:relative;padding:48px 28px;border-radius:24px;background:
+    radial-gradient(900px 400px at 90% -10%,rgba(255,93,158,.18),transparent 60%),
+    radial-gradient(700px 300px at -10% 110%,rgba(124,92,255,.20),transparent 60%),
+    linear-gradient(135deg,#15171f,#0f1118);
+    border:1px solid var(--line);overflow:hidden}
+  header.hero h1{margin:0 0 6px;font-size:clamp(28px,4.4vw,46px);letter-spacing:-.02em;font-weight:800;background:linear-gradient(90deg,#fff 0%,#ffd6e7 60%,#bfb0ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header.hero p{margin:0;color:var(--ink-dim);max-width:64ch}
+  .sigma{position:absolute;right:18px;top:6px;font-size:160px;line-height:1;color:rgba(255,255,255,.04);font-family:Georgia,serif;pointer-events:none;user-select:none}
+
+  .hud{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 28px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--ink-dim)}
+  .chip b{color:var(--ink);font-weight:600}
+  .chip.lvl{background:linear-gradient(135deg,rgba(255,93,158,.15),rgba(124,92,255,.15));border-color:rgba(255,93,158,.4);color:#ffe1ee}
+  .chip.combo{background:linear-gradient(135deg,rgba(255,209,102,.12),rgba(255,93,158,.10));border-color:rgba(255,209,102,.35);color:#ffeec0}
+  .xpbar{flex:1;min-width:160px;height:10px;border-radius:999px;background:#1a1d27;border:1px solid var(--line);overflow:hidden;position:relative}
+  .xpbar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s ease}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);border-radius:10px;padding:8px 12px;font-size:12px;cursor:pointer}
+  button.ghost:hover{color:var(--ink);border-color:#3a3f4f}
+
+  nav.toc{position:sticky;top:8px;z-index:20;background:rgba(12,13,18,.78);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 22px;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{color:var(--ink-dim);text-decoration:none;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid transparent}
+  nav.toc a:hover{color:var(--ink);border-color:var(--line);background:var(--panel)}
+
+  section{margin:28px 0;padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
+  section h2{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+  section h2 .num{display:inline-block;min-width:34px;height:26px;padding:0 8px;line-height:26px;text-align:center;border-radius:8px;background:rgba(255,93,158,.12);color:var(--accent);font-size:12px;margin-right:10px;border:1px solid rgba(255,93,158,.3);font-weight:700}
+  section p{color:#cdd3df}
+  .lead{color:var(--ink-dim)}
+  .grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:22px}
+  @media (max-width:880px){.grid2{grid-template-columns:1fr}}
+  .card{background:#10131c;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h3{margin:0 0 8px;font-size:15px;color:#f3f5f9;letter-spacing:.01em}
+  .small{font-size:12.5px;color:var(--ink-dim)}
+
+  /* Centerpiece widget */
+  .widget{background:linear-gradient(180deg,#10131c,#0d1018);border:1px solid var(--line);border-radius:16px;padding:18px}
+  .sliderRow{display:grid;grid-template-columns:36px 1fr 70px;gap:12px;align-items:center;padding:8px 0}
+  .sliderRow label{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .sliderRow input[type=range]{width:100%;accent-color:var(--accent)}
+  .sliderRow .val{font-family:var(--mono);text-align:right;color:var(--ink)}
+  .barsBox{margin-top:14px;display:grid;grid-template-columns:1fr;gap:10px}
+  .barRow{display:grid;grid-template-columns:60px 1fr 90px;gap:10px;align-items:center}
+  .barRow .lbl{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .barTrack{height:22px;background:#191c26;border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+  .barFill{height:100%;width:0%;border-radius:7px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s cubic-bezier(.2,.7,.2,1.2)}
+  .barRow.b2 .barFill{background:linear-gradient(90deg,#7c5cff,#3ddc97)}
+  .barRow.b3 .barFill{background:linear-gradient(90deg,#3ddc97,#ffd166)}
+  .barRow .pv{font-family:var(--mono);text-align:right;color:#fff}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .btn{appearance:none;border:1px solid var(--line);background:#171a24;color:var(--ink);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;transition:transform .06s ease,border-color .15s,background .15s}
+  .btn:hover{border-color:#3b3f4f;background:#1c2030}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.good{border-color:rgba(61,220,151,.4);color:#bff5da}
+  .formulaBox{margin-top:12px;padding:14px;border:1px dashed var(--line);border-radius:12px;background:#0e111a;font-size:14px;overflow-x:auto}
+
+  /* Practice */
+  .drillCard{display:flex;flex-direction:column;gap:10px}
+  .prompt{font-size:15px;color:#eef1f7}
+  .prompt .ki{padding:2px 6px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:12.5px}
+  .answerRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  input.ti,textarea.ti{background:#0d1018;border:1px solid var(--line);color:var(--ink);padding:10px 12px;border-radius:10px;font-family:var(--mono);font-size:14px;outline:none;min-width:140px;transition:border-color .15s,box-shadow .15s}
+  input.ti:focus,textarea.ti:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,93,158,.18)}
+  textarea.ti{min-width:280px;min-height:54px;font-family:var(--sans)}
+  input.ti.tri{min-width:80px;text-align:right}
+  .feedback{font-size:13px;color:var(--ink-dim);min-height:18px}
+  .feedback.ok{color:var(--good)}
+  .feedback.no{color:var(--bad)}
+  .preview{padding:12px;border:1px dashed var(--line);border-radius:10px;background:#0d1018;min-height:44px;font-size:14px}
+  .qbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .qbar .qnum{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+  .qbar .qtag{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(124,92,255,.15);color:#cfc0ff;border:1px solid rgba(124,92,255,.35);text-transform:uppercase;letter-spacing:.08em}
+  .nav{display:flex;justify-content:space-between;gap:10px;margin-top:10px}
+  .progressDots{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#1a1d27;border:1px solid var(--line)}
+  .dot.done{background:var(--good);border-color:var(--good)}
+  .dot.cur{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,93,158,.25)}
+  .dot.miss{background:var(--bad);border-color:var(--bad)}
+
+  /* Boss */
+  .boss{padding:18px;border-radius:14px;border:1px solid rgba(255,93,158,.45);background:radial-gradient(800px 200px at 50% -50%,rgba(255,93,158,.18),transparent 60%),#10131c;text-align:center}
+  .boss .timer{font-family:var(--mono);font-size:42px;color:var(--accent);font-weight:800;letter-spacing:-.02em}
+  .boss .qbig{font-size:22px;margin:8px 0;color:#f6f8fc}
+  .boss input{font-size:18px;padding:12px;text-align:center;min-width:160px}
+
+  /* Achievements */
+  .achGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:8px}
+  .ach{padding:12px;border:1px solid var(--line);border-radius:12px;background:#10131c;display:flex;gap:10px;align-items:flex-start;opacity:.45;filter:grayscale(.6);transition:.25s}
+  .ach.unlocked{opacity:1;filter:none;border-color:rgba(255,209,102,.45);box-shadow:0 0 0 1px rgba(255,209,102,.25) inset}
+  .ach .em{font-size:22px;flex:none}
+  .ach .t{font-size:13.5px;font-weight:700}
+  .ach .d{font-size:12px;color:var(--ink-dim)}
+
+  /* Effects */
+  .shake{animation:shake .35s linear}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  .pulse{animation:pulse .45s ease}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 18px rgba(61,220,151,0)}}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+  /* Toast */
+  #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(20px);background:#1c2030;border:1px solid var(--line);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;z-index:60;max-width:80vw;text-align:center;font-size:14px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  details{margin-top:8px}
+  details>summary{cursor:pointer;color:var(--ink-dim)}
+  details>summary:hover{color:var(--ink)}
+  hr.sep{border:none;border-top:1px dashed var(--line);margin:14px 0}
+
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
+  .kbd{font-family:var(--mono);font-size:11.5px;padding:1px 6px;border-radius:5px;background:#1a1d27;border:1px solid var(--line);color:#dfe5ef}
+
+  footer{color:var(--ink-dim);text-align:center;padding:30px 0 0;font-size:12.5px}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+<div class="wrap">
+
+<header class="hero">
+  <div class="sigma">σ</div>
+  <h1>Softmax · Transformer 的概率机器</h1>
+  <p>拖动滑块、键入答案、不断升级。一段简短而上手的旅程，带你认识这个把 logits 变成注意力权重和类别概率的函数。</p>
+  <div class="hud">
+    <span class="chip lvl">等级 <b id="lvl">1</b></span>
+    <span class="chip">XP <b id="xp">0</b></span>
+    <div class="xpbar"><div id="xpfill"></div></div>
+    <span class="chip combo">连击 <b id="combo">0</b></span>
+    <span class="chip">正确率 <b id="acc">—</b></span>
+    <button class="ghost" id="resetBtn">重置进度</button>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1 · 是什么</a>
+  <a href="#s2">2 · 公式</a>
+  <a href="#s3">3 · 性质</a>
+  <a href="#s4">4 · 温度</a>
+  <a href="#s5">5 · 注意力</a>
+  <a href="#s6">6 · 交叉熵</a>
+  <a href="#s7">7 · 数值稳定</a>
+  <a href="#s8">8 · 替代方案</a>
+  <a href="#play">⌨ 练习</a>
+  <a href="#boss">★ 大Boss</a>
+  <a href="#ach">奖杯</a>
+</nav>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">1</span>什么是 softmax</h2>
+  <p class="lead">神经网络最后一层线性层输出的原始分数被称为 <b>logits</b> —— 任意实数，正负皆可。Softmax 把这个向量变成一个 <b>概率分布</b>：每一项都落在 $(0,1)$ 内，整个向量加起来等于 $1$。</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>从分数到概率</h3>
+      <p>若分类器对 $K$ 个类别输出 logits $\mathbf{z} = (z_1,\dots,z_K)$，softmax 给出</p>
+      $$\text{softmax}(\mathbf{z})_i \;=\; \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}.$$
+      <p>在 transformer 内部它做的是一样的事：把注意力头看到的 $K$ 个 token 的原始相似度分数转成归一化的 <b>注意力权重</b>。</p>
+    </div>
+    <div class="card">
+      <h3>为什么是 soft <i>max</i>？</h3>
+      <p>硬 $\arg\max$ 会扼杀梯度 —— 只有一个槽位胜出，败者分数的微小变化产生零学习信号。Softmax 是它的光滑、可微近似：最大的 logit 占主导，但每个 logit 仍能分到（一小份）概率质量和可用的梯度。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">2</span>公式的推导</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>构造过程</h3>
+      <p>我们想要一个函数：接收任意向量，输出非负数且和为 1。</p>
+      <ol>
+        <li>让分数变正：用一个严格正映射。自然指数 $e^{z}$ 是最干净的选择 —— 光滑、单调、$e^z>0$ 永远成立。</li>
+        <li>归一化：每项除以总和，使总和等于 1。</li>
+      </ol>
+      $$\text{softmax}(\mathbf{z})_i = \frac{\exp(z_i)}{\sum_j \exp(z_j)}.$$
+    </div>
+    <div class="card">
+      <h3>为什么用指数，而不是 $z_i^2$ 或 $|z_i|$？</h3>
+      <ul>
+        <li>对所有实数输入 <b>严格为正</b>（不会出现零分母，不必玩符号游戏）。</li>
+        <li><b>乘性间隔</b>：$e^{z_i}/e^{z_j} = e^{z_i - z_j}$ 只取决于差值。给每个 logit 加一个常数没有任何影响 —— 见 §3。</li>
+        <li><b>最大熵</b>：在固定平均能量 $\mathbb{E}[z]$ 的所有分布中，指数族熵最大。给定 logits，softmax 是最不武断的分布。</li>
+        <li><b>对数似然的共轭</b>：与交叉熵搭档时，梯度坍缩成一行 —— 见 §6。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3 + Centerpiece widget -->
+<section id="s3">
+  <h2><span class="num">3</span>性质 &amp; 实时小工具</h2>
+  <p class="lead">拖动三个 logits 与温度。看条形图与公式实时同步。</p>
+  <div class="grid2">
+    <div class="widget">
+      <div class="sliderRow"><label>$z_1$</label><input id="z1" type="range" min="-5" max="5" step="0.05" value="2.0"><span class="val" id="z1v">2.00</span></div>
+      <div class="sliderRow"><label>$z_2$</label><input id="z2" type="range" min="-5" max="5" step="0.05" value="1.0"><span class="val" id="z2v">1.00</span></div>
+      <div class="sliderRow"><label>$z_3$</label><input id="z3" type="range" min="-5" max="5" step="0.05" value="0.1"><span class="val" id="z3v">0.10</span></div>
+      <div class="sliderRow"><label>τ</label><input id="tau" type="range" min="0.05" max="5" step="0.01" value="1.0"><span class="val" id="tauv">1.00</span></div>
+      <div class="barsBox">
+        <div class="barRow b1"><div class="lbl">p₁</div><div class="barTrack"><div id="bar1" class="barFill"></div></div><div class="pv" id="p1">0.000</div></div>
+        <div class="barRow b2"><div class="lbl">p₂</div><div class="barTrack"><div id="bar2" class="barFill"></div></div><div class="pv" id="p2">0.000</div></div>
+        <div class="barRow b3"><div class="lbl">p₃</div><div class="barTrack"><div id="bar3" class="barFill"></div></div><div class="pv" id="p3">0.000</div></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="lseBtn">应用 log-sum-exp 技巧（减去最大值）</button>
+        <button class="btn ghost" id="resetWidget">重置</button>
+        <span class="small" id="sumLine">∑ p = 1.000</span>
+      </div>
+      <div class="formulaBox" id="formulaLive"></div>
+    </div>
+    <div class="card">
+      <h3>三个要内化的性质</h3>
+      <ul>
+        <li><b>和为 1。</b> 由构造保证：分子之和 = 分母。拖动任意滑块 —— 条形总是填满整行。</li>
+        <li><b>对每个输入单调。</b> 增大 $z_i$，$p_i$ 升高（其他下降），永不交叉。</li>
+        <li><b>平移不变。</b> $\text{softmax}(\mathbf{z}+c\mathbf{1}) = \text{softmax}(\mathbf{z})$。分子分母都额外乘 $e^c$ 后相消。这是数值稳定技巧的基础：取 $c = -\max_i z_i$，使最大指数为 $0$ —— 不溢出，不丢信息。</li>
+      </ul>
+      <p class="small">试试 <span class="kbd">应用 log-sum-exp 技巧</span> 按钮：它把所有 logits 平移 $-\max$。条形不变（平移不变性！），但显示出来的指数现在都 $\le 1$。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="num">4</span>温度</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>τ 缩放 logits</h3>
+      $$\text{softmax}_\tau(\mathbf{z})_i = \frac{e^{z_i/\tau}}{\sum_j e^{z_j/\tau}}.$$
+      <ul>
+        <li>$\tau \to \infty$：每个 $z_i/\tau \to 0$，分布变成 <b>均匀</b> $1/K$。最大化探索。</li>
+        <li>$\tau \to 0^{+}$：差距被放大，最大 logit 取胜，分布坍缩到 $\arg\max$ 的 one-hot。纯贪心。</li>
+        <li>$\tau = 1$：标准 softmax。</li>
+      </ul>
+      <p>在 LLM 采样里，温度正是这个旋钮：高 $\tau$ 输出多样、出人意料的 token；低 $\tau$ 输出确定、重复的 token。</p>
+    </div>
+    <div class="card">
+      <h3>动手试试</h3>
+      <p>把上方小工具中的 τ 在 $0.05$ 到 $5$ 之间滑动：</p>
+      <ul>
+        <li>τ 小 → 胜者的条形被推向 1.0</li>
+        <li>τ = 1 → 普通 softmax</li>
+        <li>τ 大 → 条形趋向 $1/3 \approx 0.333$</li>
+      </ul>
+      <p class="small">退火 —— 训练或采样过程中逐步降低 τ —— 是从统计物理学借来的经典操作；那里 $\tau$ 在玻尔兹曼分布中字面上 <i>就是</i> 温度。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="num">5</span>为什么注意力里要用 softmax</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>缩放点积注意力</h3>
+      $$\text{Attn}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V.$$
+      <p>对一个查询 token，$QK^\top$ 给出对每个 key 的相似度分数。Softmax 把这些分数转成 <b>注意力权重</b>：非负、和为 1，每个源 token 一份。</p>
+      <p>输出于是是 $\sum_j w_j v_j$ —— value 向量的 <b>加权平均</b>。由于 $\sum w_j = 1$，输出的幅度始终与单个 $v_j$ 可比，无论我们注意了多少 token。这正是 softmax（而不是 ReLU 归一化等）成为默认选择的原因。</p>
+    </div>
+    <div class="card">
+      <h3>为什么 softmax 之前要除以 $1/\sqrt{d_k}$？</h3>
+      <p>若 query 和 key 的分量是单位方差的，$QK^\top$ 的方差正比于 $d_k$。$d_k$ 大时 logits 会变得巨大，softmax 饱和，梯度消失。除以 $\sqrt{d_k}$ 让方差保持 $\approx 1$ —— softmax 留在它敏感、可学习的区域。这本质上是温度 $\tau = \sqrt{d_k}$。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="num">6</span>Softmax + 交叉熵：梯度</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>设定</h3>
+      <p>令 $p_i = \text{softmax}(z)_i$，目标 one-hot 为 $y$，交叉熵</p>
+      $$L = -\sum_i y_i \log p_i.$$
+      <p>我们要求 $\partial L/\partial z_i$。Softmax 的雅可比矩阵很乱：</p>
+      $$\frac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j).$$
+      <p>但与 $L$ 复合后，一切优雅地坍缩。</p>
+    </div>
+    <div class="card">
+      <h3>坍缩</h3>
+      <p>链式法则：</p>
+      $$\frac{\partial L}{\partial z_i} = \sum_k \frac{\partial L}{\partial p_k}\frac{\partial p_k}{\partial z_i} = \sum_k \left(-\frac{y_k}{p_k}\right)\, p_k(\delta_{ki}-p_i).$$
+      <p>化简：</p>
+      $$=\;-\sum_k y_k(\delta_{ki}-p_i) \;=\; -y_i + p_i\sum_k y_k \;=\; p_i - y_i.$$
+      <p>于是 $\nabla_{z}L = \mathbf{p} - \mathbf{y}$。梯度就是 <b>误差向量</b>：预测减目标。简洁、廉价、数值友好。<i>这</i> 就是 softmax + 交叉熵到处搭档的原因。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">7</span>数值稳定 —— log-sum-exp 技巧</h2>
+  <div class="card">
+    <p>计算 $e^{1000}$ 会让 64 位浮点数溢出；计算 $e^{-1000}$ 会下溢到 $0$，于是 $\log 0 = -\infty$。朴素 softmax 很脆弱。平移不变性救场。</p>
+    <p>令 $m = \max_i z_i$。则</p>
+    $$\text{softmax}(\mathbf{z})_i = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}}.$$
+    <p>现在最大指数是 $e^0 = 1$；其余都在 $(0,1]$ 内。无溢出，舍入误差最小。</p>
+    <p>对 $\log\,\text{softmax}$，<b>log-sum-exp</b> 恒等式是规范形式：</p>
+    $$\log\sum_j e^{z_j} = m + \log\sum_j e^{z_j - m}.$$
+    <p>每个框架的 <code>log_softmax</code>、<code>nll_loss</code> 和注意力内核里都用了它。</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2><span class="num">8</span>替代方案，简介</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Sparsemax</h3>
+      <p>把 logits 投影到概率单纯形上。输出真正 <b>稀疏</b> —— 允许出现精确的零。在希望注意力完全忽略大多数 token 时很有用（可解释性、结构化预测）。不那么光滑，需要排序，但几乎处处可微。</p>
+    </div>
+    <div class="card">
+      <h3>Gumbel-softmax</h3>
+      <p>先加 Gumbel 噪声，再用低温度做 softmax：从类别分布 <i>采样</i> 的连续可微松弛。让你能用反向传播训练离散隐变量（例如离散 VAE、硬注意力）。</p>
+    </div>
+  </div>
+  <details><summary class="small">其他亲戚（entmax-1.5、球面 softmax、softmax 混合……）</summary>
+    <p class="small">Entmax-α 在 softmax（α=1）和 sparsemax（α=2）之间插值。Softmax 混合解决了语言建模中的 &ldquo;softmax 瓶颈&rdquo; 问题。所有变体都用某种性质（稀疏性、表达力、计算）换取与原版 softmax 的差别。</p>
+  </details>
+</section>
+
+<!-- Practice -->
+<section id="play">
+  <h2><span class="num">⌨</span>练习模式</h2>
+  <p class="lead">键入作答。<span class="kbd">Enter</span> 提交，<span class="kbd">→</span> 下一题。连击带来额外 XP。</p>
+  <div id="dots" class="progressDots"></div>
+  <div id="drillHost"></div>
+</section>
+
+<!-- Boss -->
+<section id="boss">
+  <h2><span class="num">★</span>分布大Boss</h2>
+  <p class="lead">急速回合：8 道速答题，60 秒。三倍 XP。解锁最终成就。</p>
+  <div class="boss" id="bossBox">
+    <div class="timer" id="bossTimer">60</div>
+    <div class="qbig" id="bossQ">按下开始召唤大Boss。</div>
+    <input class="ti" id="bossA" placeholder="作答…" />
+    <div style="margin-top:10px"><button class="btn primary" id="bossStart">开始 Boss 战</button></div>
+    <div class="small" id="bossScore" style="margin-top:8px">得分：0 / 8</div>
+  </div>
+</section>
+
+<!-- Achievements -->
+<section id="ach">
+  <h2><span class="num">♛</span>奖杯</h2>
+  <div class="achGrid" id="achGrid"></div>
+</section>
+
+<footer>为学习而生 · σ · 键盘友好</footer>
+</div>
+
+<script>
+/* ============================================================
+   STATE + PERSISTENCE
+   ============================================================ */
+const LS_KEY = "softmax-trainer-v1";
+const defaultState = {
+  xp: 0, lvl: 1, combo: 0, bestCombo: 0,
+  correct: 0, attempts: 0,
+  done: {},     // drillId -> "ok" | "miss"
+  ach: {},      // achId -> true
+  bossDone: false
+};
+let S = loadState();
+function loadState(){
+  try{ const v = JSON.parse(localStorage.getItem(LS_KEY)); return Object.assign({},defaultState,v||{},{done:Object.assign({},(v&&v.done)||{}),ach:Object.assign({},(v&&v.ach)||{})}); }
+  catch(_){ return JSON.parse(JSON.stringify(defaultState)); }
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function xpForLevel(l){ return 50 + (l-1)*30; }
+function addXP(n){
+  S.xp += n;
+  while(S.xp >= xpForLevel(S.lvl)){ S.xp -= xpForLevel(S.lvl); S.lvl++; toast(`升级！→ 等级 ${S.lvl}`); }
+  refreshHUD(); saveState();
+}
+function refreshHUD(){
+  document.getElementById("lvl").textContent = S.lvl;
+  document.getElementById("xp").textContent  = S.xp;
+  document.getElementById("combo").textContent = S.combo;
+  const need = xpForLevel(S.lvl);
+  document.getElementById("xpfill").style.width = Math.min(100,(S.xp/need)*100)+"%";
+  const acc = S.attempts ? Math.round(100*S.correct/S.attempts) : null;
+  document.getElementById("acc").textContent = acc===null ? "—" : (acc+"%");
+}
+document.getElementById("resetBtn").onclick = ()=>{
+  if(!confirm("清空所有 XP、连击、练习进度和奖杯？")) return;
+  S = JSON.parse(JSON.stringify(defaultState));
+  saveState(); location.reload();
+};
+
+/* ============================================================
+   TOAST + EFFECTS
+   ============================================================ */
+const toastEl = document.getElementById("toast");
+let toastT;
+function toast(msg, ms=1800){
+  toastEl.textContent = msg; toastEl.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>toastEl.classList.remove("show"), ms);
+}
+
+const conf = document.getElementById("confetti");
+const cctx = conf.getContext("2d");
+function sizeConf(){ conf.width = innerWidth; conf.height = innerHeight; }
+sizeConf(); addEventListener("resize", sizeConf);
+let particles = [];
+function confetti(n=80){
+  const colors = ["#ff5d9e","#7c5cff","#3ddc97","#ffd166","#ffffff"];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*60,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*9,
+      vy: -Math.random()*9-3,
+      g: 0.28+Math.random()*0.15,
+      s: 4+Math.random()*5,
+      r: Math.random()*Math.PI,
+      vr: (Math.random()-.5)*0.3,
+      c: colors[(Math.random()*colors.length)|0],
+      life: 90+Math.random()*30
+    });
+  }
+}
+function tickConf(){
+  cctx.clearRect(0,0,conf.width,conf.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+    cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.r);
+    cctx.fillStyle = p.c; cctx.globalAlpha = Math.max(0,Math.min(1,p.life/40));
+    cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); cctx.restore();
+  }
+  requestAnimationFrame(tickConf);
+}
+tickConf();
+
+function shake(el){ el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+function pulse(el){ el.classList.remove("pulse"); void el.offsetWidth; el.classList.add("pulse"); }
+
+/* ============================================================
+   MATH HELPERS
+   ============================================================ */
+function softmax(z, tau=1){
+  const m = Math.max(...z);
+  const ex = z.map(v => Math.exp((v - m)/tau));
+  const s = ex.reduce((a,b)=>a+b,0);
+  return ex.map(v=>v/s);
+}
+function fmt(x, d=3){ return Number(x).toFixed(d); }
+function near(a,b,tol){ return Math.abs(a-b)<=tol; }
+function parseNum(s){ const x = parseFloat(String(s).trim()); return isNaN(x)?null:x; }
+function normSpaces(s){ return String(s).replace(/\s+/g,"").toLowerCase(); }
+/* 宽松比较类 LaTeX 的公式字符串 */
+function eqTex(user, target){
+  const norm = s => s
+    .replace(/\\,|\\;|\\!|\\:/g,"")
+    .replace(/\\left|\\right/g,"")
+    .replace(/\\mathrm\{[^}]*\}/g,"")
+    .replace(/\s+/g,"")
+    .replace(/\\cdot/g,"*")
+    .replace(/\\times/g,"*")
+    .toLowerCase();
+  return norm(user) === norm(target);
+}
+
+/* ============================================================
+   CENTERPIECE WIDGET
+   ============================================================ */
+const z1=document.getElementById("z1"),z2=document.getElementById("z2"),z3=document.getElementById("z3"),tau=document.getElementById("tau");
+const z1v=document.getElementById("z1v"),z2v=document.getElementById("z2v"),z3v=document.getElementById("z3v"),tauv=document.getElementById("tauv");
+const bar1=document.getElementById("bar1"),bar2=document.getElementById("bar2"),bar3=document.getElementById("bar3");
+const p1e=document.getElementById("p1"),p2e=document.getElementById("p2"),p3e=document.getElementById("p3");
+const sumLine=document.getElementById("sumLine");
+const formulaLive=document.getElementById("formulaLive");
+let appliedLSE = false;
+function renderWidget(){
+  const a = +z1.value, b = +z2.value, c = +z3.value, t = +tau.value;
+  z1v.textContent = fmt(a,2); z2v.textContent = fmt(b,2); z3v.textContent = fmt(c,2); tauv.textContent = fmt(t,2);
+  let zs=[a,b,c], shifted=zs;
+  if(appliedLSE){ const m=Math.max(...zs); shifted = zs.map(v=>v-m); }
+  const p = softmax(shifted, t);
+  bar1.style.width=(p[0]*100).toFixed(1)+"%";
+  bar2.style.width=(p[1]*100).toFixed(1)+"%";
+  bar3.style.width=(p[2]*100).toFixed(1)+"%";
+  p1e.textContent=fmt(p[0],4); p2e.textContent=fmt(p[1],4); p3e.textContent=fmt(p[2],4);
+  sumLine.textContent = `∑ p = ${fmt(p[0]+p[1]+p[2],4)}` + (appliedLSE? "  （LSE 平移已启用：先减最大值再 exp）":"");
+  const num = shifted.map(v => `e^{${fmt(v/t,2)}}`).join(",\\;");
+  const den = `e^{${fmt(shifted[0]/t,2)}} + e^{${fmt(shifted[1]/t,2)}} + e^{${fmt(shifted[2]/t,2)}}`;
+  const tex = `\\displaystyle p_i = \\frac{e^{z_i/\\tau}}{\\sum_j e^{z_j/\\tau}} \\;=\\; \\Big(\\,${num}\\,\\Big)\\Big/\\big(${den}\\big)`;
+  try{ katex.render(tex, formulaLive, {displayMode:true,throwOnError:false}); }
+  catch(_){ formulaLive.textContent = "p = (" + p.map(v=>fmt(v,3)).join(", ") + ")"; }
+}
+[z1,z2,z3,tau].forEach(el=>el.addEventListener("input", renderWidget));
+document.getElementById("lseBtn").onclick = ()=>{
+  appliedLSE = !appliedLSE;
+  toast(appliedLSE? "LSE 平移开 —— 条形不变，指数被限制在 1 以内。" : "LSE 平移关。");
+  if(appliedLSE){ unlock("stability"); }
+  renderWidget();
+};
+document.getElementById("resetWidget").onclick = ()=>{
+  z1.value=2.0; z2.value=1.0; z3.value=0.1; tau.value=1.0; appliedLSE=false; renderWidget();
+};
+/* tau 取极值 → 成就 */
+tau.addEventListener("input", ()=>{
+  const t=+tau.value;
+  if(t<=0.1) unlock("temptamerLow");
+  if(t>=4.5) unlock("temptamerHigh");
+  if(unlocked("temptamerLow") && unlocked("temptamerHigh")) unlock("temptamer");
+});
+/* 等待 KaTeX */
+const kxReady = setInterval(()=>{ if(window.katex){ clearInterval(kxReady); renderWidget(); } }, 60);
+
+/* ============================================================
+   PRACTICE DRILLS  (>=15)
+   ============================================================ */
+const drills = [
+  /* ---- compute drills ---- */
+  {
+    id:"c1", tag:"计算",
+    prompt: "softmax([0, 1, 2]) ≈ ?  （键入 3 个数字，每个 2 位小数）",
+    inputs: 3, kind:"triple",
+    target: softmax([0,1,2]),
+    explain: "用 LSE 平移：减去 max=2 → [-2,-1,0] → exp → [0.135, 0.368, 1] → 除以总和(1.503)。"
+  },
+  {
+    id:"c2", tag:"计算",
+    prompt: "softmax([2, 2, 2]) = ?",
+    inputs: 3, kind:"triple",
+    target: [1/3,1/3,1/3],
+    explain: "所有 logits 相等 → 均匀。每项 = 1/K = 1/3 ≈ 0.333。"
+  },
+  {
+    id:"c3", tag:"计算",
+    prompt: "softmax([3, 0]) ≈ ? （两个值）",
+    inputs: 2, kind:"triple",
+    target: softmax([3,0]),
+    explain: "exp([3,0]) = [20.09, 1] → /21.09 ≈ [0.953, 0.047]。"
+  },
+  {
+    id:"c4", tag:"计算",
+    prompt: "当 τ=2 时，softmax([2, 0]) ≈ ?",
+    inputs: 2, kind:"triple",
+    target: softmax([2,0],2),
+    explain: "Logits/τ = [1, 0]。exp = [2.718, 1] → [0.731, 0.269]。τ 越大越平。"
+  },
+  {
+    id:"c5", tag:"计算",
+    prompt: "softmax([100, 99]) ≈ ? （是的，大数字 —— 用技巧）",
+    inputs: 2, kind:"triple",
+    target: softmax([100,99]),
+    explain: "减去 max=100 → [0,-1]。exp = [1, 0.368]。/1.368 → [0.731, 0.269]。和 softmax([1,0]) 答案相同 —— 平移不变性！"
+  },
+
+  /* ---- formula typing ---- */
+  {
+    id:"f1", tag:"公式",
+    prompt: "用 LaTeX 输入 softmax 公式（分子在分母之上）。请使用 e^{x_i} 与 \\sum_j e^{x_j}。",
+    kind:"latex", target:"e^{x_i}/\\sum_je^{x_j}",
+    altTargets:["e^{x_i}/\\sum_{j}e^{x_j}", "\\frac{e^{x_i}}{\\sum_je^{x_j}}", "\\frac{e^{x_i}}{\\sum_{j}e^{x_j}}"],
+    explain: "softmax(x)_i = e^{x_i} / Σ_j e^{x_j}。"
+  },
+  {
+    id:"f2", tag:"公式",
+    prompt: "用 LaTeX 输入 log-softmax（使用 \\log\\sum_j e^{x_j}）。",
+    kind:"latex", target:"x_i-\\log\\sum_je^{x_j}",
+    altTargets:["x_i-\\log\\sum_{j}e^{x_j}","x_{i}-\\log\\sum_je^{x_j}","x_{i}-\\log\\sum_{j}e^{x_{j}}"],
+    explain: "log softmax(x)_i = x_i - log Σ_j e^{x_j}。LSE 项就是归一化因子。"
+  },
+  {
+    id:"f3", tag:"公式",
+    prompt: "用 LaTeX 写带温度 τ 的 softmax（分子）。",
+    kind:"latex", target:"e^{x_i/\\tau}/\\sum_je^{x_j/\\tau}",
+    altTargets:["\\frac{e^{x_i/\\tau}}{\\sum_je^{x_j/\\tau}}","e^{x_i/\\tau}/\\sum_{j}e^{x_j/\\tau}","\\frac{e^{x_{i}/\\tau}}{\\sum_{j}e^{x_{j}/\\tau}}"],
+    explain: "在取指数前把每个 logit 除以 τ。"
+  },
+
+  /* ---- property drills ---- */
+  {
+    id:"p1", tag:"性质",
+    prompt: "对错：softmax(x) == softmax(x + c) 对任意标量 c 成立。（输入 True 或 False，再附一行简短理由。）",
+    kind:"tfReason", target:"true",
+    explain: "对。分子和分母都获得因子 e^c 后相消 —— 平移不变性。"
+  },
+  {
+    id:"p2", tag:"性质",
+    prompt: "对错：softmax(x) == softmax(c·x) 对任意正标量 c 成立。",
+    kind:"tf", target:"false",
+    explain: "错。乘性缩放等价于温度的倒数。只有 c=1 才是恒等。c→∞ 变尖，c→0 变平。"
+  },
+  {
+    id:"p3", tag:"性质",
+    prompt: "对错：softmax 的每个输出都严格落在 (0, 1) 内。",
+    kind:"tf", target:"true",
+    explain: "对。exp 严格为正，分母也是正的，所以每个比值都在 (0,1) 内 —— 永远不会精确等于 0 或 1。"
+  },
+  {
+    id:"p4", tag:"性质",
+    prompt: "对错：softmax 的输出加起来等于 1。",
+    kind:"tf", target:"true",
+    explain: "对，由构造保证 —— 分母等于所有分子之和。"
+  },
+
+  /* ---- trick drills ---- */
+  {
+    id:"t1", tag:"稳定性",
+    prompt: "为了数值稳定，应该从每个 logit 中减去什么常数？（写成 x 的函数。）",
+    kind:"text", target:"max(x)",
+    altTargets:["max x","\\max(x)","max_i x_i","max_i(x_i)","max(x_i)"],
+    explain: "减 max(x)。最大指数变为 e^0=1，不会溢出。"
+  },
+  {
+    id:"t2", tag:"稳定性",
+    prompt: "恒等式 log Σ e^{x_j} = m + log Σ e^{x_j - m} 的名称。",
+    kind:"text", target:"log-sum-exp",
+    altTargets:["logsumexp","log sum exp","lse","log-sum-exp trick","log-sum-exp 技巧"],
+    explain: "Log-sum-exp（LSE）。平移后的形式才数值稳定。"
+  },
+
+  /* ---- gradient drills ---- */
+  {
+    id:"g1", tag:"梯度",
+    prompt: "对 softmax + 交叉熵损失，∂L/∂z_i = ?  （用 p_i 与 y_i 表达）",
+    kind:"text", target:"p_i - y_i",
+    altTargets:["p_i-y_i","pi-yi","p-y","p_{i}-y_{i}"],
+    explain: "预测减目标。向量形式：∇L = p − y。"
+  },
+  {
+    id:"g2", tag:"梯度",
+    prompt: "Softmax 雅可比：∂p_i/∂z_j = ? （使用 δ_{ij}）",
+    kind:"text", target:"p_i(\\delta_{ij}-p_j)",
+    altTargets:["p_i(delta_{ij}-p_j)","p_i*(delta_{ij}-p_j)","p_i(\\delta_{ij}-p_j)","p_i (\\delta_{ij}-p_j)"],
+    explain: "p_i (δ_{ij} − p_j)。对角项 p_i(1−p_i)；非对角 −p_i p_j。"
+  },
+
+  /* ---- attention drill ---- */
+  {
+    id:"a1", tag:"注意力",
+    prompt: "在缩放点积注意力中，softmax 之前要除以 √d_k 的是什么？（一个简短表达式）",
+    kind:"text", target:"QK^T",
+    altTargets:["q k^t","qk^t","q*k^t","q k^\\top","qk^\\top","query·key^t"],
+    explain: "QK^T —— 原始的 query–key 相似度。除以 √d_k 让 softmax 留在敏感区域。"
+  },
+  /* ---- temperature drill ---- */
+  {
+    id:"tm1", tag:"温度",
+    prompt: "当 τ → ∞ 时，softmax 趋于什么分布？（一个词）",
+    kind:"text", target:"uniform",
+    altTargets:["uniform distribution","1/k","flat","均匀","均匀分布"],
+    explain: "均匀分布：每个 z_i/τ → 0，所有分子相等。"
+  }
+];
+
+/* render the drill host */
+const host = document.getElementById("drillHost");
+const dotsBox = document.getElementById("dots");
+
+function renderDots(){
+  dotsBox.innerHTML="";
+  drills.forEach((d,i)=>{
+    const el = document.createElement("div");
+    el.className="dot";
+    if(S.done[d.id]==="ok") el.classList.add("done");
+    else if(S.done[d.id]==="miss") el.classList.add("miss");
+    if(i===curIdx) el.classList.add("cur");
+    el.title = d.tag+" — "+ (S.done[d.id]||"未尝试");
+    el.onclick = ()=>{ curIdx=i; renderDrill(); renderDots(); };
+    dotsBox.appendChild(el);
+  });
+}
+
+let curIdx = 0;
+function renderDrill(){
+  const d = drills[curIdx];
+  host.innerHTML="";
+  const card = document.createElement("div");
+  card.className = "card drillCard";
+  card.id = "drillCard";
+
+  const qbar = document.createElement("div");
+  qbar.className = "qbar";
+  qbar.innerHTML = `<span class="qnum">第 ${curIdx+1} 题 / 共 ${drills.length}</span><span class="qtag">${d.tag}</span>`;
+  card.appendChild(qbar);
+
+  const prompt = document.createElement("div");
+  prompt.className = "prompt"; prompt.innerHTML = d.prompt;
+  card.appendChild(prompt);
+
+  const row = document.createElement("div");
+  row.className = "answerRow";
+  card.appendChild(row);
+
+  let inputs=[]; let preview=null; let reason=null;
+
+  if(d.kind==="triple"){
+    const n = d.inputs;
+    for(let i=0;i<n;i++){
+      const ip = document.createElement("input");
+      ip.className="ti tri"; ip.placeholder = `p${i+1}`; ip.inputMode="decimal";
+      row.appendChild(ip); inputs.push(ip);
+    }
+  } else if(d.kind==="latex"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.style.minWidth="320px";
+    ip.placeholder="e^{x_i}/\\sum_j e^{x_j}";
+    row.appendChild(ip); inputs.push(ip);
+    preview = document.createElement("div");
+    preview.className="preview"; preview.textContent="（实时预览将出现在此处）";
+    card.appendChild(preview);
+    ip.addEventListener("input",()=>{
+      try{ katex.render(ip.value||"\\;", preview, {displayMode:true,throwOnError:false}); }
+      catch(_){ preview.textContent = ip.value; }
+    });
+  } else if(d.kind==="tf"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.placeholder="True / False";
+    row.appendChild(ip); inputs.push(ip);
+  } else if(d.kind==="tfReason"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.placeholder="True / False";
+    row.appendChild(ip); inputs.push(ip);
+    reason = document.createElement("textarea");
+    reason.className="ti"; reason.placeholder="（可选）一行理由 —— 至少 4 个字符可获连击奖励";
+    card.appendChild(reason);
+  } else { /* text */
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.style.minWidth="280px";
+    ip.placeholder="作答";
+    row.appendChild(ip); inputs.push(ip);
+  }
+
+  const fb = document.createElement("div"); fb.className="feedback"; card.appendChild(fb);
+  const nav = document.createElement("div"); nav.className="nav";
+  const submit = document.createElement("button"); submit.className="btn primary"; submit.textContent="检查";
+  const next   = document.createElement("button"); next.className="btn"; next.textContent="下一题 →";
+  const prev   = document.createElement("button"); prev.className="btn ghost"; prev.textContent="← 上一题";
+  const reveal = document.createElement("button"); reveal.className="btn ghost"; reveal.textContent="揭示答案";
+  const left = document.createElement("div"); left.append(prev);
+  const right = document.createElement("div"); right.append(reveal,submit,next);
+  nav.append(left,right); card.appendChild(nav);
+
+  prev.onclick = ()=>{ curIdx=(curIdx-1+drills.length)%drills.length; renderDrill(); renderDots(); };
+  next.onclick = ()=>{ curIdx=(curIdx+1)%drills.length; renderDrill(); renderDots(); };
+  reveal.onclick = ()=>{ fb.className="feedback"; fb.innerHTML = "<i>"+d.explain+"</i>"; };
+
+  function check(){
+    let ok=false;
+    if(d.kind==="triple"){
+      const vals = inputs.map(x=>parseNum(x.value));
+      if(vals.some(v=>v===null)){ fb.className="feedback no"; fb.textContent="请在每个框中输入一个数字。"; return; }
+      ok = vals.length===d.target.length && vals.every((v,i)=>near(v,d.target[i],0.01));
+    } else if(d.kind==="latex"){
+      const u = inputs[0].value;
+      ok = eqTex(u,d.target) || (d.altTargets||[]).some(t=>eqTex(u,t));
+    } else if(d.kind==="tf"){
+      const u = normSpaces(inputs[0].value);
+      ok = (u===d.target) || (u==="t"&&d.target==="true") || (u==="f"&&d.target==="false") || (u==="yes"&&d.target==="true") || (u==="no"&&d.target==="false") || (u==="对"&&d.target==="true") || (u==="错"&&d.target==="false");
+    } else if(d.kind==="tfReason"){
+      const u = normSpaces(inputs[0].value);
+      const baseOK = (u===d.target)||(u==="t"&&d.target==="true")||(u==="f"&&d.target==="false")||(u==="对"&&d.target==="true")||(u==="错"&&d.target==="false");
+      ok = baseOK;
+      if(ok && reason && reason.value.trim().length>=4){ /* 小奖励 */ S.combo++; addXP(3); toast("理由奖励 +3 XP"); }
+    } else { /* text */
+      const u = normSpaces(inputs[0].value);
+      const t = normSpaces(d.target);
+      ok = (u===t) || (d.altTargets||[]).some(a=>normSpaces(a)===u);
+    }
+    S.attempts++;
+    if(ok){
+      S.correct++; S.combo++; S.bestCombo = Math.max(S.bestCombo,S.combo);
+      const base = (d.tag==="计算"||d.tag==="梯度") ? 14 : 10;
+      const bonus = Math.min(20, Math.floor(S.combo/3)*3);
+      addXP(base+bonus);
+      S.done[d.id]="ok";
+      fb.className="feedback ok"; fb.textContent = `正确  +${base+bonus} XP  · 连击 ×${S.combo}`;
+      pulse(card); confetti(60);
+      checkProgressAchievements();
+    } else {
+      S.combo=0;
+      S.done[d.id]="miss";
+      fb.className="feedback no"; fb.textContent="不太对。点击「揭示答案」看详解。";
+      shake(card);
+    }
+    saveState(); refreshHUD(); renderDots();
+  }
+
+  submit.onclick = check;
+  inputs.forEach(ip=>{
+    ip.addEventListener("keydown",ev=>{
+      if(ev.key==="Enter"){ ev.preventDefault(); check(); }
+      else if(ev.key==="ArrowRight" && (ev.metaKey||ev.ctrlKey)){ next.click(); }
+    });
+  });
+  if(reason){
+    reason.addEventListener("keydown",ev=>{ if(ev.key==="Enter" && (ev.metaKey||ev.ctrlKey)){ check(); } });
+  }
+  host.appendChild(card);
+  setTimeout(()=>inputs[0]&&inputs[0].focus(), 30);
+}
+renderDrill(); renderDots();
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+const ACHIEVEMENTS = [
+  {id:"first",       em:"♟", t:"第一步",            d:"答对你的第一道练习题。"},
+  {id:"probabilist", em:"π", t:"概率论者",          d:"完成所有计算题（c1–c5）。"},
+  {id:"latexlord",   em:"∑", t:"LaTeX 之王",        d:"正确写出全部三个 softmax 公式。"},
+  {id:"propguru",    em:"⊨", t:"性质大师",          d:"答对所有对错题。"},
+  {id:"stability",   em:"⚖", t:"稳定英雄",          d:"在小工具中应用 log-sum-exp 技巧。"},
+  {id:"temptamerLow",em:"❄", t:"冰封",              d:"把 τ 推到最小。"},
+  {id:"temptamerHigh",em:"🔥",t:"沸腾",              d:"把 τ 推到最大。"},
+  {id:"temptamer",   em:"🌡", t:"温度驯兽师",        d:"两个 τ 极值都体验过。"},
+  {id:"combo10",     em:"⚡", t:"连击 ×10",          d:"达成连击 10 次。"},
+  {id:"perfectish",  em:"♛", t:"近乎皇室",          d:"答对 12 道练习题。"},
+  {id:"bossSlayer",  em:"☄", t:"分布大Boss",        d:"在 Boss 战中存活下来。"},
+];
+function unlocked(id){ return !!S.ach[id]; }
+function unlock(id){
+  if(S.ach[id]) return;
+  S.ach[id] = true; saveState();
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  if(a){ toast(`奖杯：${a.em} ${a.t}`); confetti(40); }
+  renderAchievements();
+}
+function renderAchievements(){
+  const g = document.getElementById("achGrid"); g.innerHTML="";
+  for(const a of ACHIEVEMENTS){
+    const el = document.createElement("div");
+    el.className = "ach" + (unlocked(a.id)?" unlocked":"");
+    el.innerHTML = `<div class="em">${a.em}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div>`;
+    g.appendChild(el);
+  }
+}
+renderAchievements();
+
+function checkProgressAchievements(){
+  if(S.correct>=1) unlock("first");
+  if(["c1","c2","c3","c4","c5"].every(k=>S.done[k]==="ok")) unlock("probabilist");
+  if(["f1","f2","f3"].every(k=>S.done[k]==="ok")) unlock("latexlord");
+  if(["p1","p2","p3","p4"].every(k=>S.done[k]==="ok")) unlock("propguru");
+  if(S.combo>=10) unlock("combo10");
+  const okCount = Object.values(S.done).filter(v=>v==="ok").length;
+  if(okCount>=12) unlock("perfectish");
+}
+
+/* ============================================================
+   BOSS ROUND
+   ============================================================ */
+const bossBank = [
+  {q:"softmax([0,0,0])_1 = ?  （小数）", ans:"0.333", tol:0.01},
+  {q:"当 τ→0⁺ 时，softmax 变成 ___（一个词）", ans:"argmax", alts:["one-hot","onehot","arg max"]},
+  {q:"当 τ→∞ 时，softmax 变成 ___（一个词）", ans:"uniform", alts:["flat","1/k","均匀","均匀分布"]},
+  {q:"为了稳定，要减去 ___。", ans:"max", alts:["max(x)","maximum","\\max","最大值"]},
+  {q:"softmax+CE 的 ∂L/∂z_i = ?", ans:"p_i-y_i", alts:["pi-yi","p-y","p_{i}-y_{i}"]},
+  {q:"softmax([1,2])_2 ≈ ? （2 位小数）", ans:"0.73", tol:0.02},
+  {q:"加起来等于 ___？", ans:"1", alts:["one","一"]},
+  {q:"softmax 各分量的取值范围？", ans:"(0,1)", alts:["0,1","(0, 1)","strictly between 0 and 1","strictly 0 to 1","严格在 0 与 1 之间"]},
+];
+const bossTimerEl = document.getElementById("bossTimer");
+const bossQEl = document.getElementById("bossQ");
+const bossAEl = document.getElementById("bossA");
+const bossScoreEl = document.getElementById("bossScore");
+const bossStartBtn = document.getElementById("bossStart");
+let bossIdx=0, bossScore=0, bossTimer=null, bossActive=false;
+
+function bossNext(){
+  if(bossIdx>=bossBank.length){ bossEnd(); return; }
+  bossQEl.textContent = bossBank[bossIdx].q;
+  bossAEl.value=""; bossAEl.focus();
+}
+function bossSubmit(){
+  if(!bossActive) return;
+  const cur = bossBank[bossIdx];
+  const u = bossAEl.value.trim();
+  let ok=false;
+  if(cur.tol!=null){ const v=parseNum(u); ok = v!==null && near(v,parseFloat(cur.ans),cur.tol); }
+  else { const n=normSpaces(u); ok = n===normSpaces(cur.ans) || (cur.alts||[]).some(a=>normSpaces(a)===n); }
+  if(ok){ bossScore++; addXP(15); confetti(30); pulse(document.getElementById("bossBox")); }
+  else { S.combo=0; saveState(); refreshHUD(); shake(document.getElementById("bossBox")); }
+  bossIdx++;
+  bossScoreEl.textContent = `得分：${bossScore} / ${bossBank.length}`;
+  bossNext();
+}
+bossAEl.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); bossSubmit(); } });
+
+function bossEnd(){
+  bossActive=false; clearInterval(bossTimer);
+  bossQEl.textContent = `Boss 倒下。${bossScore}/${bossBank.length} 答对。`;
+  if(bossScore>=Math.ceil(bossBank.length*0.6)) unlock("bossSlayer");
+  S.bossDone=true; saveState();
+}
+bossStartBtn.onclick = ()=>{
+  bossIdx=0; bossScore=0; bossActive=true;
+  bossScoreEl.textContent = `得分：0 / ${bossBank.length}`;
+  let t=60; bossTimerEl.textContent=t;
+  clearInterval(bossTimer);
+  bossTimer = setInterval(()=>{
+    t--; bossTimerEl.textContent=t;
+    if(t<=0){ bossEnd(); }
+  },1000);
+  bossNext();
+};
+
+/* ============================================================
+   INIT
+   ============================================================ */
+refreshHUD();
+</script>
+</body>
+</html>

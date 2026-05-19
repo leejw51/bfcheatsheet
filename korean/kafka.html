@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka 치트시트 — 인터랙티브</title>
+<style>
+  :root {
+    --bg: #0b1418;
+    --panel: #0f1c22;
+    --panel-2: #14262e;
+    --border: #1f3640;
+    --text: #e6f1f5;
+    --muted: #7d97a1;
+    --accent: #14e0c4;       /* Kafka teal */
+    --accent-2: #0bb4ff;     /* cyan */
+    --accent-3: #ff6b6b;     /* alarm red */
+    --code-bg: #07101417;
+    --code-bg-2: #061015;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6e8492;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --ok: #4ade80;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 0% -10%, rgba(20, 224, 196, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 10%, rgba(11, 180, 255, 0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #0f1c22 0%, #0b1418 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; letter-spacing: 0.3px; }
+  .logo .mark {
+    width: 26px; height: 26px; display: inline-block;
+    background: radial-gradient(circle at 30% 30%, var(--accent) 0%, #0a8b7d 60%, #053b34 100%);
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(20, 224, 196, 0.45);
+    position: relative;
+  }
+  .logo .mark::after {
+    content: ""; position: absolute; inset: 5px;
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 50%;
+    border-right-color: transparent;
+    animation: spin 4s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #052622;
+    padding: 4px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-tap-highlight-color: rgba(20,224,196,0.3);
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(20,224,196,0.10);
+    border-color: rgba(20,224,196,0.45);
+    box-shadow: 0 0 0 3px rgba(20,224,196,0.06);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.22s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  h1 { font-size: 26px; margin: 0 0 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 10px;
+  }
+  h2::before { content: ""; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 24px -8px rgba(20, 224, 196, 0.45);
+    transform: translateY(-1px);
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag { color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; font-weight: 500; }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg-2);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--ok); border-color: var(--ok); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .playground {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .playground h3 { margin: 0 0 6px; font-size: 15px; color: var(--accent-2); }
+  .playground .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 12px; }
+  .pg-row {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 12px;
+  }
+  .pg-row label { font-size: 13px; color: var(--muted); min-width: 110px; }
+  .pg-row select, .pg-row input[type="number"], .pg-row input[type="text"] {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .pg-row input[type="range"] { accent-color: var(--accent); }
+  button.btn {
+    background: linear-gradient(135deg, var(--accent), #0a8b7d);
+    color: #042622; border: none; border-radius: 6px;
+    padding: 7px 14px; font-weight: 700; font-size: 12.5px;
+    cursor: pointer; font-family: inherit;
+    transition: transform 0.1s, box-shadow 0.15s;
+  }
+  button.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px -4px rgba(20,224,196,0.7); }
+  button.btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  button.btn.danger { background: linear-gradient(135deg, var(--accent-3), #b13838); color: #fff; }
+
+  /* Partition visualizer */
+  .pviz {
+    display: grid; grid-template-columns: 130px 1fr; gap: 10px;
+    align-items: center;
+  }
+  .pviz .row {
+    display: contents;
+  }
+  .pviz .clabel {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; color: var(--text);
+    padding: 6px 10px; background: var(--panel-2);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .pviz .parts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pviz .part {
+    padding: 6px 10px; border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px; font-weight: 700;
+    background: var(--panel-2); color: var(--muted);
+    border: 1px solid var(--border);
+    transition: all 0.18s;
+  }
+  .pviz .part.assigned {
+    color: #052622;
+    border-color: transparent;
+    box-shadow: 0 0 12px -2px currentColor;
+  }
+  .pviz .pempty { color: var(--muted); font-size: 12px; padding: 4px 8px; }
+
+  /* Lag simulator */
+  .lagsim {
+    background: var(--code-bg-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; margin-top: 10px;
+  }
+  .lagsim .stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin-bottom: 12px;
+  }
+  .lagsim .stat { background: var(--panel-2); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+  .lagsim .stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .lagsim .stat .val {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 18px; font-weight: 700; color: var(--accent); margin-top: 4px;
+  }
+  .lagsim .bar {
+    height: 18px; background: var(--panel-2); border-radius: 4px;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    margin-top: 4px;
+  }
+  .lagsim .bar > div {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    border-radius: 3px;
+    transition: width 0.25s ease;
+  }
+  .lagsim .barlbl { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+  /* Message flow */
+  .msgflow { width: 100%; height: 240px; }
+  .msgflow text { fill: var(--muted); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .msgflow .node { fill: var(--panel-2); stroke: var(--border); stroke-width: 1.5; }
+  .msgflow .leader { stroke: var(--accent); }
+  .msgflow .follower { stroke: var(--accent-2); stroke-dasharray: 4 4; }
+  .msgflow .edge { stroke: var(--border); stroke-width: 2; fill: none; }
+  .msgflow .dot { fill: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+
+  /* Architecture diagram */
+  .arch { width: 100%; height: 320px; }
+  .arch .topic { fill: var(--panel-2); stroke: var(--border); }
+  .arch .partition { fill: var(--panel-2); stroke: var(--accent); stroke-width: 1.5; }
+  .arch .arrow { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  .arch text { fill: var(--text); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+  .arch .lbl { fill: var(--muted); }
+
+  table.ref {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.ref th, table.ref td {
+    padding: 9px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.ref th { background: var(--panel-2); color: var(--accent-2); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  table.ref code { color: var(--accent); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  table.ref tr:last-child td { border-bottom: none; }
+
+  .pitfall {
+    border-left: 3px solid var(--accent-3);
+    background: rgba(255, 107, 107, 0.06);
+    padding: 10px 14px; border-radius: 6px;
+    color: #ffe6e6; font-size: 13px;
+    margin: 12px 0;
+  }
+  .pitfall strong { color: var(--accent-3); }
+
+  .footer { color: var(--muted); font-size: 12px; padding: 24px; text-align: center; border-top: 1px solid var(--border); margin-top: 40px; }
+
+  @media (max-width: 720px) {
+    .pviz { grid-template-columns: 90px 1fr; }
+    .lagsim .stats { grid-template-columns: repeat(2, 1fr); }
+    main { padding: 16px; }
+    nav.tabs { padding: 8px 12px; }
+    header { padding: 12px 14px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo" aria-label="Kafka 치트시트 홈"><span class="mark"></span> Kafka 치트시트</div>
+    <div class="search">
+      <span class="icon" aria-hidden="true">⌕</span>
+      <input id="searchInput" type="text" placeholder="토픽, 명령어, 설정 검색… ( / )" aria-label="치트시트 검색" />
+    </div>
+    <span class="badge" title="대상 Kafka 버전">v3.7+</span>
+  </header>
+  <nav class="tabs" id="tabs" aria-label="섹션 탭">
+    <button class="active" data-tab="concepts">개념</button>
+    <button data-tab="producers">프로듀서</button>
+    <button data-tab="consumers">컨슈머</button>
+    <button data-tab="cli">CLI</button>
+    <button data-tab="streams">Streams &amp; ksqlDB</button>
+    <button data-tab="ops">운영 &amp; 튜닝</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========== CONCEPTS ========== -->
+<section class="tab-section active" id="concepts">
+  <h1>개념</h1>
+  <p class="lead">브로커는 클러스터를 구성합니다. 토픽은 파티션으로 분할됩니다. 프로듀서는 추가하고, 컨슈머는 오프셋으로 읽습니다. 그게 전부입니다.</p>
+
+  <div class="playground">
+    <h3>클러스터 해부</h3>
+    <div class="desc">프로듀서는 토픽에 레코드를 씁니다. 파티셔너가 어떤 파티션인지 선택합니다. 각 파티션은 복제됩니다. 그룹 내 컨슈머들은 자기들끼리 파티션을 나눕니다.</div>
+    <svg class="arch" viewBox="0 0 900 320" preserveAspectRatio="xMidYMid meet">
+      <!-- Producers -->
+      <rect class="topic" x="10" y="120" width="120" height="60" rx="8"/>
+      <text x="70" y="155" text-anchor="middle">프로듀서</text>
+
+      <!-- Topic = orders, 4 partitions -->
+      <rect class="topic" x="200" y="40" width="320" height="240" rx="10"/>
+      <text class="lbl" x="360" y="60" text-anchor="middle">토픽: orders   (4 파티션, RF=3)</text>
+      <g>
+        <rect class="partition" x="220" y="80" width="80" height="40" rx="6"/>
+        <text x="260" y="105" text-anchor="middle">P0</text>
+        <rect class="partition" x="320" y="80" width="80" height="40" rx="6"/>
+        <text x="360" y="105" text-anchor="middle">P1</text>
+        <rect class="partition" x="420" y="80" width="80" height="40" rx="6"/>
+        <text x="460" y="105" text-anchor="middle">P2</text>
+        <rect class="partition" x="320" y="140" width="80" height="40" rx="6"/>
+        <text x="360" y="165" text-anchor="middle">P3</text>
+        <text class="lbl" x="360" y="200" text-anchor="middle">리더 / 팔로워 2 (ISR)</text>
+        <text class="lbl" x="360" y="220" text-anchor="middle">retention.ms = 7일 · 로그 컴팩션 off</text>
+      </g>
+
+      <!-- Consumer groups -->
+      <rect class="topic" x="580" y="50" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="70" text-anchor="middle">그룹: billing  (컨슈머 2개)</text>
+      <rect class="partition" x="600" y="90" width="120" height="40" rx="6"/>
+      <text x="660" y="115" text-anchor="middle">c1 → P0,P1</text>
+      <rect class="partition" x="740" y="90" width="120" height="40" rx="6"/>
+      <text x="800" y="115" text-anchor="middle">c2 → P2,P3</text>
+
+      <rect class="topic" x="580" y="170" width="300" height="100" rx="10"/>
+      <text class="lbl" x="730" y="190" text-anchor="middle">그룹: analytics  (컨슈머 1개)</text>
+      <rect class="partition" x="600" y="210" width="260" height="40" rx="6"/>
+      <text x="730" y="235" text-anchor="middle">c1 → P0..P3</text>
+
+      <!-- Arrows -->
+      <path class="arrow" d="M 130 150 L 200 150" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 100 L 580 100" marker-end="url(#arrow)"/>
+      <path class="arrow" d="M 520 220 L 580 220" marker-end="url(#arrow)"/>
+
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d97a1"/>
+        </marker>
+      </defs>
+    </svg>
+  </div>
+
+  <h2>용어</h2>
+  <table class="ref">
+    <thead><tr><th>용어</th><th>의미</th></tr></thead>
+    <tbody>
+      <tr><td><code>broker</code></td><td>Kafka 서버. 클러스터 = 여러 브로커. 각 브로커는 숫자형 <code>broker.id</code>로 식별됩니다.</td></tr>
+      <tr><td><code>topic</code></td><td>이름이 있는 레코드 로그. 파티션 개수와 복제 계수(replication factor)로 생성합니다.</td></tr>
+      <tr><td><code>partition</code></td><td>순서가 있는 append-only 커밋 로그. 한 파티션 내부의 레코드는 엄격히 순서가 보장됩니다. 파티션 사이에는 순서 보장이 없습니다.</td></tr>
+      <tr><td><code>offset</code></td><td>파티션 내부의 단조 증가 64비트 위치. 컨슈머는 자신이 어디까지 읽었는지 오프셋으로 추적합니다.</td></tr>
+      <tr><td><code>leader / follower</code></td><td>각 파티션마다 한 브로커가 리더(읽기 + 쓰기 처리)이고 나머지는 복제합니다. 리더 장애 시 팔로워 중 하나가 승격됩니다.</td></tr>
+      <tr><td><code>ISR</code></td><td>In-Sync Replicas: <code>replica.lag.time.max.ms</code> 이내로 따라잡은 팔로워들. ISR 멤버만 리더가 될 자격이 있습니다.</td></tr>
+      <tr><td><code>consumer group</code></td><td>같은 <code>group.id</code>를 공유하는 컨슈머 집합. Kafka는 각 파티션을 그룹 내 한 컨슈머에게만 동시에 할당합니다.</td></tr>
+      <tr><td><code>rebalance</code></td><td>그룹 멤버십이 변할 때(컨슈머가 합류/탈퇴/사망) 일어나는 파티션 재할당.</td></tr>
+      <tr><td><code>__consumer_offsets</code></td><td>커밋된 오프셋이 저장되는 내부 컴팩션 토픽 (기본 50개 파티션).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>순서 규칙</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">파티션 단위 순서만 보장</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">한 파티션 내 레코드는 엄격히 순서가 보장됩니다. 파티션 간에는 순서 없음. 같은 키 → 기본적으로 같은 파티션 → 그 키에 한해 순서 보장.</div>
+      <pre><code><span class="tok-c"># 순서 함정</span>
+<span class="tok-c"># key=user-42 → hash(user-42) % N 파티션으로 들어감</span>
+<span class="tok-c"># user-42 이벤트는 순서 유지. user-99 와는 인터리빙 가능.</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">acks &amp; 내구성</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">acks=all + min.insync.replicas≥2 = 단일 브로커 장애 시 데이터 손실 없음.</div>
+      <pre><code><span class="tok-k">acks</span>=<span class="tok-s">0</span>    <span class="tok-c"># 발사 후 망각 (fire and forget)</span>
+<span class="tok-k">acks</span>=<span class="tok-s">1</span>    <span class="tok-c"># 리더만 대기</span>
+<span class="tok-k">acks</span>=<span class="tok-s">all</span>  <span class="tok-c"># 모든 ISR 대기</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">전달 시맨틱</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">기본은 at-least-once. exactly-once는 멱등 프로듀서 + 트랜잭션 + read_committed 컨슈머가 필요.</div>
+      <pre><code><span class="tok-c"># exactly-once 레시피</span>
+<span class="tok-k">enable.idempotence</span>=<span class="tok-s">true</span>          <span class="tok-c"># 멱등 프로듀서</span>
+<span class="tok-k">transactional.id</span>=<span class="tok-s">order-app-1</span>      <span class="tok-c"># 고유 트랜잭션 ID</span>
+<span class="tok-c"># 컨슈머 측:</span>
+<span class="tok-k">isolation.level</span>=<span class="tok-s">read_committed</span>    <span class="tok-c"># 커밋된 메시지만 읽기</span></code></pre>
+    </div>
+  </div>
+
+  <div class="pitfall"><strong>함정:</strong> 나중에 파티션을 늘려도 기존 데이터는 이동하지 않습니다. 기존 키는 옛 파티션에 남고, 새 키는 다른 곳에 떨어질 수 있어 — 그 키의 순서가 두 파티션에 걸쳐 잠시 갈라집니다. 파티션 개수는 처음에 넉넉히 잡거나, 키 인지(re-partitioning) 잡을 따로 돌리세요.</div>
+</section>
+
+<!-- ========== PRODUCERS ========== -->
+<section class="tab-section" id="producers">
+  <h1>프로듀서</h1>
+  <p class="lead">프로듀서는 토픽에 레코드를 추가합니다. 키, ack 정책, 파티셔너를 고르는 것이 설계의 80%입니다.</p>
+
+  <h2>빠른 시작 (kafka-python)</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">기본 프로듀서</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaProducer
+<span class="tok-k">import</span> <span class="tok-t">json</span>
+
+<span class="tok-f">p</span> = KafkaProducer(
+    bootstrap_servers=<span class="tok-s">"broker1:9092,broker2:9092"</span>,
+    value_serializer=<span class="tok-k">lambda</span> v: <span class="tok-t">json</span>.dumps(v).encode(),
+    key_serializer=<span class="tok-k">lambda</span> k: k.encode() <span class="tok-k">if</span> k <span class="tok-k">else</span> <span class="tok-k">None</span>,
+    acks=<span class="tok-s">"all"</span>,                <span class="tok-c"># 모든 ISR 응답 대기</span>
+    enable_idempotence=<span class="tok-k">True</span>,
+    linger_ms=<span class="tok-n">5</span>,                  <span class="tok-c"># 5ms 동안 배치 모음</span>
+    compression_type=<span class="tok-s">"zstd"</span>,    <span class="tok-c"># 압축으로 처리량 향상</span>
+)
+<span class="tok-f">p</span>.send(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"user-42"</span>, value={<span class="tok-s">"sku"</span>: <span class="tok-s">"X"</span>, <span class="tok-s">"qty"</span>: <span class="tok-n">2</span>})
+<span class="tok-f">p</span>.flush()</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">멱등 + 재시도</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">재시도해도 중복 없음, max.in.flight ≤ 5 일 때 순서 깨짐 없음.</div>
+      <pre><code>KafkaProducer(
+    enable_idempotence=<span class="tok-k">True</span>,    <span class="tok-c"># 중복 제거</span>
+    acks=<span class="tok-s">"all"</span>,
+    retries=<span class="tok-t">2</span>**<span class="tok-n">31</span>-<span class="tok-n">1</span>,            <span class="tok-c"># 사실상 무한 재시도</span>
+    max_in_flight_requests_per_connection=<span class="tok-n">5</span>,
+    delivery_timeout_ms=<span class="tok-n">120_000</span>,  <span class="tok-c"># 2분 타임아웃</span>
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">트랜잭셔널 프로듀서</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">여러 토픽 + 파티션에 걸친 원자적 쓰기. read-process-write 앱과 exactly-once에 사용.</div>
+      <pre><code><span class="tok-c"># confluent-kafka 스타일</span>
+<span class="tok-k">from</span> <span class="tok-t">confluent_kafka</span> <span class="tok-k">import</span> Producer
+p = Producer({
+  <span class="tok-s">"bootstrap.servers"</span>: <span class="tok-s">"broker1:9092"</span>,
+  <span class="tok-s">"transactional.id"</span>: <span class="tok-s">"order-app-1"</span>,
+  <span class="tok-s">"enable.idempotence"</span>: <span class="tok-k">True</span>,
+})
+p.<span class="tok-f">init_transactions</span>()              <span class="tok-c"># 1회만 호출</span>
+p.<span class="tok-f">begin_transaction</span>()              <span class="tok-c"># 트랜잭션 시작</span>
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">produce</span>(<span class="tok-s">"audit"</span>, key=<span class="tok-s">"u1"</span>, value=<span class="tok-s">"..."</span>)
+p.<span class="tok-f">commit_transaction</span>()             <span class="tok-c"># 원자적 커밋</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">커스텀 파티셔너</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">기본은 키가 있을 때 murmur2(key) % N; 키가 null이면 sticky 파티셔너.</div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">tenant_partitioner</span>(key, all_parts, available):
+    <span class="tok-c"># tenant=premium 을 전용 파티션 0..3 으로 라우팅</span>
+    <span class="tok-k">if</span> key <span class="tok-k">and</span> key.startswith(<span class="tok-s">b"premium:"</span>):
+        <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-n">4</span>            <span class="tok-c"># 프리미엄 전용 파티션</span>
+    <span class="tok-k">return</span> <span class="tok-f">hash</span>(key) % <span class="tok-f">len</span>(all_parts)   <span class="tok-c"># 일반은 전체 파티션</span>
+
+KafkaProducer(partitioner=tenant_partitioner, …)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">헤더 + 타임스탬프</div><button class="copy-btn">복사</button></div>
+      <pre><code>p.send(
+  <span class="tok-s">"orders"</span>, key=<span class="tok-s">b"u1"</span>, value=<span class="tok-s">b"..."</span>,
+  headers=[(<span class="tok-s">"trace-id"</span>, <span class="tok-s">b"abc123"</span>),       <span class="tok-c"># 분산 추적용</span>
+           (<span class="tok-s">"schema"</span>, <span class="tok-s">b"OrderV2"</span>)],         <span class="tok-c"># 스키마 버전</span>
+  timestamp_ms=<span class="tok-f">int</span>(<span class="tok-t">time</span>.time()*<span class="tok-n">1000</span>),
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">비동기 + 콜백</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">def</span> <span class="tok-f">on_delivery</span>(err, msg):
+    <span class="tok-k">if</span> err:
+        log.<span class="tok-f">error</span>(<span class="tok-s">"failed: %s"</span>, err)    <span class="tok-c"># 실패 로그</span>
+    <span class="tok-k">else</span>:
+        log.<span class="tok-f">debug</span>(<span class="tok-s">"%s[%d]@%d"</span>,             <span class="tok-c"># 토픽[파티션]@오프셋</span>
+                  msg.topic(), msg.partition(), msg.offset())
+
+p.<span class="tok-f">produce</span>(<span class="tok-s">"orders"</span>, value=v, on_delivery=on_delivery)
+p.<span class="tok-f">poll</span>(<span class="tok-n">0</span>)  <span class="tok-c"># 콜백 구동</span></code></pre>
+    </div>
+  </div>
+
+  <h2>acks vs 내구성 vs 지연시간</h2>
+  <table class="ref">
+    <thead><tr><th>acks</th><th>내구성</th><th>지연시간</th><th>언제</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>없음 — 발사 후 망각</td><td>최저</td><td>지표(metrics), 완전히 대체 가능한 텔레메트리.</td></tr>
+      <tr><td><code>1</code></td><td>리더가 살아남으면 보존</td><td>낮음</td><td>가끔 손실이 허용되는 핫 패스.</td></tr>
+      <tr><td><code>all</code></td><td>min.insync.replicas 만큼의 브로커가 보존</td><td>더 높음</td><td>중요한 모든 것의 기본값.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>압축 &amp; 배칭</h2>
+  <table class="ref">
+    <thead><tr><th>다이얼</th><th>효과</th></tr></thead>
+    <tbody>
+      <tr><td><code>linger.ms</code></td><td>배치가 차지 않아도 이만큼 기다렸다가 전송. 5–20 ms면 처리량이 크게 늘어납니다.</td></tr>
+      <tr><td><code>batch.size</code></td><td>파티션당 배치 바이트 (기본 16 KB). 고처리량 프로듀서는 64 KB+ 가 유리.</td></tr>
+      <tr><td><code>compression.type</code></td><td><code>none</code> · <code>gzip</code> · <code>snappy</code> · <code>lz4</code> · <code>zstd</code>. 압축률 + CPU 균형은 보통 <strong>zstd</strong>가 최선.</td></tr>
+      <tr><td><code>buffer.memory</code></td><td>미전송 레코드를 버퍼링하는 데 클라이언트가 사용할 수 있는 총 바이트 (기본 32 MB).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========== CONSUMERS ========== -->
+<section class="tab-section" id="consumers">
+  <h1>컨슈머</h1>
+  <p class="lead">토픽을 구독하고, 폴링하고, 처리하고, 오프셋을 커밋합니다. 그룹 멤버십과 리밸런스 동작이 당신을 물어뜯습니다.</p>
+
+  <div class="playground">
+    <h3>파티션 할당 시각화</h3>
+    <div class="desc">파티션, 컨슈머, 할당 전략을 골라 보세요. Kafka가 파티션을 그룹 내에서 어떻게 나누는지 관찰합니다.</div>
+    <div class="pg-row">
+      <label>파티션</label>
+      <input type="range" id="vizParts" min="1" max="16" value="6">
+      <span id="vizPartsVal" class="clabel" style="min-width:32px;text-align:center">6</span>
+      <label>컨슈머</label>
+      <input type="range" id="vizCons" min="1" max="8" value="3">
+      <span id="vizConsVal" class="clabel" style="min-width:32px;text-align:center">3</span>
+      <label>전략</label>
+      <select id="vizStrat">
+        <option value="range">Range</option>
+        <option value="roundrobin" selected>RoundRobin</option>
+        <option value="sticky">CooperativeSticky</option>
+      </select>
+      <button class="btn ghost" id="vizDrop">컨슈머 제거</button>
+      <button class="btn ghost" id="vizAdd">컨슈머 추가</button>
+    </div>
+    <div class="pviz" id="pviz"></div>
+    <div style="color:var(--muted);font-size:12px;margin-top:10px" id="vizNote"></div>
+  </div>
+
+  <div class="playground">
+    <h3>오프셋 / 랙 시뮬레이터</h3>
+    <div class="desc">생산/소비 속도를 슬라이드해 보세요. 커밋 오프셋이 로그 끝(log end)을 따라가는 모습을 관찰합니다. 랙(Lag) = end - committed.</div>
+    <div class="pg-row">
+      <label>생산 msg/s</label>
+      <input type="range" id="rateP" min="0" max="2000" value="500" step="50">
+      <span id="ratePV" class="clabel" style="min-width:60px;text-align:center">500</span>
+      <label>소비 msg/s</label>
+      <input type="range" id="rateC" min="0" max="2000" value="600" step="50">
+      <span id="rateCV" class="clabel" style="min-width:60px;text-align:center">600</span>
+      <button class="btn" id="lagToggle">일시정지</button>
+      <button class="btn ghost" id="lagBurst">+10k 버스트</button>
+      <button class="btn ghost" id="lagReset">초기화</button>
+    </div>
+    <div class="lagsim">
+      <div class="stats">
+        <div class="stat"><div class="label">로그 끝</div><div class="val" id="lagEnd">0</div></div>
+        <div class="stat"><div class="label">커밋됨</div><div class="val" id="lagCommit">0</div></div>
+        <div class="stat"><div class="label">랙</div><div class="val" id="lagLag" style="color:var(--accent-3)">0</div></div>
+        <div class="stat"><div class="label">따라잡기까지 ETA</div><div class="val" id="lagETA">—</div></div>
+      </div>
+      <div class="bar"><div id="barEnd" style="background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%"></div></div>
+      <div class="barlbl">로그 끝 (상대값)</div>
+      <div class="bar"><div id="barCommit" style="background:linear-gradient(90deg,var(--ok),#22c55e);width:0%"></div></div>
+      <div class="barlbl">커밋된 오프셋</div>
+      <div class="bar"><div id="barLag" style="background:linear-gradient(90deg,var(--accent-3),#b13838);width:0%"></div></div>
+      <div class="barlbl">랙 (간격)</div>
+    </div>
+  </div>
+
+  <div class="playground">
+    <h3>메시지 흐름</h3>
+    <div class="desc">프로듀서 → 리더 → 팔로워(복제) → 컨슈머.</div>
+    <svg class="msgflow" viewBox="0 0 700 220">
+      <rect class="node" x="20" y="80" width="120" height="60" rx="10"/>
+      <text x="80" y="115" text-anchor="middle">프로듀서</text>
+
+      <rect class="node leader" x="240" y="40" width="120" height="60" rx="10"/>
+      <text x="300" y="75" text-anchor="middle">P0 리더</text>
+
+      <rect class="node follower" x="240" y="120" width="120" height="40" rx="10"/>
+      <text x="300" y="145" text-anchor="middle">팔로워</text>
+      <rect class="node follower" x="240" y="170" width="120" height="40" rx="10"/>
+      <text x="300" y="195" text-anchor="middle">팔로워</text>
+
+      <rect class="node" x="500" y="80" width="170" height="60" rx="10"/>
+      <text x="585" y="115" text-anchor="middle">컨슈머 (그룹)</text>
+
+      <path class="edge" d="M 140 110 L 240 70" id="edge1"/>
+      <path class="edge" d="M 360 70  L 500 110" id="edge2"/>
+      <path class="edge" d="M 300 100 L 300 120" />
+      <path class="edge" d="M 300 100 L 300 170" />
+
+      <circle class="dot" id="flowDot" r="6" cx="-20" cy="-20"/>
+    </svg>
+  </div>
+
+  <h2>컨슈머 코드</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">기본 폴 루프</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">from</span> <span class="tok-t">kafka</span> <span class="tok-k">import</span> KafkaConsumer
+
+c = KafkaConsumer(
+    <span class="tok-s">"orders"</span>,
+    bootstrap_servers=<span class="tok-s">"broker1:9092"</span>,
+    group_id=<span class="tok-s">"billing"</span>,                <span class="tok-c"># 컨슈머 그룹 식별자</span>
+    auto_offset_reset=<span class="tok-s">"earliest"</span>,   <span class="tok-c"># 또는 "latest"</span>
+    enable_auto_commit=<span class="tok-k">False</span>,           <span class="tok-c"># 수동 커밋 권장</span>
+    isolation_level=<span class="tok-s">"read_committed"</span>,  <span class="tok-c"># 트랜잭션 메시지만 읽기</span>
+    max_poll_records=<span class="tok-n">500</span>,
+    session_timeout_ms=<span class="tok-n">10_000</span>,
+)
+<span class="tok-k">for</span> msg <span class="tok-k">in</span> c:
+    <span class="tok-f">handle</span>(msg.value)
+    c.<span class="tok-f">commit</span>()  <span class="tok-c"># 동기 커밋</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">수동 폴 + 오프셋</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">처리 성공 후에만 커밋 → at-least-once.</div>
+      <pre><code><span class="tok-k">while</span> <span class="tok-k">True</span>:
+    batch = c.<span class="tok-f">poll</span>(timeout_ms=<span class="tok-n">1000</span>)  <span class="tok-c"># 1초 폴</span>
+    <span class="tok-k">for</span> tp, msgs <span class="tok-k">in</span> batch.items():
+        <span class="tok-k">for</span> m <span class="tok-k">in</span> msgs:
+            <span class="tok-f">handle</span>(m)              <span class="tok-c"># 비즈니스 처리</span>
+        c.<span class="tok-f">commit</span>({tp: OffsetAndMetadata(msgs[-<span class="tok-n">1</span>].offset+<span class="tok-n">1</span>, <span class="tok-k">None</span>)})</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">리밸런스 리스너</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">파티션이 회수되기 전에 진행 중 작업을 비웁니다(flush).</div>
+      <pre><code><span class="tok-k">class</span> <span class="tok-f">L</span>(ConsumerRebalanceListener):
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_revoked</span>(self, revoked):
+        <span class="tok-f">flush_buffer</span>()              <span class="tok-c"># 회수 전 진행 중 작업 처리</span>
+        consumer.<span class="tok-f">commit</span>()             <span class="tok-c"># 마지막 오프셋 동기 커밋</span>
+    <span class="tok-k">def</span> <span class="tok-f">on_partitions_assigned</span>(self, assigned):
+        log.<span class="tok-f">info</span>(<span class="tok-s">"now own %s"</span>, assigned)  <span class="tok-c"># 새로 할당된 파티션 로그</span>
+
+c.<span class="tok-f">subscribe</span>([<span class="tok-s">"orders"</span>], listener=L())</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">오프셋 / 시간으로 seek</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># 오프셋으로</span>
+c.<span class="tok-f">seek</span>(TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>), <span class="tok-n">12345</span>)   <span class="tok-c"># 파티션 0의 오프셋 12345</span>
+
+<span class="tok-c"># 타임스탬프(epoch ms)로</span>
+ts = {TopicPartition(<span class="tok-s">"orders"</span>, <span class="tok-n">0</span>): <span class="tok-n">1714000000000</span>}   <span class="tok-c"># 특정 시각</span>
+offsets = c.<span class="tok-f">offsets_for_times</span>(ts)
+<span class="tok-k">for</span> tp, off <span class="tok-k">in</span> offsets.items():
+    c.<span class="tok-f">seek</span>(tp, off.offset)              <span class="tok-c"># 그 시각의 오프셋으로 이동</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">정적 멤버십 (static membership)</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">안정적인 group.instance.id는 롤링 재시작 시 리밸런스를 회피합니다.</div>
+      <pre><code>KafkaConsumer(
+  group_id=<span class="tok-s">"billing"</span>,
+  group_instance_id=<span class="tok-s">"billing-pod-7"</span>,  <span class="tok-c"># 정적 ID 부여로 리밸런스 회피</span>
+  session_timeout_ms=<span class="tok-n">30_000</span>,        <span class="tok-c"># 정적 멤버는 더 길게 잡음</span>
+)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">협력적 리밸런스 (cooperative)</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">증분 리밸런스 — 소유권이 바뀌는 파티션만 처리가 멈추고, 나머지는 계속 처리됩니다.</div>
+      <pre><code>partition_assignment_strategy=[
+  <span class="tok-s">"org.apache.kafka.clients.consumer.CooperativeStickyAssignor"</span>   <span class="tok-c"># 협력적 sticky 전략</span>
+]</code></pre>
+    </div>
+  </div>
+
+  <h2>커밋 시맨틱</h2>
+  <table class="ref">
+    <thead><tr><th>모드</th><th>보장</th><th>위험</th></tr></thead>
+    <tbody>
+      <tr><td><code>enable_auto_commit=true</code> (기본 5초)</td><td>대략 at-most-once</td><td>커밋 후 처리 전 크래시 → 레코드 유실.</td></tr>
+      <tr><td>처리 후 수동 <code>commit()</code></td><td>At-least-once</td><td>처리 후 커밋 전 크래시 → 재시작 시 재처리. 핸들러를 멱등하게 만드세요.</td></tr>
+      <tr><td>트랜잭셔널 <code>send_offsets_to_transaction()</code></td><td>Exactly-once (Kafka 내부의 read-process-write)</td><td>부수 효과가 Kafka 외부일 때(예: 비-멱등 HTTP POST)에는 도움이 되지 않습니다.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="pitfall"><strong>함정:</strong> <code>max.poll.interval.ms</code>(기본 5분)를 초과하는 장시간 메시지 핸들러는 그룹에서 추방됩니다 → 리밸런스 폭풍. 한도를 늘리거나, <code>max.poll.records</code>를 줄이거나, 워커 풀로 작업을 옮기고 <code>pause()</code> / <code>resume()</code>를 사용하세요.</div>
+</section>
+
+<!-- ========== CLI ========== -->
+<section class="tab-section" id="cli">
+  <h1>CLI</h1>
+  <p class="lead"><code>$KAFKA_HOME/bin/</code> 아래의 셸 스크립트가 프로덕션에서 친구입니다. 아래 치트시트.</p>
+
+  <h2>토픽</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">생성 / 목록 / 상세</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># 생성</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --create --topic orders \
+  --partitions 12 --replication-factor 3 \
+  --config retention.ms=604800000 \
+  --config min.insync.replicas=2
+
+<span class="tok-c"># 목록 / 상세</span>
+kafka-topics.sh --bootstrap-server localhost:9092 --list           <span class="tok-c"># 모든 토픽</span>
+kafka-topics.sh --bootstrap-server localhost:9092 --describe --topic orders   <span class="tok-c"># 단일 토픽 상세</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">변경 / 삭제</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c"># 파티션 추가 (감소는 불가!)</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --alter --topic orders --partitions 24       <span class="tok-c"># 12 → 24 로 증가</span>
+
+<span class="tok-c"># 설정 변경</span>
+kafka-configs.sh --bootstrap-server localhost:9092 \
+  --entity-type topics --entity-name orders \
+  --alter --add-config retention.ms=86400000   <span class="tok-c"># 보존 1일</span>
+
+<span class="tok-c"># 삭제</span>
+kafka-topics.sh --bootstrap-server localhost:9092 \
+  --delete --topic orders                      <span class="tok-c"># 비가역적!</span></code></pre>
+    </div>
+  </div>
+
+  <h2>콘솔 프로듀스 / 컨슘</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">stdin 으로 프로듀스</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-console-producer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --property parse.key=true \
+  --property key.separator=:               <span class="tok-c"># 키:값 형식 입력</span>
+<span class="tok-c"># 입력 예:    user-42:{"sku":"X","qty":2}</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">처음부터 컨슘</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --from-beginning \                          <span class="tok-c"># 처음부터</span>
+  --property print.key=true \                 <span class="tok-c"># 키 출력</span>
+  --property print.timestamp=true \           <span class="tok-c"># 타임스탬프 출력</span>
+  --max-messages 50</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">단일 파티션 / 오프셋 범위 컨슘</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders \
+  --partition 3 \                  <span class="tok-c"># 파티션 3 만</span>
+  --offset 1000 \                  <span class="tok-c"># 오프셋 1000 부터</span>
+  --max-messages 10</code></pre>
+    </div>
+  </div>
+
+  <h2>컨슈머 그룹</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">목록, 랙 상세</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --list       <span class="tok-c"># 모든 그룹 목록</span>
+
+kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --describe --group billing                     <span class="tok-c"># 단일 그룹 상세 + 랙</span>
+<span class="tok-c"># 컬럼: TOPIC PARTITION CURRENT-OFFSET LOG-END-OFFSET LAG CONSUMER-ID HOST CLIENT-ID</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">오프셋 리셋</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">먼저 --dry-run. 그룹이 정지된 상태에서만 리셋하세요.</div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --group billing \
+  --reset-offsets --to-earliest \      <span class="tok-c"># earliest 로 리셋</span>
+  --topic orders --execute             <span class="tok-c"># --dry-run 빼면 실제 실행</span>
+
+<span class="tok-c"># 특정 시각으로:</span>
+  --to-datetime 2026-05-01T00:00:00.000
+
+<span class="tok-c"># 1000 레코드 뒤로 이동:</span>
+  --shift-by -1000                     <span class="tok-c"># 음수는 뒤로</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">그룹 삭제</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 \
+  --delete --group billing       <span class="tok-c"># 활성 컨슈머가 없을 때만 가능</span></code></pre>
+    </div>
+  </div>
+
+  <h2>기타 유용한 것</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">earliest / latest 오프셋 조회</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -1   <span class="tok-c"># 최신 (latest) — 마지막 오프셋</span>
+
+kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders --time -2   <span class="tok-c"># 가장 오래된 (earliest) — 첫 오프셋</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">로그 세그먼트 덤프</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-dump-log.sh \
+  --files /var/lib/kafka/orders-0/00000000000000000000.log \   <span class="tok-c"># 로그 파일 경로</span>
+  --print-data-log               <span class="tok-c"># 메시지 내용 함께 출력</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ACL 검증</div><button class="copy-btn">복사</button></div>
+      <pre><code>kafka-acls.sh \
+  --bootstrap-server localhost:9092 \
+  --add --allow-principal User:billing \      <span class="tok-c"># billing 사용자 허용</span>
+  --operation Read --topic orders \           <span class="tok-c"># orders 읽기 권한</span>
+  --group billing</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== STREAMS ========== -->
+<section class="tab-section" id="streams">
+  <h1>Streams &amp; ksqlDB</h1>
+  <p class="lead">Kafka Streams: 토픽을 변환하는 Java/Scala 라이브러리. ksqlDB: Streams 위의 SQL.</p>
+
+  <h2>Streams DSL</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">단어 세기 ("hello world")</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-t">StreamsBuilder</span> b = <span class="tok-k">new</span> <span class="tok-f">StreamsBuilder</span>();
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">String</span>&gt; src = b.<span class="tok-f">stream</span>(<span class="tok-s">"text-input"</span>);   <span class="tok-c">// 입력 토픽</span>
+src.<span class="tok-f">flatMapValues</span>(v -&gt; Arrays.<span class="tok-f">asList</span>(v.<span class="tok-f">split</span>(<span class="tok-s">"\\W+"</span>)))   <span class="tok-c">// 단어 분리</span>
+   .<span class="tok-f">groupBy</span>((k,w) -&gt; w)                <span class="tok-c">// 단어 키로 그룹</span>
+   .<span class="tok-f">count</span>(Materialized.<span class="tok-f">as</span>(<span class="tok-s">"counts"</span>))    <span class="tok-c">// 상태 저장소</span>
+   .<span class="tok-f">toStream</span>()
+   .<span class="tok-f">to</span>(<span class="tok-s">"word-counts"</span>, Produced.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()));</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Stream-Table 조인</div><button class="copy-btn">복사</button></div>
+      <div class="card-desc">컴팩트 토픽의 최신 상태로 이벤트 스트림을 풍부화(enrich)합니다.</div>
+      <pre><code><span class="tok-t">KTable</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">User</span>&gt; users = b.<span class="tok-f">table</span>(<span class="tok-s">"users"</span>);    <span class="tok-c">// 테이블 = 최신 상태</span>
+<span class="tok-t">KStream</span>&lt;<span class="tok-t">String</span>,<span class="tok-t">Order</span>&gt; orders = b.<span class="tok-f">stream</span>(<span class="tok-s">"orders"</span>);  <span class="tok-c">// 스트림 = 이벤트</span>
+
+orders.<span class="tok-f">join</span>(users,                   <span class="tok-c">// 같은 키로 조인</span>
+       (order, user) -&gt; <span class="tok-k">new</span> <span class="tok-f">EnrichedOrder</span>(order, user))
+      .<span class="tok-f">to</span>(<span class="tok-s">"orders-enriched"</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">윈도우 집계 (windowed aggregation)</div><button class="copy-btn">복사</button></div>
+      <pre><code>orders.<span class="tok-f">groupByKey</span>()
+      .<span class="tok-f">windowedBy</span>(TimeWindows.<span class="tok-f">ofSizeAndGrace</span>(    <span class="tok-c">// 5분 윈도우</span>
+         Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">5</span>), Duration.<span class="tok-f">ofMinutes</span>(<span class="tok-n">1</span>)))   <span class="tok-c">// 1분 유예</span>
+      .<span class="tok-f">aggregate</span>(() -&gt; <span class="tok-n">0L</span>,                <span class="tok-c">// 초깃값</span>
+                 (k, v, sum) -&gt; sum + v.amount(),       <span class="tok-c">// 누산</span>
+                 Materialized.<span class="tok-f">with</span>(Serdes.<span class="tok-f">String</span>(), Serdes.<span class="tok-f">Long</span>()))
+      .<span class="tok-f">toStream</span>()
+      .<span class="tok-f">to</span>(<span class="tok-s">"5min-totals"</span>);</code></pre>
+    </div>
+  </div>
+
+  <h2>ksqlDB</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">CREATE STREAM / TABLE</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> orders (
+  user_id <span class="tok-t">VARCHAR</span> KEY,           <span class="tok-c">-- 메시지 키</span>
+  sku <span class="tok-t">VARCHAR</span>,
+  qty <span class="tok-t">INT</span>,
+  amount <span class="tok-t">DOUBLE</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'orders'</span>, value_format=<span class="tok-s">'JSON'</span>);
+
+<span class="tok-k">CREATE TABLE</span> users (                   <span class="tok-c">-- 컴팩트 토픽 = 테이블</span>
+  user_id <span class="tok-t">VARCHAR</span> PRIMARY KEY,
+  name <span class="tok-t">VARCHAR</span>, tier <span class="tok-t">VARCHAR</span>
+) <span class="tok-k">WITH</span> (kafka_topic=<span class="tok-s">'users'</span>, value_format=<span class="tok-s">'JSON'</span>);</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CSAS — 파생 스트림</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">CREATE STREAM</span> big_orders <span class="tok-k">AS</span>      <span class="tok-c">-- 파생 스트림 생성</span>
+<span class="tok-k">SELECT</span> o.user_id, u.tier, o.amount
+<span class="tok-k">FROM</span> orders o
+<span class="tok-k">LEFT JOIN</span> users u <span class="tok-k">ON</span> o.user_id = u.user_id   <span class="tok-c">-- 풍부화</span>
+<span class="tok-k">WHERE</span> o.amount &gt; <span class="tok-n">100</span>                   <span class="tok-c">-- 큰 주문만</span>
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">CTAS — 윈도우 테이블</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-k">CREATE TABLE</span> spend_5min <span class="tok-k">AS</span>     <span class="tok-c">-- 윈도우 집계 테이블</span>
+<span class="tok-k">SELECT</span> user_id,
+       <span class="tok-f">SUM</span>(amount) <span class="tok-k">AS</span> total       <span class="tok-c">-- 사용자별 합계</span>
+<span class="tok-k">FROM</span> orders
+<span class="tok-k">WINDOW TUMBLING</span> (<span class="tok-k">SIZE</span> <span class="tok-n">5</span> <span class="tok-k">MINUTES</span>)  <span class="tok-c">-- 5분 텀블링</span>
+<span class="tok-k">GROUP BY</span> user_id
+<span class="tok-k">EMIT CHANGES</span>;</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pull 쿼리</div><button class="copy-btn">복사</button></div>
+      <pre><code><span class="tok-c">-- 테이블의 최신 상태를 시점(point-in-time) 조회</span>
+<span class="tok-k">SELECT</span> total <span class="tok-k">FROM</span> spend_5min
+<span class="tok-k">WHERE</span> user_id = <span class="tok-s">'user-42'</span>;</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ========== OPS ========== -->
+<section class="tab-section" id="ops">
+  <h1>운영 &amp; 튜닝</h1>
+  <p class="lead">프로덕션에서 실제로 돌릴 다이얼들, 그리고 당신을 깨우는 알람들.</p>
+
+  <h2>복제 &amp; 내구성</h2>
+  <table class="ref">
+    <thead><tr><th>설정</th><th>기본값</th><th>의미 &amp; 시점</th></tr></thead>
+    <tbody>
+      <tr><td><code>replication.factor</code> (토픽별)</td><td>—</td><td>프로덕션은 3. <code>min.insync.replicas=2</code>와 함께면 브로커 1대 손실 시에도 살아남음.</td></tr>
+      <tr><td><code>min.insync.replicas</code></td><td>1</td><td>RF=3이면 2로 설정. <code>acks=all</code>과 합치면 단일 브로커 장애 시 데이터 손실 없음.</td></tr>
+      <tr><td><code>unclean.leader.election.enable</code></td><td>false</td><td>false 유지. 허용은 가용성을 위해 내구성을 포기하는 트레이드오프.</td></tr>
+      <tr><td><code>replica.lag.time.max.ms</code></td><td>30000</td><td>이보다 느린 팔로워는 ISR에서 떨어짐.</td></tr>
+      <tr><td><code>auto.create.topics.enable</code></td><td>true</td><td>프로덕션에서는 <code>false</code>. 토픽 생성을 명시적인 단계로 만드세요.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>보존 &amp; 저장</h2>
+  <table class="ref">
+    <thead><tr><th>설정</th><th>역할</th></tr></thead>
+    <tbody>
+      <tr><td><code>retention.ms</code></td><td>이보다 오래된 레코드 삭제. 기본 7일. 토픽별.</td></tr>
+      <tr><td><code>retention.bytes</code></td><td>파티션 로그 크기 상한. 토픽별. (ms / bytes 중) 먼저 도달하는 쪽이 우선.</td></tr>
+      <tr><td><code>segment.bytes</code> / <code>segment.ms</code></td><td>X 바이트 또는 X ms 마다 새 로그 세그먼트 생성. 작은 세그먼트 = 빠른 삭제/컴팩션, 더 많은 파일 핸들.</td></tr>
+      <tr><td><code>cleanup.policy=compact</code></td><td>로그 컴팩션 — 키별 최신 값을 영구 보존. 상태 토픽, 체인지로그, <code>__consumer_offsets</code>에 사용.</td></tr>
+      <tr><td><code>cleanup.policy=delete,compact</code></td><td>둘 다: 컴팩션 + 보존 기간 후 오래된 키 제거.</td></tr>
+      <tr><td><code>min.cleanable.dirty.ratio</code></td><td>컴팩터 실행 전 더러움(dirty) 비율 (기본 0.5).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>일반적인 알람</h2>
+  <table class="ref">
+    <thead><tr><th>증상</th><th>확인할 것</th></tr></thead>
+    <tbody>
+      <tr><td>under-replicated 파티션 &gt; 0</td><td>브로커 다운, 느린 디스크, 또는 네트워크. <code>kafka-topics.sh --describe --under-replicated-partitions</code>.</td></tr>
+      <tr><td>offline 파티션 &gt; 0</td><td>리더가 없음. 클러스터에 큰 문제.</td></tr>
+      <tr><td>컨슈머 랙 증가</td><td>컨슈머가 느리거나 막힘. <code>max.poll.interval.ms</code>, GC 일시정지, 다운스트림 시스템 점검.</td></tr>
+      <tr><td>프로듀서 <code>RecordTooLargeException</code></td><td>프로듀서의 <code>max.request.size</code> + 브로커의 <code>message.max.bytes</code> + 컨슈머의 <code>max.partition.fetch.bytes</code> 상향.</td></tr>
+      <tr><td>그룹 리밸런스 폭풍</td><td>느린 핸들러, 불안정한 멤버, GC. 정적 멤버십 + cooperative-sticky 사용.</td></tr>
+      <tr><td>ISR 잦은 축소</td><td>네트워크/디스크 문제. <code>replica.lag.time.max.ms</code>, 브로커 IO wait 점검.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>클러스터 크기 결정 경험칙</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="card-head"><div class="card-title">브로커당 파티션</div></div>
+      <div class="card-desc">브로커당 파티션 4000개 미만을 목표. 각 파티션은 파일 핸들, 메모리, 리밸런스 시간을 소비합니다.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">토픽당 파티션 수</div></div>
+      <div class="card-desc">언제든 필요한 최대 병렬도 이상. 처음부터 넉넉히 고르세요 — 나중에 늘리면 키별 순서가 깨집니다.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">디스크</div></div>
+      <div class="card-desc">XFS, 큰 순차 쓰기. 버스트가 큰 다른 워크로드와 공유하지 마세요. 로그 컴팩션을 위해 50%+ 여유 공간을 잡으세요.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">네트워크</div></div>
+      <div class="card-desc">복제는 north-south 트래픽이기도 합니다. RF=3 이면 생산된 1바이트가 네트워크를 ~3× 지나갑니다.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">JVM</div></div>
+      <div class="card-desc">힙 6-8 GB면 충분. 대부분의 메모리는 페이지 캐시로 가야 합니다.</div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">KRaft (ZooKeeper 없음)</div></div>
+      <div class="card-desc">3.3+ 부터 KRaft가 기본. 4.0에서 ZooKeeper 제거. 새 클러스터: KRaft 전용.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<div class="footer">단일 자족형 HTML 치트시트. 디렉터리 내 PyTorch / Go / AWS 페이지와 색상을 맞춤. <code>/</code>로 검색, <code>1</code>–<code>6</code>으로 탭 전환.</div>
+
+<script>
+  // 탭
+  const tabs = document.querySelectorAll('nav.tabs button');
+  const sections = document.querySelectorAll('section.tab-section');
+  function activateTab(name) {
+    tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    sections.forEach(s => s.classList.toggle('active', s.id === name));
+  }
+  tabs.forEach(b => b.addEventListener('click', () => activateTab(b.dataset.tab)));
+
+  // 검색
+  const search = document.getElementById('searchInput');
+  function filter() {
+    const q = search.value.trim().toLowerCase();
+    const active = document.querySelector('section.tab-section.active');
+    if (!active) return;
+    const cards = active.querySelectorAll('.card, .playground, table.ref, .pitfall');
+    cards.forEach(c => {
+      if (!q) { c.style.display = ''; return; }
+      const txt = c.textContent.toLowerCase();
+      c.style.display = txt.includes(q) ? '' : 'none';
+    });
+  }
+  search.addEventListener('input', filter);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); search.focus(); }
+    if (e.key === 'Escape') { search.value = ''; filter(); search.blur(); }
+    if (/^[1-6]$/.test(e.key) && document.activeElement.tagName !== 'INPUT') {
+      const order = ['concepts','producers','consumers','cli','streams','ops'];
+      activateTab(order[parseInt(e.key,10)-1]);
+    }
+  });
+
+  // 복사 버튼
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('.card');
+      const code = card?.querySelector('pre code')?.innerText || '';
+      try {
+        await navigator.clipboard.writeText(code);
+      } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = code; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+      }
+      btn.textContent = '복사됨'; btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 1100);
+    });
+  });
+
+  // 파티션 시각화
+  const colors = ['#14e0c4','#0bb4ff','#a78bfa','#f472b6','#fbbf24','#34d399','#fb7185','#60a5fa'];  // 컨슈머별 색상
+  const vizParts = document.getElementById('vizParts');
+  const vizCons = document.getElementById('vizCons');
+  const vizStrat = document.getElementById('vizStrat');
+  const vizPartsVal = document.getElementById('vizPartsVal');
+  const vizConsVal = document.getElementById('vizConsVal');
+  const pviz = document.getElementById('pviz');
+  const vizNote = document.getElementById('vizNote');
+  function assign(parts, cons, strat) {
+    const owners = new Array(parts).fill(-1);   // 각 파티션 소유 컨슈머 인덱스
+    if (cons === 0) return owners;
+    if (strat === 'range') {
+      const per = Math.floor(parts / cons);
+      const rem = parts % cons;
+      let p = 0;
+      for (let c = 0; c < cons; c++) {
+        const take = per + (c < rem ? 1 : 0);
+        for (let i = 0; i < take; i++) owners[p++] = c;
+      }
+    } else if (strat === 'roundrobin' || strat === 'sticky') {
+      for (let p = 0; p < parts; p++) owners[p] = p % cons;
+    }
+    return owners;
+  }
+  function renderViz() {
+    const parts = parseInt(vizParts.value, 10);
+    const cons = parseInt(vizCons.value, 10);
+    vizPartsVal.textContent = parts;
+    vizConsVal.textContent = cons;
+    const owners = assign(parts, cons, vizStrat.value);
+    pviz.innerHTML = '';
+    if (cons === 0) {
+      pviz.innerHTML = '<div class="pempty">그룹에 컨슈머가 없습니다.</div>';
+      return;
+    }
+    for (let c = 0; c < cons; c++) {
+      const row = document.createElement('div'); row.className = 'row';
+      const lbl = document.createElement('div'); lbl.className = 'clabel'; lbl.textContent = 'consumer-' + c;
+      const ps = document.createElement('div'); ps.className = 'parts';
+      const myParts = owners.map((o,i) => o === c ? i : -1).filter(x => x >= 0);
+      if (myParts.length === 0) {
+        const e = document.createElement('div'); e.className = 'pempty';
+        e.textContent = '— 유휴 (할당된 파티션 없음)';
+        ps.appendChild(e);
+      }
+      myParts.forEach(p => {
+        const d = document.createElement('div'); d.className = 'part assigned';
+        d.style.background = colors[c % colors.length];
+        d.style.color = '#052622';
+        d.textContent = 'P' + p;
+        ps.appendChild(d);
+      });
+      pviz.appendChild(lbl); pviz.appendChild(ps);
+    }
+    if (cons > parts) {
+      vizNote.textContent = '컨슈머가 파티션보다 많음: ' + (cons - parts) + '개의 컨슈머가 유휴 상태. 파티션이 병렬도의 단위입니다.';
+    } else if (vizStrat.value === 'range') {
+      vizNote.textContent = 'Range: 각 컨슈머가 연속된 슬라이스를 받습니다. 파티션이 균등 분할되지 않으면 불균형 발생.';
+    } else if (vizStrat.value === 'roundrobin') {
+      vizNote.textContent = 'RoundRobin: 균형 잡힌 분배. 그룹 변경 시 많은 파티션이 재셔플될 수 있음.';
+    } else {
+      vizNote.textContent = 'CooperativeSticky: 리밸런스 시 이동 최소화. 소유권이 바뀐 파티션만 잠시 멈춤.';
+    }
+  }
+  vizParts.addEventListener('input', renderViz);
+  vizCons.addEventListener('input', renderViz);
+  vizStrat.addEventListener('change', renderViz);
+  document.getElementById('vizDrop').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) > 1) { vizCons.value = parseInt(vizCons.value,10) - 1; renderViz(); }
+  });
+  document.getElementById('vizAdd').addEventListener('click', () => {
+    if (parseInt(vizCons.value,10) < 8) { vizCons.value = parseInt(vizCons.value,10) + 1; renderViz(); }
+  });
+  renderViz();
+
+  // 랙 시뮬레이터
+  (function() {
+    const rateP = document.getElementById('rateP');     // 생산 속도 슬라이더
+    const rateC = document.getElementById('rateC');     // 소비 속도 슬라이더
+    const rateCV = document.getElementById('rateCV');   // 소비 속도 표시
+    const ratePV = document.getElementById('ratePV');   // 생산 속도 표시
+    const lagEnd = document.getElementById('lagEnd');   // 로그 끝
+    const lagCommit = document.getElementById('lagCommit');  // 커밋 오프셋
+    const lagLag = document.getElementById('lagLag');   // 랙
+    const lagETA = document.getElementById('lagETA');   // ETA
+    const barEnd = document.getElementById('barEnd');
+    const barCommit = document.getElementById('barCommit');
+    const barLag = document.getElementById('barLag');
+    const lagToggle = document.getElementById('lagToggle');
+    const lagBurst = document.getElementById('lagBurst');
+    const lagReset = document.getElementById('lagReset');
+    let state = { end: 0, committed: 0, paused: false };  // 시뮬레이션 상태
+    function syncLabels() { ratePV.textContent = rateP.value; rateCV.textContent = rateC.value; }  // 슬라이더 라벨 동기화
+    rateP.addEventListener('input', syncLabels); rateC.addEventListener('input', syncLabels); syncLabels();
+    lagToggle.addEventListener('click', () => { state.paused = !state.paused; lagToggle.textContent = state.paused ? '재개' : '일시정지'; });
+    lagBurst.addEventListener('click', () => { state.end += 10000; });
+    lagReset.addEventListener('click', () => { state.end = 0; state.committed = 0; });
+    function tick() {
+      if (!state.paused) {
+        const p = parseInt(rateP.value, 10) / 10; // 100ms 당
+        const c = parseInt(rateC.value, 10) / 10;
+        state.end += p;
+        state.committed = Math.min(state.end, state.committed + c);
+      }
+      const lag = Math.max(0, state.end - state.committed);
+      lagEnd.textContent = Math.floor(state.end).toLocaleString();
+      lagCommit.textContent = Math.floor(state.committed).toLocaleString();
+      lagLag.textContent = Math.floor(lag).toLocaleString();
+      const cRate = parseInt(rateC.value, 10), pRate = parseInt(rateP.value, 10);
+      if (cRate <= pRate || lag <= 0) {
+        lagETA.textContent = lag <= 0 ? '따라잡음' : '∞';
+      } else {
+        const eta = lag / (cRate - pRate);
+        lagETA.textContent = eta < 60 ? eta.toFixed(1) + 's' : (eta/60).toFixed(1) + 'm';
+      }
+      const max = Math.max(state.end, 1);
+      barEnd.style.width = '100%';
+      barCommit.style.width = (state.committed / max * 100) + '%';
+      barLag.style.width = (lag / max * 100) + '%';
+    }
+    setInterval(tick, 100);
+  })();
+
+  // 메시지 흐름 애니메이션
+  (function() {
+    const dot = document.getElementById('flowDot');
+    if (!dot) return;
+    // 경로: producer (140,110) -> leader (300,70) -> 복제 표시를 위해 잠시 머무름 -> consumer (500,110)
+    const path = [
+      [140, 110], [300, 70], [300, 70], [500, 110]
+    ];
+    let t = 0;
+    function ease(x) { return x < 0.5 ? 2*x*x : 1 - Math.pow(-2*x+2, 2)/2; }
+    function frame() {
+      t = (t + 0.006) % 1;
+      const seg = Math.floor(t * 3);
+      const local = ease((t * 3) % 1);
+      const a = path[seg], b = path[seg+1];
+      const x = a[0] + (b[0]-a[0]) * local;
+      const y = a[1] + (b[1]-a[1]) * local;
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      requestAnimationFrame(frame);
+    }
+    frame();
+  })();
+</script>
+
+</body>
+</html>

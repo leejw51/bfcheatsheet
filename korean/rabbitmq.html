@@ -1,0 +1,1391 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>RabbitMQ 랩 — 입력으로 배우기</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --bg-2:#161a22;
+    --panel:#1b212c;
+    --panel-2:#222a36;
+    --line:#2a3242;
+    --text:#e7ecf3;
+    --muted:#8a93a4;
+    --accent:#FF6600;
+    --accent-2:#ffb37a;
+    --good:#3fd17c;
+    --bad:#ff4d6d;
+    --warn:#ffd166;
+    --info:#4dd6ff;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --rounded:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,sans-serif;line-height:1.55}
+  a{color:var(--accent-2)}
+  code,kbd,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  pre{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:13px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px}
+  header.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:46px;height:46px;border-radius:12px;background:radial-gradient(circle at 30% 30%,#ffb37a,#FF6600 60%,#a93f00);display:grid;place-items:center;box-shadow:var(--shadow)}
+  .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
+  .brand small{color:var(--muted);font-weight:400}
+  .hud{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;display:flex;align-items:center;gap:8px}
+  .pill .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+  .xpbar{width:170px;height:8px;background:#0b0e13;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+  .xpbar > div{height:100%;background:linear-gradient(90deg,#ffb37a,#FF6600);width:0%}
+  nav.tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 18px}
+  nav.tabs button{background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:10px;cursor:pointer;font-size:13px}
+  nav.tabs button.active{background:linear-gradient(180deg,#2a1407,#1d0e05);border-color:var(--accent);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .grid{display:grid;gap:14px}
+  .grid.cols-2{grid-template-columns:1fr 1fr}
+  .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+  @media (max-width:900px){.grid.cols-2,.grid.cols-3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--rounded);padding:18px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 8px 0;font-size:18px}
+  .card h3{margin:18px 0 6px 0;font-size:15px;color:var(--accent-2)}
+  .card p{color:#cdd5e0;margin:6px 0}
+  .muted{color:var(--muted)}
+  .kbd{background:#0b0e13;border:1px solid var(--line);border-bottom-width:2px;border-radius:6px;padding:1px 6px;font-size:12px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .btn{background:var(--accent);color:#1a0a00;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-weight:500}
+  .btn.small{padding:6px 10px;font-size:12px;border-radius:8px}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input[type="text"], select, textarea{background:#0b0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  input[type="text"]:focus, select:focus, textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,102,0,.2)}
+  textarea{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .tag{display:inline-block;background:#23170c;border:1px solid #4a2c12;color:#ffd0aa;border-radius:6px;padding:2px 8px;font-size:12px;margin-right:6px}
+  .tag.good{background:#0f2418;border-color:#1d4a30;color:#a8e6c1}
+  .tag.bad{background:#2b0e14;border-color:#5a1a26;color:#ffb1bd}
+  .tag.info{background:#0d1f2a;border-color:#1d4256;color:#a8dff5}
+  .tag.warn{background:#2a2110;border-color:#5a4720;color:#ffe5a3}
+  .step{padding:8px 10px;border-left:3px solid var(--accent);background:#1a1107;border-radius:0 8px 8px 0;margin:8px 0}
+  .scroll{max-height:340px;overflow:auto;padding-right:6px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px;margin:3px}
+  .badge.unlocked{border-color:var(--accent);background:#22130a;color:#ffd0aa;box-shadow:inset 0 0 0 1px rgba(255,102,0,.3)}
+  .badge .em{filter:saturate(.6) opacity(.6)}
+  .badge.unlocked .em{filter:none}
+  .progress{height:10px;background:#0b0e13;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--good),#7eebac)}
+  /* shake/confetti */
+  .shake{animation:shake .35s ease}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+  .pulse{animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{filter:drop-shadow(0 0 0 rgba(255,102,0,0))}50%{filter:drop-shadow(0 0 6px rgba(255,102,0,.7))}}
+  .hidden{display:none !important}
+  .footer{color:var(--muted);font-size:12px;margin:30px 0 6px;text-align:center}
+  /* simulator */
+  .simwrap{position:relative;background:repeating-linear-gradient(45deg,#0d1118 0 10px,#0b0e13 10px 20px);border-radius:12px;border:1px solid var(--line);overflow:hidden}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px;border-bottom:1px solid var(--line);background:#11151d}
+  .controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+  .legend{display:flex;gap:14px;color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--line);background:#11151d}
+  .log{font-family:ui-monospace,monospace;font-size:12px;background:#0a0d12;border:1px solid var(--line);border-radius:8px;padding:8px;max-height:160px;overflow:auto;white-space:pre-wrap}
+  .log .ok{color:var(--good)}
+  .log .err{color:var(--bad)}
+  .log .info{color:var(--info)}
+  .log .warn{color:var(--warn)}
+  .log .acc{color:var(--accent-2)}
+  /* practice */
+  .ex-card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}
+  .ex-card .q{font-size:16px;margin-bottom:8px}
+  .ex-card input[type=text]{width:100%}
+  .feedback{margin-top:8px;font-size:13px}
+  .feedback.ok{color:var(--good)}
+  .feedback.err{color:var(--bad)}
+  .feedback.hint{color:var(--muted)}
+  .stagebar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap}
+  .timer{font-variant-numeric:tabular-nums;font-weight:700;color:var(--warn)}
+  /* boss */
+  .siren{color:var(--bad);animation:siren .8s linear infinite alternate}
+  @keyframes siren{0%{text-shadow:0 0 0 transparent}100%{text-shadow:0 0 12px rgba(255,77,109,.8)}}
+  /* canvas overlay for confetti */
+  #fx{position:fixed;inset:0;pointer-events:none;z-index:9999}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <!-- rabbit silhouette -->
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <path d="M14 50c-2-10 0-22 6-28 1 6 4 8 8 8 1-7 4-12 8-15 1 6 3 9 6 11 5-3 9-3 12 0-2 4-6 6-6 12 0 6 4 8 4 14H14z" fill="#fff"/>
+          <circle cx="40" cy="42" r="2" fill="#1a0a00"/>
+          <circle cx="30" cy="42" r="2" fill="#1a0a00"/>
+          <path d="M34 47c1 1 3 1 4 0" stroke="#1a0a00" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>RabbitMQ 랩 <small>— 입력으로 배우기</small></h1>
+        <div class="muted" style="font-size:13px">AMQP, 익스체인지, 큐, 패턴에 대한 인터랙티브 게임화 입문서.</div>
+      </div>
+    </div>
+    <div class="hud">
+      <div class="pill"><span class="dot"></span><span>레벨 <b id="hud-level">1</b></span></div>
+      <div class="pill">XP <b id="hud-xp">0</b><div class="xpbar" title="다음 레벨까지 XP"><div id="hud-xpbar"></div></div></div>
+      <div class="pill">콤보 <b id="hud-combo">0</b>x</div>
+      <div class="pill">최고 <b id="hud-best">0</b>x</div>
+      <button class="btn ghost small" id="btn-reset">저장 초기화</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="섹션 탭">
+    <button data-tab="learn" class="active">1. 개념</button>
+    <button data-tab="exchanges">2. 익스체인지</button>
+    <button data-tab="reliability">3. 신뢰성</button>
+    <button data-tab="qos">4. QoS &amp; 클러스터</button>
+    <button data-tab="patterns">5. 패턴</button>
+    <button data-tab="sim">시뮬레이터</button>
+    <button data-tab="practice">연습 (입력!)</button>
+    <button data-tab="boss">보스: 프로덕션 장애</button>
+    <button data-tab="badges">배지</button>
+  </nav>
+
+  <!-- ========================== TAB: LEARN ========================== -->
+  <section data-panel="learn">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>1. 메시지 브로커란 무엇인가?</h2>
+        <p><b>메시지 브로커</b>는 프로듀서와 컨슈머 사이에 있습니다. 프로듀서는 메시지를 브로커에 떨어뜨리고 자기 일로 돌아갑니다. 컨슈머는 자신의 페이스에 맞춰 나중에 그것을 가져갑니다. 둘은 동시에 온라인일 필요도 없고, 서로의 주소를 알 필요도 없으며, 처리 속도에 합의할 필요도 없습니다.</p>
+        <h3>왜 큐가 중요한가</h3>
+        <ul>
+          <li><b>디커플링</b>: 프로듀서 변경 없이 컨슈머 변경.</li>
+          <li><b>버퍼링</b>: 스파이크를 부드럽게 함; 큐가 버스트를 흡수.</li>
+          <li><b>신뢰성</b>: 컨슈머가 크래시되어도 메시지는 그대로 있습니다.</li>
+          <li><b>팬아웃</b>: 하나의 이벤트가 여러 독립적인 반응을 트리거.</li>
+        </ul>
+        <div class="step"><b>심상 모델:</b> 프로듀서는 엽서를 쓰고, 브로커는 우체국이며, 큐는 우편함이고, 컨슈머는 여유롭게 읽습니다.</div>
+      </div>
+
+      <div class="card">
+        <h2>2. AMQP 핵심 개념</h2>
+        <p>RabbitMQ는 <b>AMQP 0-9-1</b>을 구현합니다. 용어는 작지만 정확합니다.</p>
+        <ul>
+          <li><span class="tag">프로듀서</span> 메시지를 발행합니다.</li>
+          <li><span class="tag">컨슈머</span> 메시지를 구독하고 처리합니다.</li>
+          <li><span class="tag">큐</span> 메시지를 저장하는 이름 있는 버퍼.</li>
+          <li><span class="tag">익스체인지</span> 라우터; 프로듀서는 익스체인지에 발행하며, 큐에 직접 발행하지 않습니다.</li>
+          <li><span class="tag">바인딩</span> 익스체인지를 큐에 연결하는 규칙 (종종 키와 함께).</li>
+          <li><span class="tag">라우팅 키</span> 프로듀서가 메시지에 붙이는 문자열; 익스체인지는 이를 사용해 어디로 전달할지 결정.</li>
+          <li><span class="tag">가상 호스트</span> (vhost) 사용자, 익스체인지, 큐를 분할하는 네임스페이스; 논리적 격리.</li>
+          <li><span class="tag">커넥션</span> TCP 연결. <span class="tag">채널</span> 그 안의 멀티플렉스된 가상 연결.</li>
+        </ul>
+        <h3>한눈에 보는 흐름</h3>
+        <pre>producer
+  └─ publish(routing_key) ─▶ exchange
+                              ├─ binding A ─▶ queue 1 ─▶ consumer
+                              └─ binding B ─▶ queue 2 ─▶ consumer</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: EXCHANGES ========================== -->
+  <section data-panel="exchanges" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>3. 익스체인지 유형 심층 분석</h2>
+        <h3>Direct</h3>
+        <p>메시지의 <b>라우팅 키가 바인딩 키와 정확히 일치</b>하는 경우에 라우팅합니다. 사용처: 타깃 전달, 단순 작업 큐, 명령 라우팅.</p>
+        <pre>binding: queue.email  ⇐ key="email"
+publish key="email"   → queue.email
+publish key="sms"     → 폐기 (또는 unrouted)</pre>
+
+        <h3>Fanout</h3>
+        <p>라우팅 키를 무시합니다. <b>바인딩된 모든 큐에 브로드캐스트.</b> 사용처: pub/sub 이벤트, 캐시 무효화, "모두에게 알리기" 알림.</p>
+        <pre>publish 어떤 키든 → 바인딩된 모든 큐가 수신</pre>
+
+        <h3>Topic</h3>
+        <p>패턴 기반 라우팅. 라우팅 키는 점(.)으로 구분된 단어들이며, 바인딩 패턴은 다음을 사용할 수 있습니다:</p>
+        <ul>
+          <li><code>*</code> — <b>정확히 한 단어</b>와 매치.</li>
+          <li><code>#</code> — <b>0개 이상의 단어</b>와 매치.</li>
+        </ul>
+        <pre>binding "orders.*.us"   매치     orders.new.us, orders.cancel.us
+                        미스     orders.us, orders.new.eu, orders.a.b.us
+binding "orders.#"      매치     orders, orders.new, orders.new.us
+binding "*.error.*"     매치     app.error.db, web.error.api</pre>
+
+        <h3>Headers</h3>
+        <p>라우팅 키 대신 메시지의 <b>헤더</b>로 라우팅합니다. 매치 모드 <code>x-match: all</code>은 모든 헤더가 일치해야 하고, <code>x-match: any</code>는 하나 이상이면 됩니다.</p>
+        <pre>binding headers: {format: pdf, type: report, x-match: all}
+header {format: pdf, type: report}     → 매치
+header {format: pdf}                    → 미스</pre>
+      </div>
+
+      <div class="card">
+        <h2>언제 어떤 것을 사용할까</h2>
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:6px 4px">유형</th><th>이럴 때 선택&hellip;</th>
+            </tr>
+          </thead>
+          <tbody style="vertical-align:top">
+            <tr><td style="padding:8px 4px"><span class="tag">direct</span></td><td>점대점(point-to-point) 또는 단일 키에 대한 엄격한 동등성 매칭이 필요할 때.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">fanout</span></td><td>모든 구독자가 같은 이벤트를 받아야 할 때. 가장 단순.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">topic</span></td><td>계층적 이벤트(<code>region.service.severity</code>). 구독자가 부분집합을 원할 때.</td></tr>
+            <tr><td style="padding:8px 4px"><span class="tag">headers</span></td><td>라우팅이 문자열 키 하나에 담기 어려운 여러 속성에 의존할 때.</td></tr>
+          </tbody>
+        </table>
+        <h3>기본 익스체인지 (default exchange)</h3>
+        <p>이름 없는 <code>""</code> 익스체인지는 특별한 <b>direct</b> 익스체인지로, 모든 큐가 자기 이름으로 암시적으로 바인딩됩니다. 그래서 <code>basic_publish(exchange='', routing_key='hello')</code>가 곧장 <code>hello</code>라는 큐로 가는 것이죠.</p>
+
+        <h3>Dead-letter 익스체인지 (DLX)</h3>
+        <p>큐는 <code>x-dead-letter-exchange</code>를 설정할 수 있습니다. 거부되거나, 만료되거나, 오버플로된 메시지는 DLX로 재발행되며, 거기에 바인딩된 큐(데드레터 큐)에서 검사하거나 재시도할 수 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: RELIABILITY ========================== -->
+  <section data-panel="reliability" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>4. 확인 응답 (Acknowledgments)</h2>
+        <h3>Auto-ack vs manual ack</h3>
+        <ul>
+          <li><b>Auto-ack</b> (<code>auto_ack=True</code>): 메시지가 컨슈머에게 떠나는 순간 브로커는 전달이 완료된 것으로 간주합니다. <b>빠르지만 불안전.</b> 컨슈머가 처리 도중 크래시되면 메시지는 사라집니다.</li>
+          <li><b>Manual ack</b> (<code>auto_ack=False</code>): 컨슈머가 성공 후 <code>basic_ack(delivery_tag)</code>를 호출해야 합니다. 그 전에 죽으면 브로커는 재연결 시 <b>재전달(redeliver)</b>합니다.</li>
+        </ul>
+        <h3>nack &amp; reject</h3>
+        <ul>
+          <li><code>basic_nack(requeue=true)</code> — 큐에 다시 넣음.</li>
+          <li><code>basic_nack(requeue=false)</code> — 폐기 또는 (설정되어 있다면) DLX로 전송.</li>
+          <li><code>basic_reject</code>는 단일 메시지용 nack.</li>
+        </ul>
+        <h3>재전달 플래그 (redelivered)</h3>
+        <p>메시지가 재전달될 때 브로커는 <code>redelivered=true</code>로 표시합니다. 컨슈머는 이를 주의 신호로 받아들여야 합니다: 멱등성 보장, 중복 제거 키, 헤더 기반 재시도 카운터.</p>
+      </div>
+
+      <div class="card">
+        <h2>5. 내구성 — 재시작 후에도 살아남는 것</h2>
+        <p>메시지가 브로커 크래시 후에도 살아남으려면 다음 세 가지가 <b>모두</b> 설정되어야 합니다:</p>
+        <ol>
+          <li><b>Durable 큐</b>: <code>queue_declare(durable=True)</code>. 그렇지 않으면 큐 자체가 사라집니다.</li>
+          <li><b>Persistent 메시지</b>: <code>delivery_mode=2</code> (또는 <code>PERSISTENT_TEXT_PLAIN</code>). 없으면 메시지는 RAM에만 존재.</li>
+          <li><b>Durable 익스체인지</b> (의존한다면): <code>exchange_declare(durable=True)</code>.</li>
+        </ol>
+        <div class="step"><b>주의:</b> 영속화는 메시지마다 동기 fsync가 아닌 best-effort입니다. 디스크 기록을 보장한 뒤 상위로 ack 해야 한다면 <b>publisher confirms</b> (<code>confirm_delivery</code>)를 사용하세요.</div>
+        <h3>Publisher confirms vs 트랜잭션</h3>
+        <p>AMQP 트랜잭션은 존재하지만 느립니다. <b>Publisher confirms</b>는 비동기이며 수십~수백 배 더 빠릅니다: 브로커가 ack 프레임으로 "받았어"라고 알려줍니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: QoS / CLUSTER ========================== -->
+  <section data-panel="qos" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>6. Prefetch &amp; QoS — 공정한 디스패치</h2>
+        <p>RabbitMQ는 기본적으로 컨슈머에게 라운드 로빈으로 메시지를 전달합니다. 한 컨슈머가 느리고 다른 컨슈머가 빠르면, 빠른 쪽이 노는 동안 느린 쪽에 일이 쌓입니다. <b>Prefetch가 이를 해결합니다.</b></p>
+        <pre>channel.basic_qos(prefetch_count=1)</pre>
+        <p>브로커에게 "이전 메시지를 ack 하기 전에는 새 메시지를 주지 마"라고 말하는 것입니다. 이제 빠른 컨슈머가 더 많은 일을 가져가고, 느린 컨슈머는 덜 가져갑니다. 짧고 균일한 작업이라면 더 높이 (예: 10–50) 설정하세요.</p>
+        <h3>튜닝 경험칙</h3>
+        <ul>
+          <li>길고 불균등한 작업 → <code>prefetch=1</code>.</li>
+          <li>짧고 균일한 작업 → 높은 prefetch (왕복 오버헤드 감소).</li>
+          <li><b>큐 깊이</b>와 <b>컨슈머 활용률</b>로 측정하세요.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>7. 클러스터링 &amp; quorum 큐</h2>
+        <p>RabbitMQ <b>클러스터</b>는 노드 간에 사용자, vhost, 익스체인지, 바인딩을 공유합니다. 큐는 기본적으로 단일 마스터 엔티티이며, 마스터는 한 노드에 살고 미러링되거나 quorum으로 대체될 수 있습니다.</p>
+        <h3>클래식 미러링 큐 (classic mirrored)</h3>
+        <p>레거시. 상태를 팔로워에 복제. 현대 배포에서는 quorum 큐가 이를 대체합니다.</p>
+        <h3>Quorum 큐</h3>
+        <ul>
+          <li><b>Raft</b> 합의 프로토콜 위에 구축.</li>
+          <li><b>강한 일관성</b>: 다수의 복제본이 받기 전에는 쓰기가 ack 되지 않습니다.</li>
+          <li>노드 장애에서 깨끗이 회복. 중요한 데이터의 권장 기본값.</li>
+          <li>트레이드오프: 클래식 큐보다 지연시간이 높고 디스크 I/O가 많음.</li>
+        </ul>
+        <h3>Streams (보너스)</h3>
+        <p>고처리량 분석 워크로드를 위한 로그 스타일 append 큐. 다른 프로토콜, 다른 접근 패턴(파괴적 소비가 아닌 오프셋 기반).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PATTERNS ========================== -->
+  <section data-panel="patterns" class="hidden">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>8. 일반적인 패턴</h2>
+        <h3>작업 큐 (work queues, task distribution)</h3>
+        <p>큐 하나, 워커 여럿, manual ack, prefetch=1. 이미지 리사이즈, 이메일 발송, 비디오 인코딩 등에 사용.</p>
+        <pre>producer ─▶ "" ─▶ queue:tasks ─▶ worker1
+                              └▶ worker2
+                              └▶ worker3</pre>
+
+        <h3>Publish/Subscribe (발행/구독)</h3>
+        <p>Fanout 익스체인지를 사용해, 모든 구독자가 자신의 큐를 통해 모든 메시지를 받습니다.</p>
+        <pre>producer ─▶ fanout:events ─┬─▶ queue:audit       ─▶ logger
+                            ├─▶ queue:cache_invl  ─▶ cache
+                            └─▶ queue:notify      ─▶ pusher</pre>
+      </div>
+
+      <div class="card">
+        <h2>더 많은 패턴</h2>
+        <h3>토픽 라우팅 (topic routing)</h3>
+        <p>계층적 이벤트. 서로 다른 큐가 서로 다른 모양에 구독합니다.</p>
+        <pre>topic:logs
+  binding "*.error.*"  ─▶ queue:alerts
+  binding "db.#"       ─▶ queue:dba
+  binding "#"          ─▶ queue:audit</pre>
+
+        <h3>RPC (요청/응답)</h3>
+        <p>프로듀서는 <code>reply_to</code>(임시 exclusive 큐)와 <code>correlation_id</code>를 설정합니다. 컨슈머는 응답을 <code>reply_to</code>로 발행합니다. 프로듀서는 <code>correlation_id</code>로 응답을 매칭합니다.</p>
+        <pre>client → publish(reply_to=Q1, correlation_id=abc)
+server → consume → publish(exchange='', routing_key=Q1, correlation_id=abc)
+client → abc 와 매치, promise 해소</pre>
+        <div class="step"><b>팁:</b> reply 큐에 TTL을 설정해, 새는 클라이언트로 인해 고아 큐가 쌓이지 않도록 하세요.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: SIMULATOR ========================== -->
+  <section data-panel="sim" class="hidden">
+    <div class="card">
+      <h2>인터랙티브 시뮬레이터</h2>
+      <p class="muted">익스체인지 유형을 고르고 바인딩을 선언한 뒤, 메시지를 발행하고 흐름을 관찰하세요. 컨슈머의 동작 모드를 토글해 ack/nack과 재전달을 확인할 수 있습니다. 발행에 성공할 때마다 XP를 얻습니다.</p>
+
+      <div class="simwrap">
+        <div class="controls">
+          <label>익스체인지 유형
+            <select id="sim-extype">
+              <option value="direct">direct</option>
+              <option value="fanout">fanout</option>
+              <option value="topic" selected>topic</option>
+              <option value="headers">headers</option>
+            </select>
+          </label>
+          <label>라우팅 키
+            <input type="text" id="sim-rk" value="orders.new.us" style="width:160px"/>
+          </label>
+          <label>헤더 (k=v,k=v) <span class="muted">headers 익스체인지 전용</span>
+            <input type="text" id="sim-headers" value="format=pdf,type=report" style="width:200px"/>
+          </label>
+          <label>페이로드
+            <input type="text" id="sim-payload" value="hello-world" style="width:140px"/>
+          </label>
+          <button class="btn" id="sim-publish">발행 ▶</button>
+          <button class="btn ghost small" id="sim-add-binding">+ 바인딩</button>
+          <button class="btn ghost small" id="sim-clear">로그 지우기</button>
+        </div>
+
+        <svg id="sim-svg" viewBox="0 0 1000 360" style="display:block;width:100%;height:360px;background:#0a0d12">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#FF6600"/>
+            </marker>
+            <radialGradient id="g-prod" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffd0aa"/>
+              <stop offset="100%" stop-color="#FF6600"/>
+            </radialGradient>
+            <radialGradient id="g-ex" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8dff5"/>
+              <stop offset="100%" stop-color="#1a6c95"/>
+            </radialGradient>
+            <radialGradient id="g-q" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#a8e6c1"/>
+              <stop offset="100%" stop-color="#1f7045"/>
+            </radialGradient>
+            <radialGradient id="g-c" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#ffe5a3"/>
+              <stop offset="100%" stop-color="#a07a14"/>
+            </radialGradient>
+          </defs>
+
+          <!-- producer -->
+          <g id="node-producer">
+            <rect x="20" y="140" width="140" height="80" rx="14" fill="url(#g-prod)" stroke="#FF6600"/>
+            <text x="90" y="175" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="14">Producer</text>
+            <text x="90" y="195" text-anchor="middle" fill="#1a0a00" font-size="11">basic_publish</text>
+          </g>
+
+          <!-- exchange -->
+          <g id="node-exchange">
+            <polygon points="380,180 440,140 500,180 440,220" fill="url(#g-ex)" stroke="#4dd6ff"/>
+            <text x="440" y="184" text-anchor="middle" fill="#062231" font-weight="700" font-size="13" id="sim-extype-label">topic</text>
+            <text x="440" y="200" text-anchor="middle" fill="#062231" font-size="10">exchange</text>
+          </g>
+
+          <!-- queues will be appended here -->
+          <g id="queues-layer"></g>
+          <g id="bindings-layer"></g>
+          <g id="consumers-layer"></g>
+
+          <!-- producer-to-exchange path -->
+          <path d="M160,180 L380,180" stroke="#FF6600" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+        </svg>
+
+        <div class="legend">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#FF6600;border-radius:50%;margin-right:6px"></span>producer</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1a6c95;border-radius:2px;margin-right:6px"></span>exchange</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#1f7045;border-radius:2px;margin-right:6px"></span>queue</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#a07a14;border-radius:2px;margin-right:6px"></span>consumer</span>
+          <span class="muted">탈락 = unrouted (mandatory off → 조용히 소실)</span>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px">
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">바인딩</h3>
+          <div id="bindings-list"></div>
+          <p class="muted" style="font-size:12px">바인딩을 클릭하면 제거됩니다.</p>
+        </div>
+        <div class="card" style="background:var(--panel-2)">
+          <h3 style="color:var(--accent-2);margin-top:0">컨슈머</h3>
+          <div id="consumers-list"></div>
+          <button class="btn ghost small" id="sim-add-consumer">+ 컨슈머 추가</button>
+          <p class="muted" style="font-size:12px">각 컨슈머의 ack 모드를 토글하세요 (auto / manual-ack / manual-nack-requeue / manual-nack-DLX).</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-top:0;color:var(--accent-2)">활동 로그</h3>
+        <div class="log" id="sim-log"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: PRACTICE ========================== -->
+  <section data-panel="practice" class="hidden">
+    <div class="card">
+      <h2>연습 모드 — 답을 입력</h2>
+      <p class="muted">객관식이 아닙니다. 용어, 명령, 인자, 또는 <b>yes</b>/<b>no</b>를 입력하세요. 비교는 대소문자 무시이며 vocab/yes-no 문항은 사소한 오타에 관대합니다. 다만 명령과 코드는 정확히 일치해야 합니다.</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">단계 <b id="prac-i">1</b> / <b id="prac-n">18</b></span>
+          <span class="tag info" id="prac-kind">vocab</span>
+          <span class="tag good" id="prac-correct">0 정답</span>
+          <span class="tag bad" id="prac-wrong">0 오답</span>
+        </div>
+        <div class="row">
+          <button class="btn ghost small" id="prac-skip">건너뛰기</button>
+          <button class="btn ghost small" id="prac-restart">다시 시작</button>
+        </div>
+      </div>
+      <div class="progress"><div id="prac-progress"></div></div>
+      <div id="prac-mount"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BOSS ========================== -->
+  <section data-panel="boss" class="hidden">
+    <div class="card">
+      <h2><span class="siren">●</span> 보스 모드: 프로덕션 장애</h2>
+      <p>방금 페이저가 울렸습니다. 문항당 <b>30초</b>, 총 10문제. 명령, 용어, 또는 한 단어 답을 입력하세요. 정답 = +50 XP. 오답 또는 시간 초과 = 콤보 끊김. 10문항 모두 살아남으면 <b>장애 진압자(Outage Crusher)</b> 배지를 획득합니다.</p>
+      <div class="stagebar">
+        <div class="row">
+          <span class="tag">문항 <b id="boss-i">1</b> / 10</span>
+          <span class="tag warn">시간 <span class="timer" id="boss-timer">30</span>초</span>
+          <span class="tag good" id="boss-correct">0 정답</span>
+        </div>
+        <div class="row">
+          <button class="btn" id="boss-start">장애 시작</button>
+          <button class="btn ghost small" id="boss-quit">종료</button>
+        </div>
+      </div>
+      <div class="progress"><div id="boss-progress"></div></div>
+      <div id="boss-mount" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ========================== TAB: BADGES ========================== -->
+  <section data-panel="badges" class="hidden">
+    <div class="card">
+      <h2>배지 캐비닛</h2>
+      <p class="muted">시뮬레이터를 돌리고, 연습을 끝내고, 장애에서 살아남으면 잠금 해제됩니다.</p>
+      <div id="badges-mount"></div>
+    </div>
+  </section>
+
+  <p class="footer">학습용. 진행 상황은 브라우저에 저장됩니다. 언제든 초기화 가능.</p>
+</div>
+
+<script>
+/* =========================================================
+   상태 & 영속화 (STATE & PERSISTENCE)
+   ========================================================= */
+const SAVE_KEY = 'rmq-lab-v1';
+const DEFAULT_STATE = {
+  xp: 0,                  // 누적 경험치
+  level: 1,               // 레벨
+  combo: 0,               // 현재 콤보
+  bestCombo: 0,           // 최고 콤보
+  badges: {},             // 획득한 배지 맵
+  practiceDone: false,    // 연습 완료 여부
+  bossDone: false,        // 보스 클리어 여부
+  publishCount: 0,        // 누적 발행 수
+  ackCount: 0,            // ack 수
+  nackCount: 0,           // nack 수
+  topicMatchSolved: 0,    // 토픽 퍼즐 해결 수
+  dlxRoutes: 0,           // DLX 라우팅 수
+};
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return structuredClone(DEFAULT_STATE);
+    return Object.assign(structuredClone(DEFAULT_STATE), JSON.parse(raw));
+  }catch(e){ return structuredClone(DEFAULT_STATE); }
+}
+function saveState(){ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }   // 진행 상황 저장
+
+function xpForLevel(lvl){ return 100 + (lvl-1)*60; }     // 레벨별 필요 XP
+function addXP(n, reason){
+  state.xp += n;
+  while(state.xp >= xpForLevel(state.level)){
+    state.xp -= xpForLevel(state.level);
+    state.level++;
+    toast(`레벨 업! → 레벨 ${state.level}`, 'good');
+    confettiBurst(140);
+  }
+  saveState(); renderHUD();
+  if(reason) flashLog(`+${n} XP — ${reason}`, 'acc');
+}
+function bumpCombo(){
+  state.combo++;
+  if(state.combo > state.bestCombo) state.bestCombo = state.combo;
+  if(state.combo===5) unlockBadge('combo5');
+  if(state.combo===10) unlockBadge('combo10');
+  if(state.combo===20) unlockBadge('combo20');
+  saveState(); renderHUD();
+}
+function breakCombo(){ state.combo = 0; saveState(); renderHUD(); }
+
+function renderHUD(){
+  document.getElementById('hud-level').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-combo').textContent = state.combo;
+  document.getElementById('hud-best').textContent = state.bestCombo;
+  const need = xpForLevel(state.level);
+  document.getElementById('hud-xpbar').style.width = Math.min(100, (state.xp/need)*100) + '%';
+}
+renderHUD();
+
+/* =========================================================
+   배지 (BADGES)
+   ========================================================= */
+const BADGES = [
+  {id:'firstPublish', name:'첫 발행', icon:'🚀', desc:'시뮬레이터에서 첫 메시지를 발행하세요.'},
+  {id:'fanoutFan', name:'팬아웃 팬', icon:'📡', desc:'fanout 으로 한 번에 3개 이상의 큐에 성공적으로 발행.'},
+  {id:'topicMaster', name:'토픽 마스터', icon:'🧩', desc:'토픽 라우팅 퍼즐 5개 연속 정답.'},
+  {id:'ackAttack', name:'Ack 어택', icon:'✅', desc:'5개 메시지를 수동으로 ack.'},
+  {id:'dlxDefender', name:'DLX 디펜더', icon:'🛡️', desc:'데드레터 익스체인지로 3개 메시지 라우팅.'},
+  {id:'durableDevotee', name:'내구성 헌신자', icon:'💾', desc:'연습의 모든 내구성 문항을 통과.'},
+  {id:'rpcRanger', name:'RPC 레인저', icon:'📞', desc:'RPC reply_to/correlation_id 답을 정확히 입력.'},
+  {id:'practiceComplete', name:'연습 완벽주의자', icon:'🎓', desc:'18개 연습 문항을 모두 풀기.'},
+  {id:'outageCrusher', name:'장애 진압자', icon:'🔥', desc:'프로덕션 장애 보스 모드를 살아남기.'},
+  {id:'combo5', name:'On a Roll', icon:'🎯', desc:'5연속 정답.'},
+  {id:'combo10', name:'Hot Streak', icon:'⚡', desc:'10연속 정답.'},
+  {id:'combo20', name:'Unstoppable', icon:'🌟', desc:'20연속 정답.'},
+];
+function unlockBadge(id){
+  if(state.badges[id]) return;
+  state.badges[id] = Date.now();
+  const b = BADGES.find(x=>x.id===id);
+  if(b){ toast(`배지 잠금 해제: ${b.icon} ${b.name}`, 'good'); confettiBurst(120); }
+  saveState(); renderBadges();
+}
+function renderBadges(){
+  const m = document.getElementById('badges-mount');
+  if(!m) return;
+  m.innerHTML = BADGES.map(b=>{
+    const on = !!state.badges[b.id];
+    return `<div class="badge ${on?'unlocked':''}" title="${b.desc}">
+      <span class="em">${b.icon}</span>
+      <span>${b.name}</span>
+      ${on?'<span style="color:var(--good);font-size:11px">획득</span>':'<span class="muted" style="font-size:11px">잠김</span>'}
+    </div>`;
+  }).join('');
+}
+renderBadges();
+
+/* =========================================================
+   토스트 + 효과 (TOAST + FX)
+   ========================================================= */
+const fx = document.getElementById('fx');
+const fctx = fx.getContext('2d');
+function resizeFX(){ fx.width = innerWidth; fx.height = innerHeight; }
+addEventListener('resize', resizeFX); resizeFX();
+let particles = [];
+function confettiBurst(n=80){
+  const colors = ['#FF6600','#ffb37a','#3fd17c','#4dd6ff','#ffd166','#ff4d6d'];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*120,    // 시작 x
+      y: innerHeight/2,                            // 시작 y (가운데)
+      vx: (Math.random()-.5)*8,                    // 수평 속도
+      vy: (Math.random()-1.2)*9,                   // 수직 속도 (위로)
+      g: .25,                                      // 중력
+      life: 90 + Math.random()*40,                 // 수명 (프레임)
+      c: colors[(Math.random()*colors.length)|0],  // 색상
+      s: 4 + Math.random()*4,                      // 크기
+      r: Math.random()*Math.PI                     // 회전
+    });
+  }
+}
+function tickFX(){
+  fctx.clearRect(0,0,fx.width,fx.height);
+  particles = particles.filter(p=>p.life>0);
+  particles.forEach(p=>{
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.life--; p.r += .15;
+    fctx.save(); fctx.translate(p.x,p.y); fctx.rotate(p.r);
+    fctx.fillStyle = p.c;
+    fctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*1.4);
+    fctx.restore();
+  });
+  requestAnimationFrame(tickFX);
+}
+tickFX();
+
+const toastBox = (function(){
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;right:18px;top:18px;z-index:10000;display:flex;flex-direction:column;gap:8px;max-width:320px';
+  document.body.appendChild(el); return el;
+})();
+function toast(msg, kind='info'){
+  const t = document.createElement('div');
+  const c = kind==='good'?'#3fd17c':kind==='bad'?'#ff4d6d':kind==='warn'?'#ffd166':'#4dd6ff';
+  t.style.cssText = `background:#161a22;border:1px solid ${c}55;color:#e7ecf3;padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.4);font-size:13px;border-left:4px solid ${c};animation:slideIn .25s ease`;
+  t.textContent = msg;
+  toastBox.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; setTimeout(()=>t.remove(),400); }, 2400);
+}
+function shake(el){ el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function flashLog(msg, kind='info'){
+  const log = document.getElementById('sim-log');
+  if(!log) return;
+  const span = document.createElement('div');
+  span.className = kind;
+  const t = new Date().toLocaleTimeString();
+  span.textContent = `[${t}] ${msg}`;
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* =========================================================
+   탭 (TABS)
+   ========================================================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('section[data-panel]').forEach(s=>{
+      s.classList.toggle('hidden', s.dataset.panel !== tab);
+    });
+  });
+});
+
+document.getElementById('btn-reset').addEventListener('click', ()=>{
+  if(confirm('모든 진행 상황, 배지, XP 를 초기화할까요?')){
+    state = structuredClone(DEFAULT_STATE);
+    saveState(); renderHUD(); renderBadges();
+    toast('저장이 초기화되었습니다.', 'warn');
+  }
+});
+
+/* =========================================================
+   시뮬레이터 (SIMULATOR)
+   ========================================================= */
+const SIM = {
+  exchangeType: 'topic',
+  bindings: [], // {id, queue, key, headers:{}, xMatch:'all'}
+  consumers: [], // {id, queue, mode}
+  queueIds: 0,
+  consumerIds: 0,
+  bindingIds: 0,
+  // queueId -> [대기 중인 메시지 id 들]
+  pending: {},
+};
+
+function simAddBinding(queue, key, headers={}, xMatch='all'){
+  SIM.bindingIds++;
+  const id = 'b'+SIM.bindingIds;
+  // 큐 객체가 없으면 생성
+  if(!queue) queue = `q.${SIM.queueIds+1}`;
+  SIM.bindings.push({id, queue, key, headers, xMatch});
+  // 큐에 적어도 하나의 컨슈머 슬롯이 있는지 확인 (선택)
+  redrawSim();
+}
+
+function simRemoveBinding(id){
+  SIM.bindings = SIM.bindings.filter(b=>b.id!==id);
+  redrawSim();
+}
+
+function simAddConsumer(queue, mode='manual-ack'){
+  SIM.consumerIds++;
+  if(!queue){
+    // 첫 번째 가용 큐에 연결
+    const queues = uniqueQueues();
+    queue = queues[0] || 'q.1';
+  }
+  const id = 'c'+SIM.consumerIds;
+  SIM.consumers.push({id, queue, mode});
+  redrawSim();
+}
+
+function uniqueQueues(){
+  const set = new Set();
+  SIM.bindings.forEach(b=>set.add(b.queue));
+  SIM.consumers.forEach(c=>set.add(c.queue));
+  return [...set];
+}
+
+function topicMatch(pattern, key){
+  // amqp 토픽: '*' = 정확히 한 단어, '#' = 0개 이상의 단어
+  const pp = pattern.split('.');
+  const kk = key.split('.');
+  // 동적 계획법
+  function rec(i,j){
+    if(i===pp.length && j===kk.length) return true;
+    if(i===pp.length) return false;
+    if(pp[i]==='#'){
+      // 0개 이상의 단어와 매치
+      for(let x=j;x<=kk.length;x++){
+        if(rec(i+1,x)) return true;
+      }
+      // 끝에 오는 # 도 지원
+      return rec(i+1,j) && j===kk.length;
+    }
+    if(j===kk.length) return false;
+    if(pp[i]==='*' || pp[i]===kk[j]) return rec(i+1,j+1);
+    return false;
+  }
+  return rec(0,0);
+}
+
+function headersMatch(bindHdr, msgHdr, xMatch){
+  const keys = Object.keys(bindHdr);
+  if(keys.length===0) return false;
+  if(xMatch==='any'){
+    return keys.some(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+  }
+  return keys.every(k=>msgHdr[k]!==undefined && String(msgHdr[k])===String(bindHdr[k]));
+}
+
+function routeMessage(extype, key, headers){
+  const matched = new Set();
+  SIM.bindings.forEach(b=>{
+    if(extype==='fanout'){ matched.add(b.queue); return; }
+    if(extype==='direct'){ if(b.key===key) matched.add(b.queue); return; }
+    if(extype==='topic'){ if(topicMatch(b.key, key)) matched.add(b.queue); return; }
+    if(extype==='headers'){ if(headersMatch(b.headers||{}, headers||{}, b.xMatch||'all')) matched.add(b.queue); return; }
+  });
+  return [...matched];
+}
+
+function redrawSim(){
+  const extype = SIM.exchangeType;
+  document.getElementById('sim-extype-label').textContent = extype;
+  // 큐 레이아웃
+  const queues = uniqueQueues();
+  if(queues.length===0){
+    // 최소 하나의 기본값 보장
+  }
+  const qLayer = document.getElementById('queues-layer');
+  const cLayer = document.getElementById('consumers-layer');
+  const bLayer = document.getElementById('bindings-layer');
+  qLayer.innerHTML=''; cLayer.innerHTML=''; bLayer.innerHTML='';
+
+  const startY = 40, gap = (queues.length>0) ? Math.max(60, 280/queues.length) : 280;
+  queues.forEach((q,i)=>{
+    const y = startY + i*gap + 20;
+    // 큐 사각형
+    qLayer.insertAdjacentHTML('beforeend',
+      `<g data-q="${q}">
+         <rect x="640" y="${y-22}" width="140" height="44" rx="8" fill="url(#g-q)" stroke="#3fd17c"/>
+         <text x="710" y="${y+5}" text-anchor="middle" fill="#06190f" font-weight="700" font-size="13">${q}</text>
+         <g class="q-msgs" data-q="${q}" transform="translate(648,${y-6})"></g>
+       </g>`);
+    // 바인딩 선(들)
+    SIM.bindings.filter(b=>b.queue===q).forEach((b,idx)=>{
+      const offset = (idx-(SIM.bindings.filter(bb=>bb.queue===q).length-1)/2)*8;
+      bLayer.insertAdjacentHTML('beforeend',
+        `<path d="M500,${180+offset} C570,${180+offset} 600,${y} 640,${y}" stroke="#FF6600" stroke-width="1.6" fill="none" opacity=".7"/>
+         <text x="555" y="${(180+y)/2 - 4 + offset}" text-anchor="middle" fill="#ffb37a" font-size="10">${escapeHtml(extype==='headers'? bindingHdrLabel(b) : b.key||'""')}</text>`);
+    });
+    // 이 큐에 연결된 컨슈머들
+    const cs = SIM.consumers.filter(c=>c.queue===q);
+    cs.forEach((c,j)=>{
+      const cx = 860, cy = y + (j-(cs.length-1)/2)*36;
+      cLayer.insertAdjacentHTML('beforeend',
+        `<g data-c="${c.id}">
+           <rect x="${cx}" y="${cy-18}" width="120" height="36" rx="8" fill="url(#g-c)" stroke="#ffd166"/>
+           <text x="${cx+60}" y="${cy+2}" text-anchor="middle" fill="#1a0a00" font-weight="700" font-size="12">${c.id}</text>
+           <text x="${cx+60}" y="${cy+14}" text-anchor="middle" fill="#1a0a00" font-size="9">${c.mode}</text>
+         </g>
+         <path d="M780,${y} L${cx},${cy}" stroke="#ffd166" stroke-width="1.4" fill="none" opacity=".7" marker-end="url(#arrow)"/>`);
+    });
+  });
+
+  // 바인딩 목록
+  const bl = document.getElementById('bindings-list');
+  if(SIM.bindings.length===0){
+    bl.innerHTML = '<p class="muted" style="font-size:13px">아직 바인딩이 없습니다. 위의 <b>+ 바인딩</b> 클릭.</p>';
+  } else {
+    bl.innerHTML = SIM.bindings.map(b=>{
+      const label = SIM.exchangeType==='headers' ? bindingHdrLabel(b) : (b.key||'""');
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag info">${b.queue}</span>
+        <span class="tag">${escapeHtml(label)}</span>
+        <button class="btn ghost small" data-rm-binding="${b.id}">제거</button>
+      </div>`;
+    }).join('');
+    bl.querySelectorAll('[data-rm-binding]').forEach(btn=>{
+      btn.addEventListener('click',()=>simRemoveBinding(btn.dataset.rmBinding));
+    });
+  }
+
+  // 컨슈머 목록
+  const cl = document.getElementById('consumers-list');
+  if(SIM.consumers.length===0){
+    cl.innerHTML = '<p class="muted" style="font-size:13px">아직 컨슈머가 없습니다. 추가하면 전달이 보입니다.</p>';
+  } else {
+    cl.innerHTML = SIM.consumers.map(c=>{
+      return `<div class="row" style="margin:4px 0">
+        <span class="tag warn">${c.id}</span>
+        <span class="tag">큐 ${c.queue}</span>
+        <select data-c-mode="${c.id}">
+          ${['auto-ack','manual-ack','manual-nack-requeue','manual-nack-DLX'].map(m=>`<option ${c.mode===m?'selected':''} value="${m}">${m}</option>`).join('')}
+        </select>
+        <button class="btn ghost small" data-rm-c="${c.id}">제거</button>
+      </div>`;
+    }).join('');
+    cl.querySelectorAll('[data-c-mode]').forEach(sel=>{
+      sel.addEventListener('change',()=>{
+        const c = SIM.consumers.find(x=>x.id===sel.dataset.cMode);
+        c.mode = sel.value; redrawSim();
+      });
+    });
+    cl.querySelectorAll('[data-rm-c]').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        SIM.consumers = SIM.consumers.filter(c=>c.id!==btn.dataset.rmC);
+        redrawSim();
+      });
+    });
+  }
+}
+
+function bindingHdrLabel(b){
+  const h = b.headers||{};
+  const inside = Object.entries(h).map(([k,v])=>`${k}=${v}`).join(',');
+  return `{${inside||'∅'}|x-match=${b.xMatch||'all'}}`;
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* publish 애니메이션: 점이 prod→exchange→queue(들)→consumer (또는 폐기) */
+function animateFlow(matched, payload, key){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  // 1) producer → exchange
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 6);
+  dot.setAttribute('fill','#FF6600');
+  dot.setAttribute('cx', 160); dot.setAttribute('cy', 180);
+  svg.appendChild(dot);
+  const label = document.createElementNS(NS,'text');
+  label.setAttribute('fill','#ffd0aa'); label.setAttribute('font-size','10');
+  label.setAttribute('text-anchor','middle');
+  label.textContent = key;
+  label.setAttribute('x', 160); label.setAttribute('y', 170);
+  svg.appendChild(label);
+
+  let t = 0;
+  const dur1 = 30; // exchange 까지 프레임 수
+  function step1(){
+    t++;
+    const p = t/dur1;
+    const x = 160 + (380-160)*p;
+    dot.setAttribute('cx', x);
+    label.setAttribute('x', x);
+    if(t<dur1) requestAnimationFrame(step1);
+    else {
+      label.remove();
+      // exchange 펄스
+      const exNode = document.querySelector('#node-exchange polygon');
+      exNode.classList.add('pulse');
+      setTimeout(()=>exNode.classList.remove('pulse'), 700);
+      if(matched.length===0){
+        // 폐기
+        flashLog(`✗ unrouted: key="${key}" 매칭되는 바인딩 없음 (메시지 폐기)`,'err');
+        // 캔버스 흔들기
+        shake(document.querySelector('.simwrap'));
+        // 점이 떨어지며 사라짐
+        let a=1;
+        const fall = ()=>{
+          a-=.05;
+          dot.setAttribute('opacity', Math.max(0,a));
+          dot.setAttribute('cy', 180 + (1-a)*60);
+          if(a>0) requestAnimationFrame(fall);
+          else dot.remove();
+        };
+        fall();
+        breakCombo();
+        return;
+      }
+      // 2) exchange → 매칭된 각 큐
+      matched.forEach(q=>{
+        const dot2 = dot.cloneNode();
+        svg.appendChild(dot2);
+        const target = svg.querySelector(`g[data-q="${CSS.escape(q)}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+70;
+        const ty = parseFloat(target.getAttribute('y'))+22;
+        let s=0;
+        const dur2 = 26;
+        const cb = ()=>{
+          s++;
+          const p = s/dur2;
+          const cx = 440 + (tx-440)*p;
+          const cy = 180 + (ty-180)*p;
+          dot2.setAttribute('cx', cx);
+          dot2.setAttribute('cy', cy);
+          if(s<dur2) requestAnimationFrame(cb);
+          else { dot2.remove(); enqueueAndDeliver(q, payload); }
+        };
+        requestAnimationFrame(cb);
+      });
+      dot.remove();
+      bumpCombo();
+      addXP(10 + Math.min(20, matched.length*5), `${matched.length}개 큐로 발행`);
+      flashLog(`✓ routed key="${key}" → ${matched.join(', ')}`,'ok');
+      if(matched.length>=3 && SIM.exchangeType==='fanout') unlockBadge('fanoutFan');
+    }
+  }
+  step1();
+}
+
+function enqueueAndDeliver(queue, payload){
+  // 그 큐의 컨슈머 중 하나(라운드로빈)를 선택
+  const cs = SIM.consumers.filter(c=>c.queue===queue);
+  if(cs.length===0){
+    flashLog(`… queue ${queue}: 적재됨, 컨슈머 없음 (메시지 보류)`,'warn');
+    drawQMessage(queue, payload, false);
+    return;
+  }
+  const c = cs[Math.floor(Math.random()*cs.length)];
+  const dot = drawQMessage(queue, payload, true);
+  // 컨슈머로 애니메이션
+  const svg = document.getElementById('sim-svg');
+  const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+  const tx = parseFloat(target.getAttribute('x'))+60;
+  const ty = parseFloat(target.getAttribute('y'))+18;
+  const startX = parseFloat(dot.getAttribute('cx'));
+  const startY = parseFloat(dot.getAttribute('cy'));
+  let s=0; const dur=22;
+  const cb = ()=>{
+    s++;
+    const p = s/dur;
+    dot.setAttribute('cx', startX + (tx-startX)*p);
+    dot.setAttribute('cy', startY + (ty-startY)*p);
+    if(s<dur) requestAnimationFrame(cb);
+    else { dot.remove(); handleConsumerOutcome(c, payload, queue); }
+  };
+  requestAnimationFrame(cb);
+}
+
+function drawQMessage(queue, payload, willMove){
+  const svg = document.getElementById('sim-svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const target = svg.querySelector(`g[data-q="${CSS.escape(queue)}"] rect`);
+  const cx = parseFloat(target.getAttribute('x')) + 70;
+  const cy = parseFloat(target.getAttribute('y')) + 22;
+  const dot = document.createElementNS(NS,'circle');
+  dot.setAttribute('r', 5);
+  dot.setAttribute('fill', '#FF6600');
+  dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','1');
+  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+  svg.appendChild(dot);
+  if(!willMove){
+    // 살짝 떨림(wobble)
+    let i=0;
+    const wob=()=>{
+      i++;
+      dot.setAttribute('cx', cx + Math.sin(i/3)*2);
+      if(i<300) requestAnimationFrame(wob);
+    };
+    wob();
+  }
+  return dot;
+}
+
+function handleConsumerOutcome(c, payload, queue){
+  switch(c.mode){
+    case 'auto-ack':
+      flashLog(`⇢ ${c.id} (auto-ack): "${payload}" 소비됨 — 빠르지만 불안전`,'info');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-ack':
+      flashLog(`✓ ${c.id} (manual-ack): "${payload}" 처리 완료, basic_ack 전송`,'ok');
+      state.ackCount++;
+      if(state.ackCount>=5) unlockBadge('ackAttack');
+      break;
+    case 'manual-nack-requeue':
+      flashLog(`↺ ${c.id} (nack, requeue=true): "${payload}" → ${queue} 로 재전달 (redelivered=true)`,'warn');
+      state.nackCount++;
+      // 잠시 후 재전달 시뮬레이션
+      setTimeout(()=>{
+        flashLog(`↻ 재전달: ${queue} → ${c.id} (redelivered=true)`,'warn');
+        // 같은 컨슈머에 재전달
+        const dot = drawQMessage(queue, payload+'*', true);
+        const svg = document.getElementById('sim-svg');
+        const target = svg.querySelector(`g[data-c="${c.id}"] rect`);
+        const tx = parseFloat(target.getAttribute('x'))+60;
+        const ty = parseFloat(target.getAttribute('y'))+18;
+        let s=0; const dur=22;
+        const startX = parseFloat(dot.getAttribute('cx'));
+        const startY = parseFloat(dot.getAttribute('cy'));
+        const cb=()=>{
+          s++;
+          const p=s/dur;
+          dot.setAttribute('cx', startX+(tx-startX)*p);
+          dot.setAttribute('cy', startY+(ty-startY)*p);
+          if(s<dur) requestAnimationFrame(cb);
+          else { dot.remove(); flashLog(`✓ ${c.id} 재시도 시 재전달 처리 완료`, 'ok'); }
+        };
+        requestAnimationFrame(cb);
+      }, 700);
+      break;
+    case 'manual-nack-DLX':
+      flashLog(`☠ ${c.id} (nack, requeue=false): "${payload}" → DLX (데드레터 익스체인지)`,'err');
+      state.dlxRoutes++;
+      if(state.dlxRoutes>=3) unlockBadge('dlxDefender');
+      break;
+  }
+  saveState();
+}
+
+/* 시뮬레이터 와이어링 */
+document.getElementById('sim-extype').addEventListener('change', e=>{
+  SIM.exchangeType = e.target.value;
+  redrawSim();
+});
+document.getElementById('sim-add-binding').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  let key = '';
+  let headers = {};
+  let xMatch = 'all';
+  let queue = prompt('큐 이름은?', `q.${SIM.queueIds+1}`);
+  if(!queue) return;
+  SIM.queueIds++;
+  if(extype==='headers'){
+    const raw = prompt('헤더 바인딩 (k=v, 쉼표로 구분)', 'format=pdf,type=report');
+    if(raw===null) return;
+    raw.split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+    xMatch = (prompt('x-match: all 또는 any?','all')||'all').toLowerCase()==='any'?'any':'all';
+  } else if(extype==='fanout'){
+    key = ''; // 무시됨
+  } else {
+    key = prompt('바인딩 키 (예: orders.*.us)', 'orders.*.us') || '';
+  }
+  simAddBinding(queue, key, headers, xMatch);
+});
+document.getElementById('sim-add-consumer').addEventListener('click', ()=>{
+  const queues = uniqueQueues();
+  let queue;
+  if(queues.length===0){
+    queue = prompt('아직 큐가 없습니다. 컨슈머를 연결할 큐 이름을 입력하세요:', 'q.1');
+    if(!queue) return;
+    SIM.queueIds = Math.max(SIM.queueIds, 1);
+  } else if(queues.length===1){
+    queue = queues[0];
+  } else {
+    queue = prompt('어느 큐에 컨슈머를 연결할까요? '+queues.join(', '), queues[0]);
+    if(!queue) return;
+  }
+  simAddConsumer(queue, 'manual-ack');
+});
+document.getElementById('sim-publish').addEventListener('click', ()=>{
+  const extype = SIM.exchangeType;
+  const key = document.getElementById('sim-rk').value || '';
+  const payload = document.getElementById('sim-payload').value || 'msg';
+  let headers = {};
+  if(extype==='headers'){
+    (document.getElementById('sim-headers').value||'').split(',').forEach(p=>{
+      const [k,v]=p.split('='); if(k&&v) headers[k.trim()]=v.trim();
+    });
+  }
+  const matched = routeMessage(extype, key, headers);
+  state.publishCount++;
+  if(state.publishCount===1) unlockBadge('firstPublish');
+  saveState();
+  animateFlow(matched, payload, extype==='headers' ? JSON.stringify(headers) : key);
+});
+document.getElementById('sim-clear').addEventListener('click', ()=>{
+  document.getElementById('sim-log').innerHTML='';
+});
+
+// 시뮬레이터에 토픽 예시 시드
+simAddBinding('q.alerts','*.error.*');
+simAddBinding('q.us-orders','orders.*.us');
+simAddBinding('q.audit','#');
+simAddConsumer('q.alerts','manual-ack');
+simAddConsumer('q.us-orders','manual-ack');
+simAddConsumer('q.audit','auto-ack');
+
+/* =========================================================
+   연습 — 입력 연습 (PRACTICE)
+   ========================================================= */
+const PRACTICE = [
+  // 어휘 (VOCAB)
+  { kind:'vocab', q:'컨슈머가 가져갈 때까지 메시지를 저장하는 이름 있는 버퍼. 용어를 입력하세요:', a:'queue', xp:15, accept:['큐'] },
+  { kind:'vocab', q:'프로듀서가 보내는 라우터; 큐들이 여기에 바인딩됩니다. 용어를 입력하세요:', a:'exchange', xp:15, accept:['익스체인지'] },
+  { kind:'vocab', q:'사용자, 큐, 익스체인지를 네임스페이스로 분리하는 논리적 격리 경계. 약어(영문)를 입력하세요:', a:'vhost', xp:15, accept:['virtual host','가상 호스트'] },
+  { kind:'vocab', q:'프로듀서가 메시지에 붙이는 문자열로, 익스체인지가 어디로 보낼지 결정할 때 사용. 두 단어:', a:'routing key', xp:15, accept:['라우팅 키'] },
+  { kind:'vocab', q:'거부, 만료, 오버플로된 메시지를 받는 익스체인지. 약어(3글자)를 입력하세요:', a:'dlx', xp:20, accept:['dead letter exchange','dead-letter exchange','데드레터 익스체인지'] },
+  // CLI
+  { kind:'cli', q:'모든 큐를 나열하는 rabbitmqctl 명령을 입력하세요:', a:'rabbitmqctl list_queues', xp:20, strict:true },
+  { kind:'cli', q:'모든 익스체인지를 나열하는 명령(rabbitmqctl)을 입력하세요:', a:'rabbitmqctl list_exchanges', xp:20, strict:true },
+  { kind:'cli', q:'모든 바인딩을 나열하는 명령(rabbitmqctl)을 입력하세요:', a:'rabbitmqctl list_bindings', xp:20, strict:true },
+  { kind:'cli', q:'"billing" 이라는 vhost 를 추가하세요. rabbitmqctl ___:', a:'rabbitmqctl add_vhost billing', xp:20, strict:true },
+  // 코드 (pika)
+  { kind:'code', q:'pika: "tasks" 라는 durable 큐를 선언. 함수명을 채우세요:\nchannel.____(queue="tasks", durable=True)', a:'queue_declare', xp:20, strict:true },
+  { kind:'code', q:'pika: "hi" 를 기본 익스체인지로 발행해 큐 "tasks" 로, persistent 표시.\nchannel.basic_publish(exchange="", routing_key="tasks", body="hi", properties=pika.BasicProperties(delivery_mode=__))\n빠진 숫자를 입력하세요:', a:'2', xp:20, strict:true, accept:['PERSISTENT_DELIVERY_MODE'] },
+  { kind:'code', q:'pika: 한 전달을 ack. 빠진 메서드를 채우세요:\nch.____(delivery_tag=method.delivery_tag)', a:'basic_ack', xp:20, strict:true },
+  { kind:'code', q:'pika: 컨슈머당 미처리 전달을 1로 제한해 공정 디스패치 활성화:\nchannel.____(prefetch_count=1)', a:'basic_qos', xp:20, strict:true },
+  { kind:'code', q:'pika: "tasks" 에서 manual ack 로 콜백을 등록. 빈칸을 채우세요:\nchannel.____(queue="tasks", on_message_callback=cb, auto_ack=False)', a:'basic_consume', xp:20, strict:true },
+  // 토픽 퍼즐 (yes/no)
+  { kind:'topic', q:'바인딩 "orders.*.us"  vs  라우팅 키 "orders.new.us". 매치? (yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'바인딩 "orders.*.us"  vs  라우팅 키 "orders.us". 매치? (yes/no)', a:'no', xp:15 },
+  { kind:'topic', q:'바인딩 "orders.#"  vs  라우팅 키 "orders.new.us.express". 매치? (yes/no)', a:'yes', xp:15 },
+  { kind:'topic', q:'바인딩 "*.error.*"  vs  라우팅 키 "db.error". 매치? (yes/no)', a:'no', xp:15 },
+];
+
+const pracState = {
+  i: 0,                  // 현재 문항 인덱스
+  correct: 0,            // 정답 수
+  wrong: 0,              // 오답 수
+  topicStreak: 0,        // 토픽 연속 정답
+  durableStreak: 0,      // 내구성 연속 정답
+  rpcStreak: 0,          // RPC 연속 정답
+};
+function normalize(s){ return String(s).trim().toLowerCase().replace(/\s+/g,' '); }
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  const dp = Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) dp[i][0]=i;
+  for(let j=0;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1+Math.min(dp[i-1][j-1],dp[i-1][j],dp[i][j-1]);
+  }
+  return dp[m][n];
+}
+function answerMatches(ex, input){
+  const v = normalize(input);
+  const accepts = [ex.a, ...(ex.accept||[])].map(normalize);
+  if(ex.strict){
+    return accepts.includes(v);
+  }
+  // 관대한 모드: 정확 일치 OR accept 일치 OR 짧은 답에 대해 작은 편집거리 허용
+  for(const a of accepts){
+    if(v===a) return true;
+    if(a.length<=8 && levenshtein(v,a)<=1) return true;
+    if(a.length<=14 && levenshtein(v,a)<=2) return true;
+  }
+  return false;
+}
+
+function renderPractice(){
+  const total = PRACTICE.length;
+  document.getElementById('prac-n').textContent = total;
+  const i = pracState.i;
+  document.getElementById('prac-i').textContent = Math.min(i+1, total);
+  document.getElementById('prac-correct').textContent = `${pracState.correct} 정답`;
+  document.getElementById('prac-wrong').textContent = `${pracState.wrong} 오답`;
+  document.getElementById('prac-progress').style.width = (i/total*100)+'%';
+
+  const mount = document.getElementById('prac-mount');
+  if(i>=total){
+    mount.innerHTML = `<div class="ex-card">
+      <div class="q"><b>완료!</b> 총 ${total}문제 중 ${pracState.correct}문제를 맞혔습니다.</div>
+      <p class="muted">언제든 다시 시작하거나, 보스 모드로 가보세요.</p>
+    </div>`;
+    if(pracState.correct === total){ unlockBadge('practiceComplete'); }
+    state.practiceDone = true; saveState();
+    return;
+  }
+  const ex = PRACTICE[i];
+  document.getElementById('prac-kind').textContent = ex.kind;
+  mount.innerHTML = `<div class="ex-card" id="ex-${i}">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="prac-input" autocomplete="off" spellcheck="false" placeholder="답을 입력하고 Enter…" style="flex:1;min-width:260px"/>
+      <button class="btn" id="prac-submit">제출</button>
+    </div>
+    <div class="feedback hint" id="prac-feedback">힌트: ${ex.kind==='topic' ? '"yes" 또는 "no"로 답하세요' : ex.kind==='cli' ? '정확한 일치가 필요합니다' : ex.kind==='code' ? '정확한 일치가 필요합니다' : '사소한 오타는 허용됩니다'}</div>
+  </div>`;
+  const input = document.getElementById('prac-input');
+  input.focus();
+  input.addEventListener('keydown', e=>{
+    if(e.key==='Enter') submitPractice();
+  });
+  document.getElementById('prac-submit').addEventListener('click', submitPractice);
+}
+function linkifyHtml(s){
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\n/g,'<br>');
+}
+function submitPractice(){
+  const ex = PRACTICE[pracState.i];
+  const val = document.getElementById('prac-input').value;
+  const ok = answerMatches(ex, val);
+  const fb = document.getElementById('prac-feedback');
+  if(ok){
+    fb.className='feedback ok';
+    fb.textContent = `✓ 정답! +${ex.xp} XP`;
+    addXP(ex.xp, `연습 ${ex.kind}`);
+    bumpCombo();
+    pracState.correct++;
+    if(ex.kind==='topic'){ pracState.topicStreak++; if(pracState.topicStreak>=5) unlockBadge('topicMaster'); state.topicMatchSolved++; }
+    else pracState.topicStreak=0;
+    confettiBurst(60);
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 500);
+  } else {
+    fb.className='feedback err';
+    fb.textContent = `✗ 아쉽네요. 정답: ${ex.a}`;
+    breakCombo();
+    pracState.wrong++;
+    pracState.topicStreak=0;
+    shake(document.getElementById('ex-'+pracState.i));
+    setTimeout(()=>{ pracState.i++; renderPractice(); }, 1100);
+  }
+}
+document.getElementById('prac-skip').addEventListener('click', ()=>{
+  pracState.wrong++; pracState.i++; breakCombo(); renderPractice();
+});
+document.getElementById('prac-restart').addEventListener('click', ()=>{
+  pracState.i=0; pracState.correct=0; pracState.wrong=0; pracState.topicStreak=0; renderPractice();
+});
+renderPractice();
+
+/* =========================================================
+   보스 모드 — 시간 제한 시나리오 10문항 (BOSS MODE)
+   ========================================================= */
+const BOSS_QUESTIONS = [
+  { q:'워커가 작업 도중 크래시되고 메시지가 사라집니다. 컨슈머는 auto_ack=True 로 시작했습니다. 어떤 단일 boolean 인자를 False 로 바꿔야 할까요?', a:'auto_ack' },
+  { q:'브로커를 재시작했더니 큐가 사라졌습니다. queue_declare 에서 어떤 플래그를 빼먹었나요?', a:'durable' },
+  { q:'메시지가 큐는 살아남는데 브로커 크래시 시 증발합니다. 메시지에 빠진 속성은? (숫자 하나)', a:'2', accept:['delivery_mode=2','persistent'] },
+  { q:'느린 워커 한 명이 일을 독차지하고 빠른 워커가 놀고 있습니다. 공정 디스패치를 고치는 pika 메서드는?', a:'basic_qos' },
+  { q:'Raft 기반 강한 일관성으로 노드 장애를 견디는 큐가 필요합니다. 큐 유형은? (한 단어)', a:'quorum' },
+  { q:'독약 메시지가 영원히 재큐잉됩니다. 해법은 requeue=false 로 nack 하고 특별한 익스체인지로 라우팅. 그 3글자 약어는?', a:'dlx' },
+  { q:'라우팅 키 무관하게 모든 구독자에게 모든 이벤트를 전달하고 싶습니다. 익스체인지 유형은? (한 단어)', a:'fanout' },
+  { q:'구독자가 "*.error.*" 또는 "db.#" 같은 패턴으로 필터링하길 원합니다. 익스체인지 유형은? (한 단어)', a:'topic' },
+  { q:'발행한 메시지를 브로커가 실제로 받고 영속화했는지 확인해야 합니다. 활성화할 비동기 기능은? (두 단어)', a:'publisher confirms', accept:['publisher confirm','confirm select'] },
+  { q:'RPC 클라이언트의 reply 큐가 계속 새서 누적됩니다. 자동 만료시키는 큐 인자를 추가해야 합니다. 어떤 인자? (3글자 약어)', a:'ttl', accept:['x-message-ttl','x-expires'] },
+];
+const BOSS = { i:0, correct:0, timer:null, secs:30, active:false };  // 보스 모드 상태
+function startBoss(){
+  if(BOSS.active) return;
+  BOSS.active = true; BOSS.i=0; BOSS.correct=0;
+  document.getElementById('boss-correct').textContent='0 정답';
+  document.getElementById('boss-progress').style.width='0%';
+  showBossQ();
+}
+function showBossQ(){
+  const total = BOSS_QUESTIONS.length;
+  if(BOSS.i>=total){
+    finishBoss(); return;
+  }
+  document.getElementById('boss-i').textContent = BOSS.i+1;
+  document.getElementById('boss-progress').style.width = (BOSS.i/total*100)+'%';
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const mount = document.getElementById('boss-mount');
+  mount.innerHTML = `<div class="ex-card" id="boss-card">
+    <div class="q">${linkifyHtml(ex.q)}</div>
+    <div class="row">
+      <input type="text" id="boss-input" placeholder="입력 후 Enter…" autocomplete="off" spellcheck="false" style="flex:1;min-width:260px"/>
+      <button class="btn" id="boss-submit">제출</button>
+    </div>
+    <div class="feedback hint" id="boss-feedback">팁: 짧고 정확한 답. 몇 글자 오타는 허용됩니다.</div>
+  </div>`;
+  const inp = document.getElementById('boss-input'); inp.focus();
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') submitBoss(); });
+  document.getElementById('boss-submit').addEventListener('click', submitBoss);
+  // 30초 카운트다운 타이머
+  BOSS.secs = 30;
+  document.getElementById('boss-timer').textContent = BOSS.secs;
+  clearInterval(BOSS.timer);
+  BOSS.timer = setInterval(()=>{
+    BOSS.secs--;
+    document.getElementById('boss-timer').textContent = BOSS.secs;
+    if(BOSS.secs<=0){
+      clearInterval(BOSS.timer);
+      handleBossOutcome(false, ex);
+    }
+  }, 1000);
+}
+function submitBoss(){
+  const ex = BOSS_QUESTIONS[BOSS.i];
+  const val = document.getElementById('boss-input').value;
+  const ok = answerMatches(ex, val);
+  clearInterval(BOSS.timer);
+  handleBossOutcome(ok, ex);
+}
+function handleBossOutcome(ok, ex){
+  const fb = document.getElementById('boss-feedback');
+  if(ok){
+    fb.className='feedback ok'; fb.textContent='✓ 정답! +50 XP';
+    addXP(50, '보스 정답'); bumpCombo();
+    BOSS.correct++;
+    document.getElementById('boss-correct').textContent = `${BOSS.correct} 정답`;
+    confettiBurst(80);
+  } else {
+    fb.className='feedback err'; fb.textContent=`✗ 오답. 정답: ${ex.a}`;
+    breakCombo();
+    shake(document.getElementById('boss-card'));
+  }
+  setTimeout(()=>{ BOSS.i++; showBossQ(); }, 700);
+}
+function finishBoss(){
+  BOSS.active = false;
+  clearInterval(BOSS.timer);
+  const total = BOSS_QUESTIONS.length;
+  document.getElementById('boss-progress').style.width = '100%';
+  const survived = BOSS.correct >= total - 2; // 오답 2개까지 허용
+  const mount = document.getElementById('boss-mount');
+  if(survived){
+    unlockBadge('outageCrusher');
+    state.bossDone = true; saveState();
+    mount.innerHTML = `<div class="ex-card"><div class="q">🏆 장애 진압 — ${BOSS.correct}/${total}. <b>장애 진압자(Outage Crusher)</b> 배지를 잠금 해제했습니다.</div></div>`;
+    confettiBurst(220);
+  } else {
+    mount.innerHTML = `<div class="ex-card"><div class="q">🚨 장애 악화 — ${BOSS.correct}/${total}. 배지 획득에는 8/10 이상 필요.</div></div>`;
+  }
+}
+document.getElementById('boss-start').addEventListener('click', startBoss);
+document.getElementById('boss-quit').addEventListener('click', ()=>{
+  BOSS.active=false; clearInterval(BOSS.timer);
+  document.getElementById('boss-mount').innerHTML='';
+});
+
+/* =========================================================
+   초기 렌더링 (INITIAL RENDER)
+   ========================================================= */
+redrawSim();
+flashLog('랩 준비 완료. 예시 바인딩 3개 + 컨슈머 3개가 시드됨. topic 익스체인지에서 key="orders.new.us" 로 발행해 보세요.','info');
+</script>
+</body>
+</html>

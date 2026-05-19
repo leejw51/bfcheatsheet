@@ -1,0 +1,2017 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zig — Interaktivní tahák</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2229;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #f7a41d;     /* Zig oranžová/jantarová */
+    --accent-2: #ffb84d;
+    --accent-3: #d97706;
+    --code-bg: #0a0f15;
+    --keyword: #ff9d5c;
+    --string: #ffd29c;
+    --number: #d2a8ff;
+    --comment: #6b7785;
+    --fn: #ffd29c;
+    --tag: #79c0ff;
+    --type: #f7a41d;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1f1810 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .mark {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #1a1208;
+    border-radius: 6px; font-weight: 900;
+    box-shadow: 0 0 14px rgba(247, 164, 29, 0.45);
+  }
+  .search {
+    flex: 1; min-width: 220px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 14px;
+  }
+  .search .icon { color: var(--muted); }
+  .badge {
+    background: var(--accent); color: #1a1208;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(247, 164, 29, 0.12);
+    border-color: rgba(247, 164, 29, 0.4);
+  }
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; } }
+  h1 { font-size: 26px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .tag {
+    color: var(--tag); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13px; font-weight: 500;
+  }
+  .card-desc { color: var(--muted); font-size: 12px; padding: 0 14px; margin-top: 8px; }
+  pre {
+    margin: 8px 0 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  pre code { color: var(--text); }
+  .copy-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--type); font-weight: 600; }
+  .tok-b { color: var(--tag); }   /* vestavěné jako @import */
+  .tok-e { color: #ff7b9c; }      /* chyba */
+
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; font-size: 13px;
+  }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  td code {
+    background: var(--code-bg); padding: 2px 6px; border-radius: 4px;
+    color: var(--tag); font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--panel-2); }
+
+  .note {
+    background: rgba(247, 164, 29, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px;
+    padding: 30px 20px; border-top: 1px solid var(--border); margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .card.hidden { display: none; }
+  .no-results {
+    color: var(--muted); text-align: center;
+    padding: 40px; font-style: italic; display: none;
+  }
+
+  /* Procvičování */
+  .practice-wrap {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;
+  }
+  @media (max-width: 900px) { .practice-wrap { grid-template-columns: 1fr; } }
+  .practice-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .practice-panel h3 {
+    margin: 0 0 4px; font-size: 16px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .practice-panel p.sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .quiz-card {
+    background: var(--code-bg); border-radius: 8px; padding: 14px;
+    margin-bottom: 12px; font-family: ui-monospace, monospace;
+    font-size: 14px; min-height: 80px; line-height: 1.7;
+    white-space: pre-wrap;
+  }
+  .quiz-prompt-label {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+  }
+  .quiz-blank {
+    display: inline-block;
+    min-width: 80px;
+    padding: 2px 6px;
+    margin: 0 2px;
+    border: 1px dashed var(--accent);
+    background: rgba(247, 164, 29, 0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    text-align: center;
+    font-weight: 700;
+  }
+  .quiz-input {
+    width: 100%;
+    background: var(--code-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .quiz-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(247, 164, 29, 0.15); }
+  .quiz-input.shake { animation: shake 240ms ease-in-out; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0);} 25%{transform:translateX(-4px);} 50%{transform:translateX(4px);} 75%{transform:translateX(-2px);}
+  }
+  .quiz-input.flash { animation: flash 380ms ease-out; }
+  @keyframes flash {
+    0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); border-color: var(--good); }
+    100% { box-shadow: 0 0 0 12px rgba(74, 222, 128, 0); border-color: var(--border); }
+  }
+  .quiz-controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .quiz-btn {
+    background: var(--accent); color: #1a1208; border: none;
+    border-radius: 6px; padding: 8px 16px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    transition: filter 0.15s; font-family: inherit;
+  }
+  .quiz-btn:hover { filter: brightness(1.1); }
+  .quiz-btn.secondary {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  }
+  .quiz-feedback {
+    margin-top: 12px; padding: 10px 14px; border-radius: 6px;
+    font-size: 13px; display: none;
+  }
+  .quiz-feedback.show { display: block; animation: fade 0.2s ease; }
+  .quiz-feedback.correct {
+    background: rgba(74, 222, 128, 0.1); border-left: 3px solid var(--good); color: #86efac;
+  }
+  .quiz-feedback.wrong {
+    background: rgba(248, 113, 113, 0.1); border-left: 3px solid var(--bad); color: #fca5a5;
+  }
+  .quiz-feedback .answer {
+    display: block; color: var(--string);
+    font-family: ui-monospace, monospace; margin-top: 6px; font-size: 12.5px;
+  }
+  .quiz-stats {
+    display: flex; gap: 16px; justify-content: space-around;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .quiz-stat { text-align: center; }
+  .quiz-stat .num {
+    color: var(--accent); font-size: 22px; font-weight: 800; display: block;
+  }
+  .quiz-stat .lbl {
+    color: var(--muted); font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .quiz-progress-bar {
+    height: 4px; background: var(--panel-2); border-radius: 2px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .quiz-progress-bar > div {
+    height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0%; transition: width 0.3s ease;
+  }
+  .streak-fire {
+    display: inline-block; transition: filter 0.3s, transform 0.3s;
+    filter: grayscale(1); opacity: 0.5;
+  }
+  .streak-fire.on { filter: none; opacity: 1; transform: scale(1.15); }
+
+  /* Konfety */
+  .confetti-layer {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 1000;
+  }
+  .confetti-piece {
+    position: absolute; width: 8px; height: 12px;
+    opacity: 0; animation: confetti-fall 1100ms ease-out forwards;
+  }
+  @keyframes confetti-fall {
+    0% { opacity: 1; transform: translate(0, 0) rotate(0deg); }
+    100% { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 200px)) rotate(var(--rot, 360deg)); }
+  }
+
+  /* REPL */
+  .repl {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-top: 16px;
+  }
+  .repl-input {
+    width: 100%;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  .repl-input:focus { border-color: var(--accent); }
+  .repl-history {
+    margin-top: 10px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 12px;
+    max-height: 220px; overflow-y: auto;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .repl-line { margin: 2px 0; }
+  .repl-line .prompt { color: var(--accent); }
+  .repl-line .output { color: var(--good); }
+  .repl-line .err { color: var(--bad); }
+
+  /* Vizualizér comptime */
+  .vis-row {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 12px;
+  }
+  .vis-row label { font-size: 13px; color: var(--muted); min-width: 90px; }
+  .vis-row select, .vis-row input {
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Diagram paměti */
+  .mem {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin-top: 12px;
+  }
+  @media (max-width: 700px) { .mem { grid-template-columns: 1fr; } }
+  .mem-region {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+    min-height: 220px;
+  }
+  .mem-region h4 {
+    margin: 0 0 8px; color: var(--accent); font-size: 13px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .mem-block {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    transition: opacity 350ms, transform 350ms, background 350ms;
+  }
+  .mem-block.heap { border-left-color: #79c0ff; }
+  .mem-block.freed { opacity: 0; transform: translateX(20px); }
+  .mem-controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: 1fr; }
+    main { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+<header>
+  <div class="logo"><span class="mark">Z</span> Zig tahák <span class="badge">Interaktivní</span></div>
+  <div class="search">
+    <span class="icon">&#128269;</span>
+    <input id="search" type="text" placeholder="Hledejte: const, defer, comptime, alokátor, struct…" />
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="hello" class="active">Hello, Zig</button>
+  <button data-tab="vars">Proměnné</button>
+  <button data-tab="numbers">Čísla</button>
+  <button data-tab="control">Řízení toku</button>
+  <button data-tab="functions">Funkce</button>
+  <button data-tab="errors">Chyby</button>
+  <button data-tab="memory">Paměť</button>
+  <button data-tab="structs">Struktury &amp; výčty</button>
+  <button data-tab="comptime">Comptime</button>
+  <button data-tab="build">Sestavovací systém</button>
+  <button data-tab="practice">&#127919; Procvičování</button>
+  <button data-tab="repl">Mini REPL</button>
+</nav>
+</div>
+
+<main>
+
+<!-- HELLO -->
+<section class="tab-section active" id="hello">
+  <h1>Hello, Zig</h1>
+  <p class="lead">Malý a jednoduchý jazyk navržený pro robustní, optimální a opakovaně použitelný software. Žádné skryté řízení toku, žádné skryté alokace.</p>
+
+  <h2>Kanonický program</h2>
+  <div class="grid">
+    <div class="card" data-keywords="hello main import std debug print">
+      <div class="card-head">
+        <div class="card-title">Hello, World <span class="tag">main.zig</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> std = <span class="tok-b">@import</span>(<span class="tok-s">"std"</span>);
+
+<span class="tok-k">pub fn</span> <span class="tok-f">main</span>() <span class="tok-e">!</span><span class="tok-t">void</span> {
+    <span class="tok-k">const</span> stdout = std.io.getStdOut().writer();
+    <span class="tok-k">try</span> stdout.print(<span class="tok-s">"Hello, {s}!\n"</span>, .{<span class="tok-s">"Zig"</span>});
+}
+</code></pre>
+      <p class="card-desc">Všimněte si návratu <code>!void</code> — main může vracet chyby. <code>try</code> je propaguje.</p>
+    </div>
+
+    <div class="card" data-keywords="build run zig command">
+      <div class="card-head">
+        <div class="card-title">Sestavit a spustit <span class="tag">terminál</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c"># Zkompiluje + spustí jeden soubor</span>
+zig run main.zig
+
+<span class="tok-c"># Pouze přeloží do nativního exe</span>
+zig build-exe main.zig
+
+<span class="tok-c"># Projekt (přes build.zig)</span>
+zig init
+zig build run
+zig build test
+
+<span class="tok-c"># Zformátuje váš kód</span>
+zig fmt main.zig
+</code></pre>
+      <p class="card-desc">Zig má vlastní sestavovací systém napsaný v Zigu &mdash; žádný Make, žádný CMake.</p>
+    </div>
+
+    <div class="card" data-keywords="comments doc test">
+      <div class="card-head">
+        <div class="card-title">Komentáře a testy <span class="tag">// /// test</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// běžný komentář</span>
+<span class="tok-c">/// dokumentační komentář (žije nad další deklarací)</span>
+<span class="tok-k">pub fn</span> <span class="tok-f">add</span>(a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> a + b;
+}
+
+<span class="tok-k">test</span> <span class="tok-s">"add works"</span> {
+    <span class="tok-k">try</span> std.testing.expectEqual(<span class="tok-n">5</span>, add(<span class="tok-n">2</span>, <span class="tok-n">3</span>));
+}
+</code></pre>
+      <p class="card-desc">Testy žijí přímo ve zdrojových souborech. Spustíte je <code>zig test soubor.zig</code>.</p>
+    </div>
+
+    <div class="card" data-keywords="philosophy zen">
+      <div class="card-head">
+        <div class="card-title">Zen Zigu <span class="tag">filozofie</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// 1. Komunikujte záměr přesně.
+// 2. Hraniční případy jsou důležité.
+// 3. Upřednostněte čtení kódu před psaním.
+// 4. Pouze jeden zřejmý způsob, jak věci dělat.
+// 5. Pády za běhu jsou lepší než chyby.
+// 6. Chyby překladu jsou lepší než pády za běhu.
+// 7. Inkrementální zlepšení.
+// 8. Vyhněte se lokálním maximům.
+// 9. Snižte množství toho, co musí člověk pamatovat.
+// 10. Soustřeďte se na kód, ne na styl.
+// 11. Alokace zdroje může selhat; uvolnění musí uspět.
+// 12. Paměť je zdroj.
+// 13. Společně sloužíme uživatelům.</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- PROMĚNNÉ -->
+<section class="tab-section" id="vars">
+  <h1>Proměnné</h1>
+  <p class="lead">Dvě varianty: <code>const</code> (neměnná) a <code>var</code> (měnitelná). Všechny deklarace musí být použité &mdash; žádná mrtvá vazba.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="const var declare">
+      <div class="card-head">
+        <div class="card-title">const vs var <span class="tag">základy</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> name = <span class="tok-s">"Ada"</span>;        <span class="tok-c">// neměnná, typ odvozený</span>
+<span class="tok-k">var</span>   counter: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;  <span class="tok-c">// měnitelná, explicitní typ</span>
+counter += <span class="tok-n">1</span>;
+
+<span class="tok-c">// Chyba překladu: přiřazení do const</span>
+<span class="tok-c">// name = "Bob";</span>
+
+<span class="tok-c">// Chyba překladu: nepoužitá lokální</span>
+<span class="tok-c">// const x = 5;</span>
+</code></pre>
+      <p class="card-desc">Pokud opravdu musíte zahodit hodnotu, použijte <code>_ = value;</code>.</p>
+    </div>
+
+    <div class="card" data-keywords="comptime constant">
+      <div class="card-head">
+        <div class="card-title">comptime konstanty <span class="tag">comptime</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> PI: <span class="tok-t">f64</span> = <span class="tok-n">3.14159</span>;
+<span class="tok-k">const</span> MAX_USERS = <span class="tok-n">1024</span>;
+
+<span class="tok-c">// Vyhodnoceno v době kompilace</span>
+<span class="tok-k">comptime</span> {
+    <span class="tok-k">const</span> sum = <span class="tok-n">2</span> + <span class="tok-n">3</span>;
+    <span class="tok-b">@compileLog</span>(<span class="tok-s">"sum is "</span>, sum);
+}
+</code></pre>
+      <p class="card-desc">Top-level <code>const</code>y jsou implicitně <code>comptime</code>.</p>
+    </div>
+
+    <div class="card" data-keywords="undefined uninitialized">
+      <div class="card-head">
+        <div class="card-title">undefined <span class="tag">opt-in nebezpečí</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> buf: [<span class="tok-n">256</span>]<span class="tok-t">u8</span> = <span class="tok-k">undefined</span>;
+<span class="tok-c">// V debug sestavení je undefined plnění bajty 0xAA,</span>
+<span class="tok-c">// aby vyplavalo čtení neinicializovaných hodnot.</span>
+buf[<span class="tok-n">0</span>] = <span class="tok-n">42</span>;
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="type inference">
+      <div class="card-head">
+        <div class="card-title">Odvození typu <span class="tag">@TypeOf</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> x = <span class="tok-n">42</span>;             <span class="tok-c">// comptime_int</span>
+<span class="tok-k">const</span> y: <span class="tok-t">i32</span> = <span class="tok-n">42</span>;       <span class="tok-c">// i32</span>
+<span class="tok-k">const</span> z = <span class="tok-b">@as</span>(<span class="tok-t">i32</span>, <span class="tok-n">42</span>); <span class="tok-c">// i32</span>
+
+<span class="tok-k">const</span> T = <span class="tok-b">@TypeOf</span>(y); <span class="tok-c">// T == i32</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ČÍSLA -->
+<section class="tab-section" id="numbers">
+  <h1>Čísla a typy</h1>
+  <p class="lead">Zig má explicitní celočíselné typy s pevnou šířkou a vystavuje sémantiku přetečení. Přetypování je vždy explicitní.</p>
+
+  <h2>Celočíselné typy</h2>
+  <table>
+    <tr><th>Typ</th><th>Bity</th><th>Rozsah</th></tr>
+    <tr><td><code>i8 / u8</code></td><td>8</td><td>-128..127 / 0..255</td></tr>
+    <tr><td><code>i16 / u16</code></td><td>16</td><td>znaménkový / bezznaménkový</td></tr>
+    <tr><td><code>i32 / u32</code></td><td>32</td><td>nejběžnější celé číslo</td></tr>
+    <tr><td><code>i64 / u64</code></td><td>64</td><td>velké celé číslo</td></tr>
+    <tr><td><code>isize / usize</code></td><td>ptr</td><td>velikost ukazatele; usize pro indexy</td></tr>
+    <tr><td><code>i7 / u23</code></td><td>libov.</td><td>libovolná šířka &mdash; <code>u3</code> je platný!</td></tr>
+    <tr><td><code>f16 / f32 / f64 / f128</code></td><td>různé</td><td>IEEE plovoucí čárka</td></tr>
+  </table>
+
+  <h2>Přetypování a přetečení</h2>
+  <div class="grid">
+    <div class="card" data-keywords="cast intCast floatFromInt as">
+      <div class="card-head">
+        <div class="card-title">Přetypování <span class="tag">@as @intCast</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> a: <span class="tok-t">i32</span> = <span class="tok-n">300</span>;
+<span class="tok-k">const</span> b: <span class="tok-t">u8</span> = <span class="tok-b">@intCast</span>(a);   <span class="tok-c">// kontrolováno za běhu</span>
+<span class="tok-k">const</span> c: <span class="tok-t">f32</span> = <span class="tok-b">@floatFromInt</span>(a);
+<span class="tok-k">const</span> d: <span class="tok-t">i32</span> = <span class="tok-b">@intFromFloat</span>(<span class="tok-n">3.7</span>);
+
+<span class="tok-c">// @as je pro koerci (rozšíření, comptime)</span>
+<span class="tok-k">const</span> e = <span class="tok-b">@as</span>(<span class="tok-t">i64</span>, <span class="tok-n">10</span>);
+</code></pre>
+      <p class="card-desc"><code>@intCast</code> v bezpečných sestaveních propadne, pokud se hodnota nevejde.</p>
+    </div>
+
+    <div class="card" data-keywords="overflow wrap saturate">
+      <div class="card-head">
+        <div class="card-title">Operátory přetečení <span class="tag">+% +| atd</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// Výchozí + propadne při přetečení v bezpečných sestaveních</span>
+<span class="tok-k">var</span> x: <span class="tok-t">u8</span> = <span class="tok-n">250</span>;
+
+<span class="tok-c">// Aritmetika s wrappingem</span>
+<span class="tok-k">const</span> w = x +% <span class="tok-n">10</span>;   <span class="tok-c">// zalomí na 4</span>
+
+<span class="tok-c">// Saturující aritmetika</span>
+<span class="tok-k">const</span> s = x +| <span class="tok-n">10</span>;   <span class="tok-c">// uchyceno na 255</span>
+
+<span class="tok-c">// Zachytit přetečení přes @addWithOverflow</span>
+<span class="tok-k">const</span> r = <span class="tok-b">@addWithOverflow</span>(x, <span class="tok-n">10</span>);
+<span class="tok-c">// r je n-tice: { výsledek, došlo_k_přetečení }</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="literals binary hex octal underscore">
+      <div class="card-head">
+        <div class="card-title">Číselné literály <span class="tag">čitelnost</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> million = <span class="tok-n">1_000_000</span>;
+<span class="tok-k">const</span> hex     = <span class="tok-n">0xff_ee</span>;
+<span class="tok-k">const</span> oct     = <span class="tok-n">0o755</span>;
+<span class="tok-k">const</span> bin     = <span class="tok-n">0b1010_1010</span>;
+<span class="tok-k">const</span> exp     = <span class="tok-n">1.5e3</span>;
+<span class="tok-k">const</span> hexf    = <span class="tok-n">0x1.fp10</span>;  <span class="tok-c">// hex float</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="char ascii utf8">
+      <div class="card-head">
+        <div class="card-title">Znaky a bajty <span class="tag">u8 'A'</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> letter: <span class="tok-t">u8</span> = <span class="tok-s">'A'</span>;       <span class="tok-c">// 65</span>
+<span class="tok-k">const</span> emoji  : <span class="tok-t">u21</span> = <span class="tok-s">'&#128512;'</span>;     <span class="tok-c">// kódový bod</span>
+
+<span class="tok-c">// Řetězce jsou []const u8 (UTF-8 bajty)</span>
+<span class="tok-k">const</span> greeting: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = <span class="tok-s">"hi"</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ŘÍZENÍ TOKU -->
+<section class="tab-section" id="control">
+  <h1>Řízení toku</h1>
+  <p class="lead">Výrazy všude. <code>if</code>, <code>switch</code>, bloky &mdash; všechno se vyhodnocuje na hodnotu. <code>switch</code> musí být vyčerpávající.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="if else ternary">
+      <div class="card-head">
+        <div class="card-title">if jako výraz <span class="tag">if</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> x = <span class="tok-n">10</span>;
+<span class="tok-k">const</span> sign = <span class="tok-k">if</span> (x &gt; <span class="tok-n">0</span>) <span class="tok-s">"+"</span> <span class="tok-k">else if</span> (x &lt; <span class="tok-n">0</span>) <span class="tok-s">"-"</span> <span class="tok-k">else</span> <span class="tok-s">"0"</span>;
+
+<span class="tok-c">// Vázání payloadu z optional</span>
+<span class="tok-k">const</span> maybe: ?<span class="tok-t">i32</span> = <span class="tok-n">42</span>;
+<span class="tok-k">if</span> (maybe) |val| {
+    std.debug.print(<span class="tok-s">"got {d}\n"</span>, .{val});
+} <span class="tok-k">else</span> {
+    std.debug.print(<span class="tok-s">"null\n"</span>, .{});
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="while loop break continue">
+      <div class="card-head">
+        <div class="card-title">while <span class="tag">while</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> i: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;
+<span class="tok-k">while</span> (i &lt; <span class="tok-n">10</span>) : (i += <span class="tok-n">1</span>) {
+    <span class="tok-k">if</span> (i == <span class="tok-n">3</span>) <span class="tok-k">continue</span>;
+    <span class="tok-k">if</span> (i == <span class="tok-n">7</span>) <span class="tok-k">break</span>;
+    std.debug.print(<span class="tok-s">"{d}\n"</span>, .{i});
+}
+
+<span class="tok-c">// while s optional</span>
+<span class="tok-k">while</span> (it.next()) |item| {
+    process(item);
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="for loop range slice index">
+      <div class="card-head">
+        <div class="card-title">for &mdash; moderní syntaxe <span class="tag">for</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> items = [_]<span class="tok-t">u8</span>{ <span class="tok-n">10</span>, <span class="tok-n">20</span>, <span class="tok-n">30</span> };
+
+<span class="tok-c">// iterace přes hodnoty</span>
+<span class="tok-k">for</span> (items) |it| {
+    std.debug.print(<span class="tok-s">"{d}\n"</span>, .{it});
+}
+
+<span class="tok-c">// rozsahová syntaxe (Zig 0.11+)</span>
+<span class="tok-k">for</span> (<span class="tok-n">0</span>..items.len) |i| {
+    std.debug.print(<span class="tok-s">"i={d}\n"</span>, .{i});
+}
+
+<span class="tok-c">// obojí najednou s víceargumentovým for</span>
+<span class="tok-k">for</span> (items, <span class="tok-n">0</span>..) |it, i| {
+    std.debug.print(<span class="tok-s">"{d}: {d}\n"</span>, .{ i, it });
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="switch exhaustive match">
+      <div class="card-head">
+        <div class="card-title">switch <span class="tag">switch</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> n: <span class="tok-t">u8</span> = <span class="tok-n">3</span>;
+<span class="tok-k">const</span> name = <span class="tok-k">switch</span> (n) {
+    <span class="tok-n">0</span> =&gt; <span class="tok-s">"zero"</span>,
+    <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> =&gt; <span class="tok-s">"few"</span>,
+    <span class="tok-n">4</span>...<span class="tok-n">9</span> =&gt; <span class="tok-s">"some"</span>,
+    <span class="tok-k">else</span> =&gt; <span class="tok-s">"many"</span>,
+};
+
+<span class="tok-c">// Switch nad výčtem (žádné else, pokud je vyčerpávající)</span>
+<span class="tok-k">const</span> Color = <span class="tok-k">enum</span> { red, green, blue };
+<span class="tok-k">const</span> hex: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = <span class="tok-k">switch</span> (color) {
+    .red =&gt; <span class="tok-s">"#f00"</span>,
+    .green =&gt; <span class="tok-s">"#0f0"</span>,
+    .blue =&gt; <span class="tok-s">"#00f"</span>,
+};
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="block label break value">
+      <div class="card-head">
+        <div class="card-title">Označené bloky a break s hodnotou <span class="tag">:label</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> result = blk: {
+    <span class="tok-k">var</span> sum: <span class="tok-t">u32</span> = <span class="tok-n">0</span>;
+    <span class="tok-k">for</span> (items) |x| sum += x;
+    <span class="tok-k">break</span> :blk sum * <span class="tok-n">2</span>;
+};
+
+<span class="tok-c">// Vyskočení z vnořených smyček</span>
+outer: <span class="tok-k">for</span> (rows) |row| {
+    <span class="tok-k">for</span> (row) |cell| {
+        <span class="tok-k">if</span> (cell == target) <span class="tok-k">break</span> :outer;
+    }
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="defer">
+      <div class="card-head">
+        <div class="card-title">defer / errdefer <span class="tag">úklid</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> file = <span class="tok-k">try</span> std.fs.cwd().openFile(<span class="tok-s">"x"</span>, .{});
+<span class="tok-k">defer</span> file.close();   <span class="tok-c">// proběhne při opuštění scope</span>
+
+<span class="tok-k">const</span> buf = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">100</span>);
+<span class="tok-k">errdefer</span> alloc.free(buf);  <span class="tok-c">// pouze na chybové cestě</span>
+
+<span class="tok-k">try</span> initialize(buf);
+<span class="tok-k">return</span> buf;          <span class="tok-c">// errdefer se nespustí</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- FUNKCE -->
+<section class="tab-section" id="functions">
+  <h1>Funkce</h1>
+  <p class="lead">Parametry jsou neměnné. Chyby cestují přes návratové typy chybové unie <code>!T</code>.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="fn function pub return">
+      <div class="card-head">
+        <div class="card-title">Základní funkce <span class="tag">fn</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">pub fn</span> <span class="tok-f">add</span>(a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> a + b;
+}
+
+<span class="tok-c">// Parametry jsou const &mdash; nemůžete znovu přiřadit a ani b</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="error union try catch">
+      <div class="card-head">
+        <div class="card-title">Návrat chybové unie <span class="tag">!T</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">parse</span>(s: []<span class="tok-k">const</span> <span class="tok-t">u8</span>) <span class="tok-e">!</span><span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> std.fmt.parseInt(<span class="tok-t">i32</span>, s, <span class="tok-n">10</span>);
+}
+
+<span class="tok-k">pub fn</span> <span class="tok-f">main</span>() <span class="tok-e">!</span><span class="tok-t">void</span> {
+    <span class="tok-k">const</span> n = <span class="tok-k">try</span> parse(<span class="tok-s">"42"</span>);  <span class="tok-c">// propaguje</span>
+    <span class="tok-k">const</span> m = parse(<span class="tok-s">"oops"</span>) <span class="tok-k">catch</span> <span class="tok-n">0</span>;
+    _ = .{ n, m };
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="multiple return tuple struct">
+      <div class="card-head">
+        <div class="card-title">Více návratů přes strukturu <span class="tag">.{}</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">divmod</span>(a: <span class="tok-t">u32</span>, b: <span class="tok-t">u32</span>) <span class="tok-k">struct</span> { q: <span class="tok-t">u32</span>, r: <span class="tok-t">u32</span> } {
+    <span class="tok-k">return</span> .{ .q = a / b, .r = a % b };
+}
+
+<span class="tok-k">const</span> result = divmod(<span class="tok-n">17</span>, <span class="tok-n">5</span>);
+<span class="tok-c">// result.q == 3, result.r == 2</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="anonymous function pointer">
+      <div class="card-head">
+        <div class="card-title">Ukazatel na funkci <span class="tag">*const fn</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Op = *<span class="tok-k">const fn</span>(<span class="tok-t">i32</span>, <span class="tok-t">i32</span>) <span class="tok-t">i32</span>;
+
+<span class="tok-k">fn</span> <span class="tok-f">apply</span>(op: Op, a: <span class="tok-t">i32</span>, b: <span class="tok-t">i32</span>) <span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> op(a, b);
+}
+
+<span class="tok-c">// const r = apply(add, 2, 3); // 5</span>
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- CHYBY -->
+<section class="tab-section" id="errors">
+  <h1>Chyby</h1>
+  <p class="lead">Chyby jsou hodnoty, ale zvláštního druhu. Tvoří množiny a propagují se přes <code>try</code>.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="error set">
+      <div class="card-head">
+        <div class="card-title">Chybové množiny <span class="tag">error{...}</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> ParseError = <span class="tok-k">error</span>{
+    InvalidCharacter,
+    Overflow,
+    Empty,
+};
+
+<span class="tok-k">fn</span> <span class="tok-f">demo</span>() ParseError<span class="tok-e">!</span><span class="tok-t">i32</span> {
+    <span class="tok-k">return</span> <span class="tok-k">error</span>.Empty;
+}
+</code></pre>
+      <p class="card-desc">Chybové množiny jsou unie chyb pojmenovaných identifikátory. <code>!T</code> používá odvozenou množinu.</p>
+    </div>
+
+    <div class="card" data-keywords="try catch error handling">
+      <div class="card-head">
+        <div class="card-title">try a catch <span class="tag">řízení</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// try rozbalí nebo vrátí chybu</span>
+<span class="tok-k">const</span> n = <span class="tok-k">try</span> parse(input);
+
+<span class="tok-c">// catch dosadí hodnotu</span>
+<span class="tok-k">const</span> m = parse(input) <span class="tok-k">catch</span> <span class="tok-n">0</span>;
+
+<span class="tok-c">// catch s vázáním payloadu</span>
+<span class="tok-k">const</span> p = parse(input) <span class="tok-k">catch</span> |err| <span class="tok-k">switch</span> (err) {
+    <span class="tok-k">error</span>.Overflow =&gt; <span class="tok-n">9999</span>,
+    <span class="tok-k">else</span> =&gt; <span class="tok-k">return</span> err,
+};
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="errdefer cleanup error">
+      <div class="card-head">
+        <div class="card-title">errdefer <span class="tag">úklid při chybě</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">build</span>(alloc: std.mem.Allocator) <span class="tok-e">!</span>*Thing {
+    <span class="tok-k">const</span> t = <span class="tok-k">try</span> alloc.create(Thing);
+    <span class="tok-k">errdefer</span> alloc.destroy(t);
+
+    <span class="tok-k">try</span> t.init();           <span class="tok-c">// pokud selže, errdefer se spustí</span>
+    <span class="tok-k">return</span> t;               <span class="tok-c">// úspěch: errdefer se přeskočí</span>
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="unreachable">
+      <div class="card-head">
+        <div class="card-title">unreachable <span class="tag">tvrzení</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">switch</span> (variant) {
+    .a =&gt; doA(),
+    .b =&gt; doB(),
+    .c =&gt; <span class="tok-k">unreachable</span>,  <span class="tok-c">// past v bezpečných sestaveních</span>
+}
+
+<span class="tok-c">// "Vím, že tady parse uspěje"</span>
+<span class="tok-k">const</span> n = parse(<span class="tok-s">"42"</span>) <span class="tok-k">catch</span> <span class="tok-k">unreachable</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- PAMĚŤ -->
+<section class="tab-section" id="memory">
+  <h1>Paměť a alokátory</h1>
+  <p class="lead">Žádné skryté alokace. Každá funkce, která alokuje, přijímá <code>Allocator</code>. Uvolníte, co jste alokovali (nebo použijete arénu).</p>
+
+  <h2>Vzory alokátorů</h2>
+  <div class="grid">
+    <div class="card" data-keywords="GeneralPurposeAllocator GPA gpa">
+      <div class="card-head">
+        <div class="card-title">GeneralPurposeAllocator <span class="tag">přátelský k ladění</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> gpa = std.heap.GeneralPurposeAllocator(.{}){};
+<span class="tok-k">defer</span> _ = gpa.deinit();
+<span class="tok-k">const</span> alloc = gpa.allocator();
+
+<span class="tok-k">const</span> buf = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">128</span>);
+<span class="tok-k">defer</span> alloc.free(buf);
+</code></pre>
+      <p class="card-desc">GPA detekuje úniky a dvojí uvolnění. Používejte v aplikacích a testech.</p>
+    </div>
+
+    <div class="card" data-keywords="arena">
+      <div class="card-head">
+        <div class="card-title">ArenaAllocator <span class="tag">hromadné uvolnění</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> arena = std.heap.ArenaAllocator.init(parent_alloc);
+<span class="tok-k">defer</span> arena.deinit();   <span class="tok-c">// uvolní vše naráz</span>
+<span class="tok-k">const</span> alloc = arena.allocator();
+
+<span class="tok-c">// Alokujte volně &mdash; nikdy nevolejte free()</span>
+<span class="tok-k">const</span> a = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">10</span>);
+<span class="tok-k">const</span> b = <span class="tok-k">try</span> alloc.alloc(<span class="tok-t">u8</span>, <span class="tok-n">20</span>);
+_ = .{ a, b };
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="page allocator stack">
+      <div class="card-head">
+        <div class="card-title">Další alokátory <span class="tag">vyberte si jed</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// std.heap.page_allocator       &mdash; postavený na mmap</span>
+<span class="tok-c">// std.heap.c_allocator          &mdash; libc malloc</span>
+<span class="tok-c">// std.testing.allocator         &mdash; pro testy</span>
+<span class="tok-c">// std.heap.FixedBufferAllocator &mdash; podpořený stack bufferem</span>
+
+<span class="tok-k">var</span> buf: [<span class="tok-n">1024</span>]<span class="tok-t">u8</span> = <span class="tok-k">undefined</span>;
+<span class="tok-k">var</span> fba = std.heap.FixedBufferAllocator.init(&amp;buf);
+<span class="tok-k">const</span> alloc = fba.allocator();
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="slice array pointer">
+      <div class="card-head">
+        <div class="card-title">Pole / řezy / ukazatele <span class="tag">[N]T [_]T []T *T</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> arr: [<span class="tok-n">3</span>]<span class="tok-t">u8</span> = .{ <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> };  <span class="tok-c">// pevná velikost</span>
+<span class="tok-k">const</span> inferred = [_]<span class="tok-t">u8</span>{ <span class="tok-n">1</span>, <span class="tok-n">2</span>, <span class="tok-n">3</span> };
+
+<span class="tok-k">const</span> slice: []<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..]; <span class="tok-c">// ptr + délka</span>
+<span class="tok-k">const</span> sub  : []<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..<span class="tok-n">2</span>];
+
+<span class="tok-k">const</span> p: *<span class="tok-k">const</span> <span class="tok-t">u8</span> = &amp;arr[<span class="tok-n">0</span>];      <span class="tok-c">// ukazatel na jednu položku</span>
+<span class="tok-k">const</span> many: [*]<span class="tok-k">const</span> <span class="tok-t">u8</span> = arr[<span class="tok-n">0</span>..].ptr; <span class="tok-c">// na více položek</span>
+
+<span class="tok-c">// Řezy znají svou délku: arr.len</span>
+</code></pre>
+    </div>
+  </div>
+
+  <h2>Živě: zásobník vs halda s defer</h2>
+  <p class="lead">Klikněte na „spustit“ a projděte si alokace. <code>defer</code> se spouští v opačném pořadí při opuštění scope.</p>
+  <div class="practice-panel">
+    <div class="mem">
+      <div class="mem-region">
+        <h4>Zásobník</h4>
+        <div id="mem-stack"></div>
+      </div>
+      <div class="mem-region">
+        <h4>Halda</h4>
+        <div id="mem-heap"></div>
+      </div>
+    </div>
+    <div class="mem-controls">
+      <button class="quiz-btn" id="mem-step">Další krok &rarr;</button>
+      <button class="quiz-btn secondary" id="mem-reset">Reset</button>
+      <span id="mem-narrator" style="color: var(--muted); font-size: 13px; margin-left: 8px;"></span>
+    </div>
+    <pre id="mem-source" style="margin-top: 12px;"></pre>
+  </div>
+</section>
+
+<!-- STRUKTURY -->
+<section class="tab-section" id="structs">
+  <h1>Struktury a výčty</h1>
+  <p class="lead">Struktury drží data a metody. Výčty mohou nést payloady (značkované unie). Oboje jsou plnohodnotné typy.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="struct method self">
+      <div class="card-head">
+        <div class="card-title">Struktura s metodami <span class="tag">struct</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Point = <span class="tok-k">struct</span> {
+    x: <span class="tok-t">f32</span>,
+    y: <span class="tok-t">f32</span>,
+
+    <span class="tok-k">pub fn</span> <span class="tok-f">init</span>(x: <span class="tok-t">f32</span>, y: <span class="tok-t">f32</span>) Point {
+        <span class="tok-k">return</span> .{ .x = x, .y = y };
+    }
+
+    <span class="tok-k">pub fn</span> <span class="tok-f">distance</span>(self: Point, other: Point) <span class="tok-t">f32</span> {
+        <span class="tok-k">const</span> dx = self.x - other.x;
+        <span class="tok-k">const</span> dy = self.y - other.y;
+        <span class="tok-k">return</span> <span class="tok-b">@sqrt</span>(dx*dx + dy*dy);
+    }
+};
+
+<span class="tok-k">const</span> p = Point.init(<span class="tok-n">1</span>, <span class="tok-n">2</span>);
+<span class="tok-k">const</span> d = p.distance(.{ .x = <span class="tok-n">3</span>, .y = <span class="tok-n">4</span> });
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="enum tag">
+      <div class="card-head">
+        <div class="card-title">Výčet <span class="tag">enum</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Direction = <span class="tok-k">enum</span> { north, south, east, west };
+
+<span class="tok-c">// Specifikujte typ tagu a explicitní hodnoty</span>
+<span class="tok-k">const</span> Status = <span class="tok-k">enum</span>(<span class="tok-t">u8</span>) {
+    ok = <span class="tok-n">200</span>,
+    not_found = <span class="tok-n">404</span>,
+    server_error = <span class="tok-n">500</span>,
+};
+
+<span class="tok-k">const</span> code = <span class="tok-b">@intFromEnum</span>(Status.ok); <span class="tok-c">// 200</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="union tagged variant">
+      <div class="card-head">
+        <div class="card-title">Značkovaná unie <span class="tag">union(enum)</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Token = <span class="tok-k">union</span>(<span class="tok-k">enum</span>) {
+    int: <span class="tok-t">i64</span>,
+    float: <span class="tok-t">f64</span>,
+    text: []<span class="tok-k">const</span> <span class="tok-t">u8</span>,
+    eof,
+};
+
+<span class="tok-k">const</span> t: Token = .{ .int = <span class="tok-n">42</span> };
+
+<span class="tok-k">switch</span> (t) {
+    .int =&gt; |n| std.debug.print(<span class="tok-s">"int {d}\n"</span>, .{n}),
+    .float =&gt; |f| std.debug.print(<span class="tok-s">"float {d}\n"</span>, .{f}),
+    .text =&gt; |s| std.debug.print(<span class="tok-s">"text {s}\n"</span>, .{s}),
+    .eof =&gt; std.debug.print(<span class="tok-s">"end\n"</span>, .{}),
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="anonymous struct literal">
+      <div class="card-head">
+        <div class="card-title">Anonymní strukturální literály <span class="tag">.{}</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// Typ odvozený z kontextu</span>
+<span class="tok-k">const</span> p: Point = .{ .x = <span class="tok-n">1</span>, .y = <span class="tok-n">2</span> };
+
+<span class="tok-c">// Tuple-styl (poziční)</span>
+<span class="tok-k">const</span> tup = .{ <span class="tok-n">42</span>, <span class="tok-s">"hi"</span>, <span class="tok-k">true</span> };
+<span class="tok-c">// přístup: tup[0], tup[1], tup[2]</span>
+
+<span class="tok-c">// Hojně využíváno pro argumenty print</span>
+std.debug.print(<span class="tok-s">"{d} {s}\n"</span>, .{ <span class="tok-n">1</span>, <span class="tok-s">"hi"</span> });
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="packed struct bitfield">
+      <div class="card-head">
+        <div class="card-title">packed struct <span class="tag">bitová pole</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> Flags = <span class="tok-k">packed struct</span> {
+    read:  <span class="tok-t">bool</span>,
+    write: <span class="tok-t">bool</span>,
+    exec:  <span class="tok-t">bool</span>,
+    _pad:  <span class="tok-t">u5</span>,
+};
+<span class="tok-c">// @sizeOf(Flags) == 1 bajt</span>
+
+<span class="tok-k">const</span> f: Flags = .{ .read = <span class="tok-k">true</span>, .write = <span class="tok-k">false</span>, .exec = <span class="tok-k">true</span>, ._pad = <span class="tok-n">0</span> };
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="optional null">
+      <div class="card-head">
+        <div class="card-title">Optionaly <span class="tag">?T</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">var</span> maybe: ?<span class="tok-t">i32</span> = <span class="tok-k">null</span>;
+maybe = <span class="tok-n">42</span>;
+
+<span class="tok-k">if</span> (maybe) |v| {
+    std.debug.print(<span class="tok-s">"got {d}\n"</span>, .{v});
+}
+
+<span class="tok-c">// .? rozbalí nebo zpanikaří</span>
+<span class="tok-k">const</span> n = maybe.?;
+
+<span class="tok-c">// orelse poskytne výchozí hodnotu</span>
+<span class="tok-k">const</span> m = maybe <span class="tok-k">orelse</span> <span class="tok-n">0</span>;
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- COMPTIME -->
+<section class="tab-section" id="comptime">
+  <h1>Comptime</h1>
+  <p class="lead">Zabijácká funkce Zigu. Spouštějte kód v době kompilace, berte typy jako parametry, generujte kód &mdash; vše v obyčejné syntaxi Zigu.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="generic comptime type">
+      <div class="card-head">
+        <div class="card-title">Generika přes typ comptime <span class="tag">comptime T</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">max</span>(<span class="tok-k">comptime</span> T: <span class="tok-t">type</span>, a: T, b: T) T {
+    <span class="tok-k">return</span> <span class="tok-k">if</span> (a &gt; b) a <span class="tok-k">else</span> b;
+}
+
+<span class="tok-k">const</span> x = max(<span class="tok-t">i32</span>, <span class="tok-n">3</span>, <span class="tok-n">7</span>);    <span class="tok-c">// 7</span>
+<span class="tok-k">const</span> y = max(<span class="tok-t">f64</span>, <span class="tok-n">1.5</span>, <span class="tok-n">2.5</span>); <span class="tok-c">// 2.5</span>
+</code></pre>
+      <p class="card-desc">Každé volání generuje čerstvou specializaci &mdash; bez nákladu za běhu.</p>
+    </div>
+
+    <div class="card" data-keywords="generic struct list">
+      <div class="card-head">
+        <div class="card-title">Generická struktura <span class="tag">funkce vracející typ</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">List</span>(<span class="tok-k">comptime</span> T: <span class="tok-t">type</span>) <span class="tok-t">type</span> {
+    <span class="tok-k">return struct</span> {
+        items: []T,
+        len: <span class="tok-t">usize</span>,
+    };
+}
+
+<span class="tok-k">const</span> IntList = List(<span class="tok-t">i32</span>);
+<span class="tok-k">var</span> xs: IntList = .{ .items = &amp;[_]<span class="tok-t">i32</span>{}, .len = <span class="tok-n">0</span> };
+_ = xs;
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="inline for unroll">
+      <div class="card-head">
+        <div class="card-title">inline for <span class="tag">rozvinutá smyčka</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// Tělo smyčky se v comptime duplikuje pro každou iteraci</span>
+<span class="tok-k">const</span> fields = <span class="tok-b">@typeInfo</span>(MyStruct).Struct.fields;
+<span class="tok-k">inline for</span> (fields) |f| {
+    std.debug.print(<span class="tok-s">"field: {s}\n"</span>, .{f.name});
+}
+
+<span class="tok-c">// Funguje i s rozsahem</span>
+<span class="tok-k">inline for</span> (<span class="tok-n">0</span>..<span class="tok-n">4</span>) |i| {
+    process(i); <span class="tok-c">// rozvinuto 4x</span>
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="compile time fibonacci">
+      <div class="card-head">
+        <div class="card-title">Spustit kód v době kompilace <span class="tag">comptime { }</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">fn</span> <span class="tok-f">fib</span>(n: <span class="tok-t">u32</span>) <span class="tok-t">u64</span> {
+    <span class="tok-k">return</span> <span class="tok-k">if</span> (n &lt; <span class="tok-n">2</span>) n <span class="tok-k">else</span> fib(n - <span class="tok-n">1</span>) + fib(n - <span class="tok-n">2</span>);
+}
+
+<span class="tok-c">// Spočítáno během kompilace:</span>
+<span class="tok-k">const</span> tenth = <span class="tok-k">comptime</span> fib(<span class="tok-n">10</span>);  <span class="tok-c">// 55, zapečené dovnitř</span>
+</code></pre>
+    </div>
+  </div>
+
+  <h2>Vizualizér comptime</h2>
+  <p class="lead">Vyberte typ a uvidíte, jak je <code>fn max(comptime T: type, a: T, b: T) T</code> monomorfizovaná.</p>
+  <div class="practice-panel">
+    <div class="vis-row">
+      <label>Vyberte T:</label>
+      <select id="vis-type">
+        <option value="i32">i32</option>
+        <option value="u8">u8</option>
+        <option value="f64">f64</option>
+        <option value="usize">usize</option>
+        <option value="i64">i64</option>
+      </select>
+    </div>
+    <pre id="vis-output"></pre>
+    <p class="card-desc" style="padding:0;margin-top:8px;">Překladač vygeneruje jednu z těchto verzí na každý konkrétní typ, se kterým <code>max</code> zavoláte.</p>
+  </div>
+</section>
+
+<!-- BUILD -->
+<section class="tab-section" id="build">
+  <h1>Sestavovací systém</h1>
+  <p class="lead"><code>build.zig</code> je prostě Zig. Popisujete graf sestavovacích kroků; překladač je spouští.</p>
+
+  <div class="grid">
+    <div class="card" data-keywords="build.zig minimal">
+      <div class="card-head">
+        <div class="card-title">Minimální build.zig <span class="tag">build.zig</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-k">const</span> std = <span class="tok-b">@import</span>(<span class="tok-s">"std"</span>);
+
+<span class="tok-k">pub fn</span> <span class="tok-f">build</span>(b: *std.Build) <span class="tok-t">void</span> {
+    <span class="tok-k">const</span> target = b.standardTargetOptions(.{});
+    <span class="tok-k">const</span> optimize = b.standardOptimizeOption(.{});
+
+    <span class="tok-k">const</span> exe = b.addExecutable(.{
+        .name = <span class="tok-s">"hello"</span>,
+        .root_source_file = b.path(<span class="tok-s">"src/main.zig"</span>),
+        .target = target,
+        .optimize = optimize,
+    });
+    b.installArtifact(exe);
+
+    <span class="tok-k">const</span> run = b.addRunArtifact(exe);
+    <span class="tok-k">const</span> run_step = b.step(<span class="tok-s">"run"</span>, <span class="tok-s">"Run the app"</span>);
+    run_step.dependOn(&amp;run.step);
+}
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="zig build commands">
+      <div class="card-head">
+        <div class="card-title">Časté příkazy <span class="tag">cli</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code>zig build              <span class="tok-c"># výchozí krok install</span>
+zig build run          <span class="tok-c"># vlastní krok run</span>
+zig build test         <span class="tok-c"># spustit testy</span>
+zig build -Doptimize=ReleaseFast
+zig build -Dtarget=x86_64-linux-gnu
+
+zig build --help       <span class="tok-c"># vypsat uživatelem definované kroky/volby</span>
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="optimize releasefast debug safe">
+      <div class="card-head">
+        <div class="card-title">Režimy optimalizace <span class="tag">-Doptimize</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c">// Debug      &mdash; výchozí; bezpečnost zapnutá, bez optimalizací
+// ReleaseSafe &mdash; optimalizováno + běhové bezpečnostní kontroly
+// ReleaseFast &mdash; optimalizováno, bez bezpečnostních kontrol
+// ReleaseSmall &mdash; optimalizováno na velikost</span>
+
+zig build -Doptimize=ReleaseSafe
+</code></pre>
+    </div>
+
+    <div class="card" data-keywords="cross compilation target">
+      <div class="card-head">
+        <div class="card-title">Křížový překlad <span class="tag">prvotřídní</span></div>
+        <button class="copy-btn">Kopírovat</button>
+      </div>
+      <pre><code><span class="tok-c"># Zkompilujte Linux ARM binárku na macOS, bez extra nastavení:</span>
+zig build-exe main.zig -target aarch64-linux-gnu
+
+<span class="tok-c"># Volně stojící wasm:</span>
+zig build-exe main.zig -target wasm32-freestanding
+</code></pre>
+    </div>
+  </div>
+</section>
+
+<!-- PROCVIČOVÁNÍ -->
+<section class="tab-section" id="practice">
+  <h1>&#127919; Pište a procvičujte</h1>
+  <p class="lead">Doplňte chybějící části. Enter pro potvrzení, &rarr; pro další. Stavte si šňůru. <strong style="color: var(--accent)">Dostaňte to do svalové paměti.</strong></p>
+
+  <div class="practice-panel">
+    <h3>Cvičení <span id="quiz-badge" style="font-size:11px; padding: 2px 8px; background: var(--accent); color: #1a1208; border-radius: 999px; font-weight: 800;">Otázka 1 / 30</span></h3>
+    <p class="sub" id="quiz-topic">Téma: ...</p>
+
+    <div class="quiz-card" id="quiz-prompt"></div>
+
+    <input class="quiz-input" id="quiz-input" placeholder="Napište svou odpověď zde…" autocomplete="off" spellcheck="false" />
+    <div class="quiz-controls">
+      <button class="quiz-btn" id="quiz-submit">Potvrdit</button>
+      <button class="quiz-btn secondary" id="quiz-next">Další &rarr;</button>
+      <button class="quiz-btn secondary" id="quiz-show">Ukázat odpověď</button>
+      <button class="quiz-btn secondary" id="quiz-skip">Přeskočit</button>
+    </div>
+    <div class="quiz-feedback" id="quiz-feedback"></div>
+
+    <div class="quiz-stats">
+      <div class="quiz-stat">
+        <span class="num" id="stat-score">0</span>
+        <span class="lbl">Skóre</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-streak">0 <span class="streak-fire" id="streak-fire">&#128293;</span></span>
+        <span class="lbl">Šňůra</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-best">0</span>
+        <span class="lbl">Nejlepší šňůra</span>
+      </div>
+      <div class="quiz-stat">
+        <span class="num" id="stat-acc">&mdash;</span>
+        <span class="lbl">Přesnost</span>
+      </div>
+    </div>
+    <div class="quiz-progress-bar"><div id="quiz-progress"></div></div>
+  </div>
+</section>
+
+<!-- REPL -->
+<section class="tab-section" id="repl">
+  <h1>Mini REPL</h1>
+  <p class="lead">Drobný předstíraný vyhodnocovač Zigu. Zkuste výrazy jako <code>1 + 2</code>, <code>"hi".len</code>, <code>@as(u8, 65)</code>, <code>0xff</code>, <code>@min(3,7)</code>, <code>3.14 * 2</code>, <code>true and false</code>.</p>
+
+  <div class="repl">
+    <input class="repl-input" id="repl-input" placeholder="Napište výraz Zigu a stiskněte Enter…" autocomplete="off" spellcheck="false" />
+    <div class="repl-history" id="repl-history"></div>
+    <div class="quiz-controls">
+      <button class="quiz-btn secondary" id="repl-clear">Vyčistit</button>
+      <button class="quiz-btn secondary" data-repl-example="1 + 2 * 3">1 + 2 * 3</button>
+      <button class="quiz-btn secondary" data-repl-example="&quot;hi&quot;.len">&quot;hi&quot;.len</button>
+      <button class="quiz-btn secondary" data-repl-example="@min(7, 3)">@min(7, 3)</button>
+      <button class="quiz-btn secondary" data-repl-example="@as(u8, 65)">@as(u8, 65)</button>
+      <button class="quiz-btn secondary" data-repl-example="0xff_00 | 0x00_aa">0xff_00 | 0x00_aa</button>
+      <button class="quiz-btn secondary" data-repl-example="true and (1 &lt; 2)">true and (1 &lt; 2)</button>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:18px;">
+    <strong>Upřímné upozornění:</strong> tohle je falešný REPL. NEKOMPILUJE Zig. Pouze pomocí vzorů rozpozná drobnou podmnožinu výrazů kvůli svalové paměti. Cokoli složitějšího řekne <code>(unsupported)</code>. Skutečný Zig: nainstalujte <code>zig</code> a spusťte <code>zig run</code>.
+  </div>
+</section>
+
+<div class="no-results" id="no-results">Žádné shody. Zkuste jiné klíčové slovo.</div>
+
+</main>
+
+<footer>
+  Vytvořeno pro učení Zigu 0.13+ &middot; Jednosouborové, čisté JS &middot;
+  <a href="https://ziglang.org" target="_blank" rel="noopener">ziglang.org</a>
+  &middot; Stiskněte <code>/</code> pro zaměření na hledání.
+</footer>
+
+<script>
+// --------------- Záložky ---------------
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    sections.forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+
+// --------------- Tlačítka pro kopírování ---------------
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const card = btn.closest('.card');
+    const code = card?.querySelector('pre code');
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code.innerText);
+      btn.textContent = 'Zkopírováno!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Kopírovat';
+        btn.classList.remove('copied');
+      }, 1200);
+    } catch (err) {
+      btn.textContent = 'Chyba';
+    }
+  });
+});
+
+// --------------- Hledání ---------------
+const searchInput = document.getElementById('search');
+const noResults = document.getElementById('no-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.trim().toLowerCase();
+  let any = false;
+  document.querySelectorAll('section.tab-section .card').forEach(card => {
+    const text = (card.dataset.keywords || '') + ' ' + card.textContent;
+    const match = !q || text.toLowerCase().includes(q);
+    card.classList.toggle('hidden', !match);
+    if (match) any = true;
+  });
+  // Přepnout no-results v aktivní záložce, pokud tam nejsou žádné shody
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const visible = active.querySelectorAll('.card:not(.hidden)').length;
+  noResults.style.display = (q && visible === 0) ? 'block' : 'none';
+});
+
+// "/" zaměří hledání
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    searchInput.focus();
+  }
+});
+
+// --------------- Konfety ---------------
+function confetti(originEl) {
+  const layer = document.createElement('div');
+  layer.className = 'confetti-layer';
+  document.body.appendChild(layer);
+  const rect = originEl ? originEl.getBoundingClientRect() : { left: window.innerWidth/2, top: 100, width: 0, height: 0 };
+  const colors = ['#f7a41d', '#ffb84d', '#d97706', '#4ade80', '#79c0ff', '#ff7b9c'];
+  for (let i = 0; i < 28; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = (rect.left + rect.width/2) + 'px';
+    piece.style.top  = (rect.top  + rect.height/2) + 'px';
+    piece.style.background = colors[i % colors.length];
+    piece.style.setProperty('--dx', (Math.random()*400 - 200) + 'px');
+    piece.style.setProperty('--dy', (Math.random()*200 + 80) + 'px');
+    piece.style.setProperty('--rot', (Math.random()*720 - 360) + 'deg');
+    piece.style.transform = `rotate(${Math.random()*180}deg)`;
+    layer.appendChild(piece);
+  }
+  setTimeout(() => layer.remove(), 1300);
+}
+
+// --------------- Kvíz ---------------
+const QUIZ = [
+  { topic: 'Hello, Zig', prompt: ['const std = ___("std");'], answers: [['@import']], hint: 'Vestavěné začíná na @' },
+  { topic: 'Hello, Zig', prompt: ['pub fn main() ___ {'], answers: [['!void']], hint: 'main může vracet chyby' },
+  { topic: 'Proměnné', prompt: ['___ name = "Ada";   // neměnné'], answers: [['const']], hint: 'Pět písmen: c…' },
+  { topic: 'Proměnné', prompt: ['___ counter: u32 = 0;  // měnitelné'], answers: [['var']], hint: 'Tři písmena' },
+  { topic: 'Proměnné', prompt: ['var buf: [256]u8 = ___;  // nespecifikované bajty'], answers: [['undefined']], hint: 'Jediné klíčové slovo' },
+  { topic: 'Čísla',   prompt: ['const x: ___ = -100;   // 8-bit znaménkové celé číslo'], answers: [['i8']], hint: 'i + bity' },
+  { topic: 'Čísla',   prompt: ['const idx: ___ = 0;    // index velikosti ukazatele'], answers: [['usize']], hint: 'unsigned size' },
+  { topic: 'Čísla',   prompt: ['const b: u8 = ___(a);  // explicitní zúžení'], answers: [['@intCast']], hint: 'začíná na @' },
+  { topic: 'Čísla',   prompt: ['const c = a +___ b;    // wrapping +'], answers: [['%']], hint: 'jeden symbol' },
+  { topic: 'Čísla',   prompt: ['const c = a +___ b;    // saturující +'], answers: [['|']], hint: 'jeden symbol' },
+  { topic: 'Řízení',   prompt: ['for (items, ___) |it, i| {  // index vedle'], answers: [['0..']], hint: '0 a pak ..' },
+  { topic: 'Řízení',   prompt: ['while (i < 10) : (___) {  // inkrement'], answers: [['i += 1']], hint: 'pokračovací výraz' },
+  { topic: 'Řízení',   prompt: ['const r = blk: { break ___ 42; };'], answers: [[':blk']], hint: 'dvojtečka + návěští' },
+  { topic: 'Řízení',   prompt: ['switch (n) {\n    1, 2, 3 => "few",\n    4...9 => "some",\n    ___ => "many",\n}'], answers: [['else']], hint: 'výchozí větev' },
+  { topic: 'Řízení',   prompt: ['const f = try std.fs.cwd().openFile("x", .{});\n___ f.close();  // proběhne při opuštění scope'], answers: [['defer']], hint: 'klíčové slovo úklidu' },
+  { topic: 'Funkce', prompt: ['pub fn add(a: i32, b: i32) ___ { return a + b; }'], answers: [['i32']], hint: 'jen typ' },
+  { topic: 'Funkce', prompt: ['fn parse(s: []const u8) ___i32 { ... }  // vrací i32 nebo chybu'], answers: [['!']], hint: 'jeden symbol' },
+  { topic: 'Funkce', prompt: ['const n = ___ parse("42");   // propagovat chybu'], answers: [['try']], hint: '3 písmena' },
+  { topic: 'Funkce', prompt: ['const n = parse("x") ___ 0;  // výchozí při chybě'], answers: [['catch']], hint: '5 písmen' },
+  { topic: 'Chyby',    prompt: ['const E = ___{ Empty, Overflow };'], answers: [['error']], hint: 'malé klíčové slovo' },
+  { topic: 'Chyby',    prompt: ['___ alloc.destroy(t);  // spustí se pouze na chybové cestě'], answers: [['errdefer']], hint: 'defer + err' },
+  { topic: 'Chyby',    prompt: ['const n = parse("x") catch ___;  // vím, že se to nestane'], answers: [['unreachable']], hint: 'past překladače' },
+  { topic: 'Paměť',    prompt: ['var gpa = std.heap.___(.{}){};'], answers: [['GeneralPurposeAllocator']], hint: 'GPA rozepsané' },
+  { topic: 'Paměť',    prompt: ['const buf = try alloc.___(u8, 128);  // požádej o bajty'], answers: [['alloc']], hint: 'metoda na Allocatoru' },
+  { topic: 'Paměť',    prompt: ['const slice: []const u8 = arr[0..];   // ___ + délka'], answers: [['ptr']], hint: 'zkrácený ukazatel' },
+  { topic: 'Struktury',   prompt: ['const Token = ___(enum) { int: i64, eof };'], answers: [['union']], hint: 'značkovaná varianta' },
+  { topic: 'Struktury',   prompt: ['const Flags = ___ struct { read: bool, write: bool, _pad: u6 };'], answers: [['packed']], hint: 'bitová pole' },
+  { topic: 'Struktury',   prompt: ['const x: ?i32 = null;\nconst v = x ___ 0;  // výchozí pokud null'], answers: [['orelse']], hint: 'jedno slovo' },
+  { topic: 'Comptime',  prompt: ['fn max(___ T: type, a: T, b: T) T { return if (a > b) a else b; }'], answers: [['comptime']], hint: 'modifikátor parametru' },
+  { topic: 'Comptime',  prompt: ['___ for (fields) |f| { /* unrolled */ }'], answers: [['inline']], hint: 'rozvinout smyčku' },
+];
+
+let qIndex = 0;
+let score = 0;
+let streak = 0;
+let bestStreak = 0;
+let attempts = 0;
+
+const qTopic = document.getElementById('quiz-topic');
+const qBadge = document.getElementById('quiz-badge');
+const qPrompt = document.getElementById('quiz-prompt');
+const qInput = document.getElementById('quiz-input');
+const qFeedback = document.getElementById('quiz-feedback');
+const qProgress = document.getElementById('quiz-progress');
+const sScore = document.getElementById('stat-score');
+const sStreak = document.getElementById('stat-streak');
+const sBest = document.getElementById('stat-best');
+const sAcc = document.getElementById('stat-acc');
+const fire = document.getElementById('streak-fire');
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderQuiz() {
+  const q = QUIZ[qIndex];
+  qTopic.textContent = 'Téma: ' + q.topic;
+  qBadge.textContent = `Otázka ${qIndex + 1} / ${QUIZ.length}`;
+  // Vykreslit zadání; nahradit ___ stylizovaným prázdným polem
+  const text = q.prompt[0];
+  qPrompt.innerHTML = escapeHTML(text)
+    .replace(/___/g, '<span class="quiz-blank">' + (q.answers[0][0] ? '?' : '?') + '</span>')
+    .replace(/&#10;/g, '\n');
+  qInput.value = '';
+  qInput.classList.remove('shake', 'flash');
+  qFeedback.classList.remove('show', 'correct', 'wrong');
+  qFeedback.innerHTML = '';
+  qProgress.style.width = ((qIndex / QUIZ.length) * 100) + '%';
+  setTimeout(() => qInput.focus(), 30);
+}
+
+function celebrateOK(msg) {
+  const messages = ['Pěkné!', 'Mám to!', 'Bystré!', 'Bum.', 'Šňůra!', 'Zafixováno.', 'Ano!'];
+  qFeedback.classList.remove('wrong');
+  qFeedback.classList.add('show', 'correct');
+  qFeedback.innerHTML = `<strong>&#10003; ${messages[Math.floor(Math.random()*messages.length)]}</strong> ${msg || ''}`;
+  qInput.classList.add('flash');
+  setTimeout(() => qInput.classList.remove('flash'), 400);
+  if (streak > 0 && streak % 3 === 0) confetti(qInput);
+}
+function showWrong(answer, hint) {
+  qFeedback.classList.remove('correct');
+  qFeedback.classList.add('show', 'wrong');
+  qFeedback.innerHTML = `<strong>&#10007; Skoro.</strong> ${hint ? '<em>Nápověda: ' + escapeHTML(hint) + '</em>' : ''}<span class="answer">Odpověď: ${escapeHTML(answer)}</span>`;
+  qInput.classList.add('shake');
+  setTimeout(() => qInput.classList.remove('shake'), 280);
+}
+
+function normalizeAns(s) {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+function checkAnswer() {
+  const q = QUIZ[qIndex];
+  const user = normalizeAns(qInput.value);
+  if (!user) return;
+  attempts++;
+  const accepted = q.answers[0].map(normalizeAns);
+  const ok = accepted.some(a => a === user || a.toLowerCase() === user.toLowerCase());
+  if (ok) {
+    score++;
+    streak++;
+    if (streak > bestStreak) bestStreak = streak;
+    celebrateOK();
+  } else {
+    streak = 0;
+    showWrong(q.answers[0][0], q.hint);
+  }
+  updateStats();
+}
+
+function updateStats() {
+  sScore.textContent = score;
+  sStreak.firstChild.nodeValue = streak + ' ';
+  sBest.textContent = bestStreak;
+  sAcc.textContent = attempts ? Math.round((score / attempts) * 100) + '%' : '—';
+  fire.classList.toggle('on', streak >= 3);
+}
+
+function nextQuestion() {
+  qIndex = (qIndex + 1) % QUIZ.length;
+  renderQuiz();
+}
+
+document.getElementById('quiz-submit').addEventListener('click', checkAnswer);
+document.getElementById('quiz-next').addEventListener('click', nextQuestion);
+document.getElementById('quiz-skip').addEventListener('click', () => { streak = 0; updateStats(); nextQuestion(); });
+document.getElementById('quiz-show').addEventListener('click', () => {
+  const q = QUIZ[qIndex];
+  showWrong(q.answers[0][0], q.hint);
+  streak = 0; updateStats();
+});
+qInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (qFeedback.classList.contains('correct')) {
+      nextQuestion();
+    } else {
+      checkAnswer();
+    }
+  } else if (e.key === 'ArrowRight' && !qInput.value) {
+    e.preventDefault();
+    nextQuestion();
+  }
+});
+
+renderQuiz();
+updateStats();
+
+// --------------- Mini REPL ---------------
+const replInput = document.getElementById('repl-input');
+const replHistory = document.getElementById('repl-history');
+
+function appendLine(prompt, kind, text) {
+  const div = document.createElement('div');
+  div.className = 'repl-line';
+  if (prompt) {
+    const p = document.createElement('span');
+    p.className = 'prompt';
+    p.textContent = prompt + ' ';
+    div.appendChild(p);
+  }
+  const out = document.createElement('span');
+  out.className = kind;
+  out.textContent = text;
+  div.appendChild(out);
+  replHistory.appendChild(div);
+  replHistory.scrollTop = replHistory.scrollHeight;
+}
+
+// Drobný tokenizér + vyhodnocovač výrazů metodou rekurzivního sestupu, pokrývá:
+// celá čísla (vč. podtržítek, 0x, 0b, 0o), floaty, řetězce, booleany,
+// + - * / % | & ^ << >>, závorky, unární -, "and"/"or"/"not",
+// porovnání (== != < <= > >=),
+// vestavěná @min @max @as, ".len" na řetězcích, casty, které jen vrátí hodnotu.
+function evalZigExpr(src) {
+  let i = 0;
+  const s = src;
+  const peek = () => s[i];
+  const isDigit = c => c >= '0' && c <= '9';
+  const isAlpha = c => /[a-zA-Z_]/.test(c);
+  function skipWS() {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  }
+  function readNumber() {
+    let start = i;
+    if (s[i] === '0' && (s[i+1] === 'x' || s[i+1] === 'X')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[0-9a-fA-F_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 16);
+    }
+    if (s[i] === '0' && (s[i+1] === 'b' || s[i+1] === 'B')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[01_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 2);
+    }
+    if (s[i] === '0' && (s[i+1] === 'o' || s[i+1] === 'O')) {
+      i += 2;
+      let n = '';
+      while (i < s.length && /[0-7_]/.test(s[i])) { if (s[i] !== '_') n += s[i]; i++; }
+      return parseInt(n, 8);
+    }
+    let n = '';
+    let dot = false, exp = false;
+    while (i < s.length && (isDigit(s[i]) || s[i] === '_' || (s[i]==='.' && !dot && !exp) || (s[i]==='e' && !exp) || (exp && (s[i]==='+'||s[i]==='-')))) {
+      if (s[i] === '_') { i++; continue; }
+      if (s[i] === '.') dot = true;
+      if (s[i] === 'e') exp = true;
+      n += s[i]; i++;
+    }
+    return n.includes('.') || n.includes('e') ? parseFloat(n) : parseInt(n, 10);
+  }
+  function readString() {
+    if (s[i] !== '"') throw new Error('očekáván řetězec');
+    i++;
+    let v = '';
+    while (i < s.length && s[i] !== '"') {
+      if (s[i] === '\\' && i+1 < s.length) {
+        const n = s[i+1];
+        v += { 'n':'\n', 't':'\t', '\\':'\\', '"':'"', '\'':'\'' }[n] ?? n;
+        i += 2;
+      } else { v += s[i]; i++; }
+    }
+    if (s[i] !== '"') throw new Error('neukončený řetězec');
+    i++;
+    return v;
+  }
+  function readIdent() {
+    let start = i;
+    while (i < s.length && (isAlpha(s[i]) || isDigit(s[i]))) i++;
+    return s.slice(start, i);
+  }
+  function parsePrimary() {
+    skipWS();
+    if (i >= s.length) throw new Error('neočekávaný konec');
+    const c = s[i];
+    if (c === '(') { i++; const v = parseExpr(); skipWS(); if (s[i] !== ')') throw new Error('chybí )'); i++; return v; }
+    if (c === '"') return readString();
+    if (c === '@') {
+      i++;
+      const name = readIdent();
+      skipWS();
+      if (s[i] !== '(') throw new Error('očekáváno ( po @' + name);
+      i++;
+      const args = [];
+      skipWS();
+      if (s[i] !== ')') {
+        args.push(parseExpr());
+        skipWS();
+        while (s[i] === ',') { i++; args.push(parseExpr()); skipWS(); }
+      }
+      if (s[i] !== ')') throw new Error('chybí ) pro vestavěnou funkci');
+      i++;
+      switch (name) {
+        case 'min': return Math.min(...args);
+        case 'max': return Math.max(...args);
+        case 'as':  return args[1]; // ignorovat typ
+        case 'intCast': return Math.trunc(args[0]);
+        case 'intFromFloat': return Math.trunc(args[0]);
+        case 'floatFromInt': return args[0] + 0.0;
+        case 'sqrt': return Math.sqrt(args[0]);
+        case 'abs':  return Math.abs(args[0]);
+        case 'mod':  return args[0] % args[1];
+        default: throw new Error('@' + name + ' (nepodporováno)');
+      }
+    }
+    if (c === '-') { i++; return -parsePrimary(); }
+    if (c === '+') { i++; return parsePrimary(); }
+    if (isDigit(c)) return readNumber();
+    if (isAlpha(c)) {
+      const name = readIdent();
+      if (name === 'true') return true;
+      if (name === 'false') return false;
+      if (name === 'null') return null;
+      if (name === 'not') return !parsePrimary();
+      throw new Error('identifikátor "' + name + '" (nepodporován)');
+    }
+    throw new Error('neočekávaný znak "' + c + '"');
+  }
+  function parsePostfix() {
+    let v = parsePrimary();
+    while (true) {
+      skipWS();
+      if (s.startsWith('.len', i) && typeof v === 'string') {
+        i += 4;
+        v = new TextEncoder().encode(v).length; // utf-8 délka v bajtech, věrné Zigu
+      } else break;
+    }
+    return v;
+  }
+  function parseMul() {
+    let v = parsePostfix();
+    while (true) {
+      skipWS();
+      if (s[i] === '*') { i++; v = v * parsePostfix(); }
+      else if (s[i] === '/') { i++; const r = parsePostfix(); v = (Number.isInteger(v) && Number.isInteger(r)) ? Math.trunc(v / r) : v / r; }
+      else if (s[i] === '%') { i++; v = v % parsePostfix(); }
+      else break;
+    }
+    return v;
+  }
+  function parseAdd() {
+    let v = parseMul();
+    while (true) {
+      skipWS();
+      // Wrapping/saturující operátory (zachází se s nimi jako s běžným +/-)
+      if (s[i] === '+' && (s[i+1] === '%' || s[i+1] === '|')) { i += 2; v = v + parseMul(); }
+      else if (s[i] === '-' && (s[i+1] === '%' || s[i+1] === '|')) { i += 2; v = v - parseMul(); }
+      else if (s[i] === '+') { i++; v = v + parseMul(); }
+      else if (s[i] === '-') { i++; v = v - parseMul(); }
+      else break;
+    }
+    return v;
+  }
+  function parseShift() {
+    let v = parseAdd();
+    while (true) {
+      skipWS();
+      if (s.startsWith('<<', i)) { i += 2; v = v << parseAdd(); }
+      else if (s.startsWith('>>', i)) { i += 2; v = v >>> parseAdd(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitAnd() {
+    let v = parseShift();
+    while (true) {
+      skipWS();
+      if (s[i] === '&' && s[i+1] !== '&') { i++; v = v & parseShift(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitXor() {
+    let v = parseBitAnd();
+    while (true) {
+      skipWS();
+      if (s[i] === '^') { i++; v = v ^ parseBitAnd(); }
+      else break;
+    }
+    return v;
+  }
+  function parseBitOr() {
+    let v = parseBitXor();
+    while (true) {
+      skipWS();
+      if (s[i] === '|' && s[i+1] !== '|') { i++; v = v | parseBitXor(); }
+      else break;
+    }
+    return v;
+  }
+  function parseCmp() {
+    let v = parseBitOr();
+    skipWS();
+    const ops = ['==','!=','<=','>=','<','>'];
+    for (const op of ops) {
+      if (s.startsWith(op, i)) {
+        i += op.length;
+        const r = parseBitOr();
+        switch (op) {
+          case '==': return v === r;
+          case '!=': return v !== r;
+          case '<':  return v < r;
+          case '<=': return v <= r;
+          case '>':  return v > r;
+          case '>=': return v >= r;
+        }
+      }
+    }
+    return v;
+  }
+  function parseLogic() {
+    let v = parseCmp();
+    while (true) {
+      skipWS();
+      if (s.startsWith('and', i) && !isAlpha(s[i+3] || '')) { i += 3; v = v && parseCmp(); }
+      else if (s.startsWith('or', i) && !isAlpha(s[i+2] || '')) { i += 2; v = v || parseCmp(); }
+      else break;
+    }
+    return v;
+  }
+  function parseExpr() { return parseLogic(); }
+
+  const v = parseExpr();
+  skipWS();
+  if (i < s.length) throw new Error('přebytečný vstup: "' + s.slice(i) + '"');
+  return v;
+}
+
+function formatVal(v) {
+  if (typeof v === 'string') return JSON.stringify(v);
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) return String(v);
+    return v.toString();
+  }
+  if (typeof v === 'boolean') return v ? 'true' : 'false';
+  if (v === null) return 'null';
+  return String(v);
+}
+
+function runRepl(src) {
+  const trimmed = src.trim();
+  if (!trimmed) return;
+  appendLine('zig>', '', trimmed);
+  try {
+    const v = evalZigExpr(trimmed);
+    appendLine('', 'output', formatVal(v));
+  } catch (err) {
+    appendLine('', 'err', '! ' + err.message);
+  }
+}
+
+replInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    runRepl(replInput.value);
+    replInput.value = '';
+  }
+});
+document.getElementById('repl-clear').addEventListener('click', () => { replHistory.innerHTML = ''; });
+document.querySelectorAll('[data-repl-example]').forEach(b => {
+  b.addEventListener('click', () => {
+    replInput.value = b.dataset.replExample;
+    runRepl(replInput.value);
+    replInput.value = '';
+    replInput.focus();
+  });
+});
+
+// Nasadit jeden příklad do REPLu
+runRepl('1 + 2 * 3');
+
+// --------------- Vizualizér comptime ---------------
+const visType = document.getElementById('vis-type');
+const visOutput = document.getElementById('vis-output');
+function renderVis() {
+  const T = visType.value;
+  visOutput.innerHTML =
+    '<span class="tok-c">// Vygenerovaná specializace pro T = ' + T + '</span>\n' +
+    '<span class="tok-k">fn</span> <span class="tok-f">max__' + T + '</span>(a: <span class="tok-t">' + T + '</span>, b: <span class="tok-t">' + T + '</span>) <span class="tok-t">' + T + '</span> {\n' +
+    '    <span class="tok-k">return</span> <span class="tok-k">if</span> (a &gt; b) a <span class="tok-k">else</span> b;\n' +
+    '}';
+}
+visType.addEventListener('change', renderVis);
+renderVis();
+
+// --------------- Diagram paměti ---------------
+const memStack = document.getElementById('mem-stack');
+const memHeap = document.getElementById('mem-heap');
+const memNarrator = document.getElementById('mem-narrator');
+const memSource = document.getElementById('mem-source');
+
+const memSteps = [
+  { line: 0,  narr: 'Vstup do funkce. Otevírá se rámec zásobníku.', stack: [], heap: [] },
+  { line: 1,  narr: 'Lokální proměnná `i` žije na zásobníku.', stack: ['i: u32 = 0'], heap: [] },
+  { line: 2,  narr: 'Alokovat 32 bajtů na haldě.', stack: ['i: u32 = 0'], heap: ['buf: [32]u8 (halda)'] },
+  { line: 3,  narr: '`defer alloc.free(buf)` zaregistrován &mdash; spustí se na konci.', stack: ['i: u32 = 0', 'defer #1: free(buf)'], heap: ['buf: [32]u8 (halda)'] },
+  { line: 4,  narr: 'Alokovat Point na zásobníku.', stack: ['i: u32 = 0', 'defer #1: free(buf)', 'p: Point{2, 3}'], heap: ['buf: [32]u8 (halda)'] },
+  { line: 5,  narr: 'Funkce se vrací. Defery se spouští v opačném pořadí.', stack: ['i: u32 = 0', 'defer #1: free(buf)', 'p: Point{2, 3}'], heap: ['buf: [32]u8 (halda)'], firing: true },
+  { line: 6,  narr: 'free(buf) proběhl &mdash; halda uvolněna.', stack: ['i: u32 = 0', 'p: Point{2, 3}'], heap: [] },
+  { line: 7,  narr: 'Rámec zásobníku zbořen. Všechny lokální pryč.', stack: [], heap: [] },
+];
+let memStep = 0;
+
+function renderMem() {
+  const st = memSteps[memStep];
+  memNarrator.textContent = st.narr;
+  function render(elem, items, klass) {
+    elem.innerHTML = '';
+    items.forEach((label) => {
+      const d = document.createElement('div');
+      d.className = 'mem-block' + (klass ? ' ' + klass : '');
+      d.textContent = label;
+      if (st.firing && label.startsWith('defer')) {
+        d.style.background = 'rgba(247, 164, 29, 0.25)';
+        d.style.borderLeftColor = 'var(--accent-2)';
+      }
+      elem.appendChild(d);
+    });
+  }
+  render(memStack, st.stack);
+  render(memHeap, st.heap, 'heap');
+
+  const lines = [
+    'fn demo(alloc: std.mem.Allocator) !void {',
+    '    var i: u32 = 0;',
+    '    const buf = try alloc.alloc(u8, 32);',
+    '    defer alloc.free(buf);',
+    '    const p = Point{ .x = 2, .y = 3 };',
+    '    _ = .{ i, p };',
+    '    // (return)',
+    '} // konec scope',
+  ];
+  memSource.innerHTML = lines.map((ln, i) => {
+    const isCur = i === st.line;
+    return `<span style="display:block;${isCur ? 'background: rgba(247,164,29,0.18); color: var(--accent);' : 'color: var(--muted);'}">${escapeHTML(ln)}</span>`;
+  }).join('');
+}
+
+document.getElementById('mem-step').addEventListener('click', () => {
+  memStep = (memStep + 1) % memSteps.length;
+  renderMem();
+});
+document.getElementById('mem-reset').addEventListener('click', () => {
+  memStep = 0;
+  renderMem();
+});
+renderMem();
+
+</script>
+</body>
+</html>

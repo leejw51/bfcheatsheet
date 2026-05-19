@@ -1,0 +1,1648 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Worktree Dojo — Zvládněte git worktree</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#0e0a07;
+    --bg2:#171110;
+    --panel:#1d1614;
+    --panel2:#241b18;
+    --line:#2e231f;
+    --ink:#f3e9df;
+    --ink2:#c9b8aa;
+    --muted:#8a786c;
+    --orange:#f05133; /* git oranžová */
+    --orange2:#ff6f3d;
+    --red:#e02424;
+    --green:#3ddc97;
+    --yellow:#f5c451;
+    --blue:#4ea1ff;
+    --purple:#b685ff;
+    --shadow:0 10px 40px rgba(0,0,0,.5);
+    --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace;
+    --sans:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(240,81,51,.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(255,111,61,.10), transparent 60%),
+      var(--bg);
+    min-height:100vh;
+  }
+
+  /* ---------- Rozvržení ---------- */
+  header.topbar{
+    position:sticky;top:0;z-index:40;
+    backdrop-filter:blur(12px);
+    background:rgba(14,10,7,.78);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1280px;margin:0 auto;padding:14px 22px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .logo{
+    display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:.2px;
+  }
+  .logo .mark{
+    width:30px;height:30px;border-radius:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    display:grid;place-items:center;color:#1a0f0a;font-weight:900;
+    box-shadow:0 6px 18px rgba(240,81,51,.45);
+  }
+  .nav{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+  .nav a{
+    color:var(--ink2);text-decoration:none;font-size:13px;
+    padding:7px 11px;border-radius:8px;border:1px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);background:rgba(255,255,255,.04);border-color:var(--line)}
+  .stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--line);
+    padding:6px 10px;border-radius:999px;font-size:12px;color:var(--ink2);font-family:var(--mono);
+  }
+  .chip b{color:var(--ink)}
+  .chip.lv{background:linear-gradient(135deg,rgba(240,81,51,.22),rgba(255,111,61,.12));border-color:rgba(240,81,51,.5);color:#ffd9cb}
+  .chip.combo{background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(245,196,81,.06));border-color:rgba(245,196,81,.45);color:#ffe4a0}
+  .chip.xp{background:linear-gradient(135deg,rgba(61,220,151,.16),rgba(61,220,151,.04));border-color:rgba(61,220,151,.4);color:#b9f5d8}
+
+  main{max-width:1280px;margin:0 auto;padding:30px 22px 90px}
+  .hero{
+    display:grid;grid-template-columns:1.05fr .95fr;gap:28px;margin-bottom:34px;
+  }
+  @media (max-width:980px){ .hero{grid-template-columns:1fr} }
+  .hero h1{
+    font-size:44px;line-height:1.05;margin:0 0 12px;letter-spacing:-.5px;
+  }
+  .hero h1 .accent{
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.sub{color:var(--ink2);font-size:17px;max-width:62ch;margin:0 0 18px}
+  .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    color:#fff;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;
+    box-shadow:0 8px 22px rgba(240,81,51,.35);
+  }
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--orange);color:#ffd2c5}
+  .btn:active{transform:translateY(1px)}
+
+  .hero-art{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:18px;
+    box-shadow:var(--shadow);
+    min-height:340px;display:flex;flex-direction:column;
+  }
+  .hero-art header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .hero-art header span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .hero-art .dots{display:flex;gap:6px}
+  .hero-art .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .hero-art .dots i:nth-child(1){background:#ff5f56}
+  .hero-art .dots i:nth-child(2){background:#ffbd2e}
+  .hero-art .dots i:nth-child(3){background:#27c93f}
+
+  /* ---------- Sekce ---------- */
+  section.card{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:26px;
+    box-shadow:var(--shadow);margin-bottom:24px;
+  }
+  section.card h2{
+    margin:0 0 6px;font-size:24px;letter-spacing:-.2px;display:flex;align-items:center;gap:10px;
+  }
+  section.card h2 .num{
+    width:30px;height:30px;border-radius:8px;background:rgba(240,81,51,.16);
+    color:var(--orange2);font-family:var(--mono);font-size:14px;display:grid;place-items:center;border:1px solid rgba(240,81,51,.35);
+  }
+  section.card .lede{color:var(--ink2);margin:0 0 18px;max-width:78ch}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media (max-width:880px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .pane{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;
+  }
+  .pane h3{margin:0 0 8px;font-size:16px}
+  .pane p{margin:0 0 8px;color:var(--ink2);font-size:14px}
+  .pane code, code.inline{
+    font-family:var(--mono);font-size:12.5px;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+
+  pre.code{
+    font-family:var(--mono);font-size:13px;line-height:1.55;
+    background:#0a0706;border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;margin:10px 0;color:#f3e9df;
+  }
+  pre.code .c{color:#7e6a5e}
+  pre.code .k{color:var(--orange2);font-weight:700}
+  pre.code .s{color:#ffd9a8}
+  pre.code .p{color:#9ad7ff}
+  pre.code .x{color:var(--red)}
+
+  .kbd{
+    font-family:var(--mono);font-size:11px;background:#1f1612;border:1px solid var(--line);border-bottom-width:2px;
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+  .pill{
+    display:inline-block;font-size:11px;letter-spacing:.4px;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:rgba(240,81,51,.18);color:#ffd2c5;
+    border:1px solid rgba(240,81,51,.35);
+  }
+  .pill.green{background:rgba(61,220,151,.14);color:#b9f5d8;border-color:rgba(61,220,151,.35)}
+  .pill.blue{background:rgba(78,161,255,.14);color:#b9d8ff;border-color:rgba(78,161,255,.35)}
+  .pill.purple{background:rgba(182,133,255,.14);color:#dec5ff;border-color:rgba(182,133,255,.35)}
+
+  /* ---------- Vizualizace stromu ---------- */
+  .stage{
+    display:grid;grid-template-columns:1fr 1.1fr;gap:16px;
+  }
+  @media (max-width:980px){.stage{grid-template-columns:1fr}}
+  .tree-wrap{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:340px;
+    position:relative;overflow:hidden;
+  }
+  .tree-title{
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .tree-title .badge{
+    color:var(--orange2);font-weight:700;
+  }
+  .tree{font-family:var(--mono);font-size:13.5px;line-height:1.7}
+  .tree .node{display:flex;align-items:center;gap:6px;transition:all .25s ease;border-radius:6px;padding:1px 6px}
+  .tree .node.dir{color:var(--ink)}
+  .tree .node.dir.main{color:#ffd2c5}
+  .tree .node.dir.wt{color:#ffe4a0}
+  .tree .node.file{color:var(--ink2)}
+  .tree .node.git{color:var(--blue)}
+  .tree .node .ico{width:14px;display:inline-block;text-align:center}
+  .tree .indent{display:inline-block;width:14px}
+  .tree .branch-tag{
+    margin-left:8px;font-size:11px;color:#1a0f0a;background:var(--orange2);padding:1px 6px;border-radius:5px;font-weight:700;
+  }
+  .tree .branch-tag.detached{background:#9ca0a6}
+  .tree .branch-tag.locked{background:var(--yellow)}
+  .tree .new{
+    animation:popIn .45s cubic-bezier(.2,1.4,.4,1.05) both;
+    background:rgba(240,81,51,.12);
+  }
+  .tree .removed{
+    animation:popOut .45s ease both;
+    background:rgba(224,36,36,.16);
+  }
+  @keyframes popIn{
+    0%{opacity:0;transform:translateX(-8px) scale(.92)}
+    100%{opacity:1;transform:translateX(0) scale(1)}
+  }
+  @keyframes popOut{
+    0%{opacity:1;transform:translateX(0)}
+    100%{opacity:0;transform:translateX(8px) scale(.96)}
+  }
+
+  /* ---------- Shell ---------- */
+  .shell{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;min-height:340px;overflow:hidden;
+  }
+  .shell-head{
+    display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#120c0a;
+  }
+  .shell-head .left{display:flex;gap:6px;align-items:center}
+  .shell-head .left i{width:11px;height:11px;border-radius:50%;display:block}
+  .shell-head .left i:nth-child(1){background:#ff5f56}
+  .shell-head .left i:nth-child(2){background:#ffbd2e}
+  .shell-head .left i:nth-child(3){background:#27c93f}
+  .shell-head .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .shell-body{
+    flex:1;padding:14px 16px;font-family:var(--mono);font-size:13px;color:var(--ink);overflow:auto;max-height:280px;
+  }
+  .shell-body .line{margin:0;white-space:pre-wrap;word-break:break-all}
+  .shell-body .prompt{color:var(--orange2)}
+  .shell-body .out{color:var(--ink2)}
+  .shell-body .err{color:#ff8a8a}
+  .shell-body .ok{color:var(--green)}
+  .shell-input{
+    display:flex;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line);background:#0e0907;
+  }
+  .shell-input .ps1{font-family:var(--mono);font-size:13px;color:var(--orange2);white-space:nowrap}
+  .shell-input input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--mono);font-size:13.5px;caret-color:var(--orange2);
+  }
+  .shell-input.shake{animation:shake .35s}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+
+  /* ---------- Procvičování ---------- */
+  .practice-head{
+    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px;
+  }
+  .practice-task{
+    flex:1;min-width:240px;background:rgba(240,81,51,.08);border:1px solid rgba(240,81,51,.35);
+    border-radius:12px;padding:14px 16px;
+  }
+  .practice-task .label{
+    font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--orange2);font-weight:800;
+  }
+  .practice-task .q{font-size:17px;margin:6px 0 0;color:var(--ink)}
+  .practice-task .hint{font-size:12.5px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  .practice-meta{
+    display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;min-width:280px;
+  }
+  .meter{
+    background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+  }
+  .meter .l{font-size:11px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .meter .v{font-size:18px;font-weight:800;font-family:var(--mono);color:var(--ink)}
+  .meter .v.orange{color:var(--orange2)}
+  .meter .v.green{color:var(--green)}
+  .meter .v.yellow{color:var(--yellow)}
+
+  .progress{
+    height:8px;background:#1a1310;border-radius:999px;overflow:hidden;border:1px solid var(--line);margin-top:10px;
+  }
+  .progress > div{
+    height:100%;background:linear-gradient(90deg,var(--orange),var(--orange2));
+    transition:width .35s ease;
+  }
+
+  .feedback{
+    margin-top:12px;font-family:var(--mono);font-size:13px;min-height:22px;
+  }
+  .feedback.ok{color:var(--green)}
+  .feedback.err{color:#ff8a8a}
+  .feedback.tip{color:var(--yellow)}
+
+  .practice-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  /* ---------- Úspěchy ---------- */
+  .achv-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;
+  }
+  .achv{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px;
+    display:flex;gap:10px;align-items:flex-start;opacity:.45;transition:all .25s ease;
+  }
+  .achv.unlocked{
+    opacity:1;border-color:rgba(240,81,51,.45);
+    background:linear-gradient(135deg,rgba(240,81,51,.12),rgba(255,111,61,.04));
+    box-shadow:0 6px 24px rgba(240,81,51,.18);
+  }
+  .achv .ico{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:18px;flex-shrink:0;
+  }
+  .achv.unlocked .ico{background:linear-gradient(135deg,var(--orange),var(--orange2));border-color:transparent}
+  .achv .t{font-weight:800;font-size:13px}
+  .achv .d{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* ---------- Hlášení ---------- */
+  .toasts{position:fixed;right:20px;bottom:20px;z-index:80;display:flex;flex-direction:column;gap:10px}
+  .toast{
+    background:linear-gradient(135deg,#221814,#2d201b);
+    border:1px solid rgba(240,81,51,.5);border-radius:12px;
+    padding:12px 14px;min-width:240px;max-width:340px;color:var(--ink);
+    box-shadow:0 12px 32px rgba(0,0,0,.5);
+    animation:slideIn .4s cubic-bezier(.2,1.4,.4,1.05);
+  }
+  .toast .t{font-weight:800;font-size:14px;color:#ffd9cb}
+  .toast .d{font-size:12.5px;color:var(--ink2);margin-top:2px}
+  @keyframes slideIn{
+    from{transform:translateX(20px);opacity:0}
+    to{transform:translateX(0);opacity:1}
+  }
+
+  /* ---------- Bossovský souboj ---------- */
+  .boss{
+    background:radial-gradient(900px 420px at 70% 0%,rgba(224,36,36,.18),transparent 60%),
+               linear-gradient(180deg,#1a0e0a,#1a0a07);
+    border:1px solid rgba(224,36,36,.4);
+  }
+  .boss h2 .num{background:rgba(224,36,36,.22);color:#ff8a8a;border-color:rgba(224,36,36,.45)}
+  .boss .hp-bar{
+    height:14px;background:#1a0a07;border:1px solid var(--line);border-radius:999px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .boss .hp-bar > div{
+    height:100%;background:linear-gradient(90deg,#ff5f56,#ffbd2e);transition:width .35s ease;
+  }
+  .boss-art{
+    font-family:var(--mono);font-size:13px;color:#ffb088;white-space:pre;
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;line-height:1.4;
+  }
+
+  /* ---------- Záložky ---------- */
+  .tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+  .tab{
+    padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink2);
+  }
+  .tab.active{background:rgba(240,81,51,.18);color:#ffd2c5;border-color:rgba(240,81,51,.5)}
+
+  table.cmp{
+    width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px;
+  }
+  table.cmp th, table.cmp td{
+    padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;
+  }
+  table.cmp th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  table.cmp tr:last-child td{border-bottom:none}
+  table.cmp td.win{color:var(--green);font-weight:700}
+  table.cmp td.lose{color:#ff8a8a}
+
+  footer{
+    text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;
+  }
+
+  .scroll-fade{
+    opacity:0;transform:translateY(14px);transition:all .55s ease;
+  }
+  .scroll-fade.in{opacity:1;transform:translateY(0)}
+
+  /* ---------- SVG animace ---------- */
+  .wt-svg circle{transition:all .4s ease}
+  .wt-svg .pop{animation:pulseRing 1.4s ease infinite}
+  @keyframes pulseRing{
+    0%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+    50%{filter:drop-shadow(0 0 12px rgba(240,81,51,.6))}
+    100%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <div class="mark">⌥</div>
+      <div>Worktree Dojo</div>
+    </div>
+    <nav class="nav">
+      <a href="#problem">Problém</a>
+      <a href="#anatomy">Anatomie</a>
+      <a href="#commands">Příkazy</a>
+      <a href="#patterns">Vzory</a>
+      <a href="#gotchas">Záludnosti</a>
+      <a href="#vs">vs Stash</a>
+      <a href="#bare">Bare repozitáře</a>
+      <a href="#practice">Procvičování</a>
+      <a href="#boss">Boss</a>
+    </nav>
+    <div class="stats">
+      <span class="chip lv">ÚR <b id="hud-lv">1</b></span>
+      <span class="chip xp">XP <b id="hud-xp">0</b>/<span id="hud-xpmax">100</span></span>
+      <span class="chip combo">x<b id="hud-combo">0</b></span>
+      <span class="chip">★ <b id="hud-achv">0</b>/12</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div>
+      <div class="pill">git multi-checkout · učení psaním</div>
+      <h1>Přestaňte schovávat.<br/><span class="accent">Začněte větvit paralelně.</span></h1>
+      <p class="sub">
+        <code class="inline">git worktree</code> umožňuje jednomu repozitáři mít více pracovních adresářů — různé větve, všechny vyzvednuté najednou, všechny sdílí jeden <code class="inline">.git</code>.
+        Zvládněte to v dojo řízeném psaním s XP, úspěchy a finálním bossem.
+      </p>
+      <div class="ctas">
+        <button class="btn" onclick="document.getElementById('practice').scrollIntoView({behavior:'smooth'})">Začít procvičovat →</button>
+        <button class="btn ghost" onclick="document.getElementById('commands').scrollIntoView({behavior:'smooth'})">Číst příručku</button>
+        <button class="btn ghost" onclick="resetProgress()">Resetovat postup</button>
+      </div>
+    </div>
+    <div class="hero-art">
+      <header>
+        <div class="dots"><i></i><i></i><i></i></div>
+        <span>~/projects/cro-economy-service</span>
+      </header>
+      <div class="stage" style="grid-template-columns:1fr 1.05fr;flex:1">
+        <div class="tree-wrap">
+          <div class="tree-title"><span>Souborový systém</span><span class="badge" id="hero-wtcount">1 pracovní strom</span></div>
+          <div class="tree" id="hero-tree"></div>
+        </div>
+        <div class="shell">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">demo · zsh</div>
+          </div>
+          <div class="shell-body" id="hero-shell"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. PROBLÉM -->
+  <section class="card scroll-fade" id="problem">
+    <h2><span class="num">01</span> Problém, který pracovní stromy řeší</h2>
+    <p class="lede">Jste hluboko ve funkci. Produkce hoří. Musíte hned opravit <code class="inline">main</code>. Bez pracovních stromů každá možnost bolí.</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">Bolest 1</span> Daň za přepínání kontextu</h3>
+        <p>Schováte změny, přepnete na main, opravíte, pošlete, přepnete zpět, vyndáte schování a doufáte, že nic nebude kolidovat. Slučovací konflikty rozpracovaných změn při <code class="inline">stash pop</code> jsou zvláštní druh utrpení.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">Bolest 2</span> Paralelní práce</h3>
+        <p>Sestavení trvá 6 minut. Zatímco CI běží na větvi A, chcete psát kód na větvi B bez nového sestavování. Jeden checkout = jedna větev v jednu chvíli.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">Bolest 3</span> Recenzování PR</h3>
+        <p>Chcete <code class="inline">git checkout pr/42</code> a spustit jej lokálně — ale taky nechcete spálit rozpracované změny na aktuální větvi.</p>
+      </div>
+    </div>
+    <div class="pane" style="margin-top:14px">
+      <h3>Odpověď pracovních stromů</h3>
+      <p style="color:var(--ink2)">Přidejte druhý pracovní adresář připoutaný k jiné větvi. Oba sdílejí stejnou objektovou databázi <code class="inline">.git</code> — fetche, reference, hooky, konfiguraci — ale jejich <em>soubory na disku</em> jsou nezávislé. Přepínáte přes <code class="inline">cd</code>, ne přes <code class="inline">checkout</code>.</p>
+<pre class="code"><span class="c"># dříve: tanec se schováním</span>
+<span class="k">git</span> stash push -m wip
+<span class="k">git</span> checkout main
+<span class="c"># ...oprav, commit, push...</span>
+<span class="k">git</span> checkout feature/long-thing
+<span class="k">git</span> stash pop   <span class="c"># 🤞</span>
+
+<span class="c"># nyní: paralelní pracovní adresář</span>
+<span class="k">git</span> worktree add ../hotfix main
+<span class="k">cd</span> ../hotfix
+<span class="c"># ...oprav, commit, push, pak:</span>
+<span class="k">cd</span> ../cro-economy-service
+<span class="k">git</span> worktree remove ../hotfix</pre>
+    </div>
+  </section>
+
+  <!-- 2. ANATOMIE -->
+  <section class="card scroll-fade" id="anatomy">
+    <h2><span class="num">02</span> Anatomie: sdílený <code class="inline">.git</code>, oddělené pracovní adresáře</h2>
+    <p class="lede">Pracovní strom je checkout, který žije mimo adresář hlavního repozitáře, ale stále jej eviduje <code class="inline">.git</code> hlavního repozitáře.</p>
+    <div class="grid2">
+      <div>
+        <svg viewBox="0 0 520 320" class="wt-svg" width="100%" height="320" aria-hidden="true">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#f05133"/>
+              <stop offset="100%" stop-color="#ff6f3d"/>
+            </linearGradient>
+            <linearGradient id="g2" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#4ea1ff"/>
+              <stop offset="100%" stop-color="#b685ff"/>
+            </linearGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+
+          <!-- jádro .git -->
+          <circle cx="260" cy="160" r="58" fill="url(#g1)" filter="url(#glow)" class="pop"/>
+          <text x="260" y="156" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="900" font-size="14">.git</text>
+          <text x="260" y="174" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="700" font-size="11">objekty · reference</text>
+
+          <!-- uzly pracovních stromů -->
+          <g>
+            <line x1="260" y1="160" x2="80" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="80" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+          </g>
+
+          <g>
+            <circle cx="80" cy="60" r="34" fill="url(#g2)"/>
+            <text x="80" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">hlavní repo</text>
+            <text x="80" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">main</text>
+          </g>
+          <g>
+            <circle cx="440" cy="60" r="34" fill="url(#g2)"/>
+            <text x="440" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../hotfix</text>
+            <text x="440" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">hotfix-123</text>
+          </g>
+          <g>
+            <circle cx="80" cy="270" r="34" fill="url(#g2)"/>
+            <text x="80" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../review</text>
+            <text x="80" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">pr/42</text>
+          </g>
+          <g>
+            <circle cx="440" cy="270" r="34" fill="url(#g2)"/>
+            <text x="440" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../e2e</text>
+            <text x="440" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">release/v2</text>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="pane">
+          <h3>Co se sdílí</h3>
+          <p><b>Objektová databáze</b> (<code class="inline">.git/objects</code>): commity, stromy, bloby.</p>
+          <p><b>Reference</b>: větve, tagy, vzdálené — jeden zdroj pravdy.</p>
+          <p><b>Konfigurace a hooky</b>: definované jednou v hlavním repozitáři.</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>Co je oddělené</h3>
+          <p><b>Pracovní strom</b>: skutečné soubory vyzvednuté na disku.</p>
+          <p><b>Index</b>: každý pracovní strom má vlastní oblast přípravy (staging).</p>
+          <p><b>HEAD</b>: každý pracovní strom ukazuje na svůj vlastní commit/větev.</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>Kde žijí metadata</h3>
+          <p>Hlavní repozitář eviduje každý propojený pracovní strom v <code class="inline">.git/worktrees/&lt;jméno&gt;/</code>. Každý propojený pracovní strom má <code class="inline">.git</code> <em>soubor</em> (ne adresář), který odkazuje zpět na tato metadata přes <code class="inline">gitdir:</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. ZÁKLADNÍ PŘÍKAZY -->
+  <section class="card scroll-fade" id="commands">
+    <h2><span class="num">03</span> Základní příkazy</h2>
+    <p class="lede">Osm podpříkazů, na které opravdu sáhnete. Klikněte kterýkoli a přehrajte si ho v sandboxu níže.</p>
+    <div class="tabs" id="cmd-tabs"></div>
+    <div class="stage">
+      <div class="tree-wrap">
+        <div class="tree-title"><span>Strom projektu</span><span class="badge" id="cmd-wtcount">1 pracovní strom</span></div>
+        <div class="tree" id="cmd-tree"></div>
+      </div>
+      <div class="shell">
+        <div class="shell-head">
+          <div class="left"><i></i><i></i><i></i></div>
+          <div class="title">sandbox · hrajte si s pracovními stromy</div>
+        </div>
+        <div class="shell-body" id="cmd-shell"></div>
+        <div class="shell-input" id="cmd-input-row">
+          <span class="ps1" id="cmd-ps1">~/proj $</span>
+          <input id="cmd-input" placeholder="zkuste: git worktree add ../feature feature-x" autocomplete="off" spellcheck="false"/>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Sandbox rozumí: <code class="inline">git worktree add|list|remove|prune|move|lock|unlock</code>, <code class="inline">git status</code>, <code class="inline">git branch</code>, <code class="inline">cd</code>, <code class="inline">ls</code>, <code class="inline">clear</code>, <code class="inline">reset</code>.</p>
+  </section>
+
+  <!-- 4. VZORY -->
+  <section class="card scroll-fade" id="patterns">
+    <h2><span class="num">04</span> Časté vzory</h2>
+    <p class="lede">Tři pracovní postupy, které se vám okamžitě vrátí.</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">Nouzová oprava</span> nech všeho</h3>
+        <p>Produkce je dole. Jste 14 commitů hluboko ve funkci.</p>
+<pre class="code"><span class="k">git</span> fetch origin
+<span class="k">git</span> worktree add -b hotfix/login \
+  ../hotfix origin/main
+<span class="k">cd</span> ../hotfix
+<span class="c"># oprav, commit, push</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../hotfix</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill blue">Recenze</span> spusťte PR lokálně</h3>
+        <p>Recenzování PR #42 bez zničení rozpracované práce.</p>
+<pre class="code"><span class="k">git</span> fetch origin pull/42/head:pr/42
+<span class="k">git</span> worktree add ../review pr/42
+<span class="k">cd</span> ../review
+<span class="c"># spustit testy, prozkoumat</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../review</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill purple">Dlouhý test</span> CI vedle</h3>
+        <p>Spusťte integrační sadu na <code class="inline">release/v2</code>, zatímco dál kódujete.</p>
+<pre class="code"><span class="k">git</span> worktree add ../e2e release/v2
+<span class="k">cd</span> ../e2e
+make integration-test &amp;
+<span class="k">cd</span> -
+<span class="c"># pokračujte v práci v hlavním repu</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. ZÁLUDNOSTI -->
+  <section class="card scroll-fade" id="gotchas">
+    <h2><span class="num">05</span> Záludnosti, které stojí za zapamatování</h2>
+    <p class="lede">Skoro každý problém s pracovním stromem, na který narazíte, je jeden z těchto pěti.</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Odpojený HEAD při add</h3>
+        <p>Pokud předáte commit/tag místo větve, nový pracovní strom je na odpojeném HEADu. Pro vytvoření čerstvé větve použijte <code class="inline">-b</code>.</p>
+<pre class="code"><span class="c"># odpojený:</span>
+<span class="k">git</span> worktree add ../tmp v1.4.0
+<span class="c"># větev:</span>
+<span class="k">git</span> worktree add -b fix-1.4 ../tmp v1.4.0</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Větev je již vyzvednutá</h3>
+        <p>Git odmítá vyzvednout větev, která je již v jiném pracovním stromě (nechtěl by, aby dva HEADy zadupávaly jeden ref). Buď vyberte jinou větev, nebo použijte <code class="inline">--force</code>, pokud opravdu víte, co děláte.</p>
+<pre class="code">fatal: 'feature-x' is already checked out at '/path/A'
+<span class="c"># obejít (zřídka dobrý nápad):</span>
+<span class="k">git</span> worktree add --force ../B feature-x</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Ruční rm zanechá zastaralá metadata</h3>
+        <p>Pokud <code class="inline">rm -rf</code> adresář pracovního stromu, <code class="inline">.git/worktrees/&lt;jméno&gt;</code> zůstane. <code class="inline">git worktree list</code> jej stále zobrazuje jako <em>prunable</em> (k odklizení). Spusťte <code class="inline">git worktree prune</code>.</p>
+<pre class="code"><span class="k">git</span> worktree list
+<span class="c"># ukáže: ../old  (prunable: gitdir is missing)</span>
+<span class="k">git</span> worktree prune -v</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Submoduly a konfigurace per-worktree</h3>
+        <p>Submoduly se mezi pracovními stromy automaticky neinicializují — spusťte <code class="inline">git submodule update --init</code> v každém. Některá konfigurace (sparse-checkout, hooky) je per-worktree pouze, pokud si to zvolíte přes <code class="inline">--worktree</code>.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Odstranění toho špatného</h3>
+        <p><code class="inline">remove</code> odmítá, pokud má pracovní strom necommitnuté změny. Nesahejte reflexivně po <code class="inline">--force</code> — nejdřív <code class="inline">cd</code> dovnitř a zkontrolujte.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.4);color:#ffe4a0">·</span> Zamknutím chráníte</h3>
+        <p>Pokud pracovní strom žije na vyměnitelném disku nebo pomalém NFS, <code class="inline">git worktree lock</code> řekne gitu, ať jej neprořezává jen proto, že je cesta nedostupná.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. VS STASH -->
+  <section class="card scroll-fade" id="vs">
+    <h2><span class="num">06</span> Pracovní strom vs schování vs více klonů</h2>
+    <p class="lede">Tři způsoby, jak žonglovat s prací. Nejsou zaměnitelné.</p>
+    <table class="cmp">
+      <tr>
+        <th></th><th>git stash</th><th>více klonů</th><th>git worktree</th>
+      </tr>
+      <tr>
+        <td>Cena nastavení</td>
+        <td class="win">okamžitá</td>
+        <td class="lose">znovu klonovat, znovu fetchovat, znovu konfigurovat</td>
+        <td>jeden příkaz, žádný re-fetch</td>
+      </tr>
+      <tr>
+        <td>Disk: objektová databáze</td>
+        <td>sdílená</td>
+        <td class="lose">duplikovaná pro každý klon</td>
+        <td class="win">sdílená</td>
+      </tr>
+      <tr>
+        <td>Reference / fetche synchronizované</td>
+        <td>n/a</td>
+        <td class="lose">každý musí fetchovat</td>
+        <td class="win">jeden fetch, vidí ho všechny stromy</td>
+      </tr>
+      <tr>
+        <td>Spustit dvě větve naráz</td>
+        <td class="lose">ne</td>
+        <td>ano</td>
+        <td class="win">ano</td>
+      </tr>
+      <tr>
+        <td>Riziko ztráty práce</td>
+        <td class="lose">stash listy, konflikty při pop</td>
+        <td>nízké</td>
+        <td class="win">soubory zůstanou na disku</td>
+      </tr>
+      <tr>
+        <td>Kdy je to správné</td>
+        <td>drobná ad-hoc přepnutí (&lt; 1 min)</td>
+        <td>opravdu odlišná SDK / nástroje pro každou kopii</td>
+        <td class="win">paralelní větve, stejný toolchain</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 7. BARE -->
+  <section class="card scroll-fade" id="bare">
+    <h2><span class="num">07</span> Bare repozitář + pracovní stromy: monorepo trik</h2>
+    <p class="lede">Některé týmy zcela přeskočí „hlavní checkout“ a zacházejí s repozitářem jako se složkou pracovních stromů.</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3>Nastavení</h3>
+<pre class="code"><span class="k">git</span> clone --bare git@github.com:org/repo.git repo.git
+<span class="k">cd</span> repo.git
+<span class="k">git</span> worktree add ../repo/main main
+<span class="k">git</span> worktree add ../repo/feature-x feature-x
+<span class="k">git</span> worktree add ../repo/release release/v2</pre>
+        <p style="margin-top:8px">Rozvržení:</p>
+<pre class="code">repo.git/        <span class="c"># sdílená objektová DB</span>
+repo/
+  main/          <span class="c"># pracovní strom na main</span>
+  feature-x/     <span class="c"># pracovní strom na feature-x</span>
+  release/       <span class="c"># pracovní strom na release/v2</span></pre>
+      </div>
+      <div class="pane">
+        <h3>Proč to lidé mají rádi</h3>
+        <p>Žádný „primární“ pracovní strom, který by někoho mátl — každá větev je sourozenecký adresář. Nástroje (IDE, devkontejnery, sestavovací cache pro každou větev) se čistě mapují na složky.</p>
+        <p>Kompromis: pár git příkazů zevnitř bare repa působí trošku divně. Většina lidí si naaliasuje <code class="inline">cd repo/main</code> a na to bare zapomene.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. PROCVIČOVÁNÍ -->
+  <section class="card scroll-fade" id="practice">
+    <h2><span class="num">08</span> Režim procvičování <span class="pill" style="margin-left:8px">učte se psaním</span></h2>
+    <p class="lede">Přečtěte si zadání, napište příkaz, stiskněte <span class="kbd">Enter</span>. Stavte komba, vydělávejte XP, odemykejte úspěchy.</p>
+
+    <div class="practice-head">
+      <div class="practice-task" id="practice-task">
+        <div class="label">Cvičení <span id="p-idx">1</span> / <span id="p-total">15</span></div>
+        <div class="q" id="p-q">Načítání…</div>
+        <div class="hint" id="p-hint"></div>
+      </div>
+      <div class="practice-meta">
+        <div class="meter"><div class="l">XP</div><div class="v orange" id="p-xp">0</div></div>
+        <div class="meter"><div class="l">Kombo</div><div class="v yellow" id="p-combo">0</div></div>
+        <div class="meter"><div class="l">Přesnost</div><div class="v green" id="p-acc">100%</div></div>
+      </div>
+    </div>
+
+    <div class="progress"><div id="p-bar" style="width:0%"></div></div>
+
+    <div class="shell" style="margin-top:14px">
+      <div class="shell-head">
+        <div class="left"><i></i><i></i><i></i></div>
+        <div class="title">cvičení · napište příkaz</div>
+      </div>
+      <div class="shell-body" id="p-shell"></div>
+      <div class="shell-input" id="p-input-row">
+        <span class="ps1" id="p-ps1">~/proj $</span>
+        <input id="p-input" placeholder="git worktree …" autocomplete="off" spellcheck="false"/>
+      </div>
+    </div>
+    <div class="feedback" id="p-feedback"></div>
+    <div class="practice-controls">
+      <button class="btn ghost" onclick="practice.skip()">Přeskočit <span class="kbd">→</span></button>
+      <button class="btn ghost" onclick="practice.peek()">Zobrazit odpověď</button>
+      <button class="btn ghost" onclick="practice.restart()">Restartovat cvičení</button>
+    </div>
+  </section>
+
+  <!-- ÚSPĚCHY -->
+  <section class="card scroll-fade" id="achv-section">
+    <h2><span class="num">09</span> Úspěchy</h2>
+    <p class="lede">Dvanáct ke sběru napříč cvičeními, komby a soubojem s bossem.</p>
+    <div class="achv-grid" id="achv-grid"></div>
+  </section>
+
+  <!-- BOSS -->
+  <section class="card boss scroll-fade" id="boss">
+    <h2><span class="num">10</span> Boss: <span style="color:#ff8a8a">Žonglér větví</span></h2>
+    <p class="lede">Sedmikolová rychlopalná scénářová zkouška. Máte <b id="boss-timer">12.0s</b> na kolo. Každá správná odpověď uštědří poškození. Špatné odpovědi bossi léčí. Porazte ho pro úspěch <code class="inline">Žonglér větví</code>.</p>
+    <div class="grid2">
+      <div>
+        <div class="boss-art" id="boss-art">
+            ╔══════════════════════════╗
+            ║   Ž O N G L É R          ║
+            ║      V Ě T V Í           ║
+            ║                          ║
+            ║   ╲   |   /              ║
+            ║    ╲  |  /  ← stromy     ║
+            ║     ╲ | /                ║
+            ║   [  ⚡  ]                ║
+            ╚══════════════════════════╝
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:4px">HP</div>
+          <div class="hp-bar"><div id="boss-hp" style="width:100%"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="practice-task" style="background:rgba(224,36,36,.08);border-color:rgba(224,36,36,.4)">
+          <div class="label" style="color:#ff8a8a">Kolo <span id="boss-round">–</span> / 7</div>
+          <div class="q" id="boss-q">Stiskněte <b>Do boje</b> pro zahájení souboje.</div>
+          <div class="hint" id="boss-hint"></div>
+        </div>
+        <div class="shell" style="margin-top:12px">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">boss · neucukni</div>
+          </div>
+          <div class="shell-input" id="boss-input-row">
+            <span class="ps1" id="boss-ps1">~/proj $</span>
+            <input id="boss-input" placeholder="odpověď zde" autocomplete="off" spellcheck="false" disabled/>
+          </div>
+        </div>
+        <div class="feedback" id="boss-feedback"></div>
+        <div class="practice-controls">
+          <button class="btn" id="boss-engage" onclick="boss.start()">Do boje</button>
+          <button class="btn ghost" onclick="boss.reset()">Reset bosse</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Worktree Dojo · vykovejte multivesmír, sdílejte jeden <code class="inline">.git</code>.
+  </footer>
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+ * STAV + PERZISTENCE
+ * ============================================================ */
+const SAVE_KEY = 'worktree-dojo-v1';
+const State = {
+  xp:0, level:1, combo:0, bestCombo:0,
+  totalAttempts:0, correctAttempts:0,
+  achv:{}, drillIdx:0, bossDefeated:false,
+};
+function xpForLevel(l){ return 100 + (l-1)*60; }
+
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(State)); }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    Object.assign(State, JSON.parse(raw));
+  }catch(e){}
+}
+function resetProgress(){
+  if(!confirm('Resetovat všechna XP, úspěchy a postup ve cvičeních?')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+
+/* ============================================================
+ * HLÁŠENÍ + KONFETY
+ * ============================================================ */
+function toast(title, desc){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="t">${title}</div><div class="d">${desc||''}</div>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>{
+    t.style.transition='opacity .4s, transform .4s';
+    t.style.opacity='0';
+    t.style.transform='translateX(20px)';
+    setTimeout(()=>t.remove(), 420);
+  }, 3200);
+}
+function fireConfetti(intensity=1){
+  if(typeof confetti !== 'function') return;
+  confetti({
+    particleCount: 60*intensity,
+    spread: 70,
+    origin:{y:0.7},
+    colors:['#f05133','#ff6f3d','#f5c451','#3ddc97','#4ea1ff'],
+  });
+}
+
+/* ============================================================
+ * HUD
+ * ============================================================ */
+function refreshHUD(){
+  const need = xpForLevel(State.level);
+  document.getElementById('hud-lv').textContent = State.level;
+  document.getElementById('hud-xp').textContent = State.xp;
+  document.getElementById('hud-xpmax').textContent = need;
+  document.getElementById('hud-combo').textContent = State.combo;
+  const unlocked = Object.values(State.achv).filter(Boolean).length;
+  document.getElementById('hud-achv').textContent = unlocked;
+
+  document.getElementById('p-xp').textContent = State.xp;
+  document.getElementById('p-combo').textContent = State.combo;
+  const acc = State.totalAttempts ? Math.round(100*State.correctAttempts/State.totalAttempts) : 100;
+  document.getElementById('p-acc').textContent = acc + '%';
+}
+
+function gainXP(amount, reason){
+  State.xp += amount;
+  while(State.xp >= xpForLevel(State.level)){
+    State.xp -= xpForLevel(State.level);
+    State.level += 1;
+    toast(`Úroveň výš → ${State.level}`, 'Piště dál, sensei.');
+    fireConfetti(1.4);
+  }
+  save(); refreshHUD();
+  if(reason) toast(`+${amount} XP`, reason);
+}
+
+/* ============================================================
+ * ÚSPĚCHY
+ * ============================================================ */
+const ACHIEVEMENTS = [
+  { id:'first',   t:'První pracovní strom', d:'Přidejte svůj první pracovní strom.', ico:'🌱' },
+  { id:'lister',  t:'Prezence',          d:'Spusťte git worktree list.',         ico:'📋' },
+  { id:'pruner',  t:'Prořezávač',        d:'Získejte zpět zastaralý strom.',     ico:'✂️' },
+  { id:'mover',   t:'Stěhovák nábytku',  d:'Přesuňte pracovní strom.',           ico:'📦' },
+  { id:'locker',  t:'Zámečník',          d:'Zamkněte a odemkněte strom.',        ico:'🔒' },
+  { id:'force',   t:'Vynucená ruka',     d:'Použijte --force, kde je oprávněné.', ico:'💥' },
+  { id:'hotfix',  t:'Hasič',             d:'Postavte strom pro nouzovou opravu.', ico:'🚒' },
+  { id:'review',  t:'Recenzent',         d:'Roztočte strom pro recenzi PR.',     ico:'🔍' },
+  { id:'combo5',  t:'Šňůra ×5',          d:'Dosáhněte komba 5 odpovědí.',        ico:'🔥' },
+  { id:'combo10', t:'Mistr multivesmíru',d:'Dosáhněte komba 10 odpovědí.',       ico:'🌌' },
+  { id:'level5',  t:'Učedník',           d:'Dosáhněte úrovně 5.',                ico:'⭐' },
+  { id:'boss',    t:'Žonglér větví',     d:'Porazte bosse.',                     ico:'🏆' },
+];
+
+function unlockAchv(id){
+  if(State.achv[id]) return;
+  State.achv[id] = true;
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  toast(`★ Úspěch: ${a.t}`, a.d);
+  fireConfetti(1.1);
+  save(); refreshHUD(); renderAchv();
+}
+function renderAchv(){
+  const grid = document.getElementById('achv-grid');
+  grid.innerHTML = ACHIEVEMENTS.map(a=>`
+    <div class="achv ${State.achv[a.id]?'unlocked':''}">
+      <div class="ico">${a.ico}</div>
+      <div>
+        <div class="t">${a.t}</div>
+        <div class="d">${a.d}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+ * SDÍLENÝ FALEŠNÝ GIT MOTOR
+ *
+ * Každý "svět" má:
+ *   cwd: string ('main' | jméno pracovního stromu)
+ *   wts: pole {name,path,branch,detached?,locked?,prunable?,bare?}
+ *   branches: Set řetězců (jména existujících větví)
+ * ============================================================ */
+function newWorld(){
+  return {
+    cwd:'main',
+    wts:[
+      {name:'main', path:'~/proj', branch:'main', primary:true},
+    ],
+    branches:new Set(['main','develop','feature-x','release/v2','hotfix-123','pr/42']),
+    history:[],
+  };
+}
+
+function fmtPath(w){
+  if(w.cwd==='main') return '~/proj';
+  const wt = w.wts.find(x=>x.name===w.cwd);
+  return wt ? wt.path : '~/proj';
+}
+
+function findByPath(world, p){
+  return world.wts.find(w=>w.path===p);
+}
+function findByName(world, n){
+  return world.wts.find(w=>w.name===n);
+}
+function branchTaken(world, b){
+  return world.wts.some(w=>w.branch===b && !w.detached);
+}
+
+function runFakeGit(world, raw){
+  const tokens = raw.trim().split(/\s+/);
+  // CD
+  if(tokens[0]==='cd'){
+    const t = tokens[1]||'~';
+    if(t==='~' || t==='~/proj' || t==='-' || t==='/' ){
+      world.cwd='main'; return {ok:true, out:''};
+    }
+    const wt = world.wts.find(w=>w.path===t || ('../'+w.name)===t);
+    if(wt){ world.cwd = wt.name; return {ok:true,out:''}; }
+    return {err:`cd: takový adresář neexistuje: ${t}`};
+  }
+  if(tokens[0]==='ls'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    return {ok:true, out:`README.md  src/  package.json   .git${wt && !wt.primary?' -> '+wt.path+'/.git/worktrees/'+wt.name:''}`};
+  }
+  if(tokens[0]==='clear'){
+    return {ok:true, clear:true};
+  }
+  if(tokens[0]==='reset'){
+    Object.assign(world, newWorld());
+    return {ok:true, out:'sandbox vyresetován.'};
+  }
+  if(tokens[0]==='git'){
+    return runGit(world, tokens.slice(1));
+  }
+  return {err:`zsh: příkaz nenalezen: ${tokens[0]}`};
+}
+
+function runGit(world, args){
+  if(args[0]==='status'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    if(!wt) return {err:'není to git repozitář'};
+    const head = wt.detached ? `HEAD odpojený na ${wt.branch}` : `Na větvi ${wt.branch}`;
+    return {ok:true, out:`${head}\nnic ke commitnutí, pracovní strom čistý`};
+  }
+  if(args[0]==='branch'){
+    return {ok:true, out:[...world.branches].map(b=>(world.wts.find(w=>w.branch===b)?'+ ':'  ')+b).join('\n')};
+  }
+  if(args[0]!=='worktree') return {err:`git: '${args.join(' ')}' není git příkaz`};
+
+  const sub = args[1];
+  const rest = args.slice(2);
+
+  // ---- ADD
+  if(sub==='add'){
+    let force=false, asBranch=null, hasB=false;
+    const positional=[];
+    for(let i=0;i<rest.length;i++){
+      const t=rest[i];
+      if(t==='--force'||t==='-f'){ force=true; }
+      else if(t==='-b'){ hasB=true; asBranch=rest[++i]; }
+      else if(t==='--detach'){ /* dovoleno */ }
+      else positional.push(t);
+    }
+    const path = positional[0];
+    const ref  = positional[1]; // může být větev, commit, tag
+    if(!path) return {err:`použití: git worktree add [-b nová-větev] <cesta> [<commit-ish>]`};
+
+    let branch;
+    let detached = false;
+    if(hasB){
+      branch = asBranch;
+      if(world.branches.has(branch) && !force){
+        return {err:`fatal: větev pojmenovaná '${branch}' již existuje`};
+      }
+      world.branches.add(branch);
+    } else if(ref){
+      if(world.branches.has(ref)){
+        if(branchTaken(world, ref) && !force){
+          return {err:`fatal: '${ref}' je již vyzvednutá v jiném pracovním stromě`};
+        }
+        branch = ref;
+      } else {
+        // commit-ish / tag — odpojený HEAD
+        branch = ref;
+        detached = true;
+      }
+    } else {
+      // bez ref: vytvoř novou větev pojmenovanou podle basename
+      const base = path.split('/').pop();
+      if(world.branches.has(base) && branchTaken(world, base) && !force){
+        return {err:`fatal: '${base}' je již vyzvednutá v jiném pracovním stromě`};
+      }
+      branch = base;
+      world.branches.add(branch);
+    }
+    if(findByPath(world, path)) return {err:`fatal: '${path}' již existuje`};
+    const name = path.replace(/^\.\.?\//,'').replace(/\//g,'-');
+    world.wts.push({name, path, branch, detached, primary:false, _new:true});
+    return {ok:true, out:`Připravuji pracovní strom (${detached?'odpojený HEAD':'nová větev '+branch}) v ${path}`};
+  }
+
+  // ---- LIST
+  if(sub==='list'){
+    return {ok:true, out: world.wts.map(w=>{
+      const sha = Math.random().toString(16).slice(2,9);
+      const head = w.detached ? `(odpojený HEAD)` : `[${w.branch}]`;
+      const tags = [];
+      if(w.locked) tags.push('locked');
+      if(w.prunable) tags.push('prunable');
+      const tagstr = tags.length?'  '+tags.map(t=>`(${t})`).join(' '):'';
+      return `${w.path.padEnd(20,' ')} ${sha} ${head}${tagstr}`;
+    }).join('\n')};
+  }
+
+  // ---- REMOVE
+  if(sub==='remove'){
+    let force=false; const pos=[];
+    rest.forEach(t=>t==='--force'||t==='-f'?force=true:pos.push(t));
+    const path = pos[0];
+    if(!path) return {err:'použití: git worktree remove <cesta>'};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' není pracovní strom`};
+    if(wt.primary) return {err:`fatal: nelze odstranit hlavní pracovní strom`};
+    if(wt.locked && !force) return {err:`fatal: nelze odstranit zamčený pracovní strom`};
+    if(world.cwd===wt.name) world.cwd='main';
+    wt._removed=true;
+    setTimeout(()=>{ world.wts = world.wts.filter(x=>x!==wt); renderAllTrees(); }, 380);
+    return {ok:true, out:`odstraněno ${path}`};
+  }
+
+  // ---- PRUNE
+  if(sub==='prune'){
+    const before = world.wts.filter(w=>w.prunable).length;
+    world.wts = world.wts.filter(w=>!w.prunable);
+    return {ok:true, out:`prořezáno ${before} pracovních stromů`};
+  }
+
+  // ---- MOVE
+  if(sub==='move'){
+    const [from,to] = rest;
+    if(!from||!to) return {err:'použití: git worktree move <z> <do>'};
+    const wt = findByPath(world, from);
+    if(!wt) return {err:`fatal: '${from}' není pracovní strom`};
+    if(wt.primary) return {err:`fatal: nelze přesunout hlavní pracovní strom`};
+    wt.path = to;
+    wt._new = true;
+    return {ok:true, out:`přesunuto ${from} → ${to}`};
+  }
+
+  // ---- LOCK / UNLOCK
+  if(sub==='lock' || sub==='unlock'){
+    const path = rest[0];
+    if(!path) return {err:`použití: git worktree ${sub} <cesta>`};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' není pracovní strom`};
+    wt.locked = (sub==='lock');
+    return {ok:true, out:`${sub==='lock'?'zamčeno':'odemčeno'} ${path}`};
+  }
+
+  return {err:`git worktree: neznámý podpříkaz '${sub}'`};
+}
+
+/* ============================================================
+ * VYKRESLOVAČE
+ * ============================================================ */
+function renderTree(targetId, world, badgeId){
+  const tgt = document.getElementById(targetId);
+  if(!tgt) return;
+  const main = world.wts.find(w=>w.primary);
+  const linked = world.wts.filter(w=>!w.primary);
+
+  // Sestavit pole uzlů
+  const nodes = [];
+  nodes.push({ico:'📁', label:'~/proj/', cls:'dir main', tag:main?.branch, tagCls:'', _new:false, _removed:false});
+  nodes.push({ico:'📂', label:'.git/', cls:'git', indent:1});
+  nodes.push({ico:'·', label:'objects/  refs/  worktrees/', cls:'file muted', indent:2, dim:true});
+  nodes.push({ico:'📄', label:'README.md', cls:'file', indent:1});
+  nodes.push({ico:'📁', label:'src/', cls:'dir', indent:1});
+
+  linked.forEach(w=>{
+    nodes.push({
+      ico:'🪐', label:`${w.path}/`, cls:'dir wt', tag:w.detached?'odpojený':w.branch,
+      tagCls: w.locked?'locked':(w.detached?'detached':''),
+      _new:w._new, _removed:w._removed, locked:w.locked, prunable:w.prunable,
+    });
+    nodes.push({ico:'·', label:'.git → '+(w.path)+'/.git/worktrees/'+w.name, cls:'file muted', indent:1, dim:true});
+  });
+
+  tgt.innerHTML = nodes.map(n=>{
+    const indent = '<span class="indent"></span>'.repeat(n.indent||0);
+    const dim = n.dim?'opacity:.55;':'';
+    const newClass = n._new?'new':'';
+    const remClass = n._removed?'removed':'';
+    const tag = n.tag?` <span class="branch-tag ${n.tagCls}">${n.tag}${n.locked?' 🔒':''}${n.prunable?' (prunable)':''}</span>`:'';
+    return `<div class="node ${n.cls} ${newClass} ${remClass}" style="${dim}">
+      ${indent}<span class="ico">${n.ico}</span><span>${n.label}</span>${tag}
+    </div>`;
+  }).join('');
+
+  // vyčistit příznaky po animaci
+  setTimeout(()=>{ world.wts.forEach(w=>{ w._new=false; }); }, 500);
+
+  if(badgeId){
+    const c = world.wts.length;
+    const b = document.getElementById(badgeId);
+    if(b) b.textContent = `${c} pracovní${c===1?' strom':'ch stromů'}`;
+  }
+}
+
+function appendShellLine(shellId, text, cls){
+  const sh = document.getElementById(shellId);
+  if(!sh) return;
+  const div = document.createElement('div');
+  div.className='line '+(cls||'');
+  div.textContent = text;
+  sh.appendChild(div);
+  sh.scrollTop = sh.scrollHeight;
+}
+function clearShell(shellId){
+  document.getElementById(shellId).innerHTML='';
+}
+
+/* ============================================================
+ * HERO ANIMACE
+ * ============================================================ */
+const heroWorld = newWorld();
+const heroSequence = [
+  {cmd:'git worktree add ../hotfix hotfix-123', wait:1700},
+  {cmd:'git worktree add ../review pr/42',      wait:1700},
+  {cmd:'git worktree list',                      wait:1700},
+  {cmd:'git worktree remove ../review',          wait:1700},
+  {cmd:'git worktree add ../e2e release/v2',     wait:1700},
+  {cmd:'git worktree remove ../hotfix',          wait:1700},
+  {cmd:'git worktree remove ../e2e',             wait:1700},
+];
+let heroIdx = 0;
+function heroTick(){
+  const step = heroSequence[heroIdx % heroSequence.length];
+  appendShellLine('hero-shell', `${fmtPath(heroWorld)} $ ${step.cmd}`, 'prompt');
+  const res = runFakeGit(heroWorld, step.cmd);
+  if(res.ok && res.out) appendShellLine('hero-shell', res.out, 'out');
+  if(res.err) appendShellLine('hero-shell', res.err, 'err');
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  heroIdx++;
+  setTimeout(heroTick, step.wait);
+}
+
+/* ============================================================
+ * SANDBOX PŘÍKAZŮ
+ * ============================================================ */
+const cmdWorld = newWorld();
+function cmdRender(){ renderTree('cmd-tree', cmdWorld, 'cmd-wtcount'); document.getElementById('cmd-ps1').textContent = fmtPath(cmdWorld)+' $'; }
+function cmdRun(line){
+  appendShellLine('cmd-shell', `${fmtPath(cmdWorld)} $ ${line}`, 'prompt');
+  if(!line.trim()){ return; }
+  const res = runFakeGit(cmdWorld, line);
+  if(res.clear){ clearShell('cmd-shell'); cmdRender(); return; }
+  if(res.ok && res.out) appendShellLine('cmd-shell', res.out, 'out');
+  if(res.ok && !res.out) {/* ticho */}
+  if(res.err) appendShellLine('cmd-shell', res.err, 'err');
+  cmdRender();
+}
+
+const CMD_TABS = [
+  { id:'add',    label:'add',    desc:'Přidá nový pracovní strom v <cesta> pro <větev>.',
+    demo:['git worktree add ../feature feature-x','git worktree add -b new-fix ../fix main'] },
+  { id:'list',   label:'list',   desc:'Zobrazí všechny pracovní stromy s jejich HEADem.',
+    demo:['git worktree list'] },
+  { id:'remove', label:'remove', desc:'Smaže pracovní strom (nesmí mít necommitnuté změny).',
+    demo:['git worktree remove ../feature'] },
+  { id:'prune',  label:'prune',  desc:'Odstraní zastaralá metadata .git/worktrees/* pro neexistující cesty.',
+    demo:['git worktree prune -v'] },
+  { id:'move',   label:'move',   desc:'Přesune pracovní strom na novou cestu.',
+    demo:['git worktree move ../feature ../feat-x'] },
+  { id:'lock',   label:'lock',   desc:'Označí strom jako zamčený, aby nebyl automaticky prořezán.',
+    demo:['git worktree lock ../feature'] },
+  { id:'unlock', label:'unlock', desc:'Zruší zámek.',
+    demo:['git worktree unlock ../feature'] },
+];
+function renderCmdTabs(){
+  const t = document.getElementById('cmd-tabs');
+  t.innerHTML = CMD_TABS.map((c,i)=>`<div class="tab ${i===0?'active':''}" data-id="${c.id}">${c.label}</div>`).join('');
+  t.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      t.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      tab.classList.add('active');
+      const cfg = CMD_TABS.find(c=>c.id===tab.dataset.id);
+      appendShellLine('cmd-shell', `# ${cfg.desc}`, 'out');
+      cfg.demo.forEach(d => setTimeout(()=>cmdRun(d), 250));
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  load();
+  refreshHUD();
+  renderAchv();
+
+  // Spustit hero smyčku
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  setTimeout(heroTick, 800);
+
+  // Sandbox
+  cmdRender();
+  appendShellLine('cmd-shell', '# sandbox připraven · zkuste `git worktree add ../feature feature-x`','out');
+  renderCmdTabs();
+
+  document.getElementById('cmd-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      cmdRun(e.target.value);
+      e.target.value='';
+    }
+  });
+
+  // Procvičování
+  practice.start();
+
+  // Vstup pro bosse
+  document.getElementById('boss-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter') boss.submit();
+  });
+
+  // Postupné objevování při scrollu
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
+  },{threshold:.12});
+  document.querySelectorAll('.scroll-fade').forEach(el=>obs.observe(el));
+});
+
+function renderAllTrees(){
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  renderTree('cmd-tree', cmdWorld, 'cmd-wtcount');
+  renderTree('p-tree', practice.world, 'p-wtcount');
+}
+
+/* ============================================================
+ * CVIČENÍ PROCVIČOVÁNÍ
+ * ============================================================ */
+const DRILLS = [
+  {
+    q:'Vytvořte pracovní strom v <code class="inline">../hotfix</code> sledující větev <code class="inline">hotfix-123</code>.',
+    answers:['git worktree add ../hotfix hotfix-123'],
+    hint:'`git worktree add <cesta> <větev>`',
+    achv:['first'],
+  },
+  {
+    q:'Zobrazte všechny pracovní stromy připojené k tomuto repozitáři.',
+    answers:['git worktree list'],
+    hint:'jeden krátký podpříkaz',
+    achv:['lister'],
+  },
+  {
+    q:'Vytvořte čerstvou větev <code class="inline">fix-42</code> v novém pracovním stromě v <code class="inline">../fix</code> založenou na <code class="inline">main</code>.',
+    answers:['git worktree add -b fix-42 ../fix main'],
+    hint:'`-b <nová-větev>` vytvoří větev',
+  },
+  {
+    q:'Přidejte pracovní strom v <code class="inline">../review</code> pro větev <code class="inline">pr/42</code> (existuje již lokálně).',
+    answers:['git worktree add ../review pr/42'],
+    hint:'standardní add',
+    achv:['review'],
+  },
+  {
+    q:'Odstraňte pracovní strom v <code class="inline">../review</code> čistě.',
+    answers:['git worktree remove ../review'],
+    hint:'bez příznaků pokud je čistý',
+  },
+  {
+    q:'Někdo smazal <code class="inline">../old</code> přes <code class="inline">rm -rf</code>. Získejte zpět metadata.',
+    answers:['git worktree prune','git worktree prune -v'],
+    hint:'tento podpříkaz sklízí zastaralé záznamy',
+    achv:['pruner'],
+  },
+  {
+    q:'Větev <code class="inline">feature-x</code> je již vyzvednutá jinde. Vynutíte ji v <code class="inline">../alt</code>.',
+    answers:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x'],
+    hint:'`--force` (nebo `-f`) obejde stráž "již vyzvednuto"',
+    achv:['force'],
+  },
+  {
+    q:'Přesuňte pracovní strom z <code class="inline">../feat</code> do <code class="inline">../feat-x</code>.',
+    answers:['git worktree move ../feat ../feat-x'],
+    hint:'přejmenování přes move',
+    achv:['mover'],
+  },
+  {
+    q:'Zamkněte pracovní strom v <code class="inline">../usb-build</code>, aby ho prune nechal být.',
+    answers:['git worktree lock ../usb-build'],
+    hint:'ochrana před prořezáním',
+  },
+  {
+    q:'Odemkněte <code class="inline">../usb-build</code>.',
+    answers:['git worktree unlock ../usb-build'],
+    hint:'opak zamčení',
+    achv:['locker'],
+  },
+  {
+    q:'Scénář nouzové opravy: vytvořte pracovní strom v <code class="inline">../hotfix</code> s úplně novou větví <code class="inline">hotfix/login</code> z <code class="inline">origin/main</code>.',
+    answers:['git worktree add -b hotfix/login ../hotfix origin/main'],
+    hint:'`-b <nová-větev> <cesta> <start-point>`',
+    achv:['hotfix'],
+  },
+  {
+    q:'Prozkoumejte aktuální rozložení stromů a pak skočte do <code class="inline">../hotfix</code>.',
+    answers:['cd ../hotfix'],
+    hint:'jen shellové `cd`',
+  },
+  {
+    q:'S tím stromem nouzové opravy v <code class="inline">../hotfix</code> jste hotovi a nemá necommitnuté změny — odstraňte ho.',
+    answers:['git worktree remove ../hotfix'],
+    hint:'prosté remove',
+  },
+  {
+    q:'Spusťte dlouhý integrační test proti <code class="inline">release/v2</code> v sourozeneckém adresáři <code class="inline">../e2e</code>.',
+    answers:['git worktree add ../e2e release/v2'],
+    hint:'standardní add pro existující větev',
+  },
+  {
+    q:'Ověřte, že se integrační strom objeví v evidenci.',
+    answers:['git worktree list'],
+    hint:'stejný výpisový příkaz',
+  },
+  {
+    q:'Přidali jste <code class="inline">../tmp</code> sledující tag <code class="inline">v1.4.0</code> a skončilo to odpojením. Příště udělejte skutečnou větev <code class="inline">fix-1.4</code> v <code class="inline">../tmp</code>.',
+    answers:['git worktree add -b fix-1.4 ../tmp v1.4.0'],
+    hint:'`-b` je způsob, jak se vyhnout odpojenému HEADu',
+  },
+  {
+    q:'Prořežte upovídaně (ukažte, co bylo sklizeno).',
+    answers:['git worktree prune -v','git worktree prune --verbose'],
+    hint:'přidejte upovídaný příznak',
+  },
+];
+
+const practice = {
+  world: newWorld(),
+  start(){
+    if(State.drillIdx>=DRILLS.length) State.drillIdx = 0;
+    document.getElementById('p-total').textContent = DRILLS.length;
+    this.render();
+
+    document.getElementById('p-input').addEventListener('keydown', e=>{
+      if(e.key==='Enter') this.submit();
+    });
+  },
+  current(){ return DRILLS[State.drillIdx]; },
+  render(){
+    const d = this.current();
+    if(!d){
+      document.getElementById('p-q').innerHTML = `Cvičení dokončena. Vzhůru na bosse →`;
+      document.getElementById('p-hint').textContent = '';
+      document.getElementById('p-idx').textContent = DRILLS.length;
+      document.getElementById('p-bar').style.width = '100%';
+      return;
+    }
+    document.getElementById('p-q').innerHTML = d.q;
+    document.getElementById('p-hint').innerHTML = 'nápověda: '+d.hint;
+    document.getElementById('p-idx').textContent = State.drillIdx+1;
+    document.getElementById('p-bar').style.width = (100*State.drillIdx/DRILLS.length)+'%';
+    document.getElementById('p-feedback').className='feedback';
+    document.getElementById('p-feedback').textContent='';
+    document.getElementById('p-input').value='';
+    document.getElementById('p-input').focus();
+    document.getElementById('p-ps1').textContent = '~/proj $';
+  },
+  submit(){
+    const d = this.current();
+    if(!d) return;
+    const inputEl = document.getElementById('p-input');
+    const val = inputEl.value.trim().replace(/\s+/g,' ');
+    State.totalAttempts++;
+    appendShellLine('p-shell', `~/proj $ ${val}`, 'prompt');
+
+    const ok = d.answers.some(a=>a.replace(/\s+/g,' ').toLowerCase()===val.toLowerCase());
+    const fb = document.getElementById('p-feedback');
+    if(ok){
+      State.correctAttempts++;
+      State.combo++;
+      State.bestCombo = Math.max(State.bestCombo, State.combo);
+      const reward = 12 + Math.min(State.combo,10)*2;
+      gainXP(reward);
+      fb.className='feedback ok';
+      fb.textContent = `Správně. +${reward} XP. (kombo ×${State.combo})`;
+      appendShellLine('p-shell', '✓ přijato', 'ok');
+      fireConfetti(0.6);
+      if(d.achv) d.achv.forEach(unlockAchv);
+      if(State.combo===5) unlockAchv('combo5');
+      if(State.combo>=10) unlockAchv('combo10');
+      if(State.level>=5) unlockAchv('level5');
+      State.drillIdx++;
+      save();
+      setTimeout(()=>this.render(), 500);
+    } else {
+      State.combo = 0;
+      fb.className='feedback err';
+      fb.textContent = `Skoro. Nápověda: ${d.hint}`;
+      appendShellLine('p-shell', '✗ zkuste znovu', 'err');
+      const row = document.getElementById('p-input-row');
+      row.classList.add('shake');
+      setTimeout(()=>row.classList.remove('shake'), 400);
+      save();
+    }
+    refreshHUD();
+  },
+  skip(){
+    State.drillIdx++;
+    State.combo=0;
+    save();
+    this.render();
+    refreshHUD();
+  },
+  peek(){
+    const d = this.current();
+    if(!d) return;
+    const fb = document.getElementById('p-feedback');
+    fb.className='feedback tip';
+    fb.textContent = 'Odpověď: '+d.answers[0];
+  },
+  restart(){
+    if(!confirm('Restartovat cvičení od #1? (XP a úspěchy zůstanou)')) return;
+    State.drillIdx=0; State.combo=0; save();
+    this.render(); refreshHUD();
+    clearShell('p-shell');
+  },
+};
+
+/* ============================================================
+ * BOSS: Žonglér větví
+ * ============================================================ */
+const BOSS_ROUNDS = [
+  {q:'Kolega `rm -rf`\'l adresář pracovního stromu. Spusťte úklid.',  ans:['git worktree prune','git worktree prune -v']},
+  {q:'Vypište každý pracovní strom, o kterém repo ví.',                ans:['git worktree list']},
+  {q:'Přidejte `../alt` pro větev `feature-x`, i když je již vyzvednutá jinde.', ans:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x']},
+  {q:'Udělejte čerstvou větev `hot/2026` v novém pracovním stromě v `../hot` z `origin/main`.', ans:['git worktree add -b hot/2026 ../hot origin/main']},
+  {q:'Zamkněte `../slow-disk`, aby přežil prune.',                 ans:['git worktree lock ../slow-disk']},
+  {q:'Přesuňte `../wip` do `../wip-old`.',                            ans:['git worktree move ../wip ../wip-old']},
+  {q:'Strhněte `../alt` čistě.',                               ans:['git worktree remove ../alt']},
+];
+
+const boss = {
+  round:0, hp:100, dmg:18, heal:8, perRound:12.0,
+  timerId:null, deadline:0,
+
+  start(){
+    if(State.bossDefeated){
+      if(!confirm('Bosse už jste porazili. Bojovat znovu?')) return;
+    }
+    this.round=0; this.hp=100;
+    document.getElementById('boss-input').disabled=false;
+    document.getElementById('boss-engage').textContent='Bojuji…';
+    document.getElementById('boss-engage').disabled=true;
+    this.next();
+  },
+  next(){
+    if(this.round>=BOSS_ROUNDS.length || this.hp<=0){
+      this.finish();
+      return;
+    }
+    const r = BOSS_ROUNDS[this.round];
+    document.getElementById('boss-round').textContent = (this.round+1);
+    document.getElementById('boss-q').innerHTML = r.q;
+    document.getElementById('boss-hint').innerHTML = '';
+    document.getElementById('boss-feedback').textContent = '';
+    document.getElementById('boss-feedback').className='feedback';
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-input').focus();
+    this.deadline = Date.now() + this.perRound*1000;
+    this.tick();
+  },
+  tick(){
+    clearTimeout(this.timerId);
+    const remain = (this.deadline - Date.now())/1000;
+    document.getElementById('boss-timer').textContent = Math.max(remain,0).toFixed(1)+'s';
+    if(remain<=0){
+      this.miss('vypršel čas');
+      return;
+    }
+    this.timerId = setTimeout(()=>this.tick(), 100);
+  },
+  submit(){
+    const r = BOSS_ROUNDS[this.round];
+    const v = document.getElementById('boss-input').value.trim().replace(/\s+/g,' ').toLowerCase();
+    State.totalAttempts++;
+    if(r.ans.some(a=>a.toLowerCase()===v)){
+      this.hit();
+    } else {
+      this.miss('špatný příkaz');
+    }
+  },
+  hit(){
+    State.correctAttempts++;
+    State.combo++;
+    State.bestCombo = Math.max(State.bestCombo, State.combo);
+    this.hp = Math.max(0, this.hp - this.dmg);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback ok';
+    document.getElementById('boss-feedback').textContent = `Zásah! −${this.dmg} HP.`;
+    fireConfetti(0.5);
+    gainXP(20);
+    this.round++;
+    setTimeout(()=>this.next(), 500);
+  },
+  miss(reason){
+    State.combo = 0;
+    this.hp = Math.min(100, this.hp + this.heal);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback err';
+    document.getElementById('boss-feedback').textContent = `Mimo (${reason}). Boss se uzdraví +${this.heal}.`;
+    const row = document.getElementById('boss-input-row');
+    row.classList.add('shake');
+    setTimeout(()=>row.classList.remove('shake'), 400);
+    refreshHUD();
+    save();
+    this.round++;
+    setTimeout(()=>this.next(), 600);
+  },
+  finish(){
+    clearTimeout(this.timerId);
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='Do boje';
+    if(this.hp<=0){
+      document.getElementById('boss-q').innerHTML = `Žonglér větví poražen. Multivesmír je váš.`;
+      document.getElementById('boss-feedback').className='feedback ok';
+      document.getElementById('boss-feedback').textContent = 'Vítězství.';
+      State.bossDefeated = true;
+      unlockAchv('boss');
+      gainXP(100, 'Bonus za bosse');
+      fireConfetti(2.0);
+      setTimeout(()=>fireConfetti(2.0), 400);
+    } else {
+      document.getElementById('boss-q').innerHTML = `Došla vám kola. HP bosse: ${this.hp}. Zkuste znovu.`;
+      document.getElementById('boss-feedback').className='feedback err';
+      document.getElementById('boss-feedback').textContent = 'Porážka. Stiskněte Do boje pro opakování.';
+    }
+    save();
+    refreshHUD();
+  },
+  reset(){
+    clearTimeout(this.timerId);
+    this.round=0; this.hp=100;
+    document.getElementById('boss-hp').style.width='100%';
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='Do boje';
+    document.getElementById('boss-q').innerHTML = `Stiskněte <b>Do boje</b> pro zahájení souboje.`;
+    document.getElementById('boss-feedback').textContent='';
+    document.getElementById('boss-timer').textContent='12.0s';
+  },
+};
+</script>
+</body>
+</html>

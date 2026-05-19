@@ -1,0 +1,1480 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>트랜스포머 아카데미 // 어텐션 시대의 타이핑 도장</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,800;1,9..144,500&family=JetBrains+Mono:wght@300;400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+
+<style>
+:root{
+  --bg:#07070b;
+  --bg2:#0d0d14;
+  --ink:#eef0f7;
+  --ink-dim:#8a8fa3;
+  --line:#1e2030;
+  --neon:#39ff14;       /* 라임 */
+  --neon2:#00f0ff;      /* 시안 */
+  --neon3:#ff2bd6;      /* 마젠타 */
+  --neon4:#ffd23f;      /* xp 골드 */
+  --warn:#ff5d5d;
+  --good:#39ff14;
+  --shadow:0 0 0 1px var(--line), 0 20px 40px -20px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+
+/* CRT 분위기 */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.015) 0 1px,transparent 1px 3px);
+  mix-blend-mode:overlay;
+}
+body::after{
+  content:"";position:fixed;inset:-50%;pointer-events:none;z-index:-1;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(57,255,20,.08), transparent 50%),
+    radial-gradient(circle at 85% 90%, rgba(255,43,214,.10), transparent 55%),
+    radial-gradient(circle at 50% 50%, rgba(0,240,255,.05), transparent 70%);
+  filter:blur(40px);
+}
+
+/* 레이아웃 */
+.app{display:grid;grid-template-columns:280px 1fr 320px;min-height:100vh}
+@media (max-width:1100px){.app{grid-template-columns:240px 1fr}.rightbar{display:none}}
+@media (max-width:760px){.app{grid-template-columns:1fr}.sidebar{display:none}}
+
+/* ---- 사이드바 ---- */
+.sidebar{
+  border-right:1px dashed var(--line);
+  padding:28px 22px;position:sticky;top:0;height:100vh;overflow:auto;
+  background:linear-gradient(180deg,#0a0a12 0%, #07070b 100%);
+}
+.brand{
+  font-family:'Fraunces',serif;font-style:italic;font-weight:800;
+  font-size:28px;line-height:.95;letter-spacing:-.02em;
+  color:var(--ink);
+}
+.brand .dot{display:inline-block;width:10px;height:10px;background:var(--neon3);border-radius:50%;box-shadow:0 0 12px var(--neon3);margin-left:4px;animation:pulse 1.4s ease-in-out infinite}
+.brand-sub{margin-top:4px;font-size:10px;letter-spacing:.25em;color:var(--ink-dim);text-transform:uppercase}
+@keyframes pulse{50%{opacity:.4}}
+
+.nav{margin-top:32px;display:flex;flex-direction:column;gap:2px}
+.nav button{
+  all:unset;cursor:pointer;display:flex;align-items:center;gap:10px;
+  padding:9px 10px;border-radius:6px;font-size:12.5px;color:var(--ink-dim);
+  transition:all .15s;
+}
+.nav button:hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.nav button.active{
+  color:var(--neon);background:rgba(57,255,20,.06);
+  box-shadow:inset 2px 0 0 var(--neon);
+}
+.nav .num{font-family:'Space Mono',monospace;font-size:10px;color:var(--neon3);width:22px}
+.nav .sep{font-size:10px;color:var(--ink-dim);letter-spacing:.25em;margin:14px 8px 6px;text-transform:uppercase}
+
+/* ---- 본문 ---- */
+.main{padding:48px 56px 120px;max-width:980px}
+@media (max-width:760px){.main{padding:24px 20px 80px}}
+
+.eyebrow{font-size:10px;letter-spacing:.3em;color:var(--neon2);text-transform:uppercase;margin-bottom:14px}
+.eyebrow::before{content:"◆ ";color:var(--neon3)}
+h1.huge{
+  font-family:'Fraunces',serif;font-weight:300;font-size:clamp(40px,7vw,84px);
+  line-height:.95;letter-spacing:-.035em;margin:0 0 18px;
+}
+h1.huge em{font-style:italic;color:var(--neon);font-weight:500}
+h2{font-family:'Fraunces',serif;font-weight:500;font-size:34px;letter-spacing:-.02em;margin:48px 0 14px}
+h2 .nm{font-family:'Space Mono',monospace;font-size:13px;color:var(--neon3);margin-right:14px;vertical-align:middle}
+h3{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:13px;letter-spacing:.15em;text-transform:uppercase;color:var(--neon2);margin:28px 0 10px}
+p{color:#c8ccdb;max-width:62ch}
+p strong{color:var(--ink);font-weight:600}
+code{font-family:'JetBrains Mono',monospace;background:rgba(0,240,255,.07);padding:1px 6px;border-radius:3px;color:var(--neon2);font-size:.92em}
+.kbd{display:inline-block;border:1px solid var(--line);background:#13131c;padding:1px 6px;border-radius:4px;font-size:10px;color:var(--ink-dim)}
+
+.section{display:none;animation:fadein .35s ease}
+.section.active{display:block}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 카드 */
+.card{
+  border:1px solid var(--line);border-radius:8px;padding:22px;margin:18px 0;
+  background:linear-gradient(180deg,rgba(255,255,255,.015),transparent);
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--neon2),transparent);
+  opacity:.5;
+}
+.card.demo{border-color:rgba(0,240,255,.3)}
+.card.practice{border-color:rgba(57,255,20,.4);background:linear-gradient(180deg,rgba(57,255,20,.03),transparent)}
+.card.boss{border:2px solid var(--neon3);background:linear-gradient(180deg,rgba(255,43,214,.05),transparent)}
+
+.card-label{
+  position:absolute;top:0;right:14px;
+  background:var(--neon2);color:#000;font-size:9px;letter-spacing:.2em;
+  padding:3px 8px;font-weight:800;
+}
+.card.practice .card-label{background:var(--neon)}
+.card.boss .card-label{background:var(--neon3);color:#fff}
+
+/* 토큰 칩 */
+.token-input{
+  width:100%;background:#0a0a14;border:1px solid var(--line);
+  color:var(--ink);font-family:inherit;padding:12px;border-radius:6px;
+  font-size:14px;resize:vertical;min-height:60px;
+}
+.token-input:focus{outline:none;border-color:var(--neon2);box-shadow:0 0 0 3px rgba(0,240,255,.15)}
+.token-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;min-height:32px}
+.chip{
+  font-family:'Space Mono',monospace;font-size:12px;padding:4px 10px;border-radius:4px;
+  background:#1a1a26;border:1px solid var(--line);
+  position:relative;animation:chipin .25s ease;
+}
+.chip .id{font-size:9px;color:var(--ink-dim);margin-left:6px}
+@keyframes chipin{from{transform:translateY(8px) scale(.8);opacity:0}to{transform:none;opacity:1}}
+.chip.c0{color:#39ff14;border-color:rgba(57,255,20,.3)}
+.chip.c1{color:#00f0ff;border-color:rgba(0,240,255,.3)}
+.chip.c2{color:#ff2bd6;border-color:rgba(255,43,214,.3)}
+.chip.c3{color:#ffd23f;border-color:rgba(255,210,63,.3)}
+.chip.c4{color:#ff8b4a;border-color:rgba(255,139,74,.3)}
+
+/* 어텐션 히트맵 */
+.heatmap{display:grid;gap:2px;margin:16px 0;font-family:'Space Mono',monospace;font-size:10px}
+.hm-row{display:grid;gap:2px;align-items:center}
+.hm-cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  border-radius:2px;cursor:pointer;transition:transform .1s, box-shadow .1s;
+  color:#fff;text-shadow:0 0 4px #000;
+}
+.hm-cell:hover{transform:scale(1.15);box-shadow:0 0 0 2px var(--neon),0 0 16px var(--neon);z-index:2;position:relative}
+.hm-label{font-size:10px;color:var(--ink-dim);text-align:right;padding-right:8px}
+.hm-toplabel{font-size:10px;color:var(--ink-dim);text-align:center;writing-mode:vertical-rl;transform:rotate(180deg);height:80px}
+.hm-out{margin-top:10px;font-size:11px;color:var(--neon2);min-height:18px;font-family:'Space Mono',monospace}
+
+/* QKV 단계 진행 */
+.qkv-stage{
+  background:#0a0a14;border:1px dashed var(--line);border-radius:6px;
+  padding:18px;margin-top:14px;font-family:'Space Mono',monospace;font-size:12px;
+  min-height:140px;
+}
+.qkv-stage .matrix{display:inline-block;margin:6px 12px;vertical-align:middle}
+.qkv-stage .matrix .label{font-size:10px;color:var(--neon3);text-transform:uppercase;letter-spacing:.15em;margin-bottom:4px;text-align:center}
+.qkv-stage .matrix table{border-collapse:collapse}
+.qkv-stage .matrix td{padding:3px 8px;border:1px solid var(--line);text-align:center;font-size:11px;background:#13131c}
+.qkv-stage .matrix .hl{background:rgba(57,255,20,.18);color:var(--neon)}
+.qkv-stage .arrow{display:inline-block;font-size:18px;color:var(--neon2);margin:0 6px}
+
+button.btn{
+  all:unset;cursor:pointer;font-family:'JetBrains Mono',monospace;font-weight:600;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+  padding:9px 16px;background:var(--neon);color:#000;
+  border-radius:4px;transition:transform .1s, box-shadow .15s;
+}
+button.btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px -6px var(--neon)}
+button.btn:active{transform:translateY(1px)}
+button.btn.alt{background:transparent;color:var(--neon2);box-shadow:inset 0 0 0 1px var(--neon2)}
+button.btn.alt:hover{background:rgba(0,240,255,.08);box-shadow:inset 0 0 0 1px var(--neon2),0 0 20px -5px var(--neon2)}
+button.btn.danger{background:var(--neon3);color:#fff}
+
+/* 연습 입력 */
+.practice{margin:16px 0}
+.practice-q{font-size:14px;color:#c8ccdb;margin-bottom:12px}
+.practice-q .blank{
+  display:inline-block;border-bottom:2px solid var(--neon);
+  min-width:120px;color:var(--neon);font-weight:600;padding:0 4px;
+}
+.practice-input{
+  width:100%;font-family:'JetBrains Mono',monospace;font-size:15px;
+  background:#0a0a14;border:1px solid var(--line);color:var(--neon);
+  padding:12px 14px;border-radius:6px;letter-spacing:.02em;
+}
+.practice-input:focus{outline:none;border-color:var(--neon);box-shadow:0 0 0 3px rgba(57,255,20,.15)}
+.practice-input.wrong{border-color:var(--warn);color:var(--warn);animation:shake .35s}
+.practice-input.right{border-color:var(--neon);color:var(--neon);box-shadow:0 0 24px -6px var(--neon)}
+@keyframes shake{0%,100%{transform:none}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+.practice-fb{margin-top:8px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;min-height:14px}
+.practice-fb.ok{color:var(--neon)}
+.practice-fb.no{color:var(--warn)}
+.practice-meta{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.2em;margin-bottom:8px}
+.practice-progress{height:3px;background:#13131c;border-radius:2px;margin:6px 0 12px;overflow:hidden}
+.practice-progress-bar{height:100%;background:var(--neon);transition:width .3s}
+
+/* 코드 드릴 */
+.codeblock{
+  background:#0a0a14;border:1px solid var(--line);border-radius:6px;
+  padding:18px;font-size:13px;line-height:1.7;
+  font-family:'JetBrains Mono',monospace;color:#c8ccdb;
+  white-space:pre;overflow-x:auto;
+}
+.codeblock .kw{color:#ff2bd6}
+.codeblock .fn{color:var(--neon2)}
+.codeblock .num{color:var(--neon4)}
+.codeblock .str{color:var(--neon)}
+.codeblock .cm{color:var(--ink-dim);font-style:italic}
+.code-blank{
+  display:inline-block;background:#000;border:1px solid var(--neon);
+  color:var(--neon);font-family:inherit;font-size:13px;
+  padding:0 6px;border-radius:3px;min-width:90px;outline:none;
+}
+.code-blank.right{border-color:var(--neon);box-shadow:0 0 12px -2px var(--neon)}
+.code-blank.wrong{border-color:var(--warn);color:var(--warn);animation:shake .3s}
+
+/* ---- 우측 바 (HUD) ---- */
+.rightbar{
+  border-left:1px dashed var(--line);
+  padding:28px 22px;position:sticky;top:0;height:100vh;overflow:auto;
+  background:#08080f;
+}
+.hud-card{
+  border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:14px;
+  background:linear-gradient(180deg,rgba(57,255,20,.04),transparent);
+}
+.hud-label{font-size:9px;letter-spacing:.25em;text-transform:uppercase;color:var(--ink-dim)}
+.hud-val{font-family:'Fraunces',serif;font-weight:500;font-size:34px;color:var(--neon);line-height:1;margin-top:4px;letter-spacing:-.02em}
+.hud-val.gold{color:var(--neon4)}
+.hud-val.cyan{color:var(--neon2)}
+.hud-val.mag{color:var(--neon3)}
+.hud-sub{font-size:10px;color:var(--ink-dim);margin-top:4px;font-family:'Space Mono',monospace}
+
+.lvl-bar{height:6px;background:#13131c;border-radius:3px;margin-top:8px;overflow:hidden;position:relative}
+.lvl-bar-fill{height:100%;background:linear-gradient(90deg,var(--neon4),var(--neon3));transition:width .5s cubic-bezier(.5,0,.2,1.4);box-shadow:0 0 8px var(--neon4)}
+
+.combo-flame{display:inline-flex;align-items:baseline;gap:4px}
+.combo-flame .x{font-size:14px;color:var(--neon3)}
+
+.badges{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.badge{
+  aspect-ratio:1;border:1px solid var(--line);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  background:#0a0a14;position:relative;cursor:default;transition:all .2s;
+  filter:grayscale(1) brightness(.4);
+}
+.badge.unlocked{filter:none;border-color:var(--neon);box-shadow:0 0 12px -4px var(--neon);animation:badgeunlock .6s ease-out}
+.badge.unlocked.gold{border-color:var(--neon4);box-shadow:0 0 12px -4px var(--neon4)}
+.badge.unlocked.mag{border-color:var(--neon3);box-shadow:0 0 12px -4px var(--neon3)}
+.badge:hover .badge-tip{opacity:1;transform:translateY(-4px)}
+.badge-tip{
+  position:absolute;bottom:100%;left:50%;transform:translate(-50%,0);
+  background:#000;border:1px solid var(--line);font-size:9px;
+  padding:4px 8px;white-space:nowrap;border-radius:3px;
+  opacity:0;pointer-events:none;transition:.2s;color:var(--ink);
+  letter-spacing:.1em;text-transform:uppercase;z-index:10;
+}
+@keyframes badgeunlock{0%{transform:scale(0) rotate(-180deg)}60%{transform:scale(1.3) rotate(20deg)}100%{transform:none}}
+
+.streak-flame{font-size:24px;display:inline-block;animation:flicker 1.6s ease-in-out infinite}
+@keyframes flicker{0%,100%{transform:scale(1) rotate(-2deg)}50%{transform:scale(1.08) rotate(2deg)}}
+
+/* 레벨업 오버레이 */
+.lvlup{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:1000;pointer-events:none;
+}
+.lvlup.show{display:flex}
+.lvlup-card{
+  background:#000;border:2px solid var(--neon4);border-radius:12px;
+  padding:40px 60px;text-align:center;
+  box-shadow:0 0 0 6px rgba(255,210,63,.1),0 0 60px var(--neon4);
+  animation:lvlpop .9s cubic-bezier(.5,0,.2,1.6);
+}
+@keyframes lvlpop{0%{transform:scale(0) rotate(-12deg)}60%{transform:scale(1.1) rotate(3deg)}100%{transform:scale(1)}}
+.lvlup-card .small{font-size:11px;letter-spacing:.4em;color:var(--neon4);text-transform:uppercase}
+.lvlup-card .big{font-family:'Fraunces',serif;font-size:80px;font-weight:300;line-height:1;color:#fff;margin:8px 0}
+.lvlup-card .big em{color:var(--neon4);font-style:italic}
+
+/* 입자 캔버스 */
+canvas#particles{position:fixed;inset:0;pointer-events:none;z-index:998}
+
+/* svg 도형 */
+.fig{margin:18px 0;border:1px dashed var(--line);border-radius:8px;padding:18px;background:#08080f}
+.fig svg{display:block;width:100%;height:auto;max-width:760px;margin:0 auto}
+.fig .cap{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);margin-top:10px;text-align:center}
+
+/* 보스 전투 */
+.boss-arena{text-align:center}
+.boss-timer{
+  font-family:'Fraunces',serif;font-size:90px;font-weight:300;line-height:1;
+  color:var(--neon3);margin:8px 0;letter-spacing:-.02em;
+}
+.boss-timer.warn{color:var(--warn);animation:flicker 0.4s ease-in-out infinite}
+.boss-prog{display:flex;gap:6px;justify-content:center;margin:14px 0}
+.boss-prog div{width:24px;height:6px;background:#13131c;border-radius:1px}
+.boss-prog div.ok{background:var(--neon)}
+.boss-prog div.no{background:var(--warn)}
+.boss-prog div.cur{background:var(--neon3);animation:pulse 1s infinite}
+.boss-q{font-size:18px;margin:24px 0 14px;color:#fff;font-family:'Fraunces',serif;font-weight:500;letter-spacing:-.01em}
+.boss-final{
+  font-family:'Fraunces',serif;font-size:64px;font-weight:300;
+  color:var(--neon4);letter-spacing:-.02em;line-height:1;margin:12px 0;
+}
+
+.toggle-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+ul.bullets{list-style:none;padding:0}
+ul.bullets li{padding:6px 0 6px 22px;position:relative;color:#c8ccdb}
+ul.bullets li::before{content:"▸";position:absolute;left:0;color:var(--neon3)}
+
+.shapebox{display:inline-block;font-family:'Space Mono',monospace;font-size:11px;color:var(--neon4);background:rgba(255,210,63,.08);padding:1px 6px;border-radius:3px;margin:0 2px}
+
+/* sin/cos 캔버스 */
+canvas.poscanvas{width:100%;max-width:760px;height:240px;display:block;margin:0 auto;background:#08080f;border:1px dashed var(--line);border-radius:6px}
+
+footer.foot{
+  margin-top:80px;padding-top:24px;border-top:1px dashed var(--line);
+  font-size:10px;color:var(--ink-dim);letter-spacing:.2em;text-transform:uppercase;
+  display:flex;justify-content:space-between;
+}
+
+/* 모바일 HUD */
+.mobile-hud{display:none;position:sticky;top:0;z-index:50;background:#000;border-bottom:1px solid var(--line);padding:8px 14px;font-size:11px;justify-content:space-between}
+@media (max-width:1100px){.mobile-hud{display:flex}}
+</style>
+</head>
+<body>
+
+<canvas id="particles"></canvas>
+
+<div class="lvlup" id="lvlup">
+  <div class="lvlup-card">
+    <div class="small">level up</div>
+    <div class="big">LV·<em id="lvlup-num">2</em></div>
+    <div class="small" id="lvlup-msg">attention is paying off</div>
+  </div>
+</div>
+
+<div class="app">
+
+<!-- =========== SIDEBAR =========== -->
+<aside class="sidebar">
+  <div class="brand">트랜스포머<br>아카데미<span class="dot"></span></div>
+  <div class="brand-sub">타이핑 도장 · v1.0</div>
+
+  <nav class="nav" id="nav">
+    <div class="sep">커리큘럼</div>
+    <button data-sec="intro" class="active"><span class="num">00</span>환영합니다</button>
+    <button data-sec="why"><span class="num">01</span>왜 트랜스포머인가</button>
+    <button data-sec="tok"><span class="num">02</span>토큰 & 임베딩</button>
+    <button data-sec="pos"><span class="num">03</span>위치 인코딩</button>
+    <button data-sec="attn"><span class="num">04</span>셀프 어텐션</button>
+    <button data-sec="multi"><span class="num">05</span>멀티헤드</button>
+    <button data-sec="ffn"><span class="num">06</span>FFN, 잔차, 정규화</button>
+    <button data-sec="encdec"><span class="num">07</span>인코더 vs 디코더</button>
+    <button data-sec="train"><span class="num">08</span>학습 목표</button>
+    <div class="sep">드릴</div>
+    <button data-sec="vocab"><span class="num">DR</span>어휘 드릴</button>
+    <button data-sec="formula"><span class="num">DR</span>공식 타이핑</button>
+    <button data-sec="code"><span class="num">DR</span>코드 완성</button>
+    <div class="sep">아레나</div>
+    <button data-sec="boss"><span class="num">★</span>보스 전투</button>
+  </nav>
+</aside>
+
+<!-- =========== MAIN =========== -->
+<main class="main">
+
+<div class="mobile-hud">
+  <span>LV <b id="m-lvl">1</b> · <b id="m-xp">0</b> XP</span>
+  <span>콤보 <b id="m-combo">×1</b></span>
+  <span>스트릭 <b id="m-streak">0</b> 🔥</span>
+</div>
+
+<!-- INTRO -->
+<section class="section active" data-sec="intro">
+  <div class="eyebrow">레벨 00 // 오리엔테이션</div>
+  <h1 class="huge">타이핑으로<br><em>어텐션</em>을 정복하라.</h1>
+  <p style="font-size:16px;max-width:60ch;margin-top:18px">트랜스포머 아키텍처에 대한 자기 완결적 단기 집중 코스 — 수학, 행렬, 코드까지. 그저 읽기만 하지 않습니다. <strong>직접 타이핑합니다</strong>. 어휘, 공식, PyTorch. XP를 모으고, 연속 정답 스트릭을 쌓고, 배지를 잠금 해제한 뒤, 보스 전투에서 살아남으세요.</p>
+
+  <div class="card">
+    <div class="card-label">작동 방식</div>
+    <ul class="bullets">
+      <li>여덟 개 챕터가 라이브 데모와 SVG 다이어그램으로 아키텍처 전반을 다룹니다.</li>
+      <li>세 개의 드릴 섹션 (어휘 · 공식 · 코드)이 XP, 콤보, 스트릭에 영향을 줍니다.</li>
+      <li>정답 하나당 = <b>10 XP</b>; 콤보 3이면 두 배, 콤보 5면 세 배.</li>
+      <li><b>100 XP</b>를 달성하면 레벨업. 도중에 배지를 획득합니다.</li>
+      <li><b style="color:var(--neon3)">보스 전투</b>는 90초 타이머에 10개의 혼합 문제입니다.</li>
+      <li>진행도는 자동 저장됩니다 (localStorage). <span class="kbd">Tab</span>/<span class="kbd">Enter</span>로 답을 확정합니다.</li>
+    </ul>
+    <div style="margin-top:16px"><button class="btn" onclick="go('why')">커리큘럼 시작 →</button>  <button class="btn alt" onclick="go('vocab')">드릴로 건너뛰기</button></div>
+  </div>
+
+  <div class="fig">
+    <svg viewBox="0 0 760 220" aria-label="인코더-디코더 도식">
+      <defs>
+        <linearGradient id="gradEnc" x1="0" x2="1"><stop offset="0" stop-color="#00f0ff" stop-opacity=".25"/><stop offset="1" stop-color="#00f0ff" stop-opacity="0"/></linearGradient>
+        <linearGradient id="gradDec" x1="0" x2="1"><stop offset="0" stop-color="#ff2bd6" stop-opacity=".25"/><stop offset="1" stop-color="#ff2bd6" stop-opacity="0"/></linearGradient>
+      </defs>
+      <!-- encoder stack -->
+      <g transform="translate(60,30)">
+        <rect width="280" height="160" rx="6" fill="url(#gradEnc)" stroke="#00f0ff" stroke-dasharray="3 3"/>
+        <text x="140" y="-8" fill="#00f0ff" font-family="JetBrains Mono" font-size="11" text-anchor="middle" letter-spacing="3">ENCODER ×N</text>
+        <g font-family="Space Mono" font-size="10" fill="#eef0f7">
+          <rect x="20" y="20" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="35" text-anchor="middle">Multi-Head Self-Attention</text>
+          <rect x="20" y="50" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="65" text-anchor="middle">Add &amp; Norm</text>
+          <rect x="20" y="80" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="95" text-anchor="middle">Feed-Forward</text>
+          <rect x="20" y="110" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="125" text-anchor="middle">Add &amp; Norm</text>
+        </g>
+      </g>
+      <!-- arrow -->
+      <g stroke="#39ff14" stroke-width="1.5" fill="none">
+        <path d="M340,110 L420,110" marker-end="url(#arrow)"/>
+      </g>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#39ff14"/></marker>
+      </defs>
+      <!-- decoder stack -->
+      <g transform="translate(420,30)">
+        <rect width="280" height="160" rx="6" fill="url(#gradDec)" stroke="#ff2bd6" stroke-dasharray="3 3"/>
+        <text x="140" y="-8" fill="#ff2bd6" font-family="JetBrains Mono" font-size="11" text-anchor="middle" letter-spacing="3">DECODER ×N</text>
+        <g font-family="Space Mono" font-size="10" fill="#eef0f7">
+          <rect x="20" y="20" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="35" text-anchor="middle">Masked Self-Attention</text>
+          <rect x="20" y="50" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="65" text-anchor="middle">Cross-Attention</text>
+          <rect x="20" y="80" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="95" text-anchor="middle">Feed-Forward</text>
+          <rect x="20" y="110" width="240" height="22" rx="3" fill="#0a0a14" stroke="#1e2030"/><text x="140" y="125" text-anchor="middle">Add &amp; Norm</text>
+        </g>
+      </g>
+    </svg>
+    <div class="cap">fig.00 — 원본 인코더-디코더 트랜스포머 (Vaswani et al., 2017)</div>
+  </div>
+</section>
+
+<!-- WHY -->
+<section class="section" data-sec="why">
+  <div class="eyebrow">레벨 01 // 동기</div>
+  <h2><span class="nm">§01</span>왜 트랜스포머인가?</h2>
+  <p>2017년 이전에는 <strong>RNN</strong>과 <strong>LSTM</strong>이 주류 시퀀스 모델이었습니다. 그들은 토큰을 하나씩 처리하며 히든 상태를 앞으로 전달했습니다. 이는 세 가지 치명적인 문제가 있었습니다:</p>
+  <ul class="bullets">
+    <li><b>순차적 병목.</b> 시간 차원에 걸쳐 병렬화할 수 없습니다 — 토큰 <code>t</code>는 토큰 <code>t-1</code>이 필요합니다.</li>
+    <li><b>거리에 따른 그래디언트 소실.</b> 토큰 1의 정보는 토큰 100에 도달하기 전 모든 단계를 거쳐 압축됩니다.</li>
+    <li><b>고정 크기 히든 상태.</b> 전체 과거가 하나의 벡터에 들어가야 합니다. 장거리 메모리는 취약합니다.</li>
+  </ul>
+
+  <div class="card demo">
+    <div class="card-label">핵심 통찰</div>
+    <h3>Attention is all you need</h3>
+    <p>Vaswani 외는 물었습니다: 모든 토큰이 한 번의 병렬 단계에서 다른 모든 토큰을 <strong>직접</strong> 볼 수 있다면 어떨까? 재귀도 없고, 컨볼루션도 없고, 그저 각 위치가 학습된 가중치로 다른 모든 위치에 어텐드할 수 있게 하는 학습된 메커니즘.</p>
+    <p>결과: 하드웨어에 따라 선형적으로 확장되는 학습, O(1) 홉으로 흐르는 그래디언트, 그리고 원칙적으로 단락의 첫 단어를 이웃만큼 쉽게 마지막 단어와 관련시킬 수 있는 모델.</p>
+  </div>
+
+  <div class="fig">
+    <svg viewBox="0 0 760 200">
+      <g font-family="Space Mono" font-size="10">
+        <text x="20" y="20" fill="#8a8fa3" letter-spacing="2">RNN — 순차적</text>
+        <g transform="translate(20,40)">
+          <g fill="#13131c" stroke="#1e2030">
+            <rect x="0" y="0" width="60" height="28" rx="3"/>
+            <rect x="80" y="0" width="60" height="28" rx="3"/>
+            <rect x="160" y="0" width="60" height="28" rx="3"/>
+            <rect x="240" y="0" width="60" height="28" rx="3"/>
+            <rect x="320" y="0" width="60" height="28" rx="3"/>
+          </g>
+          <g fill="#eef0f7" text-anchor="middle">
+            <text x="30" y="18">the</text><text x="110" y="18">cat</text><text x="190" y="18">sat</text><text x="270" y="18">on</text><text x="350" y="18">mat</text>
+          </g>
+          <g stroke="#ff2bd6" fill="none" marker-end="url(#arr2)">
+            <path d="M60,14 L80,14"/><path d="M140,14 L160,14"/><path d="M220,14 L240,14"/><path d="M300,14 L320,14"/>
+          </g>
+        </g>
+        <text x="20" y="100" fill="#8a8fa3" letter-spacing="2">트랜스포머 — 모든 토큰이 모든 토큰을, 병렬로 어텐드</text>
+        <g transform="translate(20,120)">
+          <g fill="#13131c" stroke="#1e2030">
+            <rect x="0" y="0" width="60" height="28" rx="3"/>
+            <rect x="80" y="0" width="60" height="28" rx="3"/>
+            <rect x="160" y="0" width="60" height="28" rx="3"/>
+            <rect x="240" y="0" width="60" height="28" rx="3"/>
+            <rect x="320" y="0" width="60" height="28" rx="3"/>
+          </g>
+          <g fill="#eef0f7" text-anchor="middle">
+            <text x="30" y="18">the</text><text x="110" y="18">cat</text><text x="190" y="18">sat</text><text x="270" y="18">on</text><text x="350" y="18">mat</text>
+          </g>
+          <g stroke="#39ff14" stroke-width=".7" fill="none" opacity=".7">
+            <path d="M30,28 Q80,60 110,28"/><path d="M30,28 Q120,70 190,28"/><path d="M30,28 Q160,80 270,28"/><path d="M30,28 Q200,90 350,28"/>
+            <path d="M110,28 Q150,60 190,28"/><path d="M110,28 Q190,70 270,28"/><path d="M110,28 Q230,80 350,28"/>
+            <path d="M190,28 Q230,60 270,28"/><path d="M190,28 Q270,70 350,28"/>
+            <path d="M270,28 Q310,60 350,28"/>
+          </g>
+        </g>
+      </g>
+      <defs>
+        <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff2bd6"/></marker>
+      </defs>
+    </svg>
+    <div class="cap">fig.01 — 재귀 vs 어텐션</div>
+  </div>
+</section>
+
+<!-- TOKENS -->
+<section class="section" data-sec="tok">
+  <div class="eyebrow">레벨 02 // 입력</div>
+  <h2><span class="nm">§02</span>토큰화 &amp; 임베딩</h2>
+  <p>트랜스포머는 텍스트를 직접 읽지 못합니다. <strong>정수 ID</strong>를 읽습니다. 토큰화는 문자열을 고정된 어휘집(보통 30k–200k 항목)에서 가져온 토큰 ID 시퀀스로 바꾸는 손실 압축 방식입니다. 현대 토큰화기(BPE, WordPiece, Unigram, Tiktoken)는 서브워드 조각으로 분할하여, 희귀 단어는 미지의 토큰 대신 흔한 조각들의 시퀀스가 됩니다.</p>
+  <p>각 정수 ID는 그 다음 <strong>임베딩 행렬</strong> $E \in \mathbb{R}^{V \times d_{model}}$ — 여기서 $V$는 어휘 크기 — 을 통해 밀집 벡터로 매핑됩니다. 룩업 = 행렬의 한 행. 결과: $L$개 토큰의 시퀀스에 대해 <span class="shapebox">[L, d_model]</span> 형태의 텐서를 얻습니다.</p>
+
+  <div class="card demo">
+    <div class="card-label">라이브 데모</div>
+    <h3>문장을 입력하세요 — 토큰을 보세요</h3>
+    <textarea class="token-input" id="tokIn" placeholder="The cat sat on the mat.">The cat sat on the mat.</textarea>
+    <div class="token-row" id="tokOut"></div>
+    <div class="hud-sub" id="tokStat" style="margin-top:10px"></div>
+  </div>
+
+  <p>참고: 이것은 공백+구두점 기반의 토이 토큰화기입니다. 실제 BPE라면 <code>tokenization</code>을 <code>token</code> + <code>ization</code> 같은 식으로 분할할 것입니다.</p>
+</section>
+
+<!-- POSITIONAL -->
+<section class="section" data-sec="pos">
+  <div class="eyebrow">레벨 03 // 순서</div>
+  <h2><span class="nm">§03</span>위치 인코딩</h2>
+  <p>셀프 어텐션은 <strong>순열 불변</strong>입니다: 입력 토큰 순서를 섞어도 (위치 정보가 없다면) 같은 출력이 나옵니다. 언어에는 큰 문제죠. 해결책: 스택에 들어가기 전, 각 토큰 임베딩에 위치 의존 벡터를 더합니다.</p>
+
+  <p>원본 논문은 기하학적으로 증가하는 파장의 사인 곡선을 사용합니다:</p>
+  <p>$$PE_{(pos,\,2i)} = \sin\!\Big(\tfrac{pos}{10000^{2i/d_{model}}}\Big), \qquad PE_{(pos,\,2i+1)} = \cos\!\Big(\tfrac{pos}{10000^{2i/d_{model}}}\Big)$$</p>
+
+  <div class="card demo">
+    <div class="card-label">시각화</div>
+    <h3>사인 곡선 위치 파동</h3>
+    <p style="font-size:12px;color:var(--ink-dim)">각 행은 차원 <code>i</code>입니다. 낮은 차원은 빠르게 진동하고(위치마다 매우 달라 보임), 높은 차원은 매끄럽습니다(대규모 순서).</p>
+    <canvas class="poscanvas" id="posCanvas"></canvas>
+  </div>
+
+  <p>영리한 성질: $PE_{pos+k}$는 $PE_{pos}$의 고정된 선형 함수이므로, 모델이 상대적인 오프셋을 쉽게 학습할 수 있습니다. 현대 변형(RoPE, ALiBi, 학습된 절대 위치)은 서로 다른 트레이드오프를 제공하지만 목표는 같습니다 — 순서를 주입하는 것.</p>
+</section>
+
+<!-- ATTENTION -->
+<section class="section" data-sec="attn">
+  <div class="eyebrow">레벨 04 // 핵심</div>
+  <h2><span class="nm">§04</span>셀프 어텐션 (Q · K · V)</h2>
+  <p>모든 입력 토큰은 세 개의 학습된 행렬 $W^Q, W^K, W^V \in \mathbb{R}^{d_{model} \times d_k}$를 통해 세 개의 벡터로 투영됩니다:</p>
+  <ul class="bullets">
+    <li><strong>Query (Q)</strong> — "내가 무엇을 찾고 있는가?"</li>
+    <li><strong>Key (K)</strong> — "내가 무엇을 담고 있는가?"</li>
+    <li><strong>Value (V)</strong> — "내가 어텐드된다면 무엇을 기여하는가?"</li>
+  </ul>
+
+  <p>스케일드 닷-프로덕트 어텐션은 다음과 같습니다:</p>
+  <p>$$\mathrm{Attention}(Q,K,V) = \mathrm{softmax}\!\Big(\tfrac{QK^\top}{\sqrt{d_k}}\Big)\,V$$</p>
+
+  <p>시퀀스 길이 $L$, 헤드 차원 $d_k$일 때의 형태: <span class="shapebox">Q: [L, d_k]</span> <span class="shapebox">K: [L, d_k]</span> <span class="shapebox">V: [L, d_k]</span>. 곱 $QK^\top$는 <span class="shapebox">[L, L]</span> — (쿼리, 키) 쌍 하나당 유사도 점수 하나. 행을 따라 softmax를 취하면 어텐션 <em>가중치</em>가 되고, 그 가중치로 $V$를 다시 가중합합니다.</p>
+
+  <div class="card demo">
+    <div class="card-label">인터랙티브 히트맵</div>
+    <h3>어텐션 가중치 — 셀에 호버하세요</h3>
+    <p style="font-size:12px;color:var(--ink-dim)">아래 문장에 대한 토이 6×6 어텐션 행렬. 밝을수록 = 높은 어텐션. 셀에 호버하여 어떤 토큰이 어떤 토큰에 어텐드하는지 확인하세요.</p>
+    <div id="heatmapHost"></div>
+    <div class="hm-out" id="heatOut">→ 아무 셀에나 호버하세요</div>
+  </div>
+
+  <div class="card demo">
+    <div class="card-label">단계별</div>
+    <h3>3-토큰 예제로 본 Q · K · V</h3>
+    <p style="font-size:12px;color:var(--ink-dim)">$d_{model}=4$, $d_k=2$인 토이 예제, "AI is fun" → 3 토큰. <b>다음 단계</b>로 따라가 보세요.</p>
+    <div class="qkv-stage" id="qkvStage"></div>
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn" id="qkvNext">다음 단계 →</button> <button class="btn alt" id="qkvReset">초기화</button></div>
+  </div>
+</section>
+
+<!-- MULTI-HEAD -->
+<section class="section" data-sec="multi">
+  <div class="eyebrow">레벨 05 // 앙상블</div>
+  <h2><span class="nm">§05</span>멀티헤드 어텐션</h2>
+  <p>하나의 어텐션 패턴만으로는 부족할 때가 많습니다. <strong>멀티헤드 어텐션</strong>은 $h$개의 어텐션 연산을 병렬로 실행하며, 각각 자체 $W_i^Q, W_i^K, W_i^V$ 투영을 가지고, 결과를 연결(concatenate)합니다:</p>
+  <p>$$\mathrm{MHA}(X) = \mathrm{Concat}(\mathrm{head}_1, \ldots, \mathrm{head}_h)\,W^O$$</p>
+  <p>각 헤드는 서로 다른 관계 패턴에 어텐드하도록 학습됩니다 — 어떤 헤드는 구문 의존성을, 다른 헤드는 상호 참조를, 또 다른 헤드는 단순한 위치 오프셋을 추적할 수 있습니다. 이 분할은 총 연산량을 단일 헤드와 거의 같게 유지합니다: $h=8$개 헤드라면 $d_k = d_{model}/h$로 잡습니다.</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 760 220" id="mhaFig">
+      <g font-family="Space Mono" font-size="10" fill="#eef0f7">
+        <rect x="320" y="10" width="120" height="28" rx="3" fill="#13131c" stroke="#39ff14"/>
+        <text x="380" y="28" text-anchor="middle" fill="#39ff14">입력 X [L, d_model]</text>
+        <!-- split lines -->
+        <g stroke="#00f0ff" fill="none" opacity=".6">
+          <path d="M380,38 L120,90"/><path d="M380,38 L260,90"/><path d="M380,38 L400,90"/><path d="M380,38 L540,90"/><path d="M380,38 L660,90"/>
+        </g>
+        <!-- heads -->
+        <g>
+          <g><rect x="80" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="130" y="110" text-anchor="middle" fill="#00f0ff">head₁</text><text x="130" y="125" text-anchor="middle" fill="#8a8fa3" font-size="9">Q,K,V·W₁</text></g>
+          <g><rect x="220" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="270" y="110" text-anchor="middle" fill="#00f0ff">head₂</text></g>
+          <g><rect x="360" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="410" y="110" text-anchor="middle" fill="#00f0ff">head₃</text></g>
+          <g><rect x="500" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="550" y="110" text-anchor="middle" fill="#00f0ff">head₄</text></g>
+          <g><rect x="620" y="90" width="100" height="50" rx="3" fill="#0a0a14" stroke="#00f0ff"/><text x="670" y="110" text-anchor="middle" fill="#00f0ff">…head_h</text></g>
+        </g>
+        <!-- concat -->
+        <g stroke="#ff2bd6" fill="none" opacity=".6">
+          <path d="M130,140 L380,180"/><path d="M270,140 L380,180"/><path d="M410,140 L380,180"/><path d="M550,140 L380,180"/><path d="M670,140 L380,180"/>
+        </g>
+        <rect x="280" y="180" width="200" height="28" rx="3" fill="#13131c" stroke="#ff2bd6"/>
+        <text x="380" y="198" text-anchor="middle" fill="#ff2bd6">Concat → W^O → [L, d_model]</text>
+      </g>
+    </svg>
+    <div class="cap">fig.05 — h개 헤드로 분할, 병렬로 어텐드, 연결, 투영</div>
+  </div>
+</section>
+
+<!-- FFN -->
+<section class="section" data-sec="ffn">
+  <div class="eyebrow">레벨 06 // 접착제</div>
+  <h2><span class="nm">§06</span>피드포워드 · 잔차 · 정규화</h2>
+  <p>어텐션 이후, 각 위치는 위치별 <strong>피드포워드 네트워크</strong>를 통과합니다 — 비선형 활성화 함수를 사이에 둔 두 개의 선형 계층(원래는 ReLU, 오늘날엔 보통 GELU 또는 SwiGLU):</p>
+  <p>$$\mathrm{FFN}(x) = \max(0,\, xW_1+b_1)\,W_2 + b_2$$</p>
+  <p>은닉 너비는 보통 <code>4·d_model</code>입니다. 모델 파라미터의 대부분이 이곳에 자리하며 — 이 계층이 사실적 지식을 저장하는 키-값 메모리 역할을 한다는 가설이 인기 있습니다.</p>
+
+  <h3>잔차 연결</h3>
+  <p>어텐션 서브계층과 FFN 서브계층 모두 <strong>잔차 연결</strong> + <strong>레이어 정규화</strong>로 감싸집니다:</p>
+  <p>$$x \leftarrow \mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))$$</p>
+  <p>왜? 잔차는 손실에서 입력으로 되돌아가는 그래디언트 고속도로를 만들어, 수백 개의 계층이 안정적으로 학습되도록 합니다. LayerNorm은 특징 차원에 걸쳐 활성을 중심화하고 스케일을 맞춰, 각 계층의 최적화를 다른 계층과 분리합니다.</p>
+
+  <p style="font-size:12px;color:var(--ink-dim)">현대 변형은 <strong>pre-norm</strong>을 선호합니다: $x \leftarrow x + \mathrm{Sublayer}(\mathrm{LayerNorm}(x))$ — 깊이가 깊어질 때 더 안정적인 학습을 제공합니다.</p>
+</section>
+
+<!-- ENC vs DEC -->
+<section class="section" data-sec="encdec">
+  <div class="eyebrow">레벨 07 // 토폴로지</div>
+  <h2><span class="nm">§07</span>인코더 · 디코더 · 마스킹</h2>
+  <p>오늘날 세 가지 아키텍처 계열이 지배적입니다:</p>
+  <ul class="bullets">
+    <li><b style="color:var(--neon2)">인코더 전용</b> (BERT) — 양방향 셀프 어텐션. 모든 토큰이 다른 모든 토큰을 봅니다. 이해 과제(분류, 검색)에 좋습니다.</li>
+    <li><b style="color:var(--neon3)">디코더 전용</b> (GPT) — <strong>인과적/마스크된</strong> 셀프 어텐션. 토큰 <code>t</code>는 $\le t$인 토큰에만 어텐드할 수 있습니다. 생성에 좋습니다. 대부분의 현대 LLM이 사용하는 방식입니다.</li>
+    <li><b style="color:var(--neon4)">인코더-디코더</b> (T5, 원본 NMT) — 인코더가 소스를 읽고, 디코더는 인코더 출력에 교차 어텐드하면서 타겟을 생성합니다.</li>
+  </ul>
+
+  <h3>인과적 마스킹 — 어떻게?</h3>
+  <p>softmax 이전에 점수 행렬의 상삼각 항목을 $-\infty$로 설정합니다. $-\infty$의 softmax는 0이므로 — 모델은 수학적으로 미래를 들여다볼 수 없습니다:</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 360 200">
+      <g font-family="Space Mono" font-size="11">
+        <text x="180" y="14" text-anchor="middle" fill="#8a8fa3" letter-spacing="3">인과적 마스크 (하삼각)</text>
+        <g transform="translate(60,30)">
+          <!-- 6x6 mask -->
+        </g>
+      </g>
+      <g id="maskGrid"></g>
+    </svg>
+    <div class="cap">fig.07 — 초록 = 허용, 어두움 = −∞로 마스크됨</div>
+  </div>
+</section>
+
+<!-- TRAINING -->
+<section class="section" data-sec="train">
+  <div class="eyebrow">레벨 08 // 목표</div>
+  <h2><span class="nm">§08</span>학습: 다음 토큰 예측</h2>
+  <p>디코더 전용 LLM (GPT 계열)의 경우, 전체 학습 목표는 충격적일 만큼 단순합니다:</p>
+  <p><strong>토큰 1..t가 주어지면, 토큰 t+1을 예측하라.</strong></p>
+  <p>모델은 모든 위치에서 어휘에 대한 확률 분포를 출력합니다. 손실은 실제 다음 토큰에 대한 평균 <strong>교차 엔트로피</strong>입니다:</p>
+  <p>$$\mathcal{L} = -\frac{1}{N}\sum_{t=1}^{N} \log P_\theta(x_{t+1} \mid x_1, \ldots, x_t)$$</p>
+  <p>인과적 마스킹이 이를 효율적으로 만듭니다: 길이 $N$인 시퀀스에 대해 단일 순전파가 위치당 하나씩 $N$개의 예측을 병렬로 산출합니다. 라벨을 한 칸 시프트하는 것 외에 별도의 teacher forcing 트릭이 필요 없습니다.</p>
+  <p>그 외 모든 것 — 인스트럭션 튜닝, RLHF, 도구 사용 — 은 이 목표 위에 올라탑니다. 사전학습은 인터넷 규모의 데이터를 흡수하고 모델이 "모든 것"을 배우는 부분입니다. 파인튜닝은 모델의 행동을 다듬는 부분입니다.</p>
+
+  <div class="card">
+    <div class="card-label">요약</div>
+    <h3>전체 파이프라인</h3>
+    <ul class="bullets">
+      <li>1. 토큰 → 정수 ID → 임베딩 (+ 위치 인코딩)</li>
+      <li>2. N개 트랜스포머 블록 스택: <code>MHA → Add&Norm → FFN → Add&Norm</code></li>
+      <li>3. 어휘 크기로 최종 선형 투영, softmax → 다음 토큰 분포</li>
+      <li>4. 정답 다음 토큰에 대한 교차 엔트로피 손실, 위치 전체에 걸쳐 합산</li>
+      <li>5. 모든 가중치를 통한 역전파. 약 10²² 회 반복. 끝.</li>
+    </ul>
+    <p style="margin-top:14px">자, 이제 드릴해 보세요.</p>
+    <div class="toggle-row"><button class="btn" onclick="go('vocab')">어휘 드릴 →</button><button class="btn alt" onclick="go('formula')">공식 타이핑</button><button class="btn alt" onclick="go('code')">코드 완성</button></div>
+  </div>
+</section>
+
+<!-- VOCAB DRILL -->
+<section class="section" data-sec="vocab">
+  <div class="eyebrow">드릴 // 어휘</div>
+  <h2><span class="nm">DR1</span>어휘 드릴</h2>
+  <p>정의를 읽고 용어를 입력하세요. 대소문자 구분 없음, 일부 오타는 허용됩니다.</p>
+  <div class="card practice" id="vocabHost"></div>
+</section>
+
+<!-- FORMULA DRILL -->
+<section class="section" data-sec="formula">
+  <div class="eyebrow">드릴 // 공식</div>
+  <h2><span class="nm">DR2</span>공식 타이핑</h2>
+  <p>공식을 평문으로 재현하세요. 전치는 <code>^</code>, 제곱근은 <code>sqrt(...)</code>, 곱은 <code>*</code>를 사용합니다. 공백은 무시됩니다. 다양한 표기가 허용됩니다.</p>
+  <div class="card practice" id="formulaHost"></div>
+</section>
+
+<!-- CODE DRILL -->
+<section class="section" data-sec="code">
+  <div class="eyebrow">드릴 // pytorch</div>
+  <h2><span class="nm">DR3</span>코드 완성</h2>
+  <p>이 최소한의 스케일드 닷-프로덕트 어텐션 구현의 빈칸을 채우세요. <span class="kbd">Tab</span>으로 다음 빈칸으로 이동합니다.</p>
+  <div class="card practice" id="codeHost"></div>
+</section>
+
+<!-- BOSS -->
+<section class="section" data-sec="boss">
+  <div class="eyebrow">★ 보스 전투</div>
+  <h2><span class="nm">★</span>최종 보스 — 10문제, 90초</h2>
+  <p style="color:var(--ink-dim)">어휘, 공식, 코드 혼합. 힌트 없음. 콤보는 이어집니다. 시계가 당신의 적입니다.</p>
+  <div class="card boss" id="bossHost">
+    <div class="card-label">아레나</div>
+    <div class="boss-arena" id="bossArena">
+      <p style="margin:24px 0 8px;font-family:'Fraunces',serif;font-size:24px">준비됐나요?</p>
+      <div class="hud-sub">정답당 +30 XP · 3+ 스트릭에서 콤보 2배 보너스</div>
+      <div style="margin-top:24px"><button class="btn danger" id="bossStart">전투 시작 ▸</button></div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div>© Transformer Academy</div>
+  <div>타이핑 > 클릭</div>
+  <div id="footStat">LV 1 · 0 XP</div>
+</footer>
+
+</main>
+
+<!-- =========== RIGHTBAR HUD =========== -->
+<aside class="rightbar">
+  <div class="hud-card">
+    <div class="hud-label">레벨</div>
+    <div class="hud-val" id="hud-lvl">1</div>
+    <div class="hud-sub"><span id="hud-xp">0</span> / <span id="hud-xpmax">100</span> XP</div>
+    <div class="lvl-bar"><div class="lvl-bar-fill" id="hud-bar" style="width:0%"></div></div>
+  </div>
+
+  <div class="hud-card">
+    <div class="hud-label">콤보</div>
+    <div class="hud-val mag combo-flame">×<span id="hud-combo">1</span></div>
+    <div class="hud-sub"><span id="hud-streak">0</span>연속 · 최고 <span id="hud-best">0</span></div>
+  </div>
+
+  <div class="hud-card">
+    <div class="hud-label">데일리 스트릭</div>
+    <div class="hud-val gold"><span class="streak-flame">🔥</span> <span id="hud-daily">1</span></div>
+    <div class="hud-sub">마지막 방문 <span id="hud-last">today</span></div>
+  </div>
+
+  <div class="hud-card">
+    <div class="hud-label">트로피 케이스</div>
+    <div class="badges" id="badges"></div>
+  </div>
+
+  <div class="hud-card" style="font-size:10px;color:var(--ink-dim);line-height:1.7">
+    <div class="hud-label" style="margin-bottom:6px">치트 시트</div>
+    Q · K · V — <span style="color:var(--neon2)">Query</span>, <span style="color:var(--neon3)">Key</span>, <span style="color:var(--neon)">Value</span><br>
+    softmax(QK^T / √d_k) V<br>
+    LN(x + Sublayer(x))
+  </div>
+
+  <button class="btn alt" style="width:100%;text-align:center" onclick="resetProgress()">진행도 초기화</button>
+</aside>
+
+</div>
+
+<script>
+/* ===========================
+   상태 + 저장소
+   =========================== */
+const STORAGE_KEY = 'transformer-academy-v1';
+const state = {
+  xp:0, level:1, combo:1, streak:0, bestStreak:0,
+  badges:{}, daily:1, lastDate:null,
+  vocabIdx:0, formulaIdx:0,
+};
+const BADGES = [
+  {id:'first',     emoji:'🎯', name:'첫 어텐션',         desc:'첫 정답'},
+  {id:'streak3',   emoji:'⚡', name:'트리플 스트라이크',  desc:'3 연속'},
+  {id:'streak10',  emoji:'🔥', name:'10 스트릭',          desc:'10 연속', cls:'mag'},
+  {id:'mathmaster',emoji:'∑',  name:'수학 마스터',        desc:'모든 공식 정답', cls:'gold'},
+  {id:'wordsmith', emoji:'📚', name:'어휘의 달인',        desc:'모든 어휘 정답'},
+  {id:'coder',     emoji:'⌨︎', name:'코더',               desc:'모든 코드 빈칸 정답'},
+  {id:'lvl5',      emoji:'★', name:'레벨 5',             desc:'레벨 5 도달', cls:'gold'},
+  {id:'lvl10',     emoji:'☄', name:'레벨 10',            desc:'레벨 10 도달', cls:'mag'},
+  {id:'boss',      emoji:'👑', name:'보스 슬레이어',      desc:'보스 전투 승리', cls:'gold'},
+];
+
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      Object.assign(state, JSON.parse(raw));
+    }
+  }catch(e){}
+  // 일일 스트릭 로직
+  const today = new Date().toISOString().slice(0,10);
+  if(state.lastDate !== today){
+    if(state.lastDate){
+      const diff = (Date.parse(today) - Date.parse(state.lastDate)) / 86400000;
+      if(diff === 1) state.daily += 1;
+      else if(diff > 1) state.daily = 1;
+    }
+    state.lastDate = today;
+    save();
+  }
+}
+function save(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+}
+function resetProgress(){
+  if(!confirm('모든 XP, 레벨, 배지를 초기화할까요?')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  Object.assign(state, {xp:0,level:1,combo:1,streak:0,bestStreak:0,badges:{},daily:1,lastDate:null,vocabIdx:0,formulaIdx:0});
+  load();
+  renderHUD();
+  buildVocab();buildFormula();buildCode();
+}
+
+/* ===========================
+   XP / 콤보 / 레벨
+   =========================== */
+function comboMult(){ return state.streak >= 5 ? 3 : state.streak >= 3 ? 2 : 1; }
+function gainXP(base){
+  const gained = base * comboMult();
+  const oldLvl = state.level;
+  state.xp += gained;
+  while(state.xp >= state.level * 100){
+    state.xp -= state.level * 100;
+    state.level += 1;
+  }
+  if(state.level > oldLvl){ levelUp(state.level); }
+  if(state.level >= 5) unlock('lvl5');
+  if(state.level >= 10) unlock('lvl10');
+  save(); renderHUD();
+  return gained;
+}
+function correct(base=10){
+  state.streak += 1;
+  state.combo = comboMult();
+  if(state.streak > state.bestStreak) state.bestStreak = state.streak;
+  if(state.streak >= 1) unlock('first');
+  if(state.streak >= 3) unlock('streak3');
+  if(state.streak >= 10) unlock('streak10');
+  const g = gainXP(base);
+  burst();
+  return g;
+}
+function wrong(){
+  state.streak = 0; state.combo = 1;
+  shakeBody();
+  save(); renderHUD();
+}
+function unlock(id){
+  if(state.badges[id]) return;
+  state.badges[id] = true; save(); renderHUD();
+}
+
+/* ===========================
+   파티클 폭발 + 흔들림 + 레벨업
+   =========================== */
+const pcanvas = document.getElementById('particles');
+const pctx = pcanvas.getContext('2d');
+let particles = [];
+function resizeCanvas(){ pcanvas.width = innerWidth; pcanvas.height = innerHeight; }
+addEventListener('resize', resizeCanvas); resizeCanvas();
+function burst(x, y){
+  // 우측 HUD 영역을 기본으로
+  if(x === undefined){
+    const r = document.querySelector('.hud-val');
+    if(r){ const b = r.getBoundingClientRect(); x = b.left + b.width/2; y = b.top + b.height/2; }
+    else { x = innerWidth/2; y = innerHeight/2; }
+  }
+  const colors = ['#39ff14','#00f0ff','#ff2bd6','#ffd23f','#ffffff'];
+  for(let i=0;i<28;i++){
+    const a = Math.random()*Math.PI*2, s = 2 + Math.random()*5;
+    particles.push({
+      x, y,
+      vx: Math.cos(a)*s, vy: Math.sin(a)*s - 2,
+      life: 60 + Math.random()*30,
+      size: 2 + Math.random()*3,
+      color: colors[i%colors.length]
+    });
+  }
+}
+function tick(){
+  pctx.clearRect(0,0,pcanvas.width,pcanvas.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy += 0.15; p.x += p.vx; p.y += p.vy;
+    p.life--;
+    pctx.globalAlpha = Math.max(0, p.life/60);
+    pctx.fillStyle = p.color;
+    pctx.fillRect(p.x, p.y, p.size, p.size);
+  }
+  pctx.globalAlpha = 1;
+  requestAnimationFrame(tick);
+}
+tick();
+
+function shakeBody(){
+  document.body.animate(
+    [{transform:'translate(0,0)'},{transform:'translate(-6px,2px)'},{transform:'translate(6px,-2px)'},{transform:'translate(0,0)'}],
+    {duration:280,easing:'ease-out'}
+  );
+}
+function levelUp(n){
+  const o = document.getElementById('lvlup');
+  document.getElementById('lvlup-num').textContent = n;
+  const msgs = ['어텐션이 결실을 맺고 있다','Q,K,V 정복','그래디언트가 흐른다','heads up — 멀티헤드','손실이 줄어든다','기쁨의 softmax','이제 당신이 보스다'];
+  document.getElementById('lvlup-msg').textContent = msgs[(n-2) % msgs.length] || '초월';
+  o.classList.add('show');
+  // 큰 폭죽
+  for(let k=0;k<6;k++) setTimeout(()=>burst(innerWidth*Math.random(), innerHeight*0.4*Math.random()+innerHeight*0.2), k*60);
+  setTimeout(()=>o.classList.remove('show'), 1800);
+}
+
+/* ===========================
+   HUD 렌더링
+   =========================== */
+function renderHUD(){
+  document.getElementById('hud-lvl').textContent = state.level;
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-xpmax').textContent = state.level * 100;
+  document.getElementById('hud-bar').style.width = (state.xp / (state.level*100) * 100) + '%';
+  document.getElementById('hud-combo').textContent = comboMult();
+  document.getElementById('hud-streak').textContent = state.streak;
+  document.getElementById('hud-best').textContent = state.bestStreak;
+  document.getElementById('hud-daily').textContent = state.daily;
+  document.getElementById('hud-last').textContent = state.lastDate || '오늘';
+  // 모바일
+  const m = id => document.getElementById(id);
+  if(m('m-lvl')){ m('m-lvl').textContent = state.level; m('m-xp').textContent = state.xp; m('m-combo').textContent = '×'+comboMult(); m('m-streak').textContent = state.streak; }
+  // 푸터
+  document.getElementById('footStat').textContent = `LV ${state.level} · ${state.xp} XP · 최고 스트릭 ${state.bestStreak}`;
+  // 배지
+  const host = document.getElementById('badges');
+  host.innerHTML = '';
+  for(const b of BADGES){
+    const div = document.createElement('div');
+    div.className = 'badge' + (state.badges[b.id]?' unlocked':'') + (b.cls?' '+b.cls:'');
+    div.innerHTML = `${b.emoji}<span class="badge-tip">${b.name} — ${b.desc}</span>`;
+    host.appendChild(div);
+  }
+}
+
+/* ===========================
+   내비게이션
+   =========================== */
+function go(secId){
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active', s.dataset.sec===secId));
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active', b.dataset.sec===secId));
+  window.scrollTo({top:0,behavior:'smooth'});
+  if(secId === 'pos') drawPos();
+  if(secId === 'tok') tokenize();
+  if(window.renderMathInElement){ try{ renderMathInElement(document.querySelector(`[data-sec="${secId}"]`),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]}); }catch(e){} }
+}
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.sec)));
+
+/* ===========================
+   토큰화기 (토이)
+   =========================== */
+const tokIn = document.getElementById('tokIn');
+const tokOut = document.getElementById('tokOut');
+const tokStat = document.getElementById('tokStat');
+function tokenize(){
+  const s = tokIn.value;
+  // 토이 정규식: 단어 + 구두점
+  const tokens = s.match(/[a-zA-Z']+|[0-9]+|[^\sa-zA-Z0-9']/g) || [];
+  tokOut.innerHTML = '';
+  tokens.forEach((t,i)=>{
+    const c = document.createElement('span');
+    c.className = 'chip c'+(i%5);
+    c.innerHTML = `${t}<span class="id">#${(hashStr(t)%9999).toString().padStart(4,'0')}</span>`;
+    c.style.animationDelay = (i*30)+'ms';
+    tokOut.appendChild(c);
+  });
+  tokStat.textContent = `${tokens.length} 토큰 · ${s.length} 글자 · ${(tokens.length/Math.max(1,s.split(/\s+/).filter(Boolean).length)).toFixed(2)} 토큰/단어`;
+}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return Math.abs(h)}
+tokIn.addEventListener('input', tokenize);
+tokenize();
+
+/* ===========================
+   위치 인코딩 캔버스
+   =========================== */
+function drawPos(){
+  const c = document.getElementById('posCanvas');
+  if(!c) return;
+  const dpr = devicePixelRatio || 1;
+  c.width = c.clientWidth * dpr; c.height = 240 * dpr;
+  const ctx = c.getContext('2d'); ctx.scale(dpr,dpr);
+  const W = c.clientWidth, H = 240;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#08080f'; ctx.fillRect(0,0,W,H);
+  // 격자
+  ctx.strokeStyle = '#13131c'; ctx.lineWidth = 1;
+  for(let i=0;i<10;i++){ctx.beginPath();ctx.moveTo(i*W/10,0);ctx.lineTo(i*W/10,H);ctx.stroke()}
+  // 사인 곡선들
+  const dims = [0,2,6,16,40];
+  const colors=['#39ff14','#00f0ff','#ff2bd6','#ffd23f','#ff8b4a'];
+  const dmodel = 64;
+  dims.forEach((i,idx)=>{
+    ctx.strokeStyle = colors[idx]; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    for(let pos=0; pos<W; pos++){
+      const x = pos;
+      const t = pos / 6; // visual scaling
+      const v = Math.sin(t / Math.pow(10000, (2*i)/dmodel));
+      const y = H/2 - v * H*0.4;
+      if(pos===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    // 라벨
+    ctx.fillStyle = colors[idx]; ctx.font = '10px Space Mono, monospace';
+    ctx.fillText('dim '+i, 10, 18 + idx*14);
+  });
+  ctx.globalAlpha = 1;
+}
+
+/* ===========================
+   어텐션 히트맵
+   =========================== */
+const HEAT_TOKENS = ['The','cat','sat','on','the','mat'];
+const HEAT_W = [
+  [0.65,0.05,0.10,0.05,0.10,0.05],
+  [0.05,0.55,0.20,0.05,0.05,0.10],
+  [0.05,0.40,0.30,0.10,0.05,0.10],
+  [0.05,0.10,0.10,0.40,0.05,0.30],
+  [0.45,0.05,0.05,0.10,0.30,0.05],
+  [0.05,0.30,0.10,0.20,0.05,0.30],
+];
+function buildHeatmap(){
+  const host = document.getElementById('heatmapHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const tableCols = HEAT_TOKENS.length;
+  const grid = document.createElement('div');
+  grid.className = 'heatmap';
+  grid.style.gridTemplateColumns = `60px repeat(${tableCols}, 1fr)`;
+
+  // 상단 라벨 행
+  const blank = document.createElement('div'); grid.appendChild(blank);
+  HEAT_TOKENS.forEach(t=>{
+    const d = document.createElement('div');
+    d.style.fontSize='10px'; d.style.color='#8a8fa3'; d.style.textAlign='center';
+    d.textContent = t;
+    grid.appendChild(d);
+  });
+
+  HEAT_W.forEach((row,i)=>{
+    const lab = document.createElement('div');
+    lab.className = 'hm-label'; lab.textContent = HEAT_TOKENS[i];
+    grid.appendChild(lab);
+    row.forEach((w,j)=>{
+      const c = document.createElement('div');
+      c.className = 'hm-cell';
+      const a = w;
+      c.style.background = `rgba(57,255,20,${0.05 + a*0.95})`;
+      c.style.minHeight = '32px';
+      c.title = `${HEAT_TOKENS[i]} → ${HEAT_TOKENS[j]} : ${a.toFixed(2)}`;
+      c.addEventListener('mouseenter', ()=>{
+        document.getElementById('heatOut').textContent = `▸ "${HEAT_TOKENS[i]}"가 "${HEAT_TOKENS[j]}"에 가중치 ${a.toFixed(3)}로 어텐드`;
+      });
+      grid.appendChild(c);
+    });
+  });
+  host.appendChild(grid);
+}
+buildHeatmap();
+
+/* ===========================
+   QKV 단계 진행기
+   =========================== */
+const QKV_STEPS = [
+  {title:'단계 0 — 입력 임베딩 X', html:`X = <br><br>
+    <span class="matrix"><div class="label">X (3×4)</div><table><tr><td>1</td><td>0</td><td>1</td><td>0</td></tr><tr><td>0</td><td>2</td><td>0</td><td>2</td></tr><tr><td>1</td><td>1</td><td>1</td><td>1</td></tr></table></span><br>
+    세 개의 토큰, 각각 4차원 임베딩. 행 = 토큰 "AI", "is", "fun".`},
+  {title:'단계 1 — Q, K, V로 투영', html:`W^Q, W^K, W^V (각 4×2)를 적용. d_k=2일 때 결과:<br><br>
+    <span class="matrix"><div class="label">Q (3×2)</div><table><tr><td>1</td><td>0</td></tr><tr><td>0</td><td>2</td></tr><tr><td>1</td><td>1</td></tr></table></span>
+    <span class="matrix"><div class="label">K (3×2)</div><table><tr><td>1</td><td>0</td></tr><tr><td>0</td><td>1</td></tr><tr><td>1</td><td>0</td></tr></table></span>
+    <span class="matrix"><div class="label">V (3×2)</div><table><tr><td>1</td><td>2</td></tr><tr><td>2</td><td>0</td></tr><tr><td>1</td><td>1</td></tr></table></span>`},
+  {title:'단계 2 — 점수 = QK^T (3×3)', html:`각 항목은 내적 q_i · k_j:<br><br>
+    <span class="matrix"><div class="label">QK^T</div><table>
+      <tr><td>1</td><td>0</td><td>1</td></tr>
+      <tr><td>0</td><td>2</td><td>0</td></tr>
+      <tr><td>1</td><td>1</td><td>1</td></tr>
+    </table></span>
+    <br>행 i는 토큰 i가 다른 각 토큰의 말을 얼마나 듣고 싶은지 알려줍니다.`},
+  {title:'단계 3 — √d_k = √2 ≈ 1.41로 스케일', html:`모든 항목을 ≈1.41로 나눕니다:<br><br>
+    <span class="matrix"><div class="label">QK^T / √d_k</div><table>
+      <tr><td>0.71</td><td>0</td><td>0.71</td></tr>
+      <tr><td>0</td><td>1.41</td><td>0</td></tr>
+      <tr><td>0.71</td><td>0.71</td><td>0.71</td></tr>
+    </table></span><br>
+    왜 스케일하는가? 이 단계가 없으면, d_k가 클 때 softmax가 그래디언트가 사라지는 영역으로 밀려납니다.`},
+  {title:'단계 4 — 행 단위 softmax', html:`각 행이 확률 분포가 됩니다:<br><br>
+    <span class="matrix"><div class="label">A = softmax(QK^T/√d_k)</div><table>
+      <tr><td class="hl">0.41</td><td>0.18</td><td class="hl">0.41</td></tr>
+      <tr><td>0.18</td><td class="hl">0.64</td><td>0.18</td></tr>
+      <tr><td>0.33</td><td>0.33</td><td>0.33</td></tr>
+    </table></span><br>
+    토큰 "AI"는 어텐션을 자신과 "fun"에 분배; "is"는 주로 자신에게 집중; "fun"은 균등하게 어텐드.`},
+  {title:'단계 5 — V를 곱하여 출력', html:`출력 = A · V (3×2):<br><br>
+    <span class="matrix"><div class="label">출력</div><table>
+      <tr><td>1.18</td><td>1.23</td></tr>
+      <tr><td>1.46</td><td>0.76</td></tr>
+      <tr><td>1.33</td><td>1.00</td></tr>
+    </table></span><br>
+    각 행은 값 벡터들의 가중합 — 토큰별 문맥 표현. 끝.`},
+];
+let qkvStep = 0;
+function renderQKV(){
+  const host = document.getElementById('qkvStage');
+  const s = QKV_STEPS[qkvStep];
+  host.innerHTML = `<div style="color:var(--neon3);font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:8px">${s.title}</div>${s.html}`;
+}
+document.getElementById('qkvNext').addEventListener('click', ()=>{
+  qkvStep = (qkvStep+1) % QKV_STEPS.length;
+  renderQKV();
+});
+document.getElementById('qkvReset').addEventListener('click', ()=>{ qkvStep=0; renderQKV(); });
+renderQKV();
+
+/* ===========================
+   인과적 마스크 그리드
+   =========================== */
+(function buildMask(){
+  const host = document.getElementById('maskGrid');
+  if(!host) return;
+  const N = 6, sz = 30, ox = 60, oy = 30;
+  let svg = '';
+  for(let i=0;i<N;i++) for(let j=0;j<N;j++){
+    const allowed = j <= i;
+    const x = ox + j*sz, y = oy + i*sz;
+    svg += `<rect x="${x}" y="${y}" width="${sz-2}" height="${sz-2}" rx="2" fill="${allowed?'rgba(57,255,20,.4)':'#13131c'}" stroke="#1e2030"/>`;
+    if(allowed) svg += `<text x="${x+sz/2-1}" y="${y+sz/2+3}" text-anchor="middle" font-size="9" fill="#0a0a14" font-family="Space Mono">w</text>`;
+    else svg += `<text x="${x+sz/2-1}" y="${y+sz/2+3}" text-anchor="middle" font-size="9" fill="#3a3a4a" font-family="Space Mono">−∞</text>`;
+  }
+  host.innerHTML = svg;
+})();
+
+/* ===========================
+   연습: 어휘
+   =========================== */
+const VOCAB = [
+  {def:'토큰 사이의 관련성 점수를 계산하는 데 사용되는 행렬 — "내가 무엇을 찾고 있는가?"', a:'query', alt:['q']},
+  {def:'각 토큰이 무엇을 담고 있는지 나타내는 행렬 — 쿼리에 응답합니다.', a:'key', alt:['k']},
+  {def:'출력에 혼합되는 실제 콘텐츠 벡터를 보유한 행렬.', a:'value', alt:['v']},
+  {def:'어텐션 점수에 적용되어 각 행의 합이 1이 되도록 하는 함수.', a:'softmax'},
+  {def:'각 토큰이 다른 모든 토큰을 살펴볼 수 있게 하는 아키텍처 구성 요소.', a:'attention', alt:['self-attention']},
+  {def:'여러 어텐션 연산을 병렬로 실행한 뒤 연결하는 것을 ___ 어텐션이라 한다.', a:'multi-head', alt:['multihead','multi head']},
+  {def:'모델이 토큰 순서를 알 수 있도록 임베딩에 더해지는 sin/cos 곡선.', a:'positional encoding', alt:['positional','position encoding','positional embeddings']},
+  {def:'서브계층의 출력에 입력을 다시 더하는 연결 (그래디언트 고속도로).', a:'residual', alt:['skip connection','residual connection']},
+  {def:'디코더에서 토큰이 미래 위치에 어텐드하지 못하게 막는 기법.', a:'masking', alt:['causal masking','causal mask','mask']},
+  {def:'어텐션 이후 위치별로 적용되는 두 개의 선형 계층 모듈 (사이에 ReLU/GELU).', a:'ffn', alt:['feed forward','feedforward','feed-forward','feed-forward network']},
+  {def:'한 예제 내에서 특징 차원을 따라 활성을 정규화한다.', a:'layer norm', alt:['layernorm','layer normalization','layer normalisation']},
+  {def:'다음 토큰 예측에 사용되는 손실 함수.', a:'cross-entropy', alt:['cross entropy','crossentropy']},
+  {def:'인과적 마스킹과 함께 디코더 스택만 사용하는 LLM 계열.', a:'gpt', alt:['decoder-only','decoder only']},
+];
+
+function buildVocab(){
+  const host = document.getElementById('vocabHost');
+  host.innerHTML = '';
+  const i = state.vocabIdx % VOCAB.length;
+  const item = VOCAB[i];
+  host.innerHTML = `
+    <div class="card-label">${i+1} / ${VOCAB.length}</div>
+    <div class="practice-meta"><span>어휘 · +10 XP</span><span>콤보 ×${comboMult()}</span></div>
+    <div class="practice-progress"><div class="practice-progress-bar" style="width:${(i)/VOCAB.length*100}%"></div></div>
+    <div class="practice-q">${item.def}</div>
+    <input class="practice-input" id="vocabInput" autocomplete="off" placeholder="답을 입력하고 Enter를 누르세요…">
+    <div class="practice-fb" id="vocabFb">&nbsp;</div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between">
+      <button class="btn alt" id="vocabSkip">건너뛰기 ↻</button>
+      <button class="btn" id="vocabNext" disabled>다음 →</button>
+    </div>
+  `;
+  const input = document.getElementById('vocabInput');
+  const fb = document.getElementById('vocabFb');
+  const next = document.getElementById('vocabNext');
+  let answered = false;
+  function check(){
+    if(answered) return;
+    const v = input.value.trim().toLowerCase();
+    if(!v) return;
+    const ok = v === item.a.toLowerCase() || (item.alt||[]).some(x=>x.toLowerCase()===v);
+    if(ok){
+      answered = true;
+      input.classList.add('right'); input.disabled = true;
+      const g = correct(10);
+      fb.textContent = `정답 · +${g} XP`; fb.className = 'practice-fb ok';
+      next.disabled = false; next.focus();
+      // 모든 어휘를 마쳤다면 wordsmith 배지
+      if(state.vocabIdx >= VOCAB.length-1) unlock('wordsmith');
+    } else {
+      wrong();
+      input.classList.add('wrong');
+      fb.textContent = '거의 다 왔어요 — 다시 시도하거나 건너뛰세요'; fb.className='practice-fb no';
+      setTimeout(()=>input.classList.remove('wrong'), 350);
+    }
+  }
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ if(answered){ next.click(); } else check(); } });
+  next.addEventListener('click', ()=>{ state.vocabIdx += 1; save(); buildVocab(); });
+  document.getElementById('vocabSkip').addEventListener('click', ()=>{ wrong(); state.vocabIdx += 1; save(); buildVocab(); });
+  setTimeout(()=>input.focus(), 100);
+}
+
+/* ===========================
+   연습: 공식
+   =========================== */
+const FORMULAS = [
+  {prompt:'스케일드 닷-프로덕트 어텐션: Attention(Q,K,V) = ___', a:'softmax(qk^t/sqrt(d_k))v', accept:[
+    'softmax(qk^t/sqrt(d_k))v','softmax(qk^t/sqrt(dk))v','softmax((qk^t)/sqrt(d_k))v','softmax(q*k^t/sqrt(d_k))v','softmax(qkt/sqrt(d_k))v'
+  ]},
+  {prompt:'잔차 + 정규화: x ← LayerNorm(___ )', a:'x+sublayer(x)', accept:['x+sublayer(x)','x + sublayer(x)']},
+  {prompt:'FFN(x) = max(0, xW₁+b₁) ___ + b₂', a:'w_2', accept:['w2','w_2','*w2','*w_2']},
+  {prompt:'교차 엔트로피 손실 ∝ −Σ log P(___)', a:'x_{t+1}|x_1..x_t', accept:['x_t+1|x_1..x_t','x_t+1','xt+1','x_(t+1)']},
+  {prompt:'위치 인코딩 (sin 절반): PE(pos, 2i) = sin(pos / 10000^(___))', a:'2i/d_model', accept:['2i/d','2i/dmodel','2i/d_model','(2i)/d_model']},
+  {prompt:'멀티헤드: MHA(X) = Concat(head₁,…,head_h) · ___', a:'w^o', accept:['w^o','wo','w_o','*w^o']},
+  {prompt:'각 헤드: head_i = Attention(X·W_i^Q, X·W_i^K, ___)', a:'x*w_i^v', accept:['x*w_i^v','xw_i^v','x w_i^v','x·w_i^v','xw^v_i','xwiv']},
+  {prompt:'Softmax(z)_i = ___ / Σⱼ exp(zⱼ)', a:'exp(z_i)', accept:['exp(z_i)','exp(zi)','e^z_i','e^(z_i)']},
+];
+
+function normalize(s){ return s.replace(/\s+/g,'').toLowerCase().replace(/[`"']/g,''); }
+
+function buildFormula(){
+  const host = document.getElementById('formulaHost');
+  host.innerHTML = '';
+  const i = state.formulaIdx % FORMULAS.length;
+  const item = FORMULAS[i];
+  host.innerHTML = `
+    <div class="card-label">${i+1} / ${FORMULAS.length}</div>
+    <div class="practice-meta"><span>공식 · +15 XP</span><span>콤보 ×${comboMult()}</span></div>
+    <div class="practice-progress"><div class="practice-progress-bar" style="width:${(i)/FORMULAS.length*100}%"></div></div>
+    <div class="practice-q" style="font-family:'Space Mono',monospace;font-size:15px">${item.prompt.replace('___','<span class="blank">?</span>')}</div>
+    <input class="practice-input" id="fInput" autocomplete="off" placeholder="빠진 부분을 입력하세요 — 기호 사용 가능…">
+    <div class="practice-fb" id="fFb">&nbsp;</div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:space-between">
+      <button class="btn alt" id="fSkip">건너뛰기 ↻</button>
+      <button class="btn" id="fNext" disabled>다음 →</button>
+    </div>
+  `;
+  const input = document.getElementById('fInput');
+  const fb = document.getElementById('fFb');
+  const next = document.getElementById('fNext');
+  let answered = false;
+  function check(){
+    if(answered) return;
+    const v = normalize(input.value);
+    if(!v) return;
+    const accepts = (item.accept||[item.a]).map(normalize);
+    const ok = accepts.includes(v);
+    if(ok){
+      answered = true;
+      input.classList.add('right'); input.disabled = true;
+      const g = correct(15);
+      fb.textContent = `정확합니다 · +${g} XP`; fb.className = 'practice-fb ok';
+      next.disabled = false; next.focus();
+      if(state.formulaIdx >= FORMULAS.length-1) unlock('mathmaster');
+    } else {
+      wrong();
+      input.classList.add('wrong');
+      fb.textContent = '다른 표기를 시도해 보세요 — sqrt(), ^T, *, _'; fb.className='practice-fb no';
+      setTimeout(()=>input.classList.remove('wrong'), 350);
+    }
+  }
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'){ if(answered){ next.click(); } else check(); } });
+  next.addEventListener('click', ()=>{ state.formulaIdx += 1; save(); buildFormula(); });
+  document.getElementById('fSkip').addEventListener('click', ()=>{ wrong(); state.formulaIdx += 1; save(); buildFormula(); });
+  setTimeout(()=>input.focus(), 100);
+}
+
+/* ===========================
+   연습: 코드 완성 (다중 빈칸 PyTorch 어텐션)
+   =========================== */
+const CODE_BLANKS = [
+  {id:'b1', accept:['matmul','torch.matmul','@'], hint:'Q와 K^T를 곱하기'},
+  {id:'b2', accept:['transpose','t','.t'], hint:'마지막 두 차원을 뒤집기'},
+  {id:'b3', accept:['math.sqrt','sqrt','sqrt(d_k)','math.sqrt(d_k)'], hint:'스케일링 인자'},
+  {id:'b4', accept:['masked_fill','masked_fill_'], hint:'인과적 마스크 적용'},
+  {id:'b5', accept:['softmax','f.softmax','torch.softmax'], hint:'점수 → 확률'},
+  {id:'b6', accept:['matmul','torch.matmul','@'], hint:'가중치를 값에 적용'},
+];
+
+function buildCode(){
+  const host = document.getElementById('codeHost');
+  host.innerHTML = `
+    <div class="card-label">6 빈칸 · 각 +15 XP</div>
+    <div class="practice-meta"><span>PYTORCH 스케일드 닷-프로덕트 어텐션</span><span>콤보 ×${comboMult()}</span></div>
+<pre class="codeblock">
+<span class="kw">import</span> torch, math
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">def</span> <span class="fn">scaled_dot_product_attention</span>(Q, K, V, mask=<span class="kw">None</span>):
+    <span class="cm"># Q,K,V 형태: [batch, heads, seq, d_k]</span>
+    d_k = Q.size(<span class="num">-1</span>)
+    scores = torch.<input class="code-blank" data-id="b1" placeholder="?">(Q, K.<input class="code-blank" data-id="b2" placeholder="?">(<span class="num">-2</span>, <span class="num">-1</span>))
+    scores = scores / <input class="code-blank" data-id="b3" placeholder="?">(d_k)
+    <span class="kw">if</span> mask <span class="kw">is not</span> <span class="kw">None</span>:
+        scores = scores.<input class="code-blank" data-id="b4" placeholder="?">(mask == <span class="num">0</span>, <span class="num">-1e9</span>)
+    weights = F.<input class="code-blank" data-id="b5" placeholder="?">(scores, dim=<span class="num">-1</span>)
+    out = torch.<input class="code-blank" data-id="b6" placeholder="?">(weights, V)
+    <span class="kw">return</span> out, weights
+</pre>
+    <div class="practice-fb" id="cFb">&nbsp;</div>
+    <div style="margin-top:14px;display:flex;gap:8px"><button class="btn" id="cCheck">확인 ↵</button> <button class="btn alt" id="cReveal">정답 보기</button></div>
+  `;
+  const inputs = host.querySelectorAll('.code-blank');
+  const fb = document.getElementById('cFb');
+  const tabOrder = Array.from(inputs);
+  tabOrder.forEach((inp,idx)=>{
+    inp.addEventListener('keydown', e=>{
+      if(e.key==='Enter'){ e.preventDefault(); document.getElementById('cCheck').click(); }
+    });
+  });
+  document.getElementById('cCheck').addEventListener('click', ()=>{
+    let allRight = true, anyWrong = false, gained = 0;
+    inputs.forEach(inp=>{
+      const id = inp.dataset.id;
+      const target = CODE_BLANKS.find(b=>b.id===id);
+      const v = inp.value.trim().toLowerCase();
+      if(inp.classList.contains('right')) return; // already
+      if(target.accept.map(x=>x.toLowerCase()).includes(v)){
+        inp.classList.add('right'); inp.disabled = true;
+        gained += correct(15);
+      } else if(v) {
+        inp.classList.add('wrong'); allRight = false; anyWrong = true;
+        setTimeout(()=>inp.classList.remove('wrong'), 350);
+      } else {
+        allRight = false;
+      }
+    });
+    if(anyWrong) wrong();
+    if(allRight && Array.from(inputs).every(i=>i.classList.contains('right'))){
+      fb.textContent = `모든 빈칸 정답 · 총 +${gained} XP`; fb.className='practice-fb ok';
+      unlock('coder');
+    } else {
+      fb.textContent = gained ? `+${gained} XP — 나머지 계속` : '코드 아래 힌트를 확인하세요';
+      fb.className = gained ? 'practice-fb ok':'practice-fb no';
+    }
+  });
+  document.getElementById('cReveal').addEventListener('click', ()=>{
+    inputs.forEach(inp=>{
+      const t = CODE_BLANKS.find(b=>b.id===inp.dataset.id);
+      inp.value = t.accept[0]; inp.disabled = true;
+      inp.classList.add('wrong'); inp.style.opacity='.6';
+    });
+    fb.textContent = '정답 공개됨 (XP 지급 없음)'; fb.className='practice-fb no';
+  });
+}
+
+/* ===========================
+   보스 전투
+   =========================== */
+const BOSS_BANK = [
+  {q:'관련성 계산에 사용되는 행렬 — 단어를 입력하세요.', a:'query', alt:['q']},
+  {q:'점수를 확률로 변환하는 함수.', a:'softmax'},
+  {q:'Add ___ + Norm', a:'residual', alt:['x','skip']},
+  {q:'원본 트랜스포머의 서브계층 래핑: x ← LN(x + Sublayer(x)). LN 약어를 입력하세요.', a:'layernorm', alt:['layer norm','layer normalization']},
+  {q:'어텐션 스케일링 인자(텍스트): sqrt(___)', a:'d_k', alt:['dk']},
+  {q:'원본 트랜스포머는 몇 개의 헤드를 사용하나요?', a:'8', alt:['eight']},
+  {q:'인과적 마스킹은 softmax 이전에 미래 점수를 ___로 설정합니다.', a:'-inf', alt:['-infinity','minus infinity','-∞','negative infinity']},
+  {q:'Concat(head₁,…,head_h)는 어느 행렬과 곱해지나요?', a:'w^o', alt:['wo','w_o']},
+  {q:'FFN에서 은닉 너비는 보통 ___ × d_model입니다.', a:'4'},
+  {q:'GPT 스타일 아키텍처의 계열명 (한 단어).', a:'decoder', alt:['decoder-only','decoder only']},
+  {q:'다음 토큰 예측을 위한 손실 함수.', a:'cross-entropy', alt:['cross entropy','ce']},
+  {q:'원본 논문의 위치 인코딩 베이스.', a:'10000', alt:['10,000']},
+];
+
+let bossState = null;
+function startBoss(){
+  bossState = { idx:0, correct:0, wrong:0, time:90, results:[], questions:shuffle([...BOSS_BANK]).slice(0,10) };
+  bossTick();
+  bossInterval = setInterval(()=>{
+    bossState.time -= 1;
+    if(bossState.time <= 0){ endBoss(false); return; }
+    renderBoss();
+  }, 1000);
+  renderBoss();
+}
+let bossInterval = null;
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function renderBoss(){
+  const host = document.getElementById('bossArena');
+  if(!bossState) return;
+  const q = bossState.questions[bossState.idx];
+  const tcls = bossState.time <= 15 ? 'boss-timer warn' : 'boss-timer';
+  host.innerHTML = `
+    <div class="hud-sub">${bossState.idx+1} / 10 · 콤보 ×${comboMult()}</div>
+    <div class="${tcls}">${String(Math.max(0,bossState.time)).padStart(2,'0')}<span style="font-size:18px;color:var(--ink-dim)">s</span></div>
+    <div class="boss-prog" id="bossProg"></div>
+    <div class="boss-q">${q.q}</div>
+    <input class="practice-input" id="bossInput" placeholder="답 ↵" autocomplete="off">
+    <div class="practice-fb" id="bossFb">&nbsp;</div>
+  `;
+  // 진행 점
+  const prog = document.getElementById('bossProg');
+  prog.innerHTML = '';
+  for(let i=0;i<10;i++){
+    const d = document.createElement('div');
+    if(i < bossState.idx){ d.className = bossState.results[i] ? 'ok':'no'; }
+    else if(i === bossState.idx){ d.className = 'cur'; }
+    prog.appendChild(d);
+  }
+  const input = document.getElementById('bossInput');
+  setTimeout(()=>input.focus(), 30);
+  input.addEventListener('keydown', e=>{
+    if(e.key !== 'Enter') return;
+    const v = input.value.trim().toLowerCase();
+    if(!v) return;
+    const ok = v === q.a.toLowerCase() || (q.alt||[]).some(x=>x.toLowerCase()===v);
+    bossState.results.push(ok);
+    if(ok){
+      bossState.correct += 1;
+      correct(30);
+      document.getElementById('bossFb').textContent = '+30 XP';
+      document.getElementById('bossFb').className = 'practice-fb ok';
+    } else {
+      bossState.wrong += 1; wrong();
+      document.getElementById('bossFb').textContent = `오답 — 정답은 "${q.a}"`;
+      document.getElementById('bossFb').className = 'practice-fb no';
+    }
+    bossState.idx += 1;
+    if(bossState.idx >= 10){ setTimeout(()=>endBoss(true), 600); }
+    else { setTimeout(renderBoss, 350); }
+  });
+}
+function bossTick(){}
+function endBoss(finished){
+  clearInterval(bossInterval);
+  const host = document.getElementById('bossArena');
+  const score = bossState.correct;
+  const won = score >= 7;
+  if(won) unlock('boss');
+  host.innerHTML = `
+    <div class="hud-sub">${finished?'완료':'시간 종료'}</div>
+    <div class="boss-final">${score} / 10</div>
+    <div class="hud-sub">${won?'★ 승리 · 보스 슬레이어 잠금 해제':'다시 시도하세요 — 7+로 승리'}</div>
+    <div style="margin-top:24px"><button class="btn danger" onclick="startBoss()">다시 도전 ▸</button></div>
+  `;
+  bossState = null;
+}
+document.getElementById('bossStart').addEventListener('click', startBoss);
+
+/* ===========================
+   부팅
+   =========================== */
+load();
+renderHUD();
+buildVocab();
+buildFormula();
+buildCode();
+drawPos();
+
+// 키보드 단축키: g+숫자로 점프 (선택적 편의 기능)
+let gkey = false;
+addEventListener('keydown', e=>{
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if(e.key === 'g'){ gkey = true; setTimeout(()=>gkey=false, 800); return; }
+  if(gkey){
+    const map = {'1':'why','2':'tok','3':'pos','4':'attn','5':'multi','6':'ffn','7':'encdec','8':'train','v':'vocab','f':'formula','c':'code','b':'boss'};
+    if(map[e.key]) go(map[e.key]);
+  }
+});
+</script>
+
+</body>
+</html>

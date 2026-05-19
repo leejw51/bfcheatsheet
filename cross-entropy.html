@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cross-Entropy Dojo — Learn the Loss Behind LLMs</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg-0: #0b0d12;
+    --bg-1: #11141c;
+    --bg-2: #181c27;
+    --bg-3: #232838;
+    --ink-0: #f4f6fb;
+    --ink-1: #c8cdda;
+    --ink-2: #8b93a7;
+    --ink-3: #555c70;
+    --accent: #ff5a8a;
+    --accent-2: #ffb347;
+    --accent-3: #5ee8c2;
+    --accent-4: #7c8cff;
+    --good: #34d399;
+    --bad: #ff5a6e;
+    --warn: #ffd166;
+    --line: rgba(255,255,255,0.08);
+    --shadow: 0 12px 48px rgba(0,0,0,0.45);
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: 'Inter', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: radial-gradient(1200px 700px at 80% -10%, rgba(255,90,138,0.10), transparent 60%),
+                radial-gradient(900px 600px at -10% 30%, rgba(124,140,255,0.10), transparent 60%),
+                var(--bg-0);
+    color: var(--ink-0);
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  a { color: var(--accent-4); }
+  /* HUD */
+  .hud {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(11,13,18,0.7);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 22px;
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  }
+  .hud .brand {
+    font-weight: 800; letter-spacing: 0.5px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-size: 18px;
+  }
+  .hud .stat {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 13px;
+  }
+  .hud .stat b { color: var(--accent-2); }
+  .hud .stat.combo b { color: var(--accent-3); }
+  .hud .stat.lvl b { color: var(--accent-4); }
+  .hud .xpbar {
+    flex: 1; min-width: 160px; height: 8px;
+    background: var(--bg-3); border-radius: 999px; overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .hud .xpbar > div {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.4s cubic-bezier(.2,.8,.2,1);
+  }
+  .hud .reset {
+    background: transparent; color: var(--ink-2);
+    border: 1px solid var(--line); padding: 6px 12px;
+    border-radius: 999px; cursor: pointer; font-size: 12px;
+  }
+  .hud .reset:hover { color: var(--bad); border-color: var(--bad); }
+
+  /* Hero */
+  .hero {
+    padding: 60px 24px 30px; max-width: 1100px; margin: 0 auto;
+    text-align: center;
+  }
+  .hero h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    margin: 0 0 12px; line-height: 1.05;
+    background: linear-gradient(120deg, #fff, var(--accent) 50%, var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    letter-spacing: -1.5px;
+  }
+  .hero p { color: var(--ink-1); max-width: 680px; margin: 0 auto; font-size: 17px; }
+  .hero .tag {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    background: var(--bg-2); border: 1px solid var(--line);
+    color: var(--ink-2); font-family: var(--mono); font-size: 12px;
+    margin-bottom: 18px;
+  }
+
+  /* Layout */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+  section.card {
+    background: linear-gradient(180deg, var(--bg-1), var(--bg-2));
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 28px 30px;
+    margin: 26px 0;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  section.card::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3), var(--accent-4));
+    opacity: 0.6;
+  }
+  section.card h2 {
+    margin: 0 0 8px; font-size: 22px; letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  section.card h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 10px;
+    background: var(--bg-3); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 14px; color: var(--accent-2);
+  }
+  section.card h3 { font-size: 16px; color: var(--ink-1); margin: 18px 0 6px; }
+  section.card p { color: var(--ink-1); }
+  section.card .lead { color: var(--ink-2); font-size: 14px; margin-top: 0; }
+
+  code, .mono { font-family: var(--mono); }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    background: var(--bg-3); border: 1px solid var(--line);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-1);
+  }
+  .grid {
+    display: grid; gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  }
+  .panel {
+    background: var(--bg-3); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px;
+  }
+  .panel.tight { padding: 12px 14px; }
+
+  /* Sliders */
+  .slider-row { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
+  .slider-row label { min-width: 72px; font-family: var(--mono); font-size: 13px; color: var(--ink-2); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    flex: 1; height: 6px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--ink-0); border: 2px solid var(--accent);
+    cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--ink-0); border: 2px solid var(--accent); cursor: pointer;
+  }
+  .val { font-family: var(--mono); font-size: 13px; min-width: 60px; text-align: right; color: var(--accent-2); }
+
+  /* Canvas */
+  canvas.plot { width: 100%; max-width: 100%; display: block; border-radius: 10px; background: var(--bg-1); }
+
+  /* Practice */
+  .practice-card {
+    background: linear-gradient(160deg, rgba(255,90,138,0.08), rgba(124,140,255,0.05));
+    border: 1px solid var(--accent);
+  }
+  .drill {
+    background: var(--bg-3); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px; margin-bottom: 14px;
+    transition: all 0.25s;
+  }
+  .drill.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,90,138,0.18); }
+  .drill .q { font-size: 15px; color: var(--ink-0); margin-bottom: 8px; }
+  .drill .meta { font-size: 12px; color: var(--ink-2); font-family: var(--mono); margin-bottom: 10px; }
+  .drill input[type=text] {
+    width: 100%; padding: 10px 14px;
+    background: var(--bg-1); color: var(--ink-0);
+    border: 1px solid var(--line); border-radius: 8px;
+    font-family: var(--mono); font-size: 14px;
+    outline: none; transition: border 0.2s;
+  }
+  .drill input[type=text]:focus { border-color: var(--accent); }
+  .drill input[type=text].correct { border-color: var(--good); background: rgba(52,211,153,0.1); }
+  .drill input[type=text].wrong { border-color: var(--bad); background: rgba(255,90,110,0.1); }
+  .drill .feedback { font-size: 13px; margin-top: 8px; min-height: 18px; }
+  .drill .feedback.good { color: var(--good); }
+  .drill .feedback.bad { color: var(--bad); }
+  .drill .preview {
+    margin-top: 8px; padding: 8px 12px;
+    background: var(--bg-1); border: 1px dashed var(--line);
+    border-radius: 8px; min-height: 30px;
+  }
+  .drill button.check {
+    margin-top: 8px; padding: 8px 16px;
+    background: var(--accent); color: white; border: none;
+    border-radius: 8px; font-weight: 600; cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .drill button.check:hover { transform: translateY(-1px); }
+  .drill button.check:active { transform: translateY(1px); }
+  .drill .hint {
+    font-size: 12px; color: var(--ink-3); margin-top: 6px;
+    cursor: pointer; user-select: none;
+  }
+  .drill .hint:hover { color: var(--accent-3); }
+
+  /* Achievements */
+  .ach-grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  }
+  .ach {
+    padding: 12px; border-radius: 12px;
+    background: var(--bg-3); border: 1px solid var(--line);
+    opacity: 0.45; transition: all 0.3s;
+  }
+  .ach.unlocked {
+    opacity: 1; border-color: var(--accent-2);
+    background: linear-gradient(135deg, rgba(255,179,71,0.15), rgba(255,90,138,0.08));
+    box-shadow: 0 0 0 1px rgba(255,179,71,0.35);
+  }
+  .ach .icon { font-size: 20px; margin-bottom: 4px; }
+  .ach .name { font-weight: 600; font-size: 13px; }
+  .ach .desc { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
+
+  /* Animations */
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+  .shake { animation: shake 0.4s; }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+  .pop { animation: pop 0.35s; }
+
+  /* Confetti */
+  .confetti {
+    position: fixed; pointer-events: none; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 100; overflow: hidden;
+  }
+  .confetti span {
+    position: absolute; width: 8px; height: 14px; opacity: 0.95;
+    animation: fall 1.4s linear forwards;
+  }
+  @keyframes fall {
+    0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 14px 22px; border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white; font-weight: 600; box-shadow: var(--shadow);
+    z-index: 200; animation: toast-in 0.4s, toast-out 0.4s 2.4s forwards;
+  }
+  @keyframes toast-in { from { transform: translate(-50%, 60px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+  @keyframes toast-out { to { transform: translate(-50%, 60px); opacity: 0; } }
+
+  /* Distribution editor */
+  .dist-row {
+    display: grid;
+    grid-template-columns: 30px 1fr 60px 28px;
+    gap: 10px; align-items: center; margin: 6px 0;
+    font-family: var(--mono); font-size: 13px;
+  }
+  .dist-bar {
+    height: 22px; background: var(--bg-1);
+    border: 1px solid var(--line); border-radius: 6px;
+    position: relative; overflow: hidden;
+  }
+  .dist-bar > div {
+    height: 100%; transition: width 0.2s;
+    background: linear-gradient(90deg, var(--accent-4), var(--accent-3));
+  }
+  .dist-row input[type=radio] { accent-color: var(--accent); }
+  .dist-row.true-class .dist-bar > div { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+
+  /* Boss */
+  .boss-card {
+    background: linear-gradient(160deg, rgba(255,90,138,0.18), rgba(124,140,255,0.10));
+    border: 1px solid var(--accent);
+  }
+  .boss-timer {
+    display: inline-block; padding: 6px 14px; border-radius: 999px;
+    background: var(--bg-1); border: 1px solid var(--accent);
+    font-family: var(--mono); font-size: 16px; font-weight: 700;
+    color: var(--accent-2);
+  }
+  .boss-hp {
+    height: 14px; background: var(--bg-1);
+    border: 1px solid var(--line); border-radius: 999px;
+    overflow: hidden; margin: 12px 0;
+  }
+  .boss-hp > div {
+    height: 100%; width: 100%;
+    background: linear-gradient(90deg, var(--bad), var(--accent), var(--accent-2));
+    transition: width 0.4s;
+  }
+  .boss-card button {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white; border: none; padding: 10px 22px;
+    border-radius: 10px; font-weight: 700; cursor: pointer;
+    font-size: 14px; box-shadow: var(--shadow);
+  }
+  .boss-card button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Footer */
+  footer {
+    text-align: center; padding: 40px 20px;
+    color: var(--ink-3); font-size: 13px;
+  }
+  footer .heart { color: var(--accent); }
+
+  /* Misc */
+  .kbd {
+    display: inline-block; padding: 2px 6px; font-family: var(--mono); font-size: 11px;
+    background: var(--bg-3); border: 1px solid var(--line); border-radius: 4px;
+    color: var(--ink-1);
+  }
+  .callout {
+    border-left: 3px solid var(--accent-2);
+    padding: 8px 14px; margin: 12px 0;
+    background: rgba(255,179,71,0.06); border-radius: 0 8px 8px 0;
+    color: var(--ink-1); font-size: 14px;
+  }
+  .ok { color: var(--good); }
+  .err { color: var(--bad); }
+  .num-readout {
+    font-family: var(--mono); font-size: 28px;
+    color: var(--accent-2); font-weight: 700;
+    text-shadow: 0 0 18px rgba(255,179,71,0.35);
+  }
+</style>
+</head>
+<body>
+
+<div class="hud">
+  <div class="brand">CE Dojo</div>
+  <div class="stat lvl">LVL <b id="hud-level">1</b></div>
+  <div class="stat">XP <b id="hud-xp">0</b></div>
+  <div class="stat combo">Combo <b id="hud-combo">0</b></div>
+  <div class="stat">Solved <b id="hud-solved">0</b></div>
+  <div class="xpbar"><div id="xp-fill"></div></div>
+  <button class="reset" id="btn-reset" title="Reset all progress">reset</button>
+</div>
+
+<div class="hero">
+  <span class="tag">9 sections · 18 typing drills · 1 boss fight</span>
+  <h1>Cross-Entropy, Demystified</h1>
+  <p>The loss function quietly powering every transformer language model. Drag sliders, type formulas, fight a boss, and walk away knowing why <code>F.cross_entropy</code> is what it is.</p>
+</div>
+
+<div class="container">
+
+<!-- 1. Information theory roots -->
+<section class="card">
+  <h2><span class="num">1</span> Information Theory Roots</h2>
+  <p class="lead">Where does cross-entropy come from? Three quantities, one story.</p>
+
+  <h3>Entropy — surprise, on average</h3>
+  <p>Shannon's entropy of a distribution $p$ measures the expected number of bits (or nats, depending on the log base) needed to describe an outcome:</p>
+  <p>$$ H(p) = -\sum_{x} p(x) \log p(x) $$</p>
+  <p>Coin flip with $p=0.5$: maximally uncertain, $H = 1$ bit. A loaded coin with $p=0.99$: nearly no surprise, $H \approx 0.08$ bit.</p>
+
+  <h3>KL divergence — the "extra cost" of being wrong</h3>
+  <p>If reality is $p$ but you encode using model $q$, you pay extra. That extra is the Kullback-Leibler divergence:</p>
+  <p>$$ \mathrm{KL}(p \,\|\, q) = \sum_x p(x) \log \frac{p(x)}{q(x)} \ \geq\ 0 $$</p>
+
+  <h3>Cross-entropy = entropy + KL</h3>
+  <p>$$ H(p, q) = -\sum_x p(x) \log q(x) = H(p) + \mathrm{KL}(p \,\|\, q) $$</p>
+  <p>Since $H(p)$ is fixed by the data, minimizing cross-entropy with respect to $q$ is exactly the same as minimizing $\mathrm{KL}(p \,\|\, q)$. That is why we can train models on $H(p,q)$ and still claim we are matching the data distribution.</p>
+  <div class="callout">Take-away: cross-entropy is the <i>price</i> a model pays for its imperfect beliefs, in the units the data demands.</div>
+</section>
+
+<!-- 2. The formula -->
+<section class="card">
+  <h2><span class="num">2</span> The Formula</h2>
+  <p>$$ H(p, q) = -\sum_{x} p(x) \log q(x) $$</p>
+  <p>In supervised classification the target $p$ is usually <b>one-hot</b>: $p(y) = 1$ for the true class $y$, $0$ everywhere else. The sum collapses:</p>
+  <p>$$ H(p, q) = -\log q(y) $$</p>
+  <p>This is the <b>negative log-likelihood</b> (NLL) of the true class. If your model says "the right answer has probability 0.9", loss is $-\log 0.9 \approx 0.105$. If it says 0.01, loss is $\approx 4.6$. Confidence is rewarded; ignorance is punished — gently if you're not too sure, harshly if you're confidently wrong.</p>
+</section>
+
+<!-- 3. Probability slider -->
+<section class="card">
+  <h2><span class="num">3</span> Intuition: The Pain Curve</h2>
+  <p class="lead">Drag the predicted probability for the <b>true class</b> and watch what happens. The model is being graded.</p>
+  <div class="grid">
+    <div class="panel">
+      <div class="slider-row">
+        <label>q(true)</label>
+        <input type="range" min="0.001" max="1" step="0.001" value="0.7" id="single-slider">
+        <span class="val" id="single-val">0.700</span>
+      </div>
+      <p style="margin-top:14px">Loss $= -\log q(y) = $ <span class="num-readout" id="single-loss">0.357</span></p>
+      <div id="single-formula" style="margin-top:6px;font-family:var(--mono);font-size:13px;color:var(--ink-2)"></div>
+      <div class="callout" id="single-caption">Decent guess. Keep pushing toward 1.</div>
+    </div>
+    <div class="panel">
+      <canvas class="plot" id="loss-canvas" width="600" height="320"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- 4. Why log -->
+<section class="card">
+  <h2><span class="num">4</span> Why a Logarithm?</h2>
+  <p>Two reasons.</p>
+  <p><b>Likelihood multiplies; loss should add.</b> Across $N$ independent examples the joint likelihood is $\prod_i q_i(y_i)$. Taking $-\log$ turns a product into a sum, so total loss is the per-example losses added up — exactly what we want for SGD.</p>
+  <p>$$ -\log \prod_i q_i(y_i) = \sum_i -\log q_i(y_i) $$</p>
+  <p><b>Maximum likelihood, dressed differently.</b> Minimizing average $-\log q(y)$ is the same as maximizing $\log$-likelihood, which is the same as maximizing likelihood. So cross-entropy training is just MLE in a tuxedo.</p>
+  <p><b>Bonus:</b> $-\log$ is convex, blows up only at $q = 0$, and saturates gently as $q \to 1$. The gradient stays meaningful exactly where you want it: when the model is wrong.</p>
+</section>
+
+<!-- 5. softmax + NLL -->
+<section class="card">
+  <h2><span class="num">5</span> Softmax + NLL = Cross-Entropy</h2>
+  <p>Models output unnormalized scores ("logits") $z \in \mathbb{R}^K$. We turn them into a distribution with softmax:</p>
+  <p>$$ q_i = \mathrm{softmax}(z)_i = \frac{e^{z_i}}{\sum_j e^{z_j}} $$</p>
+  <p>Then plug into NLL: $L = -\log q_y$. Naively this is two steps and numerically dangerous (the $e^{z_i}$ can overflow). The trick is <b>log-softmax</b> with the max-shift:</p>
+  <p>$$ \log q_i = z_i - \max_k z_k - \log \sum_j e^{z_j - \max_k z_k} $$</p>
+  <p>So <code>F.cross_entropy(logits, target)</code> in PyTorch and <code>tf.nn.sparse_softmax_cross_entropy_with_logits</code> in TF accept <i>logits</i> directly — they fuse log-softmax and NLL for stability and speed. Calling softmax yourself first and then NLL is a common bug that quietly worsens training.</p>
+  <pre style="background:var(--bg-1);padding:14px;border-radius:8px;border:1px solid var(--line);overflow-x:auto;font-size:13px"><code># PyTorch
+loss = F.cross_entropy(logits, target)   # logits, not probs!
+
+# Manual (don't ship this, it's just for clarity)
+log_probs = F.log_softmax(logits, dim=-1)
+loss = -log_probs.gather(-1, target.unsqueeze(-1)).mean()</code></pre>
+</section>
+
+<!-- 6. Distribution editor + LM context -->
+<section class="card">
+  <h2><span class="num">6</span> Per-Token CE in Language Modeling</h2>
+  <p class="lead">A transformer LM is a giant K-way classifier (K = vocab size) repeated at every position.</p>
+  <p>For a sequence $x_1, \dots, x_T$ the next-token loss averaged across positions and the batch is:</p>
+  <p>$$ \mathcal{L} = \frac{1}{B \cdot T} \sum_{b=1}^{B} \sum_{t=1}^{T} -\log q_\theta(x^{(b)}_{t} \mid x^{(b)}_{<t}) $$</p>
+  <p>That is what training scripts log as <code>train/loss</code>. Lower is better, but never reaches 0 — language has irreducible entropy.</p>
+
+  <h3>Distribution editor — try it</h3>
+  <p>Pick the true class, then move the predicted probability sliders. Sliders auto-renormalize so they sum to 1.</p>
+  <div class="panel" id="dist-panel">
+    <div class="dist-row" data-i="0">
+      <label><input type="radio" name="true-class" value="0"> 0</label>
+      <input type="range" min="0.001" max="1" step="0.001" value="0.25">
+      <span class="val">0.250</span>
+      <span></span>
+    </div>
+    <div class="dist-row" data-i="1">
+      <label><input type="radio" name="true-class" value="1" checked> 1</label>
+      <input type="range" min="0.001" max="1" step="0.001" value="0.25">
+      <span class="val">0.250</span>
+      <span></span>
+    </div>
+    <div class="dist-row" data-i="2">
+      <label><input type="radio" name="true-class" value="2"> 2</label>
+      <input type="range" min="0.001" max="1" step="0.001" value="0.25">
+      <span class="val">0.250</span>
+      <span></span>
+    </div>
+    <div class="dist-row" data-i="3">
+      <label><input type="radio" name="true-class" value="3"> 3</label>
+      <input type="range" min="0.001" max="1" step="0.001" value="0.25">
+      <span class="val">0.250</span>
+      <span></span>
+    </div>
+    <p style="margin-top:14px">Loss $=$ <span class="num-readout" id="dist-loss">1.386</span> &nbsp; <span style="color:var(--ink-2);font-size:13px" id="dist-detail"></span></p>
+  </div>
+</section>
+
+<!-- 7. Gradient -->
+<section class="card">
+  <h2><span class="num">7</span> The Gradient: Beautifully Simple</h2>
+  <p>The reason softmax + cross-entropy is so popular is the gradient. Let $z$ be the logits, $q = \mathrm{softmax}(z)$, and $y$ the one-hot target. Then:</p>
+  <p>$$ \frac{\partial L}{\partial z_i} = q_i - y_i $$</p>
+  <h3>Derivation</h3>
+  <p>$L = -\sum_k y_k \log q_k$. Using $\partial q_k / \partial z_i = q_k(\delta_{ki} - q_i)$:</p>
+  <p>$$ \frac{\partial L}{\partial z_i} = -\sum_k y_k \frac{1}{q_k} \cdot q_k(\delta_{ki} - q_i) = -\sum_k y_k(\delta_{ki} - q_i) = q_i \sum_k y_k - y_i = q_i - y_i $$</p>
+  <p>The gradient is just <i>prediction minus target</i>. Sparse, well-scaled, and the same form whether the target is one-hot or a soft distribution.</p>
+</section>
+
+<!-- 8. Label smoothing -->
+<section class="card">
+  <h2><span class="num">8</span> Label Smoothing</h2>
+  <p class="lead">Instead of betting everything on one class, leave a sliver of probability mass on the others.</p>
+  <p>For smoothing factor $\varepsilon$ and $K$ classes:</p>
+  <p>$$ \tilde p_k = (1 - \varepsilon)\, y_k + \frac{\varepsilon}{K} $$</p>
+  <p>This prevents the model from becoming overconfident, improves calibration, and tends to help generalization. The loss is computed against the smoothed target, not one-hot.</p>
+  <div class="panel">
+    <div class="slider-row">
+      <label>ε</label>
+      <input type="range" min="0" max="0.5" step="0.005" value="0.1" id="ls-slider">
+      <span class="val" id="ls-val">0.100</span>
+    </div>
+    <p style="margin-top:8px;font-family:var(--mono);font-size:13px;color:var(--ink-1)" id="ls-target"></p>
+    <p>Loss against true class 0, model puts $q = [0.7, 0.1, 0.1, 0.1]$:&nbsp;<span class="num-readout" id="ls-loss"></span></p>
+  </div>
+</section>
+
+<!-- 9. Perplexity -->
+<section class="card">
+  <h2><span class="num">9</span> Cross-Entropy ↔ Perplexity</h2>
+  <p>Language model people love to quote perplexity. It is just cross-entropy in pretty clothes:</p>
+  <p>$$ \mathrm{PPL} = \exp\bigl( \overline{H}(p, q) \bigr) $$</p>
+  <p>Where $\overline{H}$ is the mean per-token cross-entropy. A perplexity of 9.97 means the model is "as confused as if it were uniformly choosing among ~10 words at every step". A 1.0 perplexity is impossible-good; a vocab-size perplexity is random-uniform.</p>
+  <div class="panel">
+    <div class="slider-row">
+      <label>mean CE</label>
+      <input type="range" min="0" max="10" step="0.01" value="2.3" id="ppl-slider">
+      <span class="val" id="ppl-val">2.30</span>
+    </div>
+    <p style="margin-top:8px">Perplexity $=$ <span class="num-readout" id="ppl-out">9.97</span></p>
+  </div>
+</section>
+
+<!-- PRACTICE MODE -->
+<section class="card practice-card">
+  <h2><span class="num">P</span> Practice Mode — Type to Earn XP</h2>
+  <p class="lead">18 drills. Type your answer and press <span class="kbd">Enter</span> or click Check. Numerical answers are accepted within tolerance. Streaks grant combo XP.</p>
+  <div id="drills"></div>
+</section>
+
+<!-- BOSS -->
+<section class="card boss-card">
+  <h2><span class="num">B</span> Loss Boss — Final Round</h2>
+  <p class="lead">You have 60 seconds. The boss has 5 HP. Each correct CE/perplexity computation deals 1 damage. Wrong answers cost 5 seconds.</p>
+  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <span class="boss-timer" id="boss-timer">60.0s</span>
+    <span class="pill">HP <span id="boss-hp-num">5</span>/5</span>
+    <button id="boss-start">Engage</button>
+  </div>
+  <div class="boss-hp"><div id="boss-hp-bar"></div></div>
+  <div class="drill" id="boss-drill" style="display:none">
+    <div class="q" id="boss-q"></div>
+    <input type="text" id="boss-input" placeholder="answer">
+    <div class="feedback" id="boss-fb"></div>
+  </div>
+  <div id="boss-result" style="margin-top:8px;font-weight:600"></div>
+</section>
+
+<!-- ACHIEVEMENTS -->
+<section class="card">
+  <h2><span class="num">A</span> Achievements</h2>
+  <div class="ach-grid" id="ach-grid"></div>
+</section>
+
+</div>
+
+<footer>
+  Built for late-night gradient meditation. <span class="heart">♥</span> &nbsp;Tip: every transformer you've ever loved was minimized this way.
+</footer>
+
+<script>
+/* =========================================================================
+   STATE
+========================================================================= */
+const STATE_KEY = 'ce-dojo-v1';
+const DEFAULT_STATE = {
+  xp: 0,
+  level: 1,
+  combo: 0,
+  bestCombo: 0,
+  solved: 0,
+  drillsDone: {},          // id -> true
+  achievements: {},        // id -> true
+  bossWon: false,
+  bossBestTime: null,
+};
+let state = loadState();
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STATE_KEY);
+    if (!raw) return {...DEFAULT_STATE};
+    return {...DEFAULT_STATE, ...JSON.parse(raw)};
+  } catch { return {...DEFAULT_STATE}; }
+}
+function saveState() {
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch {}
+}
+
+/* =========================================================================
+   ACHIEVEMENTS
+========================================================================= */
+const ACHIEVEMENTS = [
+  {id:'first',         icon:'🎯', name:'First Blood',          desc:'Solve your first drill'},
+  {id:'streak3',       icon:'🔥', name:'Heating Up',           desc:'3-combo streak'},
+  {id:'streak7',       icon:'⚡', name:'On Fire',              desc:'7-combo streak'},
+  {id:'entropy',       icon:'📚', name:'Entropy Explorer',     desc:'Solve all info-theory drills'},
+  {id:'gradient',      icon:'🧮', name:'Gradient Guru',        desc:'Nail the gradient drill'},
+  {id:'perplex',       icon:'🌀', name:'Perplexity Pro',       desc:'Solve a perplexity drill'},
+  {id:'formula',       icon:'✍️', name:'Formula Scribe',       desc:'Type a CE formula correctly'},
+  {id:'softmax',       icon:'🥞', name:'Softmax Sensei',       desc:'Compute softmax+CE end-to-end'},
+  {id:'half',          icon:'🚀', name:'Halfway Hero',         desc:'Finish 9 drills'},
+  {id:'allDrills',     icon:'👑', name:'Drill Sergeant',       desc:'Finish every drill'},
+  {id:'boss',          icon:'🐉', name:'Boss Slayer',          desc:'Defeat the Loss Boss'},
+  {id:'lvl5',          icon:'🌟', name:'Level 5',              desc:'Reach level 5'},
+];
+
+/* =========================================================================
+   HUD
+========================================================================= */
+const xpForLevel = (lvl) => 20 * lvl + 10 * lvl * (lvl - 1); // accelerating
+function renderHUD() {
+  document.getElementById('hud-xp').textContent = state.xp;
+  document.getElementById('hud-level').textContent = state.level;
+  document.getElementById('hud-combo').textContent = state.combo;
+  document.getElementById('hud-solved').textContent = state.solved;
+  const cur = xpForLevel(state.level);
+  const next = xpForLevel(state.level + 1);
+  const pct = Math.min(100, Math.max(0, ((state.xp - cur) / (next - cur)) * 100));
+  document.getElementById('xp-fill').style.width = pct + '%';
+}
+
+function awardXP(n) {
+  state.xp += n;
+  while (state.xp >= xpForLevel(state.level + 1)) {
+    state.level += 1;
+    toast(`Level up! → LVL ${state.level}`);
+    if (state.level >= 5) unlock('lvl5');
+  }
+  renderHUD(); saveState();
+}
+
+function unlock(id) {
+  if (state.achievements[id]) return;
+  state.achievements[id] = true;
+  const a = ACHIEVEMENTS.find(x => x.id === id);
+  toast(`${a.icon} ${a.name} unlocked`);
+  renderAchievements(); saveState();
+}
+
+function renderAchievements() {
+  const grid = document.getElementById('ach-grid');
+  grid.innerHTML = '';
+  for (const a of ACHIEVEMENTS) {
+    const div = document.createElement('div');
+    div.className = 'ach' + (state.achievements[a.id] ? ' unlocked' : '');
+    div.innerHTML = `<div class="icon">${a.icon}</div><div class="name">${a.name}</div><div class="desc">${a.desc}</div>`;
+    grid.appendChild(div);
+  }
+}
+
+/* =========================================================================
+   FX
+========================================================================= */
+function confetti() {
+  const colors = ['#ff5a8a','#ffb347','#5ee8c2','#7c8cff','#ffd166','#34d399'];
+  const c = document.createElement('div');
+  c.className = 'confetti';
+  for (let i = 0; i < 60; i++) {
+    const s = document.createElement('span');
+    s.style.left = (Math.random()*100)+'vw';
+    s.style.background = colors[i % colors.length];
+    s.style.animationDelay = (Math.random()*0.3)+'s';
+    s.style.animationDuration = (1 + Math.random()*0.8)+'s';
+    c.appendChild(s);
+  }
+  document.body.appendChild(c);
+  setTimeout(() => c.remove(), 2200);
+}
+function shake(el) { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
+function pop(el) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+function toast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+/* =========================================================================
+   MATH HELPERS
+========================================================================= */
+const ln = Math.log;
+function ce(p, q) {
+  let s = 0;
+  for (let i = 0; i < p.length; i++) {
+    if (p[i] > 0) s -= p[i] * ln(Math.max(q[i], 1e-12));
+  }
+  return s;
+}
+function softmax(z) {
+  const m = Math.max(...z);
+  const ex = z.map(v => Math.exp(v - m));
+  const s = ex.reduce((a,b)=>a+b, 0);
+  return ex.map(v => v / s);
+}
+function approxEq(a, b, tol=0.01) { return Math.abs(a - b) <= tol; }
+
+/* =========================================================================
+   SECTION 3: probability slider + loss curve
+========================================================================= */
+const singleSlider = document.getElementById('single-slider');
+const singleVal = document.getElementById('single-val');
+const singleLoss = document.getElementById('single-loss');
+const singleFormula = document.getElementById('single-formula');
+const singleCaption = document.getElementById('single-caption');
+const lossCanvas = document.getElementById('loss-canvas');
+
+function captionFor(q) {
+  if (q > 0.95) return 'Almost certain. Loss near zero — model is confident and correct.';
+  if (q > 0.7)  return 'Good guess. Loss is shrinking nicely.';
+  if (q > 0.3)  return 'Lukewarm. Plenty of gradient signal here.';
+  if (q > 0.05) return 'Wrong-ish. Loss is climbing fast.';
+  return 'Confidently wrong — loss explodes toward infinity. Painful.';
+}
+
+function drawLossCurve(highlightQ) {
+  const ctx = lossCanvas.getContext('2d');
+  const W = lossCanvas.width, H = lossCanvas.height;
+  ctx.clearRect(0,0,W,H);
+  // bg grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 10; i++) {
+    const x = 40 + i * (W-60)/10;
+    ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x, H-30); ctx.stroke();
+  }
+  for (let i = 0; i <= 5; i++) {
+    const y = 20 + i * (H-50)/5;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(W-20, y); ctx.stroke();
+  }
+  // axes labels
+  ctx.fillStyle = '#8b93a7'; ctx.font = '11px JetBrains Mono, monospace';
+  ctx.fillText('q(true)', W-50, H-10);
+  ctx.fillText('loss', 8, 20);
+  for (let i = 0; i <= 5; i++) {
+    const v = 5 - i;
+    ctx.fillText(v.toFixed(0), 18, 24 + i * (H-50)/5);
+  }
+  for (let i = 0; i <= 10; i+=2) {
+    ctx.fillText((i/10).toFixed(1), 32 + i * (W-60)/10, H-12);
+  }
+
+  // curve
+  const grad = ctx.createLinearGradient(0, 20, 0, H-30);
+  grad.addColorStop(0, '#ff5a8a');
+  grad.addColorStop(1, '#ffb347');
+  ctx.strokeStyle = grad; ctx.lineWidth = 3;
+  ctx.beginPath();
+  let first = true;
+  for (let q = 0.005; q <= 1.0001; q += 0.005) {
+    const loss = -ln(q);
+    if (loss > 5.5) continue;
+    const x = 40 + q * (W-60);
+    const y = 20 + (5 - loss) * (H-50)/5;
+    if (first) { ctx.moveTo(x, y); first = false; }
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // highlight point
+  if (highlightQ !== undefined) {
+    const loss = Math.min(5.5, -ln(Math.max(highlightQ, 0.001)));
+    const x = 40 + highlightQ * (W-60);
+    const y = 20 + (5 - loss) * (H-50)/5;
+    // vertical guide
+    ctx.strokeStyle = 'rgba(94,232,194,0.4)';
+    ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x, H-30); ctx.stroke();
+    ctx.setLineDash([]);
+    // dot
+    ctx.fillStyle = '#5ee8c2';
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#0b0d12'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.stroke();
+  }
+}
+
+function updateSingle() {
+  const q = parseFloat(singleSlider.value);
+  const loss = -ln(q);
+  singleVal.textContent = q.toFixed(3);
+  singleLoss.textContent = loss.toFixed(3);
+  pop(singleLoss);
+  if (window.katex) {
+    katex.render(`-\\log(${q.toFixed(3)}) = ${loss.toFixed(3)}`,
+                 singleFormula, {throwOnError:false});
+  }
+  singleCaption.textContent = captionFor(q);
+  drawLossCurve(q);
+}
+singleSlider.addEventListener('input', updateSingle);
+window.addEventListener('load', () => setTimeout(updateSingle, 100));
+
+/* =========================================================================
+   SECTION 6: distribution editor
+========================================================================= */
+const distRows = document.querySelectorAll('#dist-panel .dist-row');
+const distLossEl = document.getElementById('dist-loss');
+const distDetail = document.getElementById('dist-detail');
+
+function renormalizeDist(except) {
+  const inputs = Array.from(distRows).map(r => r.querySelector('input[type=range]'));
+  const vals = inputs.map(i => parseFloat(i.value));
+  const sumOthers = vals.reduce((a,b,i) => i===except ? a : a + b, 0);
+  const target = 1 - vals[except];
+  if (sumOthers <= 0) {
+    inputs.forEach((inp, i) => { if (i !== except) inp.value = (target/3).toFixed(3); });
+  } else {
+    inputs.forEach((inp, i) => {
+      if (i !== except) inp.value = (vals[i] * (target / sumOthers)).toFixed(3);
+    });
+  }
+  return inputs.map(i => parseFloat(i.value));
+}
+
+function updateDist(changed) {
+  const inputs = Array.from(distRows).map(r => r.querySelector('input[type=range]'));
+  const vals = changed === undefined ? inputs.map(i => parseFloat(i.value)) : renormalizeDist(changed);
+
+  // ensure they sum to 1
+  const s = vals.reduce((a,b)=>a+b, 0);
+  const norm = vals.map(v => v / s);
+
+  const trueIdx = parseInt(document.querySelector('input[name=true-class]:checked').value);
+  distRows.forEach((row, i) => {
+    const v = norm[i];
+    row.querySelector('.val').textContent = v.toFixed(3);
+    let bar = row.querySelector('.dist-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'dist-bar';
+      bar.innerHTML = '<div></div>';
+      row.children[1].replaceWith(bar);
+    }
+    bar.firstElementChild.style.width = (v*100) + '%';
+    if (i === trueIdx) row.classList.add('true-class'); else row.classList.remove('true-class');
+  });
+  const loss = -ln(Math.max(norm[trueIdx], 1e-12));
+  distLossEl.textContent = loss.toFixed(3);
+  pop(distLossEl);
+  distDetail.textContent = `q[true] = ${norm[trueIdx].toFixed(3)}, − log q[true] = ${loss.toFixed(3)}`;
+}
+// Replace the bar UI by attaching dist-bar after sliders
+distRows.forEach((row, i) => {
+  const slider = row.querySelector('input[type=range]');
+  // Insert a visual bar next to slider but keep slider for control
+  const wrapper = document.createElement('div');
+  wrapper.style.display = 'flex'; wrapper.style.flexDirection = 'column'; wrapper.style.gap = '4px';
+  const bar = document.createElement('div');
+  bar.className = 'dist-bar';
+  bar.innerHTML = '<div></div>';
+  slider.parentNode.insertBefore(bar, slider);
+  // but we still want renormalization - hook input events
+  slider.addEventListener('input', () => updateDist(i));
+});
+document.querySelectorAll('input[name=true-class]').forEach(r =>
+  r.addEventListener('change', () => updateDist()));
+window.addEventListener('load', () => setTimeout(() => updateDist(), 120));
+
+/* =========================================================================
+   SECTION 8: label smoothing
+========================================================================= */
+const lsSlider = document.getElementById('ls-slider');
+const lsVal = document.getElementById('ls-val');
+const lsLoss = document.getElementById('ls-loss');
+const lsTarget = document.getElementById('ls-target');
+
+function updateLS() {
+  const eps = parseFloat(lsSlider.value);
+  const K = 4;
+  const q = [0.7, 0.1, 0.1, 0.1];
+  const ptilde = [0,1,2,3].map(k => (k===0 ? 1 : 0) * (1-eps) + eps/K);
+  const loss = ce(ptilde, q);
+  lsVal.textContent = eps.toFixed(3);
+  lsLoss.textContent = loss.toFixed(3);
+  pop(lsLoss);
+  lsTarget.textContent = `target p̃ = [${ptilde.map(v=>v.toFixed(3)).join(', ')}]`;
+}
+lsSlider.addEventListener('input', updateLS);
+window.addEventListener('load', () => setTimeout(updateLS, 100));
+
+/* =========================================================================
+   SECTION 9: perplexity
+========================================================================= */
+const pplSlider = document.getElementById('ppl-slider');
+const pplVal = document.getElementById('ppl-val');
+const pplOut = document.getElementById('ppl-out');
+function updatePPL() {
+  const ce = parseFloat(pplSlider.value);
+  pplVal.textContent = ce.toFixed(2);
+  pplOut.textContent = Math.exp(ce).toFixed(2);
+  pop(pplOut);
+}
+pplSlider.addEventListener('input', updatePPL);
+window.addEventListener('load', () => setTimeout(updatePPL, 100));
+
+/* =========================================================================
+   PRACTICE DRILLS
+========================================================================= */
+const DRILLS = [
+  {
+    id: 'd1', tag: 'numeric',
+    q: 'True class index 2. Predicted probabilities [0.1, 0.2, 0.6, 0.1]. Compute the cross-entropy loss.',
+    hint: 'One-hot target → loss = −log q[2] = −log(0.6).',
+    check: (s) => approxEq(parseFloat(s), -ln(0.6), 0.02),
+    answerStr: (-ln(0.6)).toFixed(3) + ' ≈ 0.51',
+    onSolve: (id) => { unlock('first'); }
+  },
+  {
+    id: 'd2', tag: 'numeric',
+    q: 'True class 0. Predicted probs [0.9, 0.05, 0.025, 0.025]. Loss?',
+    hint: '−log(0.9) is small.',
+    check: (s) => approxEq(parseFloat(s), -ln(0.9), 0.02),
+    answerStr: (-ln(0.9)).toFixed(3),
+  },
+  {
+    id: 'd3', tag: 'numeric',
+    q: 'A confidently-wrong model gives 0.001 to the true class. Loss?',
+    hint: '−log(0.001) — confidence in the wrong answer is brutal.',
+    check: (s) => approxEq(parseFloat(s), -ln(0.001), 0.05),
+    answerStr: (-ln(0.001)).toFixed(3) + ' ≈ 6.91',
+  },
+  {
+    id: 'd4', tag: 'formula',
+    q: 'Type the cross-entropy formula for general distributions p, q (use the exact form: -sum p log q).',
+    hint: 'Just write -sum p log q  — symbol-precise.',
+    check: (s) => normalizeFormula(s) === normalizeFormula('-sum p log q')
+                 || normalizeFormula(s) === normalizeFormula('-Σ p log q')
+                 || normalizeFormula(s) === normalizeFormula('-sum_x p(x) log q(x)'),
+    answerStr: '-sum p log q',
+    preview: true,
+    onSolve: (id) => unlock('formula'),
+  },
+  {
+    id: 'd5', tag: 'formula',
+    q: 'For a one-hot target, cross-entropy collapses to … (type the right-hand side).',
+    hint: 'Negative log of q at the true class y.',
+    check: (s) => {
+      const n = normalizeFormula(s);
+      return ['-log(q_y)','-log q_y','-log q(y)','-ln(q_y)','-ln q_y','-ln q(y)'].map(normalizeFormula).includes(n);
+    },
+    answerStr: '-log(q_y)',
+    preview: true,
+  },
+  {
+    id: 'd6', tag: 'concept',
+    q: 'What does cross-entropy equal when the predicted distribution q exactly matches the target p?',
+    hint: 'It collapses to the entropy of p.',
+    check: (s) => /entropy.*p|h\(p\)|^h p$|shannon entropy/i.test(s.trim()) || /^entropy of p$/i.test(s.trim()),
+    answerStr: 'entropy of p  (i.e. H(p))',
+  },
+  {
+    id: 'd7', tag: 'numeric',
+    q: 'p = [0.5, 0.5], q = [0.5, 0.5]. Compute H(p, q).',
+    hint: 'Should equal H(p) = log 2 ≈ 0.693.',
+    check: (s) => approxEq(parseFloat(s), ln(2), 0.02),
+    answerStr: ln(2).toFixed(3) + ' ≈ 0.693',
+    onSolve: (id) => unlock('entropy'),
+  },
+  {
+    id: 'd8', tag: 'gradient',
+    q: 'For softmax + cross-entropy with one-hot target y, what is ∂L/∂z_i (in terms of q and y)?',
+    hint: 'Famously simple — predictions minus targets.',
+    check: (s) => {
+      const n = normalizeFormula(s);
+      return ['p_i - y_i','q_i - y_i','pi-yi','qi-yi','q-y','p-y'].map(normalizeFormula).includes(n);
+    },
+    answerStr: 'q_i - y_i  (or equivalently p_i - y_i)',
+    preview: true,
+    onSolve: (id) => unlock('gradient'),
+  },
+  {
+    id: 'd9', tag: 'numeric',
+    q: 'Mean per-token cross-entropy is 2.30. What is the perplexity?',
+    hint: 'PPL = exp(CE) = exp(2.30).',
+    check: (s) => approxEq(parseFloat(s), Math.exp(2.30), 0.05),
+    answerStr: Math.exp(2.30).toFixed(2) + ' ≈ 9.97',
+    onSolve: (id) => unlock('perplex'),
+  },
+  {
+    id: 'd10', tag: 'numeric',
+    q: 'Vocabulary size 50,000. A model with mean CE = log(50000) has what perplexity? (integer is fine.)',
+    hint: 'exp(log V) = V. The model is uniform/random.',
+    check: (s) => approxEq(parseFloat(s), 50000, 50),
+    answerStr: '50000  (uniform = max perplexity)',
+  },
+  {
+    id: 'd11', tag: 'softmax',
+    q: 'Logits z = [1, 2, 3]. True class 2. Compute the cross-entropy loss after softmax.',
+    hint: 'log-sum-exp([1,2,3]) ≈ 3.4076. Loss = LSE − z[2] = 0.4076.',
+    check: (s) => approxEq(parseFloat(s), Math.log(Math.exp(1)+Math.exp(2)+Math.exp(3)) - 3, 0.02),
+    answerStr: '0.4076',
+    onSolve: (id) => unlock('softmax'),
+  },
+  {
+    id: 'd12', tag: 'numeric',
+    q: 'Label smoothing with ε = 0.1, K = 4 classes, true class 0. What probability is on the true class in the smoothed target?',
+    hint: '(1 − 0.1) + 0.1/4 = 0.9 + 0.025.',
+    check: (s) => approxEq(parseFloat(s), 0.925, 0.005),
+    answerStr: '0.925',
+  },
+  {
+    id: 'd13', tag: 'concept',
+    q: 'Why does PyTorch take logits, not probabilities, for F.cross_entropy?',
+    hint: 'Two words: numerical stability.',
+    check: (s) => /numer|stabil|stable|log[- ]?sum[- ]?exp|overflow/i.test(s),
+    answerStr: 'numerical stability via fused log-softmax + NLL',
+  },
+  {
+    id: 'd14', tag: 'numeric',
+    q: 'Per-token CE in nats vs bits: a model reporting loss 0.693 (nats) corresponds to how many bits per token?',
+    hint: 'Divide by ln(2). 0.693 / 0.693 = 1.',
+    check: (s) => approxEq(parseFloat(s), 0.693/ln(2), 0.02),
+    answerStr: '1.0 bit',
+  },
+  {
+    id: 'd15', tag: 'numeric',
+    q: 'Batch of 3 examples, per-example CE losses [1.2, 0.8, 1.6]. Mean loss?',
+    hint: 'Plain arithmetic mean.',
+    check: (s) => approxEq(parseFloat(s), (1.2+0.8+1.6)/3, 0.02),
+    answerStr: '1.2',
+  },
+  {
+    id: 'd16', tag: 'concept',
+    q: 'KL(p || q) is always ≥ 0. What value of q achieves zero?',
+    hint: 'q must equal p almost everywhere.',
+    check: (s) => /q\s*=\s*p|equal to p|matches p|same as p/i.test(s.trim()),
+    answerStr: 'q = p',
+  },
+  {
+    id: 'd17', tag: 'numeric',
+    q: 'Mean CE = 0 (impossible in practice but indulge me). Perplexity?',
+    hint: 'exp(0) = 1.',
+    check: (s) => approxEq(parseFloat(s), 1.0, 0.001),
+    answerStr: '1',
+  },
+  {
+    id: 'd18', tag: 'gradient',
+    q: 'Logits z = [2, 1, 0], true class 0. After softmax q ≈ [0.665, 0.245, 0.090]. Gradient ∂L/∂z_0?',
+    hint: 'q_0 − y_0 = 0.665 − 1.',
+    check: (s) => approxEq(parseFloat(s), -0.335, 0.02),
+    answerStr: '−0.335',
+  },
+];
+
+function normalizeFormula(s) {
+  return s
+    .toLowerCase()
+    .replace(/\s+/g,'')
+    .replace(/\\\\?(log|ln)/g,'log')
+    .replace(/[{}]/g,'')
+    .replace(/\\sum|sum_x|∑|Σ|sigma/g,'sum')
+    .replace(/\\,|\\;|\\:/g,'')
+    .replace(/\\cdot|·|\*/g,'')
+    .replace(/_x|\(x\)/g,'')
+    .replace(/p\(y\)/g,'py')
+    .replace(/q\(y\)/g,'qy')
+    .replace(/q_y/g,'qy')
+    .replace(/p_y/g,'py')
+    .replace(/q_i/g,'qi')
+    .replace(/p_i/g,'pi')
+    .replace(/y_i/g,'yi');
+}
+
+function buildDrills() {
+  const root = document.getElementById('drills');
+  DRILLS.forEach((d, idx) => {
+    const div = document.createElement('div');
+    div.className = 'drill' + (state.drillsDone[d.id] ? ' done' : '');
+    div.id = 'drill-' + d.id;
+    div.innerHTML = `
+      <div class="meta">drill ${idx+1}/${DRILLS.length} · ${d.tag} ${state.drillsDone[d.id] ? '· <span class="ok">solved</span>' : ''}</div>
+      <div class="q">${d.q}</div>
+      <input type="text" placeholder="type your answer and press Enter" autocomplete="off" spellcheck="false">
+      ${d.preview ? '<div class="preview" data-preview></div>' : ''}
+      <button class="check">Check</button>
+      <span class="hint" data-hint>show hint</span>
+      <div class="feedback"></div>
+    `;
+    const input = div.querySelector('input');
+    const fb = div.querySelector('.feedback');
+    const btn = div.querySelector('.check');
+    const hint = div.querySelector('[data-hint]');
+    const preview = div.querySelector('[data-preview]');
+
+    if (preview) {
+      input.addEventListener('input', () => {
+        if (window.katex) {
+          try {
+            katex.render(input.value || '\\text{type a formula\\dots}', preview, {throwOnError:false, displayMode:false});
+          } catch { preview.textContent = input.value; }
+        } else { preview.textContent = input.value; }
+      });
+    }
+
+    hint.addEventListener('click', () => { hint.textContent = d.hint; hint.style.color = 'var(--accent-3)'; });
+
+    function submit() {
+      const v = input.value.trim();
+      if (!v) return;
+      const ok = d.check(v);
+      input.classList.remove('correct','wrong');
+      if (ok) {
+        input.classList.add('correct');
+        const wasNew = !state.drillsDone[d.id];
+        state.drillsDone[d.id] = true;
+        if (wasNew) {
+          state.solved += 1;
+          state.combo += 1;
+          if (state.combo > state.bestCombo) state.bestCombo = state.combo;
+          let xp = 10 + Math.min(state.combo, 8);
+          awardXP(xp);
+          fb.className = 'feedback good';
+          fb.textContent = `Correct +${xp} XP · combo ×${state.combo}`;
+          confetti();
+          if (state.combo >= 3) unlock('streak3');
+          if (state.combo >= 7) unlock('streak7');
+          if (state.solved >= 9) unlock('half');
+          if (state.solved >= DRILLS.length) unlock('allDrills');
+          if (d.onSolve) d.onSolve(d.id);
+          // mark drill solved
+          div.querySelector('.meta').innerHTML =
+            `drill ${idx+1}/${DRILLS.length} · ${d.tag} · <span class="ok">solved</span>`;
+        } else {
+          fb.className = 'feedback good';
+          fb.textContent = `Already solved. Answer: ${d.answerStr}`;
+          awardXP(2);
+        }
+        saveState();
+      } else {
+        input.classList.add('wrong');
+        state.combo = 0;
+        fb.className = 'feedback bad';
+        fb.textContent = `Not quite. Try again — or click the hint.`;
+        shake(div);
+        renderHUD(); saveState();
+      }
+    }
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    root.appendChild(div);
+  });
+}
+
+/* =========================================================================
+   BOSS
+========================================================================= */
+const bossTimerEl = document.getElementById('boss-timer');
+const bossHpNum = document.getElementById('boss-hp-num');
+const bossHpBar = document.getElementById('boss-hp-bar');
+const bossDrill = document.getElementById('boss-drill');
+const bossQ = document.getElementById('boss-q');
+const bossInput = document.getElementById('boss-input');
+const bossFb = document.getElementById('boss-fb');
+const bossStart = document.getElementById('boss-start');
+const bossResult = document.getElementById('boss-result');
+
+let bossState = null;
+
+function genBossProblem() {
+  const r = Math.random();
+  if (r < 0.4) {
+    // CE numeric, one-hot
+    const probs = [Math.random(), Math.random(), Math.random(), Math.random()];
+    const s = probs.reduce((a,b)=>a+b,0);
+    const norm = probs.map(p=>p/s);
+    const trueIdx = Math.floor(Math.random()*4);
+    const ans = -ln(norm[trueIdx]);
+    return {
+      q: `True class ${trueIdx}. Predicted probs [${norm.map(v=>v.toFixed(2)).join(', ')}]. Loss ≈ ?`,
+      check: (s) => approxEq(parseFloat(s), ans, 0.05),
+      ans: ans.toFixed(3),
+    };
+  } else if (r < 0.7) {
+    // perplexity
+    const ce = (0.5 + Math.random()*4).toFixed(2);
+    const ans = Math.exp(parseFloat(ce));
+    return {
+      q: `Mean CE = ${ce}. Perplexity ≈ ?`,
+      check: (s) => approxEq(parseFloat(s), ans, Math.max(0.1, ans*0.03)),
+      ans: ans.toFixed(2),
+    };
+  } else if (r < 0.85) {
+    // logits → CE
+    const z = [Math.random()*4, Math.random()*4, Math.random()*4];
+    const trueIdx = Math.floor(Math.random()*3);
+    const lse = ln(z.map(x=>Math.exp(x)).reduce((a,b)=>a+b,0));
+    const ans = lse - z[trueIdx];
+    return {
+      q: `Logits z = [${z.map(v=>v.toFixed(2)).join(', ')}], true class ${trueIdx}. CE loss ≈ ?`,
+      check: (s) => approxEq(parseFloat(s), ans, 0.05),
+      ans: ans.toFixed(3),
+    };
+  } else {
+    // -log of single q
+    const q = (0.05 + Math.random()*0.9).toFixed(2);
+    const ans = -ln(parseFloat(q));
+    return {
+      q: `q(true) = ${q}. Loss ≈ ?`,
+      check: (s) => approxEq(parseFloat(s), ans, 0.05),
+      ans: ans.toFixed(3),
+    };
+  }
+}
+
+function bossNext() {
+  bossState.current = genBossProblem();
+  bossQ.textContent = bossState.current.q;
+  bossInput.value = '';
+  bossInput.classList.remove('correct','wrong');
+  bossFb.textContent = '';
+  bossInput.focus();
+}
+
+function bossEnd(victory) {
+  clearInterval(bossState.tick);
+  bossDrill.style.display = 'none';
+  if (victory) {
+    bossResult.innerHTML = `<span class="ok">Victory! Loss Boss defeated in ${(60 - bossState.timeLeft).toFixed(1)}s.</span>`;
+    if (!state.bossWon || state.bossBestTime === null || (60 - bossState.timeLeft) < state.bossBestTime) {
+      state.bossBestTime = 60 - bossState.timeLeft;
+    }
+    state.bossWon = true;
+    awardXP(50);
+    unlock('boss');
+    confetti(); confetti();
+    saveState();
+  } else {
+    bossResult.innerHTML = `<span class="err">Boss survived. ${5 - bossState.hp} damage dealt. Try again.</span>`;
+  }
+  bossStart.disabled = false;
+  bossStart.textContent = 'Engage';
+  bossState = null;
+}
+
+function bossUpdateHud() {
+  bossHpNum.textContent = bossState.hp;
+  bossHpBar.style.width = (bossState.hp / 5 * 100) + '%';
+  bossTimerEl.textContent = bossState.timeLeft.toFixed(1) + 's';
+}
+
+bossStart.addEventListener('click', () => {
+  if (bossState) return;
+  bossState = { hp: 5, timeLeft: 60, current: null, tick: null };
+  bossDrill.style.display = 'block';
+  bossResult.textContent = '';
+  bossStart.disabled = true;
+  bossStart.textContent = 'Fighting…';
+  bossUpdateHud();
+  bossNext();
+  bossState.tick = setInterval(() => {
+    bossState.timeLeft -= 0.1;
+    if (bossState.timeLeft <= 0) { bossState.timeLeft = 0; bossUpdateHud(); bossEnd(false); return; }
+    bossUpdateHud();
+  }, 100);
+});
+
+bossInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || !bossState) return;
+  const ok = bossState.current.check(bossInput.value.trim());
+  if (ok) {
+    bossInput.classList.add('correct');
+    bossState.hp -= 1;
+    bossUpdateHud();
+    if (bossState.hp <= 0) { bossEnd(true); return; }
+    setTimeout(bossNext, 250);
+  } else {
+    bossInput.classList.add('wrong');
+    bossState.timeLeft = Math.max(0, bossState.timeLeft - 5);
+    bossFb.textContent = `wrong — −5s. (was ${bossState.current.ans})`;
+    shake(bossDrill);
+    bossUpdateHud();
+    setTimeout(bossNext, 600);
+  }
+});
+
+/* =========================================================================
+   RESET
+========================================================================= */
+document.getElementById('btn-reset').addEventListener('click', () => {
+  if (!confirm('Reset all progress?')) return;
+  state = {...DEFAULT_STATE};
+  saveState(); renderHUD(); renderAchievements();
+  // re-render drills clean
+  document.querySelectorAll('.drill input[type=text]').forEach(i => { i.value=''; i.classList.remove('correct','wrong'); });
+  document.querySelectorAll('.drill .feedback').forEach(f => f.textContent='');
+  document.querySelectorAll('#drills .drill .meta').forEach((m, i) => {
+    const d = DRILLS[i]; if (!d) return;
+    m.innerHTML = `drill ${i+1}/${DRILLS.length} · ${d.tag}`;
+  });
+  toast('Progress reset');
+});
+
+/* =========================================================================
+   INIT
+========================================================================= */
+buildDrills();
+renderHUD();
+renderAchievements();
+
+</script>
+</body>
+</html>

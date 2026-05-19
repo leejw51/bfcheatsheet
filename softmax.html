@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Softmax · Interactive Drill</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root{
+    --bg:#0c0d12;
+    --panel:#13151d;
+    --panel2:#191c26;
+    --ink:#e8ecf3;
+    --ink-dim:#9aa3b2;
+    --line:#262a36;
+    --accent:#ff5d9e;     /* hot pink */
+    --accent2:#7c5cff;    /* violet */
+    --good:#3ddc97;
+    --bad:#ff6b6b;
+    --warn:#ffd166;
+    --bar1:#ff5d9e;
+    --bar2:#7c5cff;
+    --bar3:#3ddc97;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent)}
+  code,kbd{font-family:var(--mono)}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 24px 120px}
+  header.hero{position:relative;padding:48px 28px;border-radius:24px;background:
+    radial-gradient(900px 400px at 90% -10%,rgba(255,93,158,.18),transparent 60%),
+    radial-gradient(700px 300px at -10% 110%,rgba(124,92,255,.20),transparent 60%),
+    linear-gradient(135deg,#15171f,#0f1118);
+    border:1px solid var(--line);overflow:hidden}
+  header.hero h1{margin:0 0 6px;font-size:clamp(28px,4.4vw,46px);letter-spacing:-.02em;font-weight:800;background:linear-gradient(90deg,#fff 0%,#ffd6e7 60%,#bfb0ff 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  header.hero p{margin:0;color:var(--ink-dim);max-width:64ch}
+  .sigma{position:absolute;right:18px;top:6px;font-size:160px;line-height:1;color:rgba(255,255,255,.04);font-family:Georgia,serif;pointer-events:none;user-select:none}
+
+  .hud{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 28px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--ink-dim)}
+  .chip b{color:var(--ink);font-weight:600}
+  .chip.lvl{background:linear-gradient(135deg,rgba(255,93,158,.15),rgba(124,92,255,.15));border-color:rgba(255,93,158,.4);color:#ffe1ee}
+  .chip.combo{background:linear-gradient(135deg,rgba(255,209,102,.12),rgba(255,93,158,.10));border-color:rgba(255,209,102,.35);color:#ffeec0}
+  .xpbar{flex:1;min-width:160px;height:10px;border-radius:999px;background:#1a1d27;border:1px solid var(--line);overflow:hidden;position:relative}
+  .xpbar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s ease}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);border-radius:10px;padding:8px 12px;font-size:12px;cursor:pointer}
+  button.ghost:hover{color:var(--ink);border-color:#3a3f4f}
+
+  nav.toc{position:sticky;top:8px;z-index:20;background:rgba(12,13,18,.78);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 22px;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{color:var(--ink-dim);text-decoration:none;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid transparent}
+  nav.toc a:hover{color:var(--ink);border-color:var(--line);background:var(--panel)}
+
+  section{margin:28px 0;padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
+  section h2{margin:0 0 6px;font-size:22px;letter-spacing:-.01em}
+  section h2 .num{display:inline-block;min-width:34px;height:26px;padding:0 8px;line-height:26px;text-align:center;border-radius:8px;background:rgba(255,93,158,.12);color:var(--accent);font-size:12px;margin-right:10px;border:1px solid rgba(255,93,158,.3);font-weight:700}
+  section p{color:#cdd3df}
+  .lead{color:var(--ink-dim)}
+  .grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:22px}
+  @media (max-width:880px){.grid2{grid-template-columns:1fr}}
+  .card{background:#10131c;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h3{margin:0 0 8px;font-size:15px;color:#f3f5f9;letter-spacing:.01em}
+  .small{font-size:12.5px;color:var(--ink-dim)}
+
+  /* Centerpiece widget */
+  .widget{background:linear-gradient(180deg,#10131c,#0d1018);border:1px solid var(--line);border-radius:16px;padding:18px}
+  .sliderRow{display:grid;grid-template-columns:36px 1fr 70px;gap:12px;align-items:center;padding:8px 0}
+  .sliderRow label{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .sliderRow input[type=range]{width:100%;accent-color:var(--accent)}
+  .sliderRow .val{font-family:var(--mono);text-align:right;color:var(--ink)}
+  .barsBox{margin-top:14px;display:grid;grid-template-columns:1fr;gap:10px}
+  .barRow{display:grid;grid-template-columns:60px 1fr 90px;gap:10px;align-items:center}
+  .barRow .lbl{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .barTrack{height:22px;background:#191c26;border:1px solid var(--line);border-radius:8px;overflow:hidden;position:relative}
+  .barFill{height:100%;width:0%;border-radius:7px;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .35s cubic-bezier(.2,.7,.2,1.2)}
+  .barRow.b2 .barFill{background:linear-gradient(90deg,#7c5cff,#3ddc97)}
+  .barRow.b3 .barFill{background:linear-gradient(90deg,#3ddc97,#ffd166)}
+  .barRow .pv{font-family:var(--mono);text-align:right;color:#fff}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .btn{appearance:none;border:1px solid var(--line);background:#171a24;color:var(--ink);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;transition:transform .06s ease,border-color .15s,background .15s}
+  .btn:hover{border-color:#3b3f4f;background:#1c2030}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn.good{border-color:rgba(61,220,151,.4);color:#bff5da}
+  .formulaBox{margin-top:12px;padding:14px;border:1px dashed var(--line);border-radius:12px;background:#0e111a;font-size:14px;overflow-x:auto}
+
+  /* Practice */
+  .drillCard{display:flex;flex-direction:column;gap:10px}
+  .prompt{font-size:15px;color:#eef1f7}
+  .prompt .ki{padding:2px 6px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:12.5px}
+  .answerRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  input.ti,textarea.ti{background:#0d1018;border:1px solid var(--line);color:var(--ink);padding:10px 12px;border-radius:10px;font-family:var(--mono);font-size:14px;outline:none;min-width:140px;transition:border-color .15s,box-shadow .15s}
+  input.ti:focus,textarea.ti:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,93,158,.18)}
+  textarea.ti{min-width:280px;min-height:54px;font-family:var(--sans)}
+  input.ti.tri{min-width:80px;text-align:right}
+  .feedback{font-size:13px;color:var(--ink-dim);min-height:18px}
+  .feedback.ok{color:var(--good)}
+  .feedback.no{color:var(--bad)}
+  .preview{padding:12px;border:1px dashed var(--line);border-radius:10px;background:#0d1018;min-height:44px;font-size:14px}
+  .qbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .qbar .qnum{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+  .qbar .qtag{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(124,92,255,.15);color:#cfc0ff;border:1px solid rgba(124,92,255,.35);text-transform:uppercase;letter-spacing:.08em}
+  .nav{display:flex;justify-content:space-between;gap:10px;margin-top:10px}
+  .progressDots{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#1a1d27;border:1px solid var(--line)}
+  .dot.done{background:var(--good);border-color:var(--good)}
+  .dot.cur{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,93,158,.25)}
+  .dot.miss{background:var(--bad);border-color:var(--bad)}
+
+  /* Boss */
+  .boss{padding:18px;border-radius:14px;border:1px solid rgba(255,93,158,.45);background:radial-gradient(800px 200px at 50% -50%,rgba(255,93,158,.18),transparent 60%),#10131c;text-align:center}
+  .boss .timer{font-family:var(--mono);font-size:42px;color:var(--accent);font-weight:800;letter-spacing:-.02em}
+  .boss .qbig{font-size:22px;margin:8px 0;color:#f6f8fc}
+  .boss input{font-size:18px;padding:12px;text-align:center;min-width:160px}
+
+  /* Achievements */
+  .achGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:8px}
+  .ach{padding:12px;border:1px solid var(--line);border-radius:12px;background:#10131c;display:flex;gap:10px;align-items:flex-start;opacity:.45;filter:grayscale(.6);transition:.25s}
+  .ach.unlocked{opacity:1;filter:none;border-color:rgba(255,209,102,.45);box-shadow:0 0 0 1px rgba(255,209,102,.25) inset}
+  .ach .em{font-size:22px;flex:none}
+  .ach .t{font-size:13.5px;font-weight:700}
+  .ach .d{font-size:12px;color:var(--ink-dim)}
+
+  /* Effects */
+  .shake{animation:shake .35s linear}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  .pulse{animation:pulse .45s ease}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 18px rgba(61,220,151,0)}}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+
+  /* Toast */
+  #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(20px);background:#1c2030;border:1px solid var(--line);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;z-index:60;max-width:80vw;text-align:center;font-size:14px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  details{margin-top:8px}
+  details>summary{cursor:pointer;color:var(--ink-dim)}
+  details>summary:hover{color:var(--ink)}
+  hr.sep{border:none;border-top:1px dashed var(--line);margin:14px 0}
+
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
+  .kbd{font-family:var(--mono);font-size:11.5px;padding:1px 6px;border-radius:5px;background:#1a1d27;border:1px solid var(--line);color:#dfe5ef}
+
+  footer{color:var(--ink-dim);text-align:center;padding:30px 0 0;font-size:12.5px}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+<div class="wrap">
+
+<header class="hero">
+  <div class="sigma">σ</div>
+  <h1>Softmax · the probability machine of transformers</h1>
+  <p>Drag sliders, type drills, level up. A short, hands-on tour of the function that turns logits into attention weights and class probabilities.</p>
+  <div class="hud">
+    <span class="chip lvl">LVL <b id="lvl">1</b></span>
+    <span class="chip">XP <b id="xp">0</b></span>
+    <div class="xpbar"><div id="xpfill"></div></div>
+    <span class="chip combo">combo <b id="combo">0</b></span>
+    <span class="chip">acc <b id="acc">—</b></span>
+    <button class="ghost" id="resetBtn">reset progress</button>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1 · what</a>
+  <a href="#s2">2 · formula</a>
+  <a href="#s3">3 · properties</a>
+  <a href="#s4">4 · temperature</a>
+  <a href="#s5">5 · attention</a>
+  <a href="#s6">6 · cross-entropy</a>
+  <a href="#s7">7 · stability</a>
+  <a href="#s8">8 · alternatives</a>
+  <a href="#play">⌨ practice</a>
+  <a href="#boss">★ boss</a>
+  <a href="#ach">trophies</a>
+</nav>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">1</span>What softmax is</h2>
+  <p class="lead">A neural network's last linear layer outputs raw scores called <b>logits</b> — any real numbers, positive or negative. Softmax turns that vector into a <b>probability distribution</b>: every entry lands in $(0,1)$ and the whole vector sums to $1$.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>From scores to probabilities</h3>
+      <p>If a classifier emits logits $\mathbf{z} = (z_1,\dots,z_K)$ for $K$ classes, softmax gives</p>
+      $$\text{softmax}(\mathbf{z})_i \;=\; \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}.$$
+      <p>Inside a transformer it does the same job for the $K$ tokens an attention head looks at: turn raw similarity scores into normalized <b>attention weights</b>.</p>
+    </div>
+    <div class="card">
+      <h3>Why a soft <i>max</i>?</h3>
+      <p>Hard $\arg\max$ kills the gradient — only one slot wins, and tiny changes in the loser scores produce zero learning signal. Softmax is a smooth, differentiable approximation: the largest logit dominates, but every logit still gets a (small) share of the probability mass and a usable gradient.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">2</span>The formula, derived</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Construction</h3>
+      <p>We want a function that takes any vector and produces nonnegative numbers summing to 1.</p>
+      <ol>
+        <li>Make scores positive: apply a strictly positive map. The natural exponential $e^{z}$ is the cleanest choice — smooth, monotonic, $e^z>0$ always.</li>
+        <li>Normalize: divide each by the sum so the total is 1.</li>
+      </ol>
+      $$\text{softmax}(\mathbf{z})_i = \frac{\exp(z_i)}{\sum_j \exp(z_j)}.$$
+    </div>
+    <div class="card">
+      <h3>Why exponential, not just $z_i^2$ or $|z_i|$?</h3>
+      <ul>
+        <li><b>Strictly positive</b> for all real inputs (no zero denominators, no sign games).</li>
+        <li><b>Multiplicative gaps</b>: $e^{z_i}/e^{z_j} = e^{z_i - z_j}$ depends only on differences. Adding a constant to every logit changes nothing — see §3.</li>
+        <li><b>Maximum-entropy</b>: among distributions with a fixed mean energy $\mathbb{E}[z]$, the exponential family has highest entropy. Softmax is the maximally non-committal distribution consistent with the logits.</li>
+        <li><b>Conjugate to log-likelihood</b>: paired with cross-entropy the gradient collapses to a single line — see §6.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 3 + Centerpiece widget -->
+<section id="s3">
+  <h2><span class="num">3</span>Properties &amp; the live widget</h2>
+  <p class="lead">Drag the three logits and the temperature. Watch the bars and the rendered formula in lockstep.</p>
+  <div class="grid2">
+    <div class="widget">
+      <div class="sliderRow"><label>$z_1$</label><input id="z1" type="range" min="-5" max="5" step="0.05" value="2.0"><span class="val" id="z1v">2.00</span></div>
+      <div class="sliderRow"><label>$z_2$</label><input id="z2" type="range" min="-5" max="5" step="0.05" value="1.0"><span class="val" id="z2v">1.00</span></div>
+      <div class="sliderRow"><label>$z_3$</label><input id="z3" type="range" min="-5" max="5" step="0.05" value="0.1"><span class="val" id="z3v">0.10</span></div>
+      <div class="sliderRow"><label>τ</label><input id="tau" type="range" min="0.05" max="5" step="0.01" value="1.0"><span class="val" id="tauv">1.00</span></div>
+      <div class="barsBox">
+        <div class="barRow b1"><div class="lbl">p₁</div><div class="barTrack"><div id="bar1" class="barFill"></div></div><div class="pv" id="p1">0.000</div></div>
+        <div class="barRow b2"><div class="lbl">p₂</div><div class="barTrack"><div id="bar2" class="barFill"></div></div><div class="pv" id="p2">0.000</div></div>
+        <div class="barRow b3"><div class="lbl">p₃</div><div class="barTrack"><div id="bar3" class="barFill"></div></div><div class="pv" id="p3">0.000</div></div>
+      </div>
+      <div class="controls">
+        <button class="btn" id="lseBtn">Apply log-sum-exp trick (subtract max)</button>
+        <button class="btn ghost" id="resetWidget">reset</button>
+        <span class="small" id="sumLine">∑ p = 1.000</span>
+      </div>
+      <div class="formulaBox" id="formulaLive"></div>
+    </div>
+    <div class="card">
+      <h3>Three properties to internalize</h3>
+      <ul>
+        <li><b>Sums to 1.</b> By construction: numerator sums = denominator. Drag any slider — the bars always fill the row.</li>
+        <li><b>Monotonic in each input.</b> Increase $z_i$ and $p_i$ goes up (others go down). Never crosses.</li>
+        <li><b>Shift-invariance.</b> $\text{softmax}(\mathbf{z}+c\mathbf{1}) = \text{softmax}(\mathbf{z})$. The numerator and denominator both pick up a factor $e^c$ which cancels. This is the foundation of the numerical stability trick: pick $c = -\max_i z_i$ so the largest exponent is $0$ — no overflow, no information loss.</li>
+      </ul>
+      <p class="small">Try the <span class="kbd">Apply log-sum-exp trick</span> button: it shifts logits by $-\max$. Bars don't move (shift-invariance!) but the visible exponentials are now all $\le 1$.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="s4">
+  <h2><span class="num">4</span>Temperature</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>τ scales logits</h3>
+      $$\text{softmax}_\tau(\mathbf{z})_i = \frac{e^{z_i/\tau}}{\sum_j e^{z_j/\tau}}.$$
+      <ul>
+        <li>$\tau \to \infty$: every $z_i/\tau \to 0$, distribution becomes <b>uniform</b> $1/K$. Maximum exploration.</li>
+        <li>$\tau \to 0^{+}$: gaps blow up, the largest logit wins, distribution collapses to a one-hot at $\arg\max$. Pure greedy.</li>
+        <li>$\tau = 1$: standard softmax.</li>
+      </ul>
+      <p>In LLM sampling, temperature is exactly this knob: high $\tau$ produces diverse, surprising tokens; low $\tau$ produces deterministic, repetitive ones.</p>
+    </div>
+    <div class="card">
+      <h3>Try it</h3>
+      <p>Slide τ in the widget above between $0.05$ and $5$:</p>
+      <ul>
+        <li>τ small → bar of the winner pushes toward 1.0</li>
+        <li>τ = 1 → ordinary softmax</li>
+        <li>τ large → bars flatten toward $1/3 \approx 0.333$</li>
+      </ul>
+      <p class="small">Annealing — gradually lowering τ during training or sampling — is a classic move borrowed from statistical physics, where $\tau$ literally <i>is</i> temperature in the Boltzmann distribution.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5 -->
+<section id="s5">
+  <h2><span class="num">5</span>Why softmax is in attention</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Scaled dot-product attention</h3>
+      $$\text{Attn}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right) V.$$
+      <p>For a query token, $QK^\top$ produces a similarity score against every key. Softmax converts those scores into <b>attention weights</b>: nonnegative, summing to 1, one per source token.</p>
+      <p>The output is then $\sum_j w_j v_j$ — a <b>weighted average</b> of value vectors. Because $\sum w_j = 1$ the magnitude of the output stays comparable to a single $v_j$, no matter how many tokens we attend over. That's why softmax (not, say, ReLU normalization) is the default.</p>
+    </div>
+    <div class="card">
+      <h3>Why $1/\sqrt{d_k}$ before softmax?</h3>
+      <p>If queries and keys have unit-variance components, $QK^\top$ has variance $\propto d_k$. With large $d_k$ the logits get huge, softmax saturates, gradients vanish. Dividing by $\sqrt{d_k}$ keeps the variance $\approx 1$ — softmax stays in its sensitive, learnable regime. This is essentially a temperature of $\tau = \sqrt{d_k}$.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s6">
+  <h2><span class="num">6</span>Softmax + cross-entropy: the gradient</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Setup</h3>
+      <p>Let $p_i = \text{softmax}(z)_i$, target one-hot $y$, cross-entropy</p>
+      $$L = -\sum_i y_i \log p_i.$$
+      <p>We want $\partial L/\partial z_i$. The Jacobian of softmax is messy:</p>
+      $$\frac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j).$$
+      <p>But composed with $L$, things collapse beautifully.</p>
+    </div>
+    <div class="card">
+      <h3>The collapse</h3>
+      <p>Chain rule:</p>
+      $$\frac{\partial L}{\partial z_i} = \sum_k \frac{\partial L}{\partial p_k}\frac{\partial p_k}{\partial z_i} = \sum_k \left(-\frac{y_k}{p_k}\right)\, p_k(\delta_{ki}-p_i).$$
+      <p>Simplify:</p>
+      $$=\;-\sum_k y_k(\delta_{ki}-p_i) \;=\; -y_i + p_i\sum_k y_k \;=\; p_i - y_i.$$
+      <p>So $\nabla_{z}L = \mathbf{p} - \mathbf{y}$. The gradient is the <b>error vector</b>: predicted minus target. Clean, cheap, numerically friendly. <i>This</i> is why softmax + cross-entropy are paired everywhere.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">7</span>Numerical stability — the log-sum-exp trick</h2>
+  <div class="card">
+    <p>Computing $e^{1000}$ overflows 64-bit floats; computing $e^{-1000}$ underflows to $0$ and $\log 0 = -\infty$. Naive softmax is fragile. Shift-invariance saves us.</p>
+    <p>Let $m = \max_i z_i$. Then</p>
+    $$\text{softmax}(\mathbf{z})_i = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}}.$$
+    <p>Now the largest exponent is $e^0 = 1$; everything else is in $(0,1]$. No overflow, smallest possible roundoff.</p>
+    <p>For $\log\,\text{softmax}$ the <b>log-sum-exp</b> identity is the canonical form:</p>
+    $$\log\sum_j e^{z_j} = m + \log\sum_j e^{z_j - m}.$$
+    <p>Used in every framework's <code>log_softmax</code>, <code>nll_loss</code>, and attention kernel.</p>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="s8">
+  <h2><span class="num">8</span>Alternatives, briefly</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Sparsemax</h3>
+      <p>Projects logits onto the probability simplex. Output is genuinely <b>sparse</b> — exact zeros are allowed. Useful when you want attention to ignore most tokens entirely (interpretability, structured prediction). Not as smooth, requires a sorting step, but differentiable almost everywhere.</p>
+    </div>
+    <div class="card">
+      <h3>Gumbel-softmax</h3>
+      <p>Adds Gumbel noise then takes softmax with low temperature: a continuous, differentiable relaxation of <i>sampling</i> from a categorical. Lets you train discrete latent variables with backprop (e.g. discrete VAEs, hard attention).</p>
+    </div>
+  </div>
+  <details><summary class="small">Other relatives (entmax-1.5, spherical softmax, mixture of softmaxes…)</summary>
+    <p class="small">Entmax-α interpolates between softmax (α=1) and sparsemax (α=2). Mixture-of-softmaxes addresses the &ldquo;softmax bottleneck&rdquo; in language modeling. All trade some property — sparsity, expressiveness, compute — against vanilla softmax.</p>
+  </details>
+</section>
+
+<!-- Practice -->
+<section id="play">
+  <h2><span class="num">⌨</span>Practice mode</h2>
+  <p class="lead">Type to answer. <span class="kbd">Enter</span> submits, <span class="kbd">→</span> goes next. Combos give bonus XP.</p>
+  <div id="dots" class="progressDots"></div>
+  <div id="drillHost"></div>
+</section>
+
+<!-- Boss -->
+<section id="boss">
+  <h2><span class="num">★</span>Distribution Boss</h2>
+  <p class="lead">Rapid round: 8 quickfire questions, 60 seconds. Triple XP. Unlocks the final achievement.</p>
+  <div class="boss" id="bossBox">
+    <div class="timer" id="bossTimer">60</div>
+    <div class="qbig" id="bossQ">Press start to summon the boss.</div>
+    <input class="ti" id="bossA" placeholder="answer…" />
+    <div style="margin-top:10px"><button class="btn primary" id="bossStart">Start boss round</button></div>
+    <div class="small" id="bossScore" style="margin-top:8px">score: 0 / 8</div>
+  </div>
+</section>
+
+<!-- Achievements -->
+<section id="ach">
+  <h2><span class="num">♛</span>Trophies</h2>
+  <div class="achGrid" id="achGrid"></div>
+</section>
+
+<footer>built for studying · σ · keyboard-friendly</footer>
+</div>
+
+<script>
+/* ============================================================
+   STATE + PERSISTENCE
+   ============================================================ */
+const LS_KEY = "softmax-trainer-v1";
+const defaultState = {
+  xp: 0, lvl: 1, combo: 0, bestCombo: 0,
+  correct: 0, attempts: 0,
+  done: {},     // drillId -> "ok" | "miss"
+  ach: {},      // achId -> true
+  bossDone: false
+};
+let S = loadState();
+function loadState(){
+  try{ const v = JSON.parse(localStorage.getItem(LS_KEY)); return Object.assign({},defaultState,v||{},{done:Object.assign({},(v&&v.done)||{}),ach:Object.assign({},(v&&v.ach)||{})}); }
+  catch(_){ return JSON.parse(JSON.stringify(defaultState)); }
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function xpForLevel(l){ return 50 + (l-1)*30; }
+function addXP(n){
+  S.xp += n;
+  while(S.xp >= xpForLevel(S.lvl)){ S.xp -= xpForLevel(S.lvl); S.lvl++; toast(`Level up! → LVL ${S.lvl}`); }
+  refreshHUD(); saveState();
+}
+function refreshHUD(){
+  document.getElementById("lvl").textContent = S.lvl;
+  document.getElementById("xp").textContent  = S.xp;
+  document.getElementById("combo").textContent = S.combo;
+  const need = xpForLevel(S.lvl);
+  document.getElementById("xpfill").style.width = Math.min(100,(S.xp/need)*100)+"%";
+  const acc = S.attempts ? Math.round(100*S.correct/S.attempts) : null;
+  document.getElementById("acc").textContent = acc===null ? "—" : (acc+"%");
+}
+document.getElementById("resetBtn").onclick = ()=>{
+  if(!confirm("Wipe all XP, combos, drill progress, and trophies?")) return;
+  S = JSON.parse(JSON.stringify(defaultState));
+  saveState(); location.reload();
+};
+
+/* ============================================================
+   TOAST + EFFECTS
+   ============================================================ */
+const toastEl = document.getElementById("toast");
+let toastT;
+function toast(msg, ms=1800){
+  toastEl.textContent = msg; toastEl.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>toastEl.classList.remove("show"), ms);
+}
+
+const conf = document.getElementById("confetti");
+const cctx = conf.getContext("2d");
+function sizeConf(){ conf.width = innerWidth; conf.height = innerHeight; }
+sizeConf(); addEventListener("resize", sizeConf);
+let particles = [];
+function confetti(n=80){
+  const colors = ["#ff5d9e","#7c5cff","#3ddc97","#ffd166","#ffffff"];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*60,
+      y: innerHeight/2,
+      vx: (Math.random()-.5)*9,
+      vy: -Math.random()*9-3,
+      g: 0.28+Math.random()*0.15,
+      s: 4+Math.random()*5,
+      r: Math.random()*Math.PI,
+      vr: (Math.random()-.5)*0.3,
+      c: colors[(Math.random()*colors.length)|0],
+      life: 90+Math.random()*30
+    });
+  }
+}
+function tickConf(){
+  cctx.clearRect(0,0,conf.width,conf.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy += p.g; p.x += p.vx; p.y += p.vy; p.r += p.vr; p.life--;
+    cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.r);
+    cctx.fillStyle = p.c; cctx.globalAlpha = Math.max(0,Math.min(1,p.life/40));
+    cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); cctx.restore();
+  }
+  requestAnimationFrame(tickConf);
+}
+tickConf();
+
+function shake(el){ el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+function pulse(el){ el.classList.remove("pulse"); void el.offsetWidth; el.classList.add("pulse"); }
+
+/* ============================================================
+   MATH HELPERS
+   ============================================================ */
+function softmax(z, tau=1){
+  const m = Math.max(...z);
+  const ex = z.map(v => Math.exp((v - m)/tau));
+  const s = ex.reduce((a,b)=>a+b,0);
+  return ex.map(v=>v/s);
+}
+function fmt(x, d=3){ return Number(x).toFixed(d); }
+function near(a,b,tol){ return Math.abs(a-b)<=tol; }
+function parseNum(s){ const x = parseFloat(String(s).trim()); return isNaN(x)?null:x; }
+function normSpaces(s){ return String(s).replace(/\s+/g,"").toLowerCase(); }
+/* Compare LaTeX-like formula strings loosely. */
+function eqTex(user, target){
+  const norm = s => s
+    .replace(/\\,|\\;|\\!|\\:/g,"")
+    .replace(/\\left|\\right/g,"")
+    .replace(/\\mathrm\{[^}]*\}/g,"")
+    .replace(/\s+/g,"")
+    .replace(/\\cdot/g,"*")
+    .replace(/\\times/g,"*")
+    .toLowerCase();
+  return norm(user) === norm(target);
+}
+
+/* ============================================================
+   CENTERPIECE WIDGET
+   ============================================================ */
+const z1=document.getElementById("z1"),z2=document.getElementById("z2"),z3=document.getElementById("z3"),tau=document.getElementById("tau");
+const z1v=document.getElementById("z1v"),z2v=document.getElementById("z2v"),z3v=document.getElementById("z3v"),tauv=document.getElementById("tauv");
+const bar1=document.getElementById("bar1"),bar2=document.getElementById("bar2"),bar3=document.getElementById("bar3");
+const p1e=document.getElementById("p1"),p2e=document.getElementById("p2"),p3e=document.getElementById("p3");
+const sumLine=document.getElementById("sumLine");
+const formulaLive=document.getElementById("formulaLive");
+let appliedLSE = false;
+function renderWidget(){
+  const a = +z1.value, b = +z2.value, c = +z3.value, t = +tau.value;
+  z1v.textContent = fmt(a,2); z2v.textContent = fmt(b,2); z3v.textContent = fmt(c,2); tauv.textContent = fmt(t,2);
+  let zs=[a,b,c], shifted=zs;
+  if(appliedLSE){ const m=Math.max(...zs); shifted = zs.map(v=>v-m); }
+  const p = softmax(shifted, t);
+  bar1.style.width=(p[0]*100).toFixed(1)+"%";
+  bar2.style.width=(p[1]*100).toFixed(1)+"%";
+  bar3.style.width=(p[2]*100).toFixed(1)+"%";
+  p1e.textContent=fmt(p[0],4); p2e.textContent=fmt(p[1],4); p3e.textContent=fmt(p[2],4);
+  sumLine.textContent = `∑ p = ${fmt(p[0]+p[1]+p[2],4)}` + (appliedLSE? "  (LSE shift active: subtract max before exp)":"");
+  const num = shifted.map(v => `e^{${fmt(v/t,2)}}`).join(",\\;");
+  const den = `e^{${fmt(shifted[0]/t,2)}} + e^{${fmt(shifted[1]/t,2)}} + e^{${fmt(shifted[2]/t,2)}}`;
+  const tex = `\\displaystyle p_i = \\frac{e^{z_i/\\tau}}{\\sum_j e^{z_j/\\tau}} \\;=\\; \\Big(\\,${num}\\,\\Big)\\Big/\\big(${den}\\big)`;
+  try{ katex.render(tex, formulaLive, {displayMode:true,throwOnError:false}); }
+  catch(_){ formulaLive.textContent = "p = (" + p.map(v=>fmt(v,3)).join(", ") + ")"; }
+}
+[z1,z2,z3,tau].forEach(el=>el.addEventListener("input", renderWidget));
+document.getElementById("lseBtn").onclick = ()=>{
+  appliedLSE = !appliedLSE;
+  toast(appliedLSE? "LSE shift ON — bars unchanged, exponents bounded by 1." : "LSE shift OFF.");
+  if(appliedLSE){ unlock("stability"); }
+  renderWidget();
+};
+document.getElementById("resetWidget").onclick = ()=>{
+  z1.value=2.0; z2.value=1.0; z3.value=0.1; tau.value=1.0; appliedLSE=false; renderWidget();
+};
+/* tau extremes -> achievement */
+tau.addEventListener("input", ()=>{
+  const t=+tau.value;
+  if(t<=0.1) unlock("temptamerLow");
+  if(t>=4.5) unlock("temptamerHigh");
+  if(unlocked("temptamerLow") && unlocked("temptamerHigh")) unlock("temptamer");
+});
+/* wait for KaTeX */
+const kxReady = setInterval(()=>{ if(window.katex){ clearInterval(kxReady); renderWidget(); } }, 60);
+
+/* ============================================================
+   PRACTICE DRILLS  (>=15)
+   ============================================================ */
+const drills = [
+  /* ---- compute drills ---- */
+  {
+    id:"c1", tag:"compute",
+    prompt: "softmax([0, 1, 2]) ≈ ?  (type 3 numbers, 2 decimals each)",
+    inputs: 3, kind:"triple",
+    target: softmax([0,1,2]),
+    explain: "Use the LSE shift: subtract max=2 → [-2,-1,0] → exp → [0.135, 0.368, 1] → /sum(1.503)."
+  },
+  {
+    id:"c2", tag:"compute",
+    prompt: "softmax([2, 2, 2]) = ?",
+    inputs: 3, kind:"triple",
+    target: [1/3,1/3,1/3],
+    explain: "All logits equal → uniform. Each entry = 1/K = 1/3 ≈ 0.333."
+  },
+  {
+    id:"c3", tag:"compute",
+    prompt: "softmax([3, 0]) ≈ ? (two values)",
+    inputs: 2, kind:"triple",
+    target: softmax([3,0]),
+    explain: "exp([3,0]) = [20.09, 1] → /21.09 ≈ [0.953, 0.047]."
+  },
+  {
+    id:"c4", tag:"compute",
+    prompt: "With τ=2, softmax([2, 0]) ≈ ?",
+    inputs: 2, kind:"triple",
+    target: softmax([2,0],2),
+    explain: "Logits/τ = [1, 0]. exp = [2.718, 1] → [0.731, 0.269]. Higher τ flattens."
+  },
+  {
+    id:"c5", tag:"compute",
+    prompt: "softmax([100, 99]) ≈ ? (yes, big numbers — use the trick)",
+    inputs: 2, kind:"triple",
+    target: softmax([100,99]),
+    explain: "Subtract max=100 → [0,-1]. exp = [1, 0.368]. /1.368 → [0.731, 0.269]. Same answer as softmax([1,0]) — shift invariance!"
+  },
+
+  /* ---- formula typing ---- */
+  {
+    id:"f1", tag:"formula",
+    prompt: "Type the softmax formula in LaTeX (numerator over sum). Use e^{x_i} and \\sum_j e^{x_j}.",
+    kind:"latex", target:"e^{x_i}/\\sum_je^{x_j}",
+    altTargets:["e^{x_i}/\\sum_{j}e^{x_j}", "\\frac{e^{x_i}}{\\sum_je^{x_j}}", "\\frac{e^{x_i}}{\\sum_{j}e^{x_j}}"],
+    explain: "softmax(x)_i = e^{x_i} / Σ_j e^{x_j}."
+  },
+  {
+    id:"f2", tag:"formula",
+    prompt: "Type log-softmax in LaTeX (use \\log\\sum_j e^{x_j}).",
+    kind:"latex", target:"x_i-\\log\\sum_je^{x_j}",
+    altTargets:["x_i-\\log\\sum_{j}e^{x_j}","x_{i}-\\log\\sum_je^{x_j}","x_{i}-\\log\\sum_{j}e^{x_{j}}"],
+    explain: "log softmax(x)_i = x_i - log Σ_j e^{x_j}. The LSE term is the normalizer."
+  },
+  {
+    id:"f3", tag:"formula",
+    prompt: "Softmax with temperature τ in LaTeX (numerator).",
+    kind:"latex", target:"e^{x_i/\\tau}/\\sum_je^{x_j/\\tau}",
+    altTargets:["\\frac{e^{x_i/\\tau}}{\\sum_je^{x_j/\\tau}}","e^{x_i/\\tau}/\\sum_{j}e^{x_j/\\tau}","\\frac{e^{x_{i}/\\tau}}{\\sum_{j}e^{x_{j}/\\tau}}"],
+    explain: "Divide each logit by τ before exponentiating."
+  },
+
+  /* ---- property drills ---- */
+  {
+    id:"p1", tag:"property",
+    prompt: "True or False: softmax(x) == softmax(x + c) for any scalar c. (Type True or False, then add a one-line reason.)",
+    kind:"tfReason", target:"true",
+    explain: "True. Numerator and denominator both gain a factor e^c which cancels — shift invariance."
+  },
+  {
+    id:"p2", tag:"property",
+    prompt: "True or False: softmax(x) == softmax(c·x) for any positive scalar c.",
+    kind:"tf", target:"false",
+    explain: "False. Multiplicative scaling = inverse temperature. Only c=1 is identity. c→∞ peaks, c→0 flattens."
+  },
+  {
+    id:"p3", tag:"property",
+    prompt: "True or False: every output of softmax lies strictly in (0, 1).",
+    kind:"tf", target:"true",
+    explain: "True. exp is strictly positive and the denominator is positive, so each ratio is in (0,1) — never exactly 0 or 1."
+  },
+  {
+    id:"p4", tag:"property",
+    prompt: "True or False: softmax outputs sum to 1.",
+    kind:"tf", target:"true",
+    explain: "True by construction — denominator equals the sum of numerators."
+  },
+
+  /* ---- trick drills ---- */
+  {
+    id:"t1", tag:"stability",
+    prompt: "What constant should you subtract from every logit for numerical stability? (Type as a function of x.)",
+    kind:"text", target:"max(x)",
+    altTargets:["max x","\\max(x)","max_i x_i","max_i(x_i)","max(x_i)"],
+    explain: "Subtract max(x). Largest exponent becomes e^0=1; nothing overflows."
+  },
+  {
+    id:"t2", tag:"stability",
+    prompt: "Name of the identity log Σ e^{x_j} = m + log Σ e^{x_j - m}.",
+    kind:"text", target:"log-sum-exp",
+    altTargets:["logsumexp","log sum exp","lse","log-sum-exp trick"],
+    explain: "Log-sum-exp (LSE). The shifted form is the numerically stable one."
+  },
+
+  /* ---- gradient drills ---- */
+  {
+    id:"g1", tag:"gradient",
+    prompt: "For cross-entropy loss with softmax, ∂L/∂z_i = ?  (in terms of p_i and y_i)",
+    kind:"text", target:"p_i - y_i",
+    altTargets:["p_i-y_i","pi-yi","p-y","p_{i}-y_{i}"],
+    explain: "Predicted minus target. Vector form: ∇L = p − y."
+  },
+  {
+    id:"g2", tag:"gradient",
+    prompt: "Softmax Jacobian: ∂p_i/∂z_j = ? (use δ_{ij})",
+    kind:"text", target:"p_i(\\delta_{ij}-p_j)",
+    altTargets:["p_i(delta_{ij}-p_j)","p_i*(delta_{ij}-p_j)","p_i(\\delta_{ij}-p_j)","p_i (\\delta_{ij}-p_j)"],
+    explain: "p_i (δ_{ij} − p_j). Diagonal terms p_i(1−p_i); off-diagonal −p_i p_j."
+  },
+
+  /* ---- attention drill ---- */
+  {
+    id:"a1", tag:"attention",
+    prompt: "In scaled dot-product attention, what is divided by √d_k before softmax? (one short phrase)",
+    kind:"text", target:"QK^T",
+    altTargets:["q k^t","qk^t","q*k^t","q k^\\top","qk^\\top","query·key^t"],
+    explain: "QK^T — the raw query-key similarities. Dividing by √d_k keeps softmax in its sensitive regime."
+  },
+  /* ---- temperature drill ---- */
+  {
+    id:"tm1", tag:"temperature",
+    prompt: "As τ → ∞, softmax approaches what distribution? (one word)",
+    kind:"text", target:"uniform",
+    altTargets:["uniform distribution","1/k","flat"],
+    explain: "Uniform: every z_i/τ → 0, all numerators equal."
+  }
+];
+
+/* render the drill host */
+const host = document.getElementById("drillHost");
+const dotsBox = document.getElementById("dots");
+
+function renderDots(){
+  dotsBox.innerHTML="";
+  drills.forEach((d,i)=>{
+    const el = document.createElement("div");
+    el.className="dot";
+    if(S.done[d.id]==="ok") el.classList.add("done");
+    else if(S.done[d.id]==="miss") el.classList.add("miss");
+    if(i===curIdx) el.classList.add("cur");
+    el.title = d.tag+" — "+ (S.done[d.id]||"untouched");
+    el.onclick = ()=>{ curIdx=i; renderDrill(); renderDots(); };
+    dotsBox.appendChild(el);
+  });
+}
+
+let curIdx = 0;
+function renderDrill(){
+  const d = drills[curIdx];
+  host.innerHTML="";
+  const card = document.createElement("div");
+  card.className = "card drillCard";
+  card.id = "drillCard";
+
+  const qbar = document.createElement("div");
+  qbar.className = "qbar";
+  qbar.innerHTML = `<span class="qnum">drill ${curIdx+1} / ${drills.length}</span><span class="qtag">${d.tag}</span>`;
+  card.appendChild(qbar);
+
+  const prompt = document.createElement("div");
+  prompt.className = "prompt"; prompt.innerHTML = d.prompt;
+  card.appendChild(prompt);
+
+  const row = document.createElement("div");
+  row.className = "answerRow";
+  card.appendChild(row);
+
+  let inputs=[]; let preview=null; let reason=null;
+
+  if(d.kind==="triple"){
+    const n = d.inputs;
+    for(let i=0;i<n;i++){
+      const ip = document.createElement("input");
+      ip.className="ti tri"; ip.placeholder = `p${i+1}`; ip.inputMode="decimal";
+      row.appendChild(ip); inputs.push(ip);
+    }
+  } else if(d.kind==="latex"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.style.minWidth="320px";
+    ip.placeholder="e^{x_i}/\\sum_j e^{x_j}";
+    row.appendChild(ip); inputs.push(ip);
+    preview = document.createElement("div");
+    preview.className="preview"; preview.textContent="(live preview appears here)";
+    card.appendChild(preview);
+    ip.addEventListener("input",()=>{
+      try{ katex.render(ip.value||"\\;", preview, {displayMode:true,throwOnError:false}); }
+      catch(_){ preview.textContent = ip.value; }
+    });
+  } else if(d.kind==="tf"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.placeholder="True / False";
+    row.appendChild(ip); inputs.push(ip);
+  } else if(d.kind==="tfReason"){
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.placeholder="True / False";
+    row.appendChild(ip); inputs.push(ip);
+    reason = document.createElement("textarea");
+    reason.className="ti"; reason.placeholder="(optional) one-line reason — at least 4 chars for combo bonus";
+    card.appendChild(reason);
+  } else { /* text */
+    const ip = document.createElement("input");
+    ip.className="ti"; ip.style.minWidth="280px";
+    ip.placeholder="answer";
+    row.appendChild(ip); inputs.push(ip);
+  }
+
+  const fb = document.createElement("div"); fb.className="feedback"; card.appendChild(fb);
+  const nav = document.createElement("div"); nav.className="nav";
+  const submit = document.createElement("button"); submit.className="btn primary"; submit.textContent="Check";
+  const next   = document.createElement("button"); next.className="btn"; next.textContent="Next →";
+  const prev   = document.createElement("button"); prev.className="btn ghost"; prev.textContent="← Prev";
+  const reveal = document.createElement("button"); reveal.className="btn ghost"; reveal.textContent="Reveal";
+  const left = document.createElement("div"); left.append(prev);
+  const right = document.createElement("div"); right.append(reveal,submit,next);
+  nav.append(left,right); card.appendChild(nav);
+
+  prev.onclick = ()=>{ curIdx=(curIdx-1+drills.length)%drills.length; renderDrill(); renderDots(); };
+  next.onclick = ()=>{ curIdx=(curIdx+1)%drills.length; renderDrill(); renderDots(); };
+  reveal.onclick = ()=>{ fb.className="feedback"; fb.innerHTML = "<i>"+d.explain+"</i>"; };
+
+  function check(){
+    let ok=false;
+    if(d.kind==="triple"){
+      const vals = inputs.map(x=>parseNum(x.value));
+      if(vals.some(v=>v===null)){ fb.className="feedback no"; fb.textContent="Type a number in each box."; return; }
+      ok = vals.length===d.target.length && vals.every((v,i)=>near(v,d.target[i],0.01));
+    } else if(d.kind==="latex"){
+      const u = inputs[0].value;
+      ok = eqTex(u,d.target) || (d.altTargets||[]).some(t=>eqTex(u,t));
+    } else if(d.kind==="tf"){
+      const u = normSpaces(inputs[0].value);
+      ok = (u===d.target) || (u==="t"&&d.target==="true") || (u==="f"&&d.target==="false") || (u==="yes"&&d.target==="true") || (u==="no"&&d.target==="false");
+    } else if(d.kind==="tfReason"){
+      const u = normSpaces(inputs[0].value);
+      const baseOK = (u===d.target)||(u==="t"&&d.target==="true")||(u==="f"&&d.target==="false");
+      ok = baseOK;
+      if(ok && reason && reason.value.trim().length>=4){ /* small bonus */ S.combo++; addXP(3); toast("Reasoned bonus +3 XP"); }
+    } else { /* text */
+      const u = normSpaces(inputs[0].value);
+      const t = normSpaces(d.target);
+      ok = (u===t) || (d.altTargets||[]).some(a=>normSpaces(a)===u);
+    }
+    S.attempts++;
+    if(ok){
+      S.correct++; S.combo++; S.bestCombo = Math.max(S.bestCombo,S.combo);
+      const base = (d.tag==="compute"||d.tag==="gradient") ? 14 : 10;
+      const bonus = Math.min(20, Math.floor(S.combo/3)*3);
+      addXP(base+bonus);
+      S.done[d.id]="ok";
+      fb.className="feedback ok"; fb.textContent = `Correct  +${base+bonus} XP  · combo ×${S.combo}`;
+      pulse(card); confetti(60);
+      checkProgressAchievements();
+    } else {
+      S.combo=0;
+      S.done[d.id]="miss";
+      fb.className="feedback no"; fb.textContent="Not quite. Try Reveal for the worked answer.";
+      shake(card);
+    }
+    saveState(); refreshHUD(); renderDots();
+  }
+
+  submit.onclick = check;
+  inputs.forEach(ip=>{
+    ip.addEventListener("keydown",ev=>{
+      if(ev.key==="Enter"){ ev.preventDefault(); check(); }
+      else if(ev.key==="ArrowRight" && (ev.metaKey||ev.ctrlKey)){ next.click(); }
+    });
+  });
+  if(reason){
+    reason.addEventListener("keydown",ev=>{ if(ev.key==="Enter" && (ev.metaKey||ev.ctrlKey)){ check(); } });
+  }
+  host.appendChild(card);
+  setTimeout(()=>inputs[0]&&inputs[0].focus(), 30);
+}
+renderDrill(); renderDots();
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+const ACHIEVEMENTS = [
+  {id:"first",       em:"♟", t:"First Step",         d:"Answer your first drill correctly."},
+  {id:"probabilist", em:"π", t:"Probabilist",        d:"Solve every compute drill (c1–c5)."},
+  {id:"latexlord",   em:"∑", t:"LaTeX Lord",         d:"Type all three softmax formulas correctly."},
+  {id:"propguru",    em:"⊨", t:"Property Guru",      d:"Get every True/False drill right."},
+  {id:"stability",   em:"⚖", t:"Stability Hero",     d:"Apply the log-sum-exp trick in the widget."},
+  {id:"temptamerLow",em:"❄", t:"Frozen",             d:"Push τ to its minimum."},
+  {id:"temptamerHigh",em:"🔥",t:"Boiling",           d:"Push τ to its maximum."},
+  {id:"temptamer",   em:"🌡", t:"Temperature Tamer",  d:"Visit both τ extremes."},
+  {id:"combo10",     em:"⚡", t:"Streak ×10",         d:"Reach a combo of 10."},
+  {id:"perfectish",  em:"♛", t:"Almost Royal",       d:"Solve 12 drills correctly."},
+  {id:"bossSlayer",  em:"☄", t:"Distribution Boss",  d:"Survive the boss round."},
+];
+function unlocked(id){ return !!S.ach[id]; }
+function unlock(id){
+  if(S.ach[id]) return;
+  S.ach[id] = true; saveState();
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  if(a){ toast(`Trophy: ${a.em} ${a.t}`); confetti(40); }
+  renderAchievements();
+}
+function renderAchievements(){
+  const g = document.getElementById("achGrid"); g.innerHTML="";
+  for(const a of ACHIEVEMENTS){
+    const el = document.createElement("div");
+    el.className = "ach" + (unlocked(a.id)?" unlocked":"");
+    el.innerHTML = `<div class="em">${a.em}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div>`;
+    g.appendChild(el);
+  }
+}
+renderAchievements();
+
+function checkProgressAchievements(){
+  if(S.correct>=1) unlock("first");
+  if(["c1","c2","c3","c4","c5"].every(k=>S.done[k]==="ok")) unlock("probabilist");
+  if(["f1","f2","f3"].every(k=>S.done[k]==="ok")) unlock("latexlord");
+  if(["p1","p2","p3","p4"].every(k=>S.done[k]==="ok")) unlock("propguru");
+  if(S.combo>=10) unlock("combo10");
+  const okCount = Object.values(S.done).filter(v=>v==="ok").length;
+  if(okCount>=12) unlock("perfectish");
+}
+
+/* ============================================================
+   BOSS ROUND
+   ============================================================ */
+const bossBank = [
+  {q:"softmax([0,0,0])_1 = ?  (decimal)", ans:"0.333", tol:0.01},
+  {q:"As τ→0⁺, softmax becomes ___ (one word)", ans:"argmax", alts:["one-hot","onehot","arg max"]},
+  {q:"As τ→∞, softmax becomes ___ (one word)", ans:"uniform", alts:["flat","1/k"]},
+  {q:"Subtract ___ for stability.", ans:"max", alts:["max(x)","maximum","\\max"]},
+  {q:"∂L/∂z_i for softmax+CE = ?", ans:"p_i-y_i", alts:["pi-yi","p-y","p_{i}-y_{i}"]},
+  {q:"softmax([1,2])_2 ≈ ? (2 dp)", ans:"0.73", tol:0.02},
+  {q:"Sums to ___?", ans:"1", alts:["one"]},
+  {q:"Output range of softmax components?", ans:"(0,1)", alts:["0,1","(0, 1)","strictly between 0 and 1","strictly 0 to 1"]},
+];
+const bossTimerEl = document.getElementById("bossTimer");
+const bossQEl = document.getElementById("bossQ");
+const bossAEl = document.getElementById("bossA");
+const bossScoreEl = document.getElementById("bossScore");
+const bossStartBtn = document.getElementById("bossStart");
+let bossIdx=0, bossScore=0, bossTimer=null, bossActive=false;
+
+function bossNext(){
+  if(bossIdx>=bossBank.length){ bossEnd(); return; }
+  bossQEl.textContent = bossBank[bossIdx].q;
+  bossAEl.value=""; bossAEl.focus();
+}
+function bossSubmit(){
+  if(!bossActive) return;
+  const cur = bossBank[bossIdx];
+  const u = bossAEl.value.trim();
+  let ok=false;
+  if(cur.tol!=null){ const v=parseNum(u); ok = v!==null && near(v,parseFloat(cur.ans),cur.tol); }
+  else { const n=normSpaces(u); ok = n===normSpaces(cur.ans) || (cur.alts||[]).some(a=>normSpaces(a)===n); }
+  if(ok){ bossScore++; addXP(15); confetti(30); pulse(document.getElementById("bossBox")); }
+  else { S.combo=0; saveState(); refreshHUD(); shake(document.getElementById("bossBox")); }
+  bossIdx++;
+  bossScoreEl.textContent = `score: ${bossScore} / ${bossBank.length}`;
+  bossNext();
+}
+bossAEl.addEventListener("keydown", ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); bossSubmit(); } });
+
+function bossEnd(){
+  bossActive=false; clearInterval(bossTimer);
+  bossQEl.textContent = `Boss down. ${bossScore}/${bossBank.length} correct.`;
+  if(bossScore>=Math.ceil(bossBank.length*0.6)) unlock("bossSlayer");
+  S.bossDone=true; saveState();
+}
+bossStartBtn.onclick = ()=>{
+  bossIdx=0; bossScore=0; bossActive=true;
+  bossScoreEl.textContent = `score: 0 / ${bossBank.length}`;
+  let t=60; bossTimerEl.textContent=t;
+  clearInterval(bossTimer);
+  bossTimer = setInterval(()=>{
+    t--; bossTimerEl.textContent=t;
+    if(t<=0){ bossEnd(); }
+  },1000);
+  bossNext();
+};
+
+/* ============================================================
+   INIT
+   ============================================================ */
+refreshHUD();
+</script>
+</body>
+</html>

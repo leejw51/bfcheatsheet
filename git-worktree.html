@@ -1,0 +1,1648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Worktree Dojo — Master git worktree</title>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#0e0a07;
+    --bg2:#171110;
+    --panel:#1d1614;
+    --panel2:#241b18;
+    --line:#2e231f;
+    --ink:#f3e9df;
+    --ink2:#c9b8aa;
+    --muted:#8a786c;
+    --orange:#f05133; /* git orange */
+    --orange2:#ff6f3d;
+    --red:#e02424;
+    --green:#3ddc97;
+    --yellow:#f5c451;
+    --blue:#4ea1ff;
+    --purple:#b685ff;
+    --shadow:0 10px 40px rgba(0,0,0,.5);
+    --mono:'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace;
+    --sans:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(240,81,51,.18), transparent 60%),
+      radial-gradient(900px 600px at -10% 30%, rgba(255,111,61,.10), transparent 60%),
+      var(--bg);
+    min-height:100vh;
+  }
+
+  /* ---------- Layout ---------- */
+  header.topbar{
+    position:sticky;top:0;z-index:40;
+    backdrop-filter:blur(12px);
+    background:rgba(14,10,7,.78);
+    border-bottom:1px solid var(--line);
+  }
+  .topbar-inner{
+    max-width:1280px;margin:0 auto;padding:14px 22px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .logo{
+    display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:.2px;
+  }
+  .logo .mark{
+    width:30px;height:30px;border-radius:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    display:grid;place-items:center;color:#1a0f0a;font-weight:900;
+    box-shadow:0 6px 18px rgba(240,81,51,.45);
+  }
+  .nav{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+  .nav a{
+    color:var(--ink2);text-decoration:none;font-size:13px;
+    padding:7px 11px;border-radius:8px;border:1px solid transparent;
+  }
+  .nav a:hover{color:var(--ink);background:rgba(255,255,255,.04);border-color:var(--line)}
+  .stats{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .chip{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--line);
+    padding:6px 10px;border-radius:999px;font-size:12px;color:var(--ink2);font-family:var(--mono);
+  }
+  .chip b{color:var(--ink)}
+  .chip.lv{background:linear-gradient(135deg,rgba(240,81,51,.22),rgba(255,111,61,.12));border-color:rgba(240,81,51,.5);color:#ffd9cb}
+  .chip.combo{background:linear-gradient(135deg,rgba(245,196,81,.18),rgba(245,196,81,.06));border-color:rgba(245,196,81,.45);color:#ffe4a0}
+  .chip.xp{background:linear-gradient(135deg,rgba(61,220,151,.16),rgba(61,220,151,.04));border-color:rgba(61,220,151,.4);color:#b9f5d8}
+
+  main{max-width:1280px;margin:0 auto;padding:30px 22px 90px}
+  .hero{
+    display:grid;grid-template-columns:1.05fr .95fr;gap:28px;margin-bottom:34px;
+  }
+  @media (max-width:980px){ .hero{grid-template-columns:1fr} }
+  .hero h1{
+    font-size:44px;line-height:1.05;margin:0 0 12px;letter-spacing:-.5px;
+  }
+  .hero h1 .accent{
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .hero p.sub{color:var(--ink2);font-size:17px;max-width:62ch;margin:0 0 18px}
+  .hero .ctas{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:linear-gradient(135deg,var(--orange),var(--orange2));
+    color:#fff;border:none;padding:12px 16px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer;
+    box-shadow:0 8px 22px rgba(240,81,51,.35);
+  }
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--orange);color:#ffd2c5}
+  .btn:active{transform:translateY(1px)}
+
+  .hero-art{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:18px;
+    box-shadow:var(--shadow);
+    min-height:340px;display:flex;flex-direction:column;
+  }
+  .hero-art header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .hero-art header span{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .hero-art .dots{display:flex;gap:6px}
+  .hero-art .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .hero-art .dots i:nth-child(1){background:#ff5f56}
+  .hero-art .dots i:nth-child(2){background:#ffbd2e}
+  .hero-art .dots i:nth-child(3){background:#27c93f}
+
+  /* ---------- Section ---------- */
+  section.card{
+    background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line);border-radius:18px;padding:26px;
+    box-shadow:var(--shadow);margin-bottom:24px;
+  }
+  section.card h2{
+    margin:0 0 6px;font-size:24px;letter-spacing:-.2px;display:flex;align-items:center;gap:10px;
+  }
+  section.card h2 .num{
+    width:30px;height:30px;border-radius:8px;background:rgba(240,81,51,.16);
+    color:var(--orange2);font-family:var(--mono);font-size:14px;display:grid;place-items:center;border:1px solid rgba(240,81,51,.35);
+  }
+  section.card .lede{color:var(--ink2);margin:0 0 18px;max-width:78ch}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media (max-width:880px){.grid2,.grid3{grid-template-columns:1fr}}
+
+  .pane{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px;
+  }
+  .pane h3{margin:0 0 8px;font-size:16px}
+  .pane p{margin:0 0 8px;color:var(--ink2);font-size:14px}
+  .pane code, code.inline{
+    font-family:var(--mono);font-size:12.5px;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+
+  pre.code{
+    font-family:var(--mono);font-size:13px;line-height:1.55;
+    background:#0a0706;border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;margin:10px 0;color:#f3e9df;
+  }
+  pre.code .c{color:#7e6a5e}
+  pre.code .k{color:var(--orange2);font-weight:700}
+  pre.code .s{color:#ffd9a8}
+  pre.code .p{color:#9ad7ff}
+  pre.code .x{color:var(--red)}
+
+  .kbd{
+    font-family:var(--mono);font-size:11px;background:#1f1612;border:1px solid var(--line);border-bottom-width:2px;
+    padding:2px 6px;border-radius:6px;color:#ffd2c5;
+  }
+  .pill{
+    display:inline-block;font-size:11px;letter-spacing:.4px;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:rgba(240,81,51,.18);color:#ffd2c5;
+    border:1px solid rgba(240,81,51,.35);
+  }
+  .pill.green{background:rgba(61,220,151,.14);color:#b9f5d8;border-color:rgba(61,220,151,.35)}
+  .pill.blue{background:rgba(78,161,255,.14);color:#b9d8ff;border-color:rgba(78,161,255,.35)}
+  .pill.purple{background:rgba(182,133,255,.14);color:#dec5ff;border-color:rgba(182,133,255,.35)}
+
+  /* ---------- Tree visual ---------- */
+  .stage{
+    display:grid;grid-template-columns:1fr 1.1fr;gap:16px;
+  }
+  @media (max-width:980px){.stage{grid-template-columns:1fr}}
+  .tree-wrap{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;min-height:340px;
+    position:relative;overflow:hidden;
+  }
+  .tree-title{
+    font-family:var(--mono);font-size:12px;color:var(--muted);
+    margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;
+  }
+  .tree-title .badge{
+    color:var(--orange2);font-weight:700;
+  }
+  .tree{font-family:var(--mono);font-size:13.5px;line-height:1.7}
+  .tree .node{display:flex;align-items:center;gap:6px;transition:all .25s ease;border-radius:6px;padding:1px 6px}
+  .tree .node.dir{color:var(--ink)}
+  .tree .node.dir.main{color:#ffd2c5}
+  .tree .node.dir.wt{color:#ffe4a0}
+  .tree .node.file{color:var(--ink2)}
+  .tree .node.git{color:var(--blue)}
+  .tree .node .ico{width:14px;display:inline-block;text-align:center}
+  .tree .indent{display:inline-block;width:14px}
+  .tree .branch-tag{
+    margin-left:8px;font-size:11px;color:#1a0f0a;background:var(--orange2);padding:1px 6px;border-radius:5px;font-weight:700;
+  }
+  .tree .branch-tag.detached{background:#9ca0a6}
+  .tree .branch-tag.locked{background:var(--yellow)}
+  .tree .new{
+    animation:popIn .45s cubic-bezier(.2,1.4,.4,1.05) both;
+    background:rgba(240,81,51,.12);
+  }
+  .tree .removed{
+    animation:popOut .45s ease both;
+    background:rgba(224,36,36,.16);
+  }
+  @keyframes popIn{
+    0%{opacity:0;transform:translateX(-8px) scale(.92)}
+    100%{opacity:1;transform:translateX(0) scale(1)}
+  }
+  @keyframes popOut{
+    0%{opacity:1;transform:translateX(0)}
+    100%{opacity:0;transform:translateX(8px) scale(.96)}
+  }
+
+  /* ---------- Shell ---------- */
+  .shell{
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:0;display:flex;flex-direction:column;min-height:340px;overflow:hidden;
+  }
+  .shell-head{
+    display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#120c0a;
+  }
+  .shell-head .left{display:flex;gap:6px;align-items:center}
+  .shell-head .left i{width:11px;height:11px;border-radius:50%;display:block}
+  .shell-head .left i:nth-child(1){background:#ff5f56}
+  .shell-head .left i:nth-child(2){background:#ffbd2e}
+  .shell-head .left i:nth-child(3){background:#27c93f}
+  .shell-head .title{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .shell-body{
+    flex:1;padding:14px 16px;font-family:var(--mono);font-size:13px;color:var(--ink);overflow:auto;max-height:280px;
+  }
+  .shell-body .line{margin:0;white-space:pre-wrap;word-break:break-all}
+  .shell-body .prompt{color:var(--orange2)}
+  .shell-body .out{color:var(--ink2)}
+  .shell-body .err{color:#ff8a8a}
+  .shell-body .ok{color:var(--green)}
+  .shell-input{
+    display:flex;align-items:center;gap:6px;padding:10px 14px;border-top:1px solid var(--line);background:#0e0907;
+  }
+  .shell-input .ps1{font-family:var(--mono);font-size:13px;color:var(--orange2);white-space:nowrap}
+  .shell-input input{
+    flex:1;background:transparent;border:none;outline:none;color:var(--ink);font-family:var(--mono);font-size:13.5px;caret-color:var(--orange2);
+  }
+  .shell-input.shake{animation:shake .35s}
+  @keyframes shake{
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+
+  /* ---------- Practice ---------- */
+  .practice-head{
+    display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:10px;
+  }
+  .practice-task{
+    flex:1;min-width:240px;background:rgba(240,81,51,.08);border:1px solid rgba(240,81,51,.35);
+    border-radius:12px;padding:14px 16px;
+  }
+  .practice-task .label{
+    font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:var(--orange2);font-weight:800;
+  }
+  .practice-task .q{font-size:17px;margin:6px 0 0;color:var(--ink)}
+  .practice-task .hint{font-size:12.5px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  .practice-meta{
+    display:grid;grid-template-columns:repeat(3,minmax(120px,1fr));gap:8px;min-width:280px;
+  }
+  .meter{
+    background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+  }
+  .meter .l{font-size:11px;color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .meter .v{font-size:18px;font-weight:800;font-family:var(--mono);color:var(--ink)}
+  .meter .v.orange{color:var(--orange2)}
+  .meter .v.green{color:var(--green)}
+  .meter .v.yellow{color:var(--yellow)}
+
+  .progress{
+    height:8px;background:#1a1310;border-radius:999px;overflow:hidden;border:1px solid var(--line);margin-top:10px;
+  }
+  .progress > div{
+    height:100%;background:linear-gradient(90deg,var(--orange),var(--orange2));
+    transition:width .35s ease;
+  }
+
+  .feedback{
+    margin-top:12px;font-family:var(--mono);font-size:13px;min-height:22px;
+  }
+  .feedback.ok{color:var(--green)}
+  .feedback.err{color:#ff8a8a}
+  .feedback.tip{color:var(--yellow)}
+
+  .practice-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+  /* ---------- Achievements ---------- */
+  .achv-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;
+  }
+  .achv{
+    background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px;
+    display:flex;gap:10px;align-items:flex-start;opacity:.45;transition:all .25s ease;
+  }
+  .achv.unlocked{
+    opacity:1;border-color:rgba(240,81,51,.45);
+    background:linear-gradient(135deg,rgba(240,81,51,.12),rgba(255,111,61,.04));
+    box-shadow:0 6px 24px rgba(240,81,51,.18);
+  }
+  .achv .ico{
+    width:38px;height:38px;border-radius:10px;display:grid;place-items:center;
+    background:rgba(255,255,255,.05);border:1px solid var(--line);font-size:18px;flex-shrink:0;
+  }
+  .achv.unlocked .ico{background:linear-gradient(135deg,var(--orange),var(--orange2));border-color:transparent}
+  .achv .t{font-weight:800;font-size:13px}
+  .achv .d{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* ---------- Toast ---------- */
+  .toasts{position:fixed;right:20px;bottom:20px;z-index:80;display:flex;flex-direction:column;gap:10px}
+  .toast{
+    background:linear-gradient(135deg,#221814,#2d201b);
+    border:1px solid rgba(240,81,51,.5);border-radius:12px;
+    padding:12px 14px;min-width:240px;max-width:340px;color:var(--ink);
+    box-shadow:0 12px 32px rgba(0,0,0,.5);
+    animation:slideIn .4s cubic-bezier(.2,1.4,.4,1.05);
+  }
+  .toast .t{font-weight:800;font-size:14px;color:#ffd9cb}
+  .toast .d{font-size:12.5px;color:var(--ink2);margin-top:2px}
+  @keyframes slideIn{
+    from{transform:translateX(20px);opacity:0}
+    to{transform:translateX(0);opacity:1}
+  }
+
+  /* ---------- Boss mode ---------- */
+  .boss{
+    background:radial-gradient(900px 420px at 70% 0%,rgba(224,36,36,.18),transparent 60%),
+               linear-gradient(180deg,#1a0e0a,#1a0a07);
+    border:1px solid rgba(224,36,36,.4);
+  }
+  .boss h2 .num{background:rgba(224,36,36,.22);color:#ff8a8a;border-color:rgba(224,36,36,.45)}
+  .boss .hp-bar{
+    height:14px;background:#1a0a07;border:1px solid var(--line);border-radius:999px;overflow:hidden;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+  }
+  .boss .hp-bar > div{
+    height:100%;background:linear-gradient(90deg,#ff5f56,#ffbd2e);transition:width .35s ease;
+  }
+  .boss-art{
+    font-family:var(--mono);font-size:13px;color:#ffb088;white-space:pre;
+    background:#0a0706;border:1px solid var(--line);border-radius:12px;padding:14px;line-height:1.4;
+  }
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:4px;margin-bottom:14px;flex-wrap:wrap}
+  .tab{
+    padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+    background:transparent;border:1px solid var(--line);color:var(--ink2);
+  }
+  .tab.active{background:rgba(240,81,51,.18);color:#ffd2c5;border-color:rgba(240,81,51,.5)}
+
+  table.cmp{
+    width:100%;border-collapse:collapse;font-size:13.5px;margin-top:6px;
+  }
+  table.cmp th, table.cmp td{
+    padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;
+  }
+  table.cmp th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  table.cmp tr:last-child td{border-bottom:none}
+  table.cmp td.win{color:var(--green);font-weight:700}
+  table.cmp td.lose{color:#ff8a8a}
+
+  footer{
+    text-align:center;padding:30px 20px;color:var(--muted);font-size:13px;
+  }
+
+  .scroll-fade{
+    opacity:0;transform:translateY(14px);transition:all .55s ease;
+  }
+  .scroll-fade.in{opacity:1;transform:translateY(0)}
+
+  /* ---------- SVG anim ---------- */
+  .wt-svg circle{transition:all .4s ease}
+  .wt-svg .pop{animation:pulseRing 1.4s ease infinite}
+  @keyframes pulseRing{
+    0%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+    50%{filter:drop-shadow(0 0 12px rgba(240,81,51,.6))}
+    100%{filter:drop-shadow(0 0 0 rgba(240,81,51,0))}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="logo">
+      <div class="mark">⌥</div>
+      <div>Worktree Dojo</div>
+    </div>
+    <nav class="nav">
+      <a href="#problem">Problem</a>
+      <a href="#anatomy">Anatomy</a>
+      <a href="#commands">Commands</a>
+      <a href="#patterns">Patterns</a>
+      <a href="#gotchas">Gotchas</a>
+      <a href="#vs">vs Stash</a>
+      <a href="#bare">Bare repos</a>
+      <a href="#practice">Practice</a>
+      <a href="#boss">Boss</a>
+    </nav>
+    <div class="stats">
+      <span class="chip lv">LV <b id="hud-lv">1</b></span>
+      <span class="chip xp">XP <b id="hud-xp">0</b>/<span id="hud-xpmax">100</span></span>
+      <span class="chip combo">x<b id="hud-combo">0</b></span>
+      <span class="chip">★ <b id="hud-achv">0</b>/12</span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div>
+      <div class="pill">git multi-checkout · learn by typing</div>
+      <h1>Stop stashing.<br/><span class="accent">Start branching in parallel.</span></h1>
+      <p class="sub">
+        <code class="inline">git worktree</code> lets one repository have multiple working directories — different branches, all checked out at the same time, all sharing one <code class="inline">.git</code>.
+        Master it through a typing-driven dojo with XP, achievements, and a final boss.
+      </p>
+      <div class="ctas">
+        <button class="btn" onclick="document.getElementById('practice').scrollIntoView({behavior:'smooth'})">Start practice →</button>
+        <button class="btn ghost" onclick="document.getElementById('commands').scrollIntoView({behavior:'smooth'})">Read the manual</button>
+        <button class="btn ghost" onclick="resetProgress()">Reset progress</button>
+      </div>
+    </div>
+    <div class="hero-art">
+      <header>
+        <div class="dots"><i></i><i></i><i></i></div>
+        <span>~/projects/cro-economy-service</span>
+      </header>
+      <div class="stage" style="grid-template-columns:1fr 1.05fr;flex:1">
+        <div class="tree-wrap">
+          <div class="tree-title"><span>Filesystem</span><span class="badge" id="hero-wtcount">1 worktree</span></div>
+          <div class="tree" id="hero-tree"></div>
+        </div>
+        <div class="shell">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">demo · zsh</div>
+          </div>
+          <div class="shell-body" id="hero-shell"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 1. PROBLEM -->
+  <section class="card scroll-fade" id="problem">
+    <h2><span class="num">01</span> The problem worktrees solve</h2>
+    <p class="lede">You're deep in a feature. Production catches fire. You need to fix <code class="inline">main</code> right now. Without worktrees, every option hurts.</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">Pain 1</span> Context switch tax</h3>
+        <p>You stash, switch to main, fix, push, switch back, pop the stash, hope nothing conflicts. WIP merge conflicts on a stash pop are a special kind of misery.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">Pain 2</span> Parallel work</h3>
+        <p>Your build takes 6 minutes. While CI runs on branch A, you want to write code on branch B without rebuilding. One checkout = one branch at a time.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill">Pain 3</span> Reviewing PRs</h3>
+        <p>You want to <code class="inline">git checkout pr/42</code> and run it locally — but you also don't want to torch your in-progress changes on the current branch.</p>
+      </div>
+    </div>
+    <div class="pane" style="margin-top:14px">
+      <h3>The worktree answer</h3>
+      <p style="color:var(--ink2)">Add a second working directory pinned to a different branch. Both share the same <code class="inline">.git</code> object database — fetches, refs, hooks, config — but their <em>files on disk</em> are independent. Switch by <code class="inline">cd</code>, not by <code class="inline">checkout</code>.</p>
+<pre class="code"><span class="c"># before: stash dance</span>
+<span class="k">git</span> stash push -m wip
+<span class="k">git</span> checkout main
+<span class="c"># ...fix, commit, push...</span>
+<span class="k">git</span> checkout feature/long-thing
+<span class="k">git</span> stash pop   <span class="c"># 🤞</span>
+
+<span class="c"># after: a parallel working dir</span>
+<span class="k">git</span> worktree add ../hotfix main
+<span class="k">cd</span> ../hotfix
+<span class="c"># ...fix, commit, push, then:</span>
+<span class="k">cd</span> ../cro-economy-service
+<span class="k">git</span> worktree remove ../hotfix</pre>
+    </div>
+  </section>
+
+  <!-- 2. ANATOMY -->
+  <section class="card scroll-fade" id="anatomy">
+    <h2><span class="num">02</span> Anatomy: shared <code class="inline">.git</code>, separate working dirs</h2>
+    <p class="lede">A worktree is a checkout that lives outside the main repo's directory but is still tracked by the main repo's <code class="inline">.git</code>.</p>
+    <div class="grid2">
+      <div>
+        <svg viewBox="0 0 520 320" class="wt-svg" width="100%" height="320" aria-hidden="true">
+          <defs>
+            <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#f05133"/>
+              <stop offset="100%" stop-color="#ff6f3d"/>
+            </linearGradient>
+            <linearGradient id="g2" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#4ea1ff"/>
+              <stop offset="100%" stop-color="#b685ff"/>
+            </linearGradient>
+            <filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          </defs>
+
+          <!-- core .git -->
+          <circle cx="260" cy="160" r="58" fill="url(#g1)" filter="url(#glow)" class="pop"/>
+          <text x="260" y="156" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="900" font-size="14">.git</text>
+          <text x="260" y="174" text-anchor="middle" fill="#1a0f0a" font-family="ui-sans-serif" font-weight="700" font-size="11">objects · refs</text>
+
+          <!-- worktree nodes -->
+          <g>
+            <line x1="260" y1="160" x2="80" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="60"  stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="80" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+            <line x1="260" y1="160" x2="440" y2="270" stroke="#f05133" stroke-width="2" stroke-dasharray="4 3"/>
+          </g>
+
+          <g>
+            <circle cx="80" cy="60" r="34" fill="url(#g2)"/>
+            <text x="80" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">main repo</text>
+            <text x="80" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">main</text>
+          </g>
+          <g>
+            <circle cx="440" cy="60" r="34" fill="url(#g2)"/>
+            <text x="440" y="58" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../hotfix</text>
+            <text x="440" y="74" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">hotfix-123</text>
+          </g>
+          <g>
+            <circle cx="80" cy="270" r="34" fill="url(#g2)"/>
+            <text x="80" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../review</text>
+            <text x="80" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">pr/42</text>
+          </g>
+          <g>
+            <circle cx="440" cy="270" r="34" fill="url(#g2)"/>
+            <text x="440" y="268" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="800" font-size="11">../e2e</text>
+            <text x="440" y="284" text-anchor="middle" fill="#0a0a0a" font-family="ui-sans-serif" font-weight="600" font-size="10">release/v2</text>
+          </g>
+        </svg>
+      </div>
+      <div>
+        <div class="pane">
+          <h3>What is shared</h3>
+          <p><b>Object database</b> (<code class="inline">.git/objects</code>): commits, trees, blobs.</p>
+          <p><b>Refs</b>: branches, tags, remotes — one source of truth.</p>
+          <p><b>Config &amp; hooks</b>: defined once in the main repo.</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>What is separate</h3>
+          <p><b>Working tree</b>: the actual files checked out on disk.</p>
+          <p><b>Index</b>: each worktree has its own staging area.</p>
+          <p><b>HEAD</b>: each worktree points at its own commit/branch.</p>
+        </div>
+        <div class="pane" style="margin-top:10px">
+          <h3>Where the metadata lives</h3>
+          <p>The main repo records each linked worktree under <code class="inline">.git/worktrees/&lt;name&gt;/</code>. Each linked worktree has a <code class="inline">.git</code> <em>file</em> (not directory) that points back to that metadata via <code class="inline">gitdir:</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. CORE COMMANDS -->
+  <section class="card scroll-fade" id="commands">
+    <h2><span class="num">03</span> Core commands</h2>
+    <p class="lede">Eight subcommands you'll actually reach for. Click any to play it back in the sandbox below.</p>
+    <div class="tabs" id="cmd-tabs"></div>
+    <div class="stage">
+      <div class="tree-wrap">
+        <div class="tree-title"><span>Project tree</span><span class="badge" id="cmd-wtcount">1 worktree</span></div>
+        <div class="tree" id="cmd-tree"></div>
+      </div>
+      <div class="shell">
+        <div class="shell-head">
+          <div class="left"><i></i><i></i><i></i></div>
+          <div class="title">sandbox · play with worktrees</div>
+        </div>
+        <div class="shell-body" id="cmd-shell"></div>
+        <div class="shell-input" id="cmd-input-row">
+          <span class="ps1" id="cmd-ps1">~/proj $</span>
+          <input id="cmd-input" placeholder="try: git worktree add ../feature feature-x" autocomplete="off" spellcheck="false"/>
+        </div>
+      </div>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin-top:10px">Sandbox understands: <code class="inline">git worktree add|list|remove|prune|move|lock|unlock</code>, <code class="inline">git status</code>, <code class="inline">git branch</code>, <code class="inline">cd</code>, <code class="inline">ls</code>, <code class="inline">clear</code>, <code class="inline">reset</code>.</p>
+  </section>
+
+  <!-- 4. PATTERNS -->
+  <section class="card scroll-fade" id="patterns">
+    <h2><span class="num">04</span> Common patterns</h2>
+    <p class="lede">Three workflows that pay for the keystrokes immediately.</p>
+    <div class="grid3">
+      <div class="pane">
+        <h3><span class="pill">Hotfix</span> drop everything</h3>
+        <p>Production is down. You're 14 commits deep on a feature.</p>
+<pre class="code"><span class="k">git</span> fetch origin
+<span class="k">git</span> worktree add -b hotfix/login \
+  ../hotfix origin/main
+<span class="k">cd</span> ../hotfix
+<span class="c"># fix, commit, push</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../hotfix</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill blue">Review</span> run the PR locally</h3>
+        <p>Reviewing PR #42 without nuking your in-flight work.</p>
+<pre class="code"><span class="k">git</span> fetch origin pull/42/head:pr/42
+<span class="k">git</span> worktree add ../review pr/42
+<span class="k">cd</span> ../review
+<span class="c"># run tests, poke around</span>
+<span class="k">cd</span> -
+<span class="k">git</span> worktree remove ../review</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill purple">Long test</span> CI on the side</h3>
+        <p>Run an integration suite on <code class="inline">release/v2</code> while you keep coding.</p>
+<pre class="code"><span class="k">git</span> worktree add ../e2e release/v2
+<span class="k">cd</span> ../e2e
+make integration-test &amp;
+<span class="k">cd</span> -
+<span class="c"># keep working in main repo</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. GOTCHAS -->
+  <section class="card scroll-fade" id="gotchas">
+    <h2><span class="num">05</span> Gotchas worth memorizing</h2>
+    <p class="lede">Almost every worktree bug you'll hit is one of these five.</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Detached HEAD on add</h3>
+        <p>If you pass a commit/tag instead of a branch, the new worktree is on a detached HEAD. To create a fresh branch, use <code class="inline">-b</code>.</p>
+<pre class="code"><span class="c"># detached:</span>
+<span class="k">git</span> worktree add ../tmp v1.4.0
+<span class="c"># branch:</span>
+<span class="k">git</span> worktree add -b fix-1.4 ../tmp v1.4.0</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Branch already checked out</h3>
+        <p>Git refuses to check out a branch that's already in another worktree (it would let two HEADs trample one ref). Either pick a different branch or use <code class="inline">--force</code> if you really know.</p>
+<pre class="code">fatal: 'feature-x' is already checked out at '/path/A'
+<span class="c"># override (rarely a good idea):</span>
+<span class="k">git</span> worktree add --force ../B feature-x</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Manual rm leaves stale metadata</h3>
+        <p>If you <code class="inline">rm -rf</code> a worktree directory, <code class="inline">.git/worktrees/&lt;name&gt;</code> stays. <code class="inline">git worktree list</code> still shows it as <em>prunable</em>. Run <code class="inline">git worktree prune</code>.</p>
+<pre class="code"><span class="k">git</span> worktree list
+<span class="c"># shows: ../old  (prunable: gitdir is missing)</span>
+<span class="k">git</span> worktree prune -v</pre>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Submodules &amp; per-worktree config</h3>
+        <p>Submodules don't auto-init across worktrees — run <code class="inline">git submodule update --init</code> in each. Some config (sparse-checkout, hooks) is per-worktree only when you opt in via <code class="inline">--worktree</code>.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(224,36,36,.18);border-color:rgba(224,36,36,.4);color:#ff8a8a">!</span> Removing the wrong one</h3>
+        <p><code class="inline">remove</code> refuses if the worktree has uncommitted changes. Don't reach for <code class="inline">--force</code> reflexively — first <code class="inline">cd</code> in and check.</p>
+      </div>
+      <div class="pane">
+        <h3><span class="pill" style="background:rgba(245,196,81,.18);border-color:rgba(245,196,81,.4);color:#ffe4a0">·</span> Lock to protect</h3>
+        <p>If a worktree lives on a removable disk or a slow NFS mount, <code class="inline">git worktree lock</code> tells git not to prune it just because the path is unreachable.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. VS STASH -->
+  <section class="card scroll-fade" id="vs">
+    <h2><span class="num">06</span> Worktree vs stash vs multiple clones</h2>
+    <p class="lede">Three ways to juggle work. They're not interchangeable.</p>
+    <table class="cmp">
+      <tr>
+        <th></th><th>git stash</th><th>multiple clones</th><th>git worktree</th>
+      </tr>
+      <tr>
+        <td>Setup cost</td>
+        <td class="win">instant</td>
+        <td class="lose">re-clone, re-fetch, re-config</td>
+        <td>one command, no re-fetch</td>
+      </tr>
+      <tr>
+        <td>Disk: object database</td>
+        <td>shared</td>
+        <td class="lose">duplicated per clone</td>
+        <td class="win">shared</td>
+      </tr>
+      <tr>
+        <td>Refs / fetches sync'd</td>
+        <td>n/a</td>
+        <td class="lose">must fetch each</td>
+        <td class="win">one fetch, all worktrees see it</td>
+      </tr>
+      <tr>
+        <td>Run two branches at once</td>
+        <td class="lose">no</td>
+        <td>yes</td>
+        <td class="win">yes</td>
+      </tr>
+      <tr>
+        <td>Risk of losing work</td>
+        <td class="lose">stash lists, conflicts on pop</td>
+        <td>low</td>
+        <td class="win">files stay on disk</td>
+      </tr>
+      <tr>
+        <td>When it's right</td>
+        <td>tiny ad-hoc switch (&lt; 1 min)</td>
+        <td>truly different SDKs / tooling per copy</td>
+        <td class="win">parallel branches, same toolchain</td>
+      </tr>
+    </table>
+  </section>
+
+  <!-- 7. BARE -->
+  <section class="card scroll-fade" id="bare">
+    <h2><span class="num">07</span> Bare repo + worktrees: the monorepo trick</h2>
+    <p class="lede">Some teams skip the "main checkout" entirely and treat the repo as a folder of worktrees.</p>
+    <div class="grid2">
+      <div class="pane">
+        <h3>The setup</h3>
+<pre class="code"><span class="k">git</span> clone --bare git@github.com:org/repo.git repo.git
+<span class="k">cd</span> repo.git
+<span class="k">git</span> worktree add ../repo/main main
+<span class="k">git</span> worktree add ../repo/feature-x feature-x
+<span class="k">git</span> worktree add ../repo/release release/v2</pre>
+        <p style="margin-top:8px">Layout:</p>
+<pre class="code">repo.git/        <span class="c"># shared object DB</span>
+repo/
+  main/          <span class="c"># worktree on main</span>
+  feature-x/     <span class="c"># worktree on feature-x</span>
+  release/       <span class="c"># worktree on release/v2</span></pre>
+      </div>
+      <div class="pane">
+        <h3>Why people like it</h3>
+        <p>No "primary" worktree to confuse anyone — every branch is a sibling directory. Tooling (IDE, devcontainers, build caches per branch) maps cleanly onto folders.</p>
+        <p>Trade-off: a few git commands feel mildly weird from inside a bare repo. Most folks alias <code class="inline">cd repo/main</code> and forget the bare exists.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. PRACTICE -->
+  <section class="card scroll-fade" id="practice">
+    <h2><span class="num">08</span> Practice mode <span class="pill" style="margin-left:8px">type to learn</span></h2>
+    <p class="lede">Read the prompt, type the command, hit <span class="kbd">Enter</span>. Build combos, earn XP, unlock achievements.</p>
+
+    <div class="practice-head">
+      <div class="practice-task" id="practice-task">
+        <div class="label">Drill <span id="p-idx">1</span> / <span id="p-total">15</span></div>
+        <div class="q" id="p-q">Loading…</div>
+        <div class="hint" id="p-hint"></div>
+      </div>
+      <div class="practice-meta">
+        <div class="meter"><div class="l">XP</div><div class="v orange" id="p-xp">0</div></div>
+        <div class="meter"><div class="l">Combo</div><div class="v yellow" id="p-combo">0</div></div>
+        <div class="meter"><div class="l">Accuracy</div><div class="v green" id="p-acc">100%</div></div>
+      </div>
+    </div>
+
+    <div class="progress"><div id="p-bar" style="width:0%"></div></div>
+
+    <div class="shell" style="margin-top:14px">
+      <div class="shell-head">
+        <div class="left"><i></i><i></i><i></i></div>
+        <div class="title">drill · type the command</div>
+      </div>
+      <div class="shell-body" id="p-shell"></div>
+      <div class="shell-input" id="p-input-row">
+        <span class="ps1" id="p-ps1">~/proj $</span>
+        <input id="p-input" placeholder="git worktree …" autocomplete="off" spellcheck="false"/>
+      </div>
+    </div>
+    <div class="feedback" id="p-feedback"></div>
+    <div class="practice-controls">
+      <button class="btn ghost" onclick="practice.skip()">Skip <span class="kbd">→</span></button>
+      <button class="btn ghost" onclick="practice.peek()">Peek answer</button>
+      <button class="btn ghost" onclick="practice.restart()">Restart drills</button>
+    </div>
+  </section>
+
+  <!-- ACHIEVEMENTS -->
+  <section class="card scroll-fade" id="achv-section">
+    <h2><span class="num">09</span> Achievements</h2>
+    <p class="lede">Twelve to collect across drills, combos, and the boss fight.</p>
+    <div class="achv-grid" id="achv-grid"></div>
+  </section>
+
+  <!-- BOSS -->
+  <section class="card boss scroll-fade" id="boss">
+    <h2><span class="num">10</span> Boss: <span style="color:#ff8a8a">Branch Juggler</span></h2>
+    <p class="lede">A 7-round rapid-fire scenario gauntlet. You have <b id="boss-timer">12.0s</b> per round. Each correct answer deals damage. Wrong answers heal the boss. Defeat it for the <code class="inline">Branch Juggler</code> achievement.</p>
+    <div class="grid2">
+      <div>
+        <div class="boss-art" id="boss-art">
+            ╔══════════════════════════╗
+            ║   B R A N C H            ║
+            ║      J U G G L E R       ║
+            ║                          ║
+            ║   ╲   |   /              ║
+            ║    ╲  |  /  ← worktrees  ║
+            ║     ╲ | /                ║
+            ║   [  ⚡  ]                ║
+            ╚══════════════════════════╝
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:4px">HP</div>
+          <div class="hp-bar"><div id="boss-hp" style="width:100%"></div></div>
+        </div>
+      </div>
+      <div>
+        <div class="practice-task" style="background:rgba(224,36,36,.08);border-color:rgba(224,36,36,.4)">
+          <div class="label" style="color:#ff8a8a">Round <span id="boss-round">–</span> / 7</div>
+          <div class="q" id="boss-q">Press <b>Engage</b> to start the fight.</div>
+          <div class="hint" id="boss-hint"></div>
+        </div>
+        <div class="shell" style="margin-top:12px">
+          <div class="shell-head">
+            <div class="left"><i></i><i></i><i></i></div>
+            <div class="title">boss · do not flinch</div>
+          </div>
+          <div class="shell-input" id="boss-input-row">
+            <span class="ps1" id="boss-ps1">~/proj $</span>
+            <input id="boss-input" placeholder="answer here" autocomplete="off" spellcheck="false" disabled/>
+          </div>
+        </div>
+        <div class="feedback" id="boss-feedback"></div>
+        <div class="practice-controls">
+          <button class="btn" id="boss-engage" onclick="boss.start()">Engage</button>
+          <button class="btn ghost" onclick="boss.reset()">Reset boss</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Worktree Dojo · forge a multiverse, share one <code class="inline">.git</code>.
+  </footer>
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ============================================================
+ * STATE + PERSISTENCE
+ * ============================================================ */
+const SAVE_KEY = 'worktree-dojo-v1';
+const State = {
+  xp:0, level:1, combo:0, bestCombo:0,
+  totalAttempts:0, correctAttempts:0,
+  achv:{}, drillIdx:0, bossDefeated:false,
+};
+function xpForLevel(l){ return 100 + (l-1)*60; }
+
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(State)); }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return;
+    Object.assign(State, JSON.parse(raw));
+  }catch(e){}
+}
+function resetProgress(){
+  if(!confirm('Reset all XP, achievements, and drill progress?')) return;
+  localStorage.removeItem(SAVE_KEY);
+  location.reload();
+}
+
+/* ============================================================
+ * TOASTS + CONFETTI
+ * ============================================================ */
+function toast(title, desc){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<div class="t">${title}</div><div class="d">${desc||''}</div>`;
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(()=>{
+    t.style.transition='opacity .4s, transform .4s';
+    t.style.opacity='0';
+    t.style.transform='translateX(20px)';
+    setTimeout(()=>t.remove(), 420);
+  }, 3200);
+}
+function fireConfetti(intensity=1){
+  if(typeof confetti !== 'function') return;
+  confetti({
+    particleCount: 60*intensity,
+    spread: 70,
+    origin:{y:0.7},
+    colors:['#f05133','#ff6f3d','#f5c451','#3ddc97','#4ea1ff'],
+  });
+}
+
+/* ============================================================
+ * HUD
+ * ============================================================ */
+function refreshHUD(){
+  const need = xpForLevel(State.level);
+  document.getElementById('hud-lv').textContent = State.level;
+  document.getElementById('hud-xp').textContent = State.xp;
+  document.getElementById('hud-xpmax').textContent = need;
+  document.getElementById('hud-combo').textContent = State.combo;
+  const unlocked = Object.values(State.achv).filter(Boolean).length;
+  document.getElementById('hud-achv').textContent = unlocked;
+
+  document.getElementById('p-xp').textContent = State.xp;
+  document.getElementById('p-combo').textContent = State.combo;
+  const acc = State.totalAttempts ? Math.round(100*State.correctAttempts/State.totalAttempts) : 100;
+  document.getElementById('p-acc').textContent = acc + '%';
+}
+
+function gainXP(amount, reason){
+  State.xp += amount;
+  while(State.xp >= xpForLevel(State.level)){
+    State.xp -= xpForLevel(State.level);
+    State.level += 1;
+    toast(`Level up → ${State.level}`, 'Keep typing, sensei.');
+    fireConfetti(1.4);
+  }
+  save(); refreshHUD();
+  if(reason) toast(`+${amount} XP`, reason);
+}
+
+/* ============================================================
+ * ACHIEVEMENTS
+ * ============================================================ */
+const ACHIEVEMENTS = [
+  { id:'first',   t:'First Worktree',   d:'Add your first worktree.',         ico:'🌱' },
+  { id:'lister',  t:'Roll Call',        d:'Run git worktree list.',           ico:'📋' },
+  { id:'pruner',  t:'Pruner',           d:'Reclaim a stale worktree.',        ico:'✂️' },
+  { id:'mover',   t:'Furniture Mover',  d:'Move a worktree.',                 ico:'📦' },
+  { id:'locker',  t:'Lockpicker',       d:'Lock and unlock a worktree.',      ico:'🔒' },
+  { id:'force',   t:'Forced Hand',      d:'Use --force when justified.',      ico:'💥' },
+  { id:'hotfix',  t:'Firefighter',      d:'Build a hotfix worktree.',         ico:'🚒' },
+  { id:'review',  t:'Reviewer',         d:'Spin up a PR review worktree.',    ico:'🔍' },
+  { id:'combo5',  t:'Streak ×5',        d:'Hit a 5-answer combo.',            ico:'🔥' },
+  { id:'combo10', t:'Multiverse Master',d:'Hit a 10-answer combo.',           ico:'🌌' },
+  { id:'level5',  t:'Apprentice',       d:'Reach level 5.',                   ico:'⭐' },
+  { id:'boss',    t:'Branch Juggler',   d:'Defeat the boss.',                 ico:'🏆' },
+];
+
+function unlockAchv(id){
+  if(State.achv[id]) return;
+  State.achv[id] = true;
+  const a = ACHIEVEMENTS.find(x=>x.id===id);
+  toast(`★ Achievement: ${a.t}`, a.d);
+  fireConfetti(1.1);
+  save(); refreshHUD(); renderAchv();
+}
+function renderAchv(){
+  const grid = document.getElementById('achv-grid');
+  grid.innerHTML = ACHIEVEMENTS.map(a=>`
+    <div class="achv ${State.achv[a.id]?'unlocked':''}">
+      <div class="ico">${a.ico}</div>
+      <div>
+        <div class="t">${a.t}</div>
+        <div class="d">${a.d}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+ * SHARED FAKE GIT ENGINE
+ *
+ * Each "world" has:
+ *   cwd: string ('main' | a wt name)
+ *   wts: array of {name,path,branch,detached?,locked?,prunable?,bare?}
+ *   branches: Set of strings (branch names that exist)
+ * ============================================================ */
+function newWorld(){
+  return {
+    cwd:'main',
+    wts:[
+      {name:'main', path:'~/proj', branch:'main', primary:true},
+    ],
+    branches:new Set(['main','develop','feature-x','release/v2','hotfix-123','pr/42']),
+    history:[],
+  };
+}
+
+function fmtPath(w){
+  if(w.cwd==='main') return '~/proj';
+  const wt = w.wts.find(x=>x.name===w.cwd);
+  return wt ? wt.path : '~/proj';
+}
+
+function findByPath(world, p){
+  return world.wts.find(w=>w.path===p);
+}
+function findByName(world, n){
+  return world.wts.find(w=>w.name===n);
+}
+function branchTaken(world, b){
+  return world.wts.some(w=>w.branch===b && !w.detached);
+}
+
+function runFakeGit(world, raw){
+  const tokens = raw.trim().split(/\s+/);
+  // CD
+  if(tokens[0]==='cd'){
+    const t = tokens[1]||'~';
+    if(t==='~' || t==='~/proj' || t==='-' || t==='/' ){
+      world.cwd='main'; return {ok:true, out:''};
+    }
+    const wt = world.wts.find(w=>w.path===t || ('../'+w.name)===t);
+    if(wt){ world.cwd = wt.name; return {ok:true,out:''}; }
+    return {err:`cd: no such directory: ${t}`};
+  }
+  if(tokens[0]==='ls'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    return {ok:true, out:`README.md  src/  package.json   .git${wt && !wt.primary?' -> '+wt.path+'/.git/worktrees/'+wt.name:''}`};
+  }
+  if(tokens[0]==='clear'){
+    return {ok:true, clear:true};
+  }
+  if(tokens[0]==='reset'){
+    Object.assign(world, newWorld());
+    return {ok:true, out:'sandbox reset.'};
+  }
+  if(tokens[0]==='git'){
+    return runGit(world, tokens.slice(1));
+  }
+  return {err:`zsh: command not found: ${tokens[0]}`};
+}
+
+function runGit(world, args){
+  if(args[0]==='status'){
+    const wt = world.wts.find(x=>x.name===world.cwd);
+    if(!wt) return {err:'not a git repo'};
+    const head = wt.detached ? `HEAD detached at ${wt.branch}` : `On branch ${wt.branch}`;
+    return {ok:true, out:`${head}\nnothing to commit, working tree clean`};
+  }
+  if(args[0]==='branch'){
+    return {ok:true, out:[...world.branches].map(b=>(world.wts.find(w=>w.branch===b)?'+ ':'  ')+b).join('\n')};
+  }
+  if(args[0]!=='worktree') return {err:`git: '${args.join(' ')}' is not a git command`};
+
+  const sub = args[1];
+  const rest = args.slice(2);
+
+  // ---- ADD
+  if(sub==='add'){
+    let force=false, asBranch=null, hasB=false;
+    const positional=[];
+    for(let i=0;i<rest.length;i++){
+      const t=rest[i];
+      if(t==='--force'||t==='-f'){ force=true; }
+      else if(t==='-b'){ hasB=true; asBranch=rest[++i]; }
+      else if(t==='--detach'){ /* allowed */ }
+      else positional.push(t);
+    }
+    const path = positional[0];
+    const ref  = positional[1]; // can be branch, commit, tag
+    if(!path) return {err:`usage: git worktree add [-b new-branch] <path> [<commit-ish>]`};
+
+    let branch;
+    let detached = false;
+    if(hasB){
+      branch = asBranch;
+      if(world.branches.has(branch) && !force){
+        return {err:`fatal: a branch named '${branch}' already exists`};
+      }
+      world.branches.add(branch);
+    } else if(ref){
+      if(world.branches.has(ref)){
+        if(branchTaken(world, ref) && !force){
+          return {err:`fatal: '${ref}' is already checked out at another worktree`};
+        }
+        branch = ref;
+      } else {
+        // commit-ish / tag — detached HEAD
+        branch = ref;
+        detached = true;
+      }
+    } else {
+      // no ref: create a new branch named after the basename
+      const base = path.split('/').pop();
+      if(world.branches.has(base) && branchTaken(world, base) && !force){
+        return {err:`fatal: '${base}' is already checked out at another worktree`};
+      }
+      branch = base;
+      world.branches.add(branch);
+    }
+    if(findByPath(world, path)) return {err:`fatal: '${path}' already exists`};
+    const name = path.replace(/^\.\.?\//,'').replace(/\//g,'-');
+    world.wts.push({name, path, branch, detached, primary:false, _new:true});
+    return {ok:true, out:`Preparing worktree (${detached?'detached HEAD':'new branch '+branch}) at ${path}`};
+  }
+
+  // ---- LIST
+  if(sub==='list'){
+    return {ok:true, out: world.wts.map(w=>{
+      const sha = Math.random().toString(16).slice(2,9);
+      const head = w.detached ? `(detached HEAD)` : `[${w.branch}]`;
+      const tags = [];
+      if(w.locked) tags.push('locked');
+      if(w.prunable) tags.push('prunable');
+      const tagstr = tags.length?'  '+tags.map(t=>`(${t})`).join(' '):'';
+      return `${w.path.padEnd(20,' ')} ${sha} ${head}${tagstr}`;
+    }).join('\n')};
+  }
+
+  // ---- REMOVE
+  if(sub==='remove'){
+    let force=false; const pos=[];
+    rest.forEach(t=>t==='--force'||t==='-f'?force=true:pos.push(t));
+    const path = pos[0];
+    if(!path) return {err:'usage: git worktree remove <path>'};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' is not a working tree`};
+    if(wt.primary) return {err:`fatal: cannot remove the main worktree`};
+    if(wt.locked && !force) return {err:`fatal: cannot remove a locked working tree`};
+    if(world.cwd===wt.name) world.cwd='main';
+    wt._removed=true;
+    setTimeout(()=>{ world.wts = world.wts.filter(x=>x!==wt); renderAllTrees(); }, 380);
+    return {ok:true, out:`removed ${path}`};
+  }
+
+  // ---- PRUNE
+  if(sub==='prune'){
+    const before = world.wts.filter(w=>w.prunable).length;
+    world.wts = world.wts.filter(w=>!w.prunable);
+    return {ok:true, out:`pruned ${before} worktree${before===1?'':'s'}`};
+  }
+
+  // ---- MOVE
+  if(sub==='move'){
+    const [from,to] = rest;
+    if(!from||!to) return {err:'usage: git worktree move <from> <to>'};
+    const wt = findByPath(world, from);
+    if(!wt) return {err:`fatal: '${from}' is not a working tree`};
+    if(wt.primary) return {err:`fatal: cannot move the main worktree`};
+    wt.path = to;
+    wt._new = true;
+    return {ok:true, out:`moved ${from} → ${to}`};
+  }
+
+  // ---- LOCK / UNLOCK
+  if(sub==='lock' || sub==='unlock'){
+    const path = rest[0];
+    if(!path) return {err:`usage: git worktree ${sub} <path>`};
+    const wt = findByPath(world, path);
+    if(!wt) return {err:`fatal: '${path}' is not a working tree`};
+    wt.locked = (sub==='lock');
+    return {ok:true, out:`${sub}ed ${path}`};
+  }
+
+  return {err:`git worktree: unknown subcommand '${sub}'`};
+}
+
+/* ============================================================
+ * RENDERERS
+ * ============================================================ */
+function renderTree(targetId, world, badgeId){
+  const tgt = document.getElementById(targetId);
+  if(!tgt) return;
+  const main = world.wts.find(w=>w.primary);
+  const linked = world.wts.filter(w=>!w.primary);
+
+  // Build node array
+  const nodes = [];
+  nodes.push({ico:'📁', label:'~/proj/', cls:'dir main', tag:main?.branch, tagCls:'', _new:false, _removed:false});
+  nodes.push({ico:'📂', label:'.git/', cls:'git', indent:1});
+  nodes.push({ico:'·', label:'objects/  refs/  worktrees/', cls:'file muted', indent:2, dim:true});
+  nodes.push({ico:'📄', label:'README.md', cls:'file', indent:1});
+  nodes.push({ico:'📁', label:'src/', cls:'dir', indent:1});
+
+  linked.forEach(w=>{
+    nodes.push({
+      ico:'🪐', label:`${w.path}/`, cls:'dir wt', tag:w.detached?'detached':w.branch,
+      tagCls: w.locked?'locked':(w.detached?'detached':''),
+      _new:w._new, _removed:w._removed, locked:w.locked, prunable:w.prunable,
+    });
+    nodes.push({ico:'·', label:'.git → '+(w.path)+'/.git/worktrees/'+w.name, cls:'file muted', indent:1, dim:true});
+  });
+
+  tgt.innerHTML = nodes.map(n=>{
+    const indent = '<span class="indent"></span>'.repeat(n.indent||0);
+    const dim = n.dim?'opacity:.55;':'';
+    const newClass = n._new?'new':'';
+    const remClass = n._removed?'removed':'';
+    const tag = n.tag?` <span class="branch-tag ${n.tagCls}">${n.tag}${n.locked?' 🔒':''}${n.prunable?' (prunable)':''}</span>`:'';
+    return `<div class="node ${n.cls} ${newClass} ${remClass}" style="${dim}">
+      ${indent}<span class="ico">${n.ico}</span><span>${n.label}</span>${tag}
+    </div>`;
+  }).join('');
+
+  // clear flags after animation
+  setTimeout(()=>{ world.wts.forEach(w=>{ w._new=false; }); }, 500);
+
+  if(badgeId){
+    const c = world.wts.length;
+    const b = document.getElementById(badgeId);
+    if(b) b.textContent = `${c} worktree${c===1?'':'s'}`;
+  }
+}
+
+function appendShellLine(shellId, text, cls){
+  const sh = document.getElementById(shellId);
+  if(!sh) return;
+  const div = document.createElement('div');
+  div.className='line '+(cls||'');
+  div.textContent = text;
+  sh.appendChild(div);
+  sh.scrollTop = sh.scrollHeight;
+}
+function clearShell(shellId){
+  document.getElementById(shellId).innerHTML='';
+}
+
+/* ============================================================
+ * HERO ANIMATION
+ * ============================================================ */
+const heroWorld = newWorld();
+const heroSequence = [
+  {cmd:'git worktree add ../hotfix hotfix-123', wait:1700},
+  {cmd:'git worktree add ../review pr/42',      wait:1700},
+  {cmd:'git worktree list',                      wait:1700},
+  {cmd:'git worktree remove ../review',          wait:1700},
+  {cmd:'git worktree add ../e2e release/v2',     wait:1700},
+  {cmd:'git worktree remove ../hotfix',          wait:1700},
+  {cmd:'git worktree remove ../e2e',             wait:1700},
+];
+let heroIdx = 0;
+function heroTick(){
+  const step = heroSequence[heroIdx % heroSequence.length];
+  appendShellLine('hero-shell', `${fmtPath(heroWorld)} $ ${step.cmd}`, 'prompt');
+  const res = runFakeGit(heroWorld, step.cmd);
+  if(res.ok && res.out) appendShellLine('hero-shell', res.out, 'out');
+  if(res.err) appendShellLine('hero-shell', res.err, 'err');
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  heroIdx++;
+  setTimeout(heroTick, step.wait);
+}
+
+/* ============================================================
+ * COMMAND SANDBOX
+ * ============================================================ */
+const cmdWorld = newWorld();
+function cmdRender(){ renderTree('cmd-tree', cmdWorld, 'cmd-wtcount'); document.getElementById('cmd-ps1').textContent = fmtPath(cmdWorld)+' $'; }
+function cmdRun(line){
+  appendShellLine('cmd-shell', `${fmtPath(cmdWorld)} $ ${line}`, 'prompt');
+  if(!line.trim()){ return; }
+  const res = runFakeGit(cmdWorld, line);
+  if(res.clear){ clearShell('cmd-shell'); cmdRender(); return; }
+  if(res.ok && res.out) appendShellLine('cmd-shell', res.out, 'out');
+  if(res.ok && !res.out) {/* silent */}
+  if(res.err) appendShellLine('cmd-shell', res.err, 'err');
+  cmdRender();
+}
+
+const CMD_TABS = [
+  { id:'add',    label:'add',    desc:'Add a new worktree at <path> for <branch>.',
+    demo:['git worktree add ../feature feature-x','git worktree add -b new-fix ../fix main'] },
+  { id:'list',   label:'list',   desc:'Show all worktrees with their HEAD.',
+    demo:['git worktree list'] },
+  { id:'remove', label:'remove', desc:'Delete a worktree (must have no uncommitted changes).',
+    demo:['git worktree remove ../feature'] },
+  { id:'prune',  label:'prune',  desc:'Drop stale .git/worktrees/* metadata for paths that no longer exist.',
+    demo:['git worktree prune -v'] },
+  { id:'move',   label:'move',   desc:'Move a worktree to a new path.',
+    demo:['git worktree move ../feature ../feat-x'] },
+  { id:'lock',   label:'lock',   desc:'Mark a worktree as locked so it isn\'t auto-pruned.',
+    demo:['git worktree lock ../feature'] },
+  { id:'unlock', label:'unlock', desc:'Undo lock.',
+    demo:['git worktree unlock ../feature'] },
+];
+function renderCmdTabs(){
+  const t = document.getElementById('cmd-tabs');
+  t.innerHTML = CMD_TABS.map((c,i)=>`<div class="tab ${i===0?'active':''}" data-id="${c.id}">${c.label}</div>`).join('');
+  t.querySelectorAll('.tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      t.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+      tab.classList.add('active');
+      const cfg = CMD_TABS.find(c=>c.id===tab.dataset.id);
+      appendShellLine('cmd-shell', `# ${cfg.desc}`, 'out');
+      cfg.demo.forEach(d => setTimeout(()=>cmdRun(d), 250));
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  load();
+  refreshHUD();
+  renderAchv();
+
+  // Start hero loop
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  setTimeout(heroTick, 800);
+
+  // Sandbox
+  cmdRender();
+  appendShellLine('cmd-shell', '# sandbox ready · try `git worktree add ../feature feature-x`','out');
+  renderCmdTabs();
+
+  document.getElementById('cmd-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      cmdRun(e.target.value);
+      e.target.value='';
+    }
+  });
+
+  // Practice
+  practice.start();
+
+  // Boss input
+  document.getElementById('boss-input').addEventListener('keydown', e=>{
+    if(e.key==='Enter') boss.submit();
+  });
+
+  // Scroll fade
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('in'); });
+  },{threshold:.12});
+  document.querySelectorAll('.scroll-fade').forEach(el=>obs.observe(el));
+});
+
+function renderAllTrees(){
+  renderTree('hero-tree', heroWorld, 'hero-wtcount');
+  renderTree('cmd-tree', cmdWorld, 'cmd-wtcount');
+  renderTree('p-tree', practice.world, 'p-wtcount');
+}
+
+/* ============================================================
+ * PRACTICE DRILLS
+ * ============================================================ */
+const DRILLS = [
+  {
+    q:'Create a worktree at <code class="inline">../hotfix</code> tracking branch <code class="inline">hotfix-123</code>.',
+    answers:['git worktree add ../hotfix hotfix-123'],
+    hint:'`git worktree add <path> <branch>`',
+    achv:['first'],
+  },
+  {
+    q:'Show all worktrees attached to this repo.',
+    answers:['git worktree list'],
+    hint:'one short subcommand',
+    achv:['lister'],
+  },
+  {
+    q:'Create a fresh branch <code class="inline">fix-42</code> in a new worktree at <code class="inline">../fix</code> based on <code class="inline">main</code>.',
+    answers:['git worktree add -b fix-42 ../fix main'],
+    hint:'`-b <new-branch>` creates the branch',
+  },
+  {
+    q:'Add a worktree at <code class="inline">../review</code> for branch <code class="inline">pr/42</code> (already exists locally).',
+    answers:['git worktree add ../review pr/42'],
+    hint:'standard add',
+    achv:['review'],
+  },
+  {
+    q:'Remove the worktree at <code class="inline">../review</code> cleanly.',
+    answers:['git worktree remove ../review'],
+    hint:'no flags needed if clean',
+  },
+  {
+    q:'Someone deleted <code class="inline">../old</code> with <code class="inline">rm -rf</code>. Reclaim the metadata.',
+    answers:['git worktree prune','git worktree prune -v'],
+    hint:'this subcommand reaps stale entries',
+    achv:['pruner'],
+  },
+  {
+    q:'Branch <code class="inline">feature-x</code> is already checked out elsewhere. Force-add it at <code class="inline">../alt</code>.',
+    answers:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x'],
+    hint:'`--force` (or `-f`) overrides the "already checked out" guard',
+    achv:['force'],
+  },
+  {
+    q:'Move the worktree from <code class="inline">../feat</code> to <code class="inline">../feat-x</code>.',
+    answers:['git worktree move ../feat ../feat-x'],
+    hint:'rename via move',
+    achv:['mover'],
+  },
+  {
+    q:'Lock the worktree at <code class="inline">../usb-build</code> so prune leaves it alone.',
+    answers:['git worktree lock ../usb-build'],
+    hint:'protect from pruning',
+  },
+  {
+    q:'Unlock <code class="inline">../usb-build</code>.',
+    answers:['git worktree unlock ../usb-build'],
+    hint:'opposite of lock',
+    achv:['locker'],
+  },
+  {
+    q:'Hotfix scenario: create a worktree at <code class="inline">../hotfix</code> with a brand-new branch <code class="inline">hotfix/login</code> from <code class="inline">origin/main</code>.',
+    answers:['git worktree add -b hotfix/login ../hotfix origin/main'],
+    hint:'`-b <new-branch> <path> <start-point>`',
+    achv:['hotfix'],
+  },
+  {
+    q:'Inspect the current worktree layout, then jump into <code class="inline">../hotfix</code>.',
+    answers:['cd ../hotfix'],
+    hint:'just shell `cd`',
+  },
+  {
+    q:'You\'re done with that hotfix worktree at <code class="inline">../hotfix</code> and it has no uncommitted changes — remove it.',
+    answers:['git worktree remove ../hotfix'],
+    hint:'plain remove',
+  },
+  {
+    q:'Run a long integration test against <code class="inline">release/v2</code> in a sibling dir <code class="inline">../e2e</code>.',
+    answers:['git worktree add ../e2e release/v2'],
+    hint:'standard add for an existing branch',
+  },
+  {
+    q:'Verify the integration worktree shows up in the registry.',
+    answers:['git worktree list'],
+    hint:'same listing command',
+  },
+  {
+    q:'You added <code class="inline">../tmp</code> tracking tag <code class="inline">v1.4.0</code> and it ended up detached. Make a real branch <code class="inline">fix-1.4</code> next time at <code class="inline">../tmp</code>.',
+    answers:['git worktree add -b fix-1.4 ../tmp v1.4.0'],
+    hint:'`-b` is how you avoid detached HEAD',
+  },
+  {
+    q:'Prune verbosely (show what was reaped).',
+    answers:['git worktree prune -v','git worktree prune --verbose'],
+    hint:'add a verbosity flag',
+  },
+];
+
+const practice = {
+  world: newWorld(),
+  start(){
+    if(State.drillIdx>=DRILLS.length) State.drillIdx = 0;
+    document.getElementById('p-total').textContent = DRILLS.length;
+    this.render();
+
+    document.getElementById('p-input').addEventListener('keydown', e=>{
+      if(e.key==='Enter') this.submit();
+    });
+  },
+  current(){ return DRILLS[State.drillIdx]; },
+  render(){
+    const d = this.current();
+    if(!d){
+      document.getElementById('p-q').innerHTML = `Drills complete. Onward to the boss →`;
+      document.getElementById('p-hint').textContent = '';
+      document.getElementById('p-idx').textContent = DRILLS.length;
+      document.getElementById('p-bar').style.width = '100%';
+      return;
+    }
+    document.getElementById('p-q').innerHTML = d.q;
+    document.getElementById('p-hint').innerHTML = 'hint: '+d.hint;
+    document.getElementById('p-idx').textContent = State.drillIdx+1;
+    document.getElementById('p-bar').style.width = (100*State.drillIdx/DRILLS.length)+'%';
+    document.getElementById('p-feedback').className='feedback';
+    document.getElementById('p-feedback').textContent='';
+    document.getElementById('p-input').value='';
+    document.getElementById('p-input').focus();
+    document.getElementById('p-ps1').textContent = '~/proj $';
+  },
+  submit(){
+    const d = this.current();
+    if(!d) return;
+    const inputEl = document.getElementById('p-input');
+    const val = inputEl.value.trim().replace(/\s+/g,' ');
+    State.totalAttempts++;
+    appendShellLine('p-shell', `~/proj $ ${val}`, 'prompt');
+
+    const ok = d.answers.some(a=>a.replace(/\s+/g,' ').toLowerCase()===val.toLowerCase());
+    const fb = document.getElementById('p-feedback');
+    if(ok){
+      State.correctAttempts++;
+      State.combo++;
+      State.bestCombo = Math.max(State.bestCombo, State.combo);
+      const reward = 12 + Math.min(State.combo,10)*2;
+      gainXP(reward);
+      fb.className='feedback ok';
+      fb.textContent = `Correct. +${reward} XP. (combo ×${State.combo})`;
+      appendShellLine('p-shell', '✓ accepted', 'ok');
+      fireConfetti(0.6);
+      if(d.achv) d.achv.forEach(unlockAchv);
+      if(State.combo===5) unlockAchv('combo5');
+      if(State.combo>=10) unlockAchv('combo10');
+      if(State.level>=5) unlockAchv('level5');
+      State.drillIdx++;
+      save();
+      setTimeout(()=>this.render(), 500);
+    } else {
+      State.combo = 0;
+      fb.className='feedback err';
+      fb.textContent = `Not quite. Hint: ${d.hint}`;
+      appendShellLine('p-shell', '✗ try again', 'err');
+      const row = document.getElementById('p-input-row');
+      row.classList.add('shake');
+      setTimeout(()=>row.classList.remove('shake'), 400);
+      save();
+    }
+    refreshHUD();
+  },
+  skip(){
+    State.drillIdx++;
+    State.combo=0;
+    save();
+    this.render();
+    refreshHUD();
+  },
+  peek(){
+    const d = this.current();
+    if(!d) return;
+    const fb = document.getElementById('p-feedback');
+    fb.className='feedback tip';
+    fb.textContent = 'Answer: '+d.answers[0];
+  },
+  restart(){
+    if(!confirm('Restart drills from #1? (XP & achievements stay)')) return;
+    State.drillIdx=0; State.combo=0; save();
+    this.render(); refreshHUD();
+    clearShell('p-shell');
+  },
+};
+
+/* ============================================================
+ * BOSS: Branch Juggler
+ * ============================================================ */
+const BOSS_ROUNDS = [
+  {q:'A teammate `rm -rf`\'d a worktree dir. Run the cleanup.',  ans:['git worktree prune','git worktree prune -v']},
+  {q:'List every worktree this repo knows about.',                ans:['git worktree list']},
+  {q:'Add `../alt` for branch `feature-x` even though it\'s already checked out elsewhere.', ans:['git worktree add --force ../alt feature-x','git worktree add -f ../alt feature-x']},
+  {q:'Make a fresh branch `hot/2026` in a new worktree at `../hot` from `origin/main`.', ans:['git worktree add -b hot/2026 ../hot origin/main']},
+  {q:'Lock `../slow-disk` so it survives prune.',                 ans:['git worktree lock ../slow-disk']},
+  {q:'Move `../wip` to `../wip-old`.',                            ans:['git worktree move ../wip ../wip-old']},
+  {q:'Tear down `../alt` cleanly.',                               ans:['git worktree remove ../alt']},
+];
+
+const boss = {
+  round:0, hp:100, dmg:18, heal:8, perRound:12.0,
+  timerId:null, deadline:0,
+
+  start(){
+    if(State.bossDefeated){
+      if(!confirm('You already beat the boss. Fight again?')) return;
+    }
+    this.round=0; this.hp=100;
+    document.getElementById('boss-input').disabled=false;
+    document.getElementById('boss-engage').textContent='Fighting…';
+    document.getElementById('boss-engage').disabled=true;
+    this.next();
+  },
+  next(){
+    if(this.round>=BOSS_ROUNDS.length || this.hp<=0){
+      this.finish();
+      return;
+    }
+    const r = BOSS_ROUNDS[this.round];
+    document.getElementById('boss-round').textContent = (this.round+1);
+    document.getElementById('boss-q').innerHTML = r.q;
+    document.getElementById('boss-hint').innerHTML = '';
+    document.getElementById('boss-feedback').textContent = '';
+    document.getElementById('boss-feedback').className='feedback';
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-input').focus();
+    this.deadline = Date.now() + this.perRound*1000;
+    this.tick();
+  },
+  tick(){
+    clearTimeout(this.timerId);
+    const remain = (this.deadline - Date.now())/1000;
+    document.getElementById('boss-timer').textContent = Math.max(remain,0).toFixed(1)+'s';
+    if(remain<=0){
+      this.miss('time up');
+      return;
+    }
+    this.timerId = setTimeout(()=>this.tick(), 100);
+  },
+  submit(){
+    const r = BOSS_ROUNDS[this.round];
+    const v = document.getElementById('boss-input').value.trim().replace(/\s+/g,' ').toLowerCase();
+    State.totalAttempts++;
+    if(r.ans.some(a=>a.toLowerCase()===v)){
+      this.hit();
+    } else {
+      this.miss('wrong command');
+    }
+  },
+  hit(){
+    State.correctAttempts++;
+    State.combo++;
+    State.bestCombo = Math.max(State.bestCombo, State.combo);
+    this.hp = Math.max(0, this.hp - this.dmg);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback ok';
+    document.getElementById('boss-feedback').textContent = `Hit! −${this.dmg} HP.`;
+    fireConfetti(0.5);
+    gainXP(20);
+    this.round++;
+    setTimeout(()=>this.next(), 500);
+  },
+  miss(reason){
+    State.combo = 0;
+    this.hp = Math.min(100, this.hp + this.heal);
+    document.getElementById('boss-hp').style.width = this.hp+'%';
+    document.getElementById('boss-feedback').className='feedback err';
+    document.getElementById('boss-feedback').textContent = `Miss (${reason}). Boss heals +${this.heal}.`;
+    const row = document.getElementById('boss-input-row');
+    row.classList.add('shake');
+    setTimeout(()=>row.classList.remove('shake'), 400);
+    refreshHUD();
+    save();
+    this.round++;
+    setTimeout(()=>this.next(), 600);
+  },
+  finish(){
+    clearTimeout(this.timerId);
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='Engage';
+    if(this.hp<=0){
+      document.getElementById('boss-q').innerHTML = `Branch Juggler defeated. The multiverse is yours.`;
+      document.getElementById('boss-feedback').className='feedback ok';
+      document.getElementById('boss-feedback').textContent = 'Victory.';
+      State.bossDefeated = true;
+      unlockAchv('boss');
+      gainXP(100, 'Boss bonus');
+      fireConfetti(2.0);
+      setTimeout(()=>fireConfetti(2.0), 400);
+    } else {
+      document.getElementById('boss-q').innerHTML = `You ran out of rounds. Boss HP: ${this.hp}. Try again.`;
+      document.getElementById('boss-feedback').className='feedback err';
+      document.getElementById('boss-feedback').textContent = 'Defeat. Press Engage to retry.';
+    }
+    save();
+    refreshHUD();
+  },
+  reset(){
+    clearTimeout(this.timerId);
+    this.round=0; this.hp=100;
+    document.getElementById('boss-hp').style.width='100%';
+    document.getElementById('boss-input').disabled=true;
+    document.getElementById('boss-input').value='';
+    document.getElementById('boss-engage').disabled=false;
+    document.getElementById('boss-engage').textContent='Engage';
+    document.getElementById('boss-q').innerHTML = `Press <b>Engage</b> to start the fight.`;
+    document.getElementById('boss-feedback').textContent='';
+    document.getElementById('boss-timer').textContent='12.0s';
+  },
+};
+</script>
+</body>
+</html>

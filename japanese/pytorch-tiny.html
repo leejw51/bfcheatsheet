@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiny PyTorch — 2 hidden layers, end to end</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #a78bfa;        /* violet */
+    --accent-2: #818cf8;      /* indigo */
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(167,139,250,0.10), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1d1a3a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .badge {
+    background: var(--accent); color: #14112a;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(167,139,250,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(167,139,250,0.14);
+    border-color: rgba(167,139,250,0.45);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #14112a;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 240px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(167,139,250,0.25);
+    background: rgba(167,139,250,0.06);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #14112a;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(167,139,250,0.45); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(167,139,250,0.10);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+  .note.good { background: rgba(74,222,128,0.08); border-left-color: var(--good); }
+  .note.good strong { color: var(--good); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .pill {
+    display: inline-block;
+    background: rgba(167,139,250,0.16);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn  { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red   { background: rgba(248,113,113,0.15); color: var(--bad); }
+  .pill.indigo { background: rgba(129,140,248,0.18); color: var(--accent-2); }
+
+  .shape-flow {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; color: var(--muted);
+    margin: 10px 0;
+  }
+  .shape-flow .arrow { color: var(--accent); font-weight: 700; }
+  .shape-flow .layer-name { color: var(--text); font-weight: 700; }
+
+  .net-svg {
+    width: 100%; height: auto; max-height: 320px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--accent); color: #14112a;
+    border-radius: 50%; text-align: center; line-height: 22px;
+    font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(167,139,250,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">⚡</span> Tiny PyTorch <span class="badge">Type to Learn</span>
+    </div>
+    <div class="progress-bar-outer" title="overall progress">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercises completed">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="streak">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. What we're building</button>
+    <button data-tab="model">2. Define the model</button>
+    <button data-tab="loop">3. Training loop</button>
+    <button data-tab="data-loss">4. Data &amp; loss</button>
+    <button data-tab="inference">5. Inference &amp; saving</button>
+    <button data-tab="drills">6. Practice</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>Tiny PyTorch — 2 hidden layers, end to end</h1>
+  <p class="lead">
+    The smallest interesting neural network: <strong>4 inputs → 16 → 8 → 3 classes</strong>.
+    Two hidden layers, ReLU between them, cross-entropy loss, Adam optimizer. The whole
+    program — model, dataset, loop, inference, save/load — fits in about 50 lines of
+    PyTorch. Type along and you'll have memorized it.
+  </p>
+
+  <h2>The model, drawn</h2>
+  <div class="canvas-card">
+    <svg viewBox="0 0 720 260" class="net-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="nodeGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.85"/>
+          <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.15"/>
+        </radialGradient>
+        <radialGradient id="hidGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#818cf8" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="#818cf8" stop-opacity="0.1"/>
+        </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2.5" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- column labels -->
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#8aa1bd" text-anchor="middle">
+        <text x="80"  y="22">input · 4</text>
+        <text x="240" y="22">hidden 1 · 16</text>
+        <text x="400" y="22">hidden 2 · 8</text>
+        <text x="600" y="22">logits · 3</text>
+        <text x="240" y="244">Linear(4,16) + ReLU</text>
+        <text x="400" y="244">Linear(16,8) + ReLU</text>
+        <text x="540" y="244">Linear(8,3)</text>
+      </g>
+
+      <!-- input layer (4 nodes) -->
+      <g>
+        <circle cx="80" cy="70"  r="13" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="1.5"/>
+        <circle cx="80" cy="110" r="13" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="1.5"/>
+        <circle cx="80" cy="150" r="13" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="1.5"/>
+        <circle cx="80" cy="190" r="13" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="1.5"/>
+      </g>
+
+      <!-- hidden 1 (16 nodes, drawn smaller) -->
+      <g>
+        <!-- 8 visible + ellipsis -->
+        <circle cx="240" cy="50"  r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="72"  r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="94"  r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="116" r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="138" r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="160" r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="182" r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <circle cx="240" cy="204" r="8" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.2"/>
+        <text x="240" y="226" text-anchor="middle" font-family="ui-monospace, monospace"
+              font-size="11" fill="#8aa1bd">… 16 total</text>
+      </g>
+
+      <!-- hidden 2 (8 nodes) -->
+      <g>
+        <circle cx="400" cy="60"  r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="84"  r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="108" r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="132" r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="156" r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="180" r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="204" r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+        <circle cx="400" cy="228" r="9" fill="url(#hidGrad)" stroke="#818cf8" stroke-width="1.4"/>
+      </g>
+
+      <!-- output (3 nodes) -->
+      <g filter="url(#glow)">
+        <circle cx="600" cy="100" r="14" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="2"/>
+        <circle cx="600" cy="140" r="14" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="2"/>
+        <circle cx="600" cy="180" r="14" fill="url(#nodeGrad)" stroke="#a78bfa" stroke-width="2"/>
+      </g>
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#001018" font-weight="800"
+         text-anchor="middle">
+        <text x="600" y="104">A</text>
+        <text x="600" y="144">B</text>
+        <text x="600" y="184">C</text>
+      </g>
+
+      <!-- edges (sampled) -->
+      <g stroke="#a78bfa" stroke-width="0.8" opacity="0.35" fill="none">
+        <!-- input to hidden 1 -->
+        <line x1="93" y1="70"  x2="232" y2="50"/>
+        <line x1="93" y1="70"  x2="232" y2="116"/>
+        <line x1="93" y1="110" x2="232" y2="94"/>
+        <line x1="93" y1="110" x2="232" y2="160"/>
+        <line x1="93" y1="150" x2="232" y2="138"/>
+        <line x1="93" y1="150" x2="232" y2="182"/>
+        <line x1="93" y1="190" x2="232" y2="204"/>
+        <line x1="93" y1="190" x2="232" y2="72"/>
+      </g>
+      <g stroke="#818cf8" stroke-width="0.8" opacity="0.4" fill="none">
+        <!-- hidden 1 to hidden 2 -->
+        <line x1="248" y1="72"  x2="391" y2="60"/>
+        <line x1="248" y1="116" x2="391" y2="108"/>
+        <line x1="248" y1="160" x2="391" y2="156"/>
+        <line x1="248" y1="204" x2="391" y2="228"/>
+        <line x1="248" y1="94"  x2="391" y2="84"/>
+        <line x1="248" y1="138" x2="391" y2="132"/>
+        <line x1="248" y1="182" x2="391" y2="180"/>
+        <line x1="248" y1="50"  x2="391" y2="204"/>
+      </g>
+      <g stroke="#a78bfa" stroke-width="1" opacity="0.55" fill="none">
+        <!-- hidden 2 to output -->
+        <line x1="409" y1="60"  x2="586" y2="100"/>
+        <line x1="409" y1="84"  x2="586" y2="100"/>
+        <line x1="409" y1="108" x2="586" y2="140"/>
+        <line x1="409" y1="132" x2="586" y2="140"/>
+        <line x1="409" y1="156" x2="586" y2="180"/>
+        <line x1="409" y1="180" x2="586" y2="180"/>
+        <line x1="409" y1="204" x2="586" y2="100"/>
+        <line x1="409" y1="228" x2="586" y2="180"/>
+      </g>
+    </svg>
+  </div>
+
+  <h2>How shapes flow through</h2>
+  <div class="shape-flow">
+    <span class="layer-name">x</span>
+    <span class="pill">[B, 4]</span>
+    <span class="arrow">→ Linear(4,16) →</span>
+    <span class="pill indigo">[B, 16]</span>
+    <span class="arrow">→ ReLU →</span>
+    <span class="pill indigo">[B, 16]</span>
+    <span class="arrow">→ Linear(16,8) →</span>
+    <span class="pill indigo">[B, 8]</span>
+    <span class="arrow">→ ReLU →</span>
+    <span class="pill indigo">[B, 8]</span>
+    <span class="arrow">→ Linear(8,3) →</span>
+    <span class="pill green">[B, 3]</span>
+    <span style="color: var(--muted);">(logits, one per class)</span>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">the goal</div></div>
+      <div class="card-body">
+        Take 4-dim feature vectors and predict one of <strong>3 classes</strong>. We'll generate
+        synthetic <em>blobs</em> in 4-D — three Gaussian clusters — and train the MLP to recover
+        them. Same shape as Iris, same shape as half the toy ML problems on the internet.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">why two hidden layers?</div></div>
+      <div class="card-body">
+        One linear layer is just a perceptron — it can only draw straight lines.
+        <strong>Two layers + ReLU</strong> can draw piecewise-linear curves and approximate any
+        continuous function (universal approximation). It's the smallest "real" neural net.
+      </div>
+    </div>
+  </div>
+
+  <h2>The whole program (≈50 lines)</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">tiny_mlp.py — copy/paste runnable</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">from</span> <span class="tok-t">torch</span> <span class="tok-k">import</span> nn, optim
+
+<span class="tok-c"># 1. model</span>
+<span class="tok-k">class</span> <span class="tok-f">TinyMLP</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self):
+        <span class="tok-f">super</span>().__init__()
+        self.fc1 = nn.Linear(<span class="tok-n">4</span>, <span class="tok-n">16</span>)
+        self.fc2 = nn.Linear(<span class="tok-n">16</span>, <span class="tok-n">8</span>)
+        self.fc3 = nn.Linear(<span class="tok-n">8</span>, <span class="tok-n">3</span>)
+        self.relu = nn.ReLU()
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        <span class="tok-k">return</span> self.fc3(x)            <span class="tok-c"># raw logits</span>
+
+<span class="tok-c"># 2. data — three 4-D blobs</span>
+torch.manual_seed(<span class="tok-n">0</span>)
+N = <span class="tok-n">300</span>
+centers = torch.tensor([[<span class="tok-n">2</span>,<span class="tok-n">2</span>,<span class="tok-n">0</span>,<span class="tok-n">0</span>], [-<span class="tok-n">2</span>,<span class="tok-n">2</span>,<span class="tok-n">0</span>,<span class="tok-n">0</span>], [<span class="tok-n">0</span>,-<span class="tok-n">2</span>,<span class="tok-n">2</span>,<span class="tok-n">0</span>]], dtype=torch.float)
+y = torch.randint(<span class="tok-n">0</span>, <span class="tok-n">3</span>, (N,))
+x = centers[y] + <span class="tok-n">0.6</span> * torch.randn(N, <span class="tok-n">4</span>)
+
+<span class="tok-c"># 3. loss + optimizer</span>
+model     = TinyMLP()
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=<span class="tok-n">1e-2</span>)
+
+<span class="tok-c"># 4. train</span>
+<span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">200</span>):
+    optimizer.zero_grad()
+    out  = model(x)                          <span class="tok-c"># [N, 3]</span>
+    loss = criterion(out, y)
+    loss.backward()
+    optimizer.step()
+    <span class="tok-k">if</span> epoch % <span class="tok-n">40</span> == <span class="tok-n">0</span>:
+        <span class="tok-f">print</span>(<span class="tok-s">f"epoch {epoch:3d} · loss {loss.item():.4f}"</span>)
+
+<span class="tok-c"># 5. inference</span>
+model.eval()
+<span class="tok-k">with</span> torch.no_grad():
+    preds = model(x).argmax(dim=-<span class="tok-n">1</span>)
+<span class="tok-f">print</span>(<span class="tok-s">"acc"</span>, (preds == y).float().mean().item())
+
+<span class="tok-c"># 6. save / load</span>
+torch.save(model.state_dict(), <span class="tok-s">"tiny.pt"</span>)
+loaded = TinyMLP(); loaded.load_state_dict(torch.load(<span class="tok-s">"tiny.pt"</span>))</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>How to use this page:</strong> walk the tabs in order. Each tab unpacks one piece of
+    that 50-line program. Tab 6 has the type-to-learn drills — fill the
+    <span class="pill">blanks</span>, hit <em>Check</em>, press <kbd>?</kbd> for shortcuts.
+  </div>
+</section>
+
+<!-- ========================= MODEL ========================= -->
+<section class="tab-section" id="tab-model">
+  <h1>Define the model — <code>nn.Module</code></h1>
+  <p class="lead">
+    A PyTorch model is a Python class that subclasses <code>nn.Module</code>. Two things to write:
+    <strong><code>__init__</code></strong> (declare layers as attributes) and
+    <strong><code>forward</code></strong> (run them in order). PyTorch builds the autograd graph for
+    you the moment <code>forward</code> runs.
+  </p>
+
+  <h2>Skeleton — fill the body</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">TinyMLP — explicit form</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">from</span> <span class="tok-t">torch</span> <span class="tok-k">import</span> nn
+
+<span class="tok-k">class</span> <span class="tok-f">TinyMLP</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self):
+        <span class="tok-f">super</span>().__init__()                  <span class="tok-c"># wire up nn.Module bookkeeping</span>
+        self.fc1  = nn.Linear(<span class="tok-n">4</span>,  <span class="tok-n">16</span>)       <span class="tok-c"># input → hidden 1</span>
+        self.fc2  = nn.Linear(<span class="tok-n">16</span>, <span class="tok-n">8</span>)        <span class="tok-c"># hidden 1 → hidden 2</span>
+        self.fc3  = nn.Linear(<span class="tok-n">8</span>,  <span class="tok-n">3</span>)        <span class="tok-c"># hidden 2 → 3 logits</span>
+        self.relu = nn.ReLU()                <span class="tok-c"># reusable activation</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+        <span class="tok-c"># x: [B, 4]</span>
+        x = self.relu(self.fc1(x))           <span class="tok-c"># [B, 16]</span>
+        x = self.relu(self.fc2(x))           <span class="tok-c"># [B, 8]</span>
+        <span class="tok-k">return</span> self.fc3(x)                <span class="tok-c"># [B, 3] logits</span></code></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><code>nn.Linear(in, out)</code></div></div>
+      <div class="card-body">
+        Stores a weight <code>W</code> of shape <code>[out, in]</code> and a bias <code>b</code>
+        of shape <code>[out]</code>. On forward it computes
+        <code>x @ W.T + b</code>. <strong>Argument order:</strong> input dim first, output dim
+        second. Easy to flip — many bugs live here.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><code>nn.ReLU()</code></div></div>
+      <div class="card-body">
+        Element-wise <code>max(0, x)</code>. No learnable parameters. You can either store it as
+        an attribute and reuse it, or just call the functional form
+        <code>F.relu(x)</code> inline. Both produce identical computations and gradients.
+      </div>
+    </div>
+  </div>
+
+  <h2>Same model, <code>nn.Sequential</code> form</h2>
+  <p class="lead">
+    If your forward pass is just "apply these in order", <code>nn.Sequential</code> is shorter.
+    No subclass, no <code>forward</code> method.
+  </p>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">one-liner equivalent</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>model = nn.Sequential(
+    nn.Linear(<span class="tok-n">4</span>,  <span class="tok-n">16</span>), nn.ReLU(),
+    nn.Linear(<span class="tok-n">16</span>, <span class="tok-n">8</span>),  nn.ReLU(),
+    nn.Linear(<span class="tok-n">8</span>,  <span class="tok-n">3</span>),
+)
+<span class="tok-c"># identical: 4 → 16 → ReLU → 8 → ReLU → 3</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Pick one rule:</strong> <code>nn.Module</code> subclass when you need branching, skip
+    connections, or anything that isn't a straight pipeline. <code>nn.Sequential</code> when it
+    truly is. For an MLP this small, both are fine.
+  </div>
+
+  <h2>Inspect what got built</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">how many parameters?</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>model = TinyMLP()
+<span class="tok-f">print</span>(model)
+<span class="tok-c"># TinyMLP(</span>
+<span class="tok-c">#   (fc1):  Linear(in_features=4,  out_features=16, bias=True)</span>
+<span class="tok-c">#   (fc2):  Linear(in_features=16, out_features=8,  bias=True)</span>
+<span class="tok-c">#   (fc3):  Linear(in_features=8,  out_features=3,  bias=True)</span>
+<span class="tok-c">#   (relu): ReLU()</span>
+<span class="tok-c"># )</span>
+
+n = <span class="tok-f">sum</span>(p.numel() <span class="tok-k">for</span> p <span class="tok-k">in</span> model.parameters())
+<span class="tok-f">print</span>(<span class="tok-s">"params:"</span>, n)
+<span class="tok-c"># 4·16+16  +  16·8+8  +  8·3+3  =  80 + 136 + 27 = 243 weights total</span></code></pre>
+  </div>
+</section>
+
+<!-- ========================= TRAINING LOOP ========================= -->
+<section class="tab-section" id="tab-loop">
+  <h1>The training loop — five lines, in order</h1>
+  <p class="lead">
+    Every PyTorch training loop boils down to the same five lines. Memorize them in order and
+    the rest of the framework falls into place. We'll go through each one.
+  </p>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">the canonical PyTorch loop</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(num_epochs):
+    optimizer.zero_grad()           <span class="tok-c"># 1. clear last step's gradients</span>
+    out  = model(x)                 <span class="tok-c"># 2. forward — build autograd graph</span>
+    loss = criterion(out, y)        <span class="tok-c"># 3. score predictions vs targets</span>
+    loss.backward()                 <span class="tok-c"># 4. backprop — fill .grad on every weight</span>
+    optimizer.step()                <span class="tok-c"># 5. weights ← weights − lr · grad</span></code></pre>
+  </div>
+
+  <h2>Each line, in plain English</h2>
+  <div class="grid-3">
+    <div class="step-card">
+      <h4><span class="step-num">1</span><code>zero_grad()</code></h4>
+      <p>PyTorch <em>accumulates</em> gradients into <code>p.grad</code> by default. Without
+        zeroing, every step would add the new gradient on top of the old one — chaos. Always
+        zero before the next forward.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">2</span><code>out = model(x)</code></h4>
+      <p>Calls <code>__call__</code> on the module, which calls <code>forward</code>. Returns
+        <strong>logits</strong> — raw scores, shape <code>[B, num_classes]</code>. Don't apply
+        softmax; the loss does it for you.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">3</span><code>loss = criterion(out, y)</code></h4>
+      <p>Compares predictions to targets. For classification with class indices, use
+        <code>nn.CrossEntropyLoss()</code> — it expects logits and integer labels. Returns a
+        scalar tensor.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">4</span><code>loss.backward()</code></h4>
+      <p>Walks the autograd graph backwards from <code>loss</code>, computing
+        <code>∂loss/∂param</code> for every parameter. Stores each gradient on
+        <code>param.grad</code>. No weight changes yet.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">5</span><code>optimizer.step()</code></h4>
+      <p>Reads each <code>param.grad</code> and updates <code>param.data</code> using the
+        optimizer's rule (Adam, SGD, etc.). This is the only line that actually changes
+        weights.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">6</span>repeat</h4>
+      <p>Loop over epochs (full passes through the data) or mini-batches. After enough steps,
+        loss drops, accuracy rises, model has learned.</p>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <strong>The order matters.</strong> Specifically: <em>zero before forward</em>, <em>backward
+    before step</em>. Swap any pair and you either freeze the weights, accumulate stale gradients,
+    or update with last step's numbers. Burn it in: <code>zero → forward → loss → backward → step</code>.
+  </div>
+
+  <h2>Mini-batch variant (real life)</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">when the dataset is too big to fit at once</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">torch.utils.data</span> <span class="tok-k">import</span> DataLoader, TensorDataset
+
+loader = DataLoader(TensorDataset(x, y), batch_size=<span class="tok-n">32</span>, shuffle=<span class="tok-k">True</span>)
+
+<span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(num_epochs):
+    <span class="tok-k">for</span> xb, yb <span class="tok-k">in</span> loader:
+        optimizer.zero_grad()
+        loss = criterion(model(xb), yb)
+        loss.backward()
+        optimizer.step()</code></pre>
+  </div>
+</section>
+
+<!-- ========================= DATA + LOSS ========================= -->
+<section class="tab-section" id="tab-data-loss">
+  <h1>Data and loss — what goes in, what's measured</h1>
+  <p class="lead">
+    Before the loop, we need three things: a tensor <code>x</code> of inputs, a tensor
+    <code>y</code> of class indices, and a loss function that compares the model's output to
+    <code>y</code>. PyTorch is picky about <strong>shapes and dtypes</strong> — get them right
+    and everything else just works.
+  </p>
+
+  <h2>Synthetic 3-blob dataset</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">make 4-D blobs in pure PyTorch</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>torch.manual_seed(<span class="tok-n">0</span>)
+N = <span class="tok-n">300</span>
+
+<span class="tok-c"># three class centers in 4-D</span>
+centers = torch.tensor([
+    [ <span class="tok-n">2</span>,  <span class="tok-n">2</span>,  <span class="tok-n">0</span>,  <span class="tok-n">0</span>],   <span class="tok-c"># class 0</span>
+    [-<span class="tok-n">2</span>,  <span class="tok-n">2</span>,  <span class="tok-n">0</span>,  <span class="tok-n">0</span>],   <span class="tok-c"># class 1</span>
+    [ <span class="tok-n">0</span>, -<span class="tok-n">2</span>,  <span class="tok-n">2</span>,  <span class="tok-n">0</span>],   <span class="tok-c"># class 2</span>
+], dtype=torch.float)
+
+y = torch.randint(<span class="tok-n">0</span>, <span class="tok-n">3</span>, (N,))                <span class="tok-c"># labels  [N], dtype=long</span>
+x = centers[y] + <span class="tok-n">0.6</span> * torch.randn(N, <span class="tok-n">4</span>)   <span class="tok-c"># features [N, 4], float</span></code></pre>
+  </div>
+
+  <div class="shape-flow">
+    <span class="layer-name">x</span><span class="pill">[N=300, 4]</span><span style="color:var(--muted)">float32</span>
+    <span style="margin: 0 14px; color: var(--accent)">·</span>
+    <span class="layer-name">y</span><span class="pill green">[N=300]</span><span style="color:var(--muted)">int64 / long, values in {0, 1, 2}</span>
+  </div>
+
+  <div class="note warn">
+    <strong>Dtype trap.</strong> <code>nn.CrossEntropyLoss</code> requires the target to be
+    <strong>integer class indices</strong> with dtype <code>long</code> (int64), not one-hot
+    vectors and not floats. <code>torch.randint</code> already gives long; if you load from
+    NumPy, cast with <code>y.long()</code>.
+  </div>
+
+  <h2>Loss — <code>nn.CrossEntropyLoss</code></h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">logits in, scalar loss out</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>criterion = nn.CrossEntropyLoss()
+
+<span class="tok-c"># during training:</span>
+out  = model(x)              <span class="tok-c"># [B, 3]  raw logits</span>
+loss = criterion(out, y)     <span class="tok-c"># scalar; combines log_softmax + nll_loss</span></code></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">expected shapes</div></div>
+      <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        <div>logits: <span class="pill">[B, C]</span></div>
+        <div>target: <span class="pill green">[B]</span> (long, values 0..C−1)</div>
+        <div>loss:&nbsp;&nbsp;&nbsp;<span class="pill warn">scalar</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">do not pre-softmax</div></div>
+      <div class="card-body">
+        <code>CrossEntropyLoss</code> applies <code>log_softmax</code> internally for numerical
+        stability. Passing softmax probabilities makes it apply softmax twice — gradients
+        get tiny and training stalls. <strong>Feed it raw logits.</strong>
+      </div>
+    </div>
+  </div>
+
+  <h2>Optimizer — <code>optim.Adam</code></h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">a sane default for tiny models</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>optimizer = optim.Adam(model.parameters(), lr=<span class="tok-n">1e-2</span>)
+<span class="tok-c"># model.parameters() returns *every* trainable tensor in the module tree.</span>
+<span class="tok-c"># lr=1e-2 is a fine starting point for an MLP this small.</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>SGD vs Adam:</strong> SGD requires careful learning-rate tuning; Adam adapts
+    per-parameter step sizes and works out-of-the-box for most small MLPs. Start with Adam,
+    tune later if you care about the last 1% of accuracy.
+  </div>
+</section>
+
+<!-- ========================= INFERENCE ========================= -->
+<section class="tab-section" id="tab-inference">
+  <h1>Inference &amp; saving — what production looks like</h1>
+  <p class="lead">
+    Training is the hard part. Inference is just <strong>forward, no gradients</strong>. Two
+    flips matter: switch the model to eval mode, and disable autograd so we don't waste memory
+    building a graph we'll never use.
+  </p>
+
+  <h2>The two-flip dance</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">predict on new data</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>model.<span class="tok-f">eval</span>()                          <span class="tok-c"># 1. eval mode — disables dropout, freezes BN stats</span>
+<span class="tok-k">with</span> torch.<span class="tok-f">no_grad</span>():                <span class="tok-c"># 2. no autograd — no .grad tracking, no graph</span>
+    logits = model(x_new)             <span class="tok-c"># [B, 3]</span>
+    preds  = logits.argmax(dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B]   class indices 0..2</span>
+    probs  = logits.softmax(dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B, 3] probabilities (optional)</span></code></pre>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><code>model.eval()</code></div></div>
+      <div class="card-body">
+        Flips a flag on every submodule. For our TinyMLP it's a no-op (no Dropout / BatchNorm),
+        but make it a habit — the moment you add a regularizer this matters. Pair with
+        <code>model.train()</code> before training again.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><code>torch.no_grad()</code></div></div>
+      <div class="card-body">
+        Context manager that skips autograd bookkeeping. Inference becomes ~2x faster and uses
+        less memory. Without it, every forward pass still builds the full graph for a
+        <code>backward()</code> you'll never call.
+      </div>
+    </div>
+  </div>
+
+  <h2>Save and load</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title"><code>state_dict</code> — weights only, no Python class</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># save</span>
+torch.save(model.state_dict(), <span class="tok-s">"tiny.pt"</span>)
+
+<span class="tok-c"># load (rebuild the class first, then pour weights in)</span>
+loaded = TinyMLP()
+loaded.load_state_dict(torch.load(<span class="tok-s">"tiny.pt"</span>))
+loaded.<span class="tok-f">eval</span>()                          <span class="tok-c"># always eval after loading for inference</span></code></pre>
+  </div>
+
+  <div class="note good">
+    <strong>Why <code>state_dict</code>?</strong> It's a plain dict of tensors —
+    <code>{ "fc1.weight": ..., "fc1.bias": ... }</code> — that survives refactors. Saving the
+    whole <code>model</code> object pickles the Python class too, which breaks if you rename
+    files. <strong>Always save <code>state_dict</code>, not the module.</strong>
+  </div>
+
+  <h2>End-to-end check</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">one prediction, top to bottom</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>x_one = torch.tensor([[<span class="tok-n">1.8</span>, <span class="tok-n">2.1</span>, <span class="tok-n">0.0</span>, <span class="tok-n">0.1</span>]])    <span class="tok-c"># shape [1, 4]</span>
+model.<span class="tok-f">eval</span>()
+<span class="tok-k">with</span> torch.<span class="tok-f">no_grad</span>():
+    cls = model(x_one).argmax(dim=-<span class="tok-n">1</span>).item()
+<span class="tok-f">print</span>(<span class="tok-s">"predicted class:"</span>, cls)              <span class="tok-c"># 0  (close to center 0)</span></code></pre>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Practice — type the tiny PyTorch</h1>
+  <p class="lead">
+    Twelve drills covering everything in tabs 1–5. Tab moves between blanks · Enter checks ·
+    Hint reveals all unsolved blanks (toggle).
+  </p>
+
+  <h2>Define the model</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span>
+      First Linear layer of TinyMLP: 4 inputs to 16 hidden units.
+      <strong>Argument order:</strong> in first, out second.</div>
+    <pre class="exercise">self.fc1 = nn.Linear(<input class="blank" data-answer="4" size="3" placeholder="?">, <input class="blank" data-answer="16" size="3" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span>
+      Why does <code>__init__</code> start with this line? Fill the call that wires up
+      <code>nn.Module</code>'s parameter tracking.</div>
+    <pre class="exercise">def __init__(self):
+    <input class="blank" data-answer="super().__init__()|super().__init__ ()" size="22" placeholder="?">    # without it, parameters won't register</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span>
+      Activation between linear layers — the staple non-linearity.</div>
+    <pre class="exercise">self.relu = nn.<input class="blank" data-answer="ReLU" size="6" placeholder="?">()
+# applied as: x = self.relu(self.fc1(x))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span>
+      Output layer — 8 hidden units to 3 classes.</div>
+    <pre class="exercise">self.fc3 = nn.Linear(<input class="blank" data-answer="8" size="3" placeholder="?">, <input class="blank" data-answer="3" size="3" placeholder="?">)   # logits, one per class</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>The training loop — five lines, in order</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span>
+      Line 1 of every PyTorch loop: clear the gradients accumulated from the previous step.</div>
+    <pre class="exercise">optimizer.<input class="blank" data-answer="zero_grad" size="11" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span>
+      Line 2 — forward pass. Run the model on the batch.</div>
+    <pre class="exercise">out = <input class="blank" data-answer="model" size="7" placeholder="?">(x)        # shape [B, 3]  raw logits</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span>
+      Line 3 — score the predictions against the labels using the cross-entropy criterion.</div>
+    <pre class="exercise">loss = criterion(<input class="blank" data-answer="out|logits" size="6" placeholder="?">, <input class="blank" data-answer="y|target|targets" size="8" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span>
+      Lines 4 &amp; 5 — backprop, then take an optimizer step.</div>
+    <pre class="exercise">loss.<input class="blank" data-answer="backward" size="10" placeholder="?">()
+optimizer.<input class="blank" data-answer="step" size="6" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Loss &amp; data</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span>
+      Multi-class classification with class indices — the standard loss.</div>
+    <pre class="exercise">criterion = nn.<input class="blank" data-answer="CrossEntropyLoss" size="18" placeholder="?">()
+# expects raw logits, integer labels of dtype long</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span>
+      Adam optimizer — pass it everything that should be trained.</div>
+    <pre class="exercise">optimizer = optim.Adam(model.<input class="blank" data-answer="parameters" size="12" placeholder="?">(), lr=1e-2)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Inference</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span>
+      Two flips before inference: switch to eval mode, then disable autograd.</div>
+    <pre class="exercise">model.<input class="blank" data-answer="eval" size="6" placeholder="?">()
+with torch.<input class="blank" data-answer="no_grad" size="9" placeholder="?">():
+    logits = model(x_new)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span>
+      Convert logits of shape <code>[B, 3]</code> into class indices of shape <code>[B]</code>.</div>
+    <pre class="exercise">preds = logits.<input class="blank" data-answer="argmax" size="8" placeholder="?">(dim=<input class="blank" data-answer="-1|1" size="4" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Save</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span>
+      Save weights only — never the whole module — using <code>state_dict</code>.</div>
+    <pre class="exercise">torch.save(model.<input class="blank" data-answer="state_dict" size="12" placeholder="?">(), "tiny.pt")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Concept check</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span>
+      What's the shape of <code>model(x)</code> when <code>x</code> is a batch of 32 and
+      we have 3 classes? Format: <code>[B, C]</code>.</div>
+    <pre class="exercise">out.shape == torch.Size([<input class="blank" data-answer="32" size="4" placeholder="?">, <input class="blank" data-answer="3" size="3" placeholder="?">])</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span>
+      Why ReLU between Linear layers? Without a non-linearity, two stacked Linears collapse
+      into one. Fill the missing word.</div>
+    <pre class="exercise">Linear ∘ Linear  =  Linear     # composition of two linear maps is still
+                                # ___________ — adds zero expressive power
+answer = "<input class="blank" data-answer="linear" size="9" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>Done all fifteen?</strong> You've typed every line of a real PyTorch program. The
+    next step — bigger models, real datasets, GPU — is just more of the same five lines.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Click anywhere to dismiss.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Tiny PyTorch</strong> — 4 → 16 → 8 → 3, two hidden
+  layers, fifty lines. Companion to <a href="pytorch.html">pytorch.html</a> ·
+  <a href="pytorch-mnist.html">pytorch-mnist.html</a> · ⚡ five lines, in order
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.",
+             'clean.', 'PyTorch approves.', 'gradients flow.', '+1 step.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.',
+             'red. try once more.', 'argument order maybe?'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#a78bfa','#818cf8','#c4b5fd','#4ade80','#fbbf24','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'model','3':'loop','4':'data-loss','5':'inference','6':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

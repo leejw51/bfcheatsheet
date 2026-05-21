@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Softmax + Cross-Entropy Gradient — P − Y</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #10b981;        /* emerald */
+    --accent-2: #34d399;      /* lighter emerald */
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(16,185,129,0.10), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15203a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .badge {
+    background: var(--accent); color: #001018;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(16,185,129,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(16,185,129,0.14);
+    border-color: rgba(16,185,129,0.45);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #001018;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(16,185,129,0.25);
+    background: rgba(16,185,129,0.06);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #001018;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(16,185,129,0.45); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(16,185,129,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+  .note.bad { background: rgba(248,113,113,0.08); border-left-color: var(--bad); }
+  .note.bad strong { color: var(--bad); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 70px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(16,185,129,0.6);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(16,185,129,0.6);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 64px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .pill {
+    display: inline-block;
+    background: rgba(16,185,129,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red  { background: rgba(248,113,113,0.15); color: var(--bad); }
+  .pill.blue { background: rgba(56,189,248,0.15); color: var(--tag); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(16,185,129,0.35);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 24px; height: 24px;
+    background: var(--accent); color: #001018;
+    border-radius: 50%; text-align: center; line-height: 24px;
+    font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  .activation-formula {
+    text-align: center; padding: 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    font-size: 16px;
+    margin: 12px 0;
+  }
+
+  /* derivation step blocks */
+  .deriv-step {
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+  }
+  .deriv-step .badge-num {
+    width: 32px; height: 32px;
+    background: var(--accent); color: #001018;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+    box-shadow: 0 0 12px rgba(16,185,129,0.35);
+  }
+  .deriv-step h4 { margin: 0 0 6px; font-size: 15px; color: var(--text); }
+  .deriv-step p { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.6; }
+  .deriv-step .formula-block {
+    margin: 10px 0 6px;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  /* sandbox bars */
+  .barchart {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .barchart h4 {
+    margin: 0 0 10px; font-size: 13px;
+    color: var(--accent); font-family: ui-monospace, monospace;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .barchart h4 .pill { font-size: 10px; }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 60px;
+    gap: 8px;
+    align-items: center;
+    margin: 6px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+  .bar-row .lbl { color: var(--muted); text-align: right; }
+  .bar-track {
+    position: relative;
+    height: 20px;
+    background: var(--panel-2);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  /* bipolar (negative/positive) split at the centre */
+  .bar-track.bipolar {
+    background: linear-gradient(90deg,
+      rgba(248,113,113,0.05) 0%, rgba(248,113,113,0.05) 50%,
+      rgba(74,222,128,0.05) 50%, rgba(74,222,128,0.05) 100%);
+  }
+  .bar-track.bipolar::before {
+    content: ""; position: absolute;
+    top: 0; bottom: 0; left: 50%;
+    width: 1px; background: var(--border);
+  }
+  .bar-fill {
+    position: absolute; top: 0; bottom: 0;
+    border-radius: 3px;
+    transition: width 0.25s, left 0.25s;
+  }
+  .bar-fill.pos { background: linear-gradient(90deg, var(--accent-2), var(--good)); }
+  .bar-fill.neg { background: linear-gradient(90deg, var(--bad), #fb923c); }
+  .bar-fill.target { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  .bar-row .num-out {
+    text-align: right; font-weight: 700; color: var(--text);
+  }
+  .bar-row .num-out.muted { color: var(--muted); }
+
+  .legend-row {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin: 4px 0 12px;
+    font-size: 11.5px; color: var(--muted);
+    font-family: ui-monospace, monospace;
+  }
+  .legend-swatch {
+    display: inline-block; width: 12px; height: 12px;
+    border-radius: 3px; margin-right: 4px; vertical-align: middle;
+  }
+
+  .radio-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    margin: 8px 0;
+  }
+  .radio-row label {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--muted);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .radio-row label.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(16,185,129,0.10);
+    box-shadow: 0 0 10px rgba(16,185,129,0.25);
+  }
+  .radio-row input { display: none; }
+
+  .num-input {
+    background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 13px;
+    width: 80px;
+  }
+
+  .shape-flow {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-family: ui-monospace, monospace; font-size: 12px;
+    color: var(--muted);
+    margin: 6px 0 12px;
+  }
+  .shape-flow .arrow { color: var(--accent); }
+
+  /* color the key formula */
+  .key-eq {
+    text-align: center;
+    padding: 22px 14px;
+    background:
+      radial-gradient(ellipse at center, rgba(16,185,129,0.18), transparent 70%),
+      var(--code-bg);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    font-size: 22px;
+    margin: 16px 0;
+    box-shadow: 0 0 24px rgba(16,185,129,0.18) inset;
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">∇</span> Softmax + Cross-Entropy <span class="badge">P − Y</span>
+    </div>
+    <div class="progress-bar-outer" title="overall progress">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercises completed">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="streak">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. What it is</button>
+    <button data-tab="softmax">2. Softmax recap</button>
+    <button data-tab="ce">3. Cross-entropy recap</button>
+    <button data-tab="deriv">4. The derivation</button>
+    <button data-tab="sandbox">5. Live sandbox</button>
+    <button data-tab="drills">6. Practice</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>$\nabla_{\!Z}\,L = P - Y$ — the identity that powers transformer training</h1>
+  <p class="lead">
+    Every classifier head in every transformer ends with a softmax and a cross-entropy loss.
+    When you push gradients backward through that pair, almost everything magically cancels and
+    you are left with one of the most beautiful equations in deep learning:
+  </p>
+
+  <div class="key-eq">
+    $\dfrac{\partial L}{\partial Z} \;=\; P - Y$
+  </div>
+
+  <p class="lead">
+    where $Z$ are the pre-softmax <strong>logits</strong>, $P=\mathrm{softmax}(Z)$ is the
+    predicted distribution, and $Y$ is the one-hot target. The gradient on each logit is just
+    "predicted probability minus target probability". No quotient rule in sight, no $\log$, no
+    division. This single identity is why GPT, BERT, ViT and friends train at all.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">why it matters</div></div>
+      <div class="card-body">
+        <ul style="margin: 0; padding-left: 18px;">
+          <li><strong>Fast.</strong> One subtraction per logit, no log/div in the backward pass.</li>
+          <li><strong>Bounded.</strong> Each component lies in $[-1, 1]$ — gradients can't explode here.</li>
+          <li><strong>Numerically stable.</strong> Skipping the explicit $\log p_c$ avoids the
+            classic <em>softmax-then-NLL</em> overflow.</li>
+          <li><strong>Universal.</strong> The same formula falls out for binary sigmoid/BCE,
+            scaled-dot-product attention's softmax row, and any other softmax + cross-entropy
+            stack.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">where you'll see it</div></div>
+      <div class="card-body">
+        <ul style="margin: 0; padding-left: 18px;">
+          <li>Language-model heads — <em>"next-token logits minus one-hot true token"</em>.</li>
+          <li>Image classifiers — <code>logits − one_hot(label)</code>.</li>
+          <li>RLHF / preference learning — same trick, different $Y$.</li>
+          <li>Even a knowledge-distillation soft target is just $P_{\!stud} - P_{\!teacher}$.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>The whole story in five lines</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">PyTorch — what really happens behind <code>F.cross_entropy</code></div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># Z: (B, V) logits   ·   y: (B,) integer labels</span>
+P  = <span class="tok-f">softmax</span>(Z, dim=-<span class="tok-n">1</span>)            <span class="tok-c"># forward</span>
+L  = -<span class="tok-f">log</span>(P[<span class="tok-f">arange</span>(B), y]).<span class="tok-f">mean</span>()  <span class="tok-c"># cross-entropy on the true class</span>
+
+<span class="tok-c"># ↓ backward — what F.cross_entropy actually computes ↓</span>
+Y  = <span class="tok-f">one_hot</span>(y, V).<span class="tok-f">float</span>()       <span class="tok-c"># (B, V)</span>
+dZ = (P - Y) / B                  <span class="tok-c"># dL/dZ — that's it</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>How to use this page:</strong> walk the tabs in order. Tab 4 walks the proof step by
+    step. Tab 5 lets you slide three logits and watch $P$, $Y$, and $P-Y$ in real time. Tab 6 is
+    drills — type into the <span class="pill">blanks</span>, hit <em>Check</em>. Press
+    <kbd style="background:var(--code-bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:11px;color:var(--accent);">?</kbd>
+    for shortcuts.
+  </div>
+</section>
+
+<!-- ========================= SOFTMAX RECAP ========================= -->
+<section class="tab-section" id="tab-softmax">
+  <h1>Softmax — the probability machine</h1>
+  <p class="lead">
+    Softmax takes a vector of real numbers (logits) and turns it into a probability distribution:
+    every component is in $(0, 1)$ and they all sum to $1$. Big logits dominate (because of the
+    exponential), small logits get squashed.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">the formula</div></div>
+    <div class="card-body">
+      <div class="activation-formula">
+        $p_i \;=\; \dfrac{e^{z_i}}{\sum_{k=1}^{K} e^{z_k}}$
+      </div>
+      <p style="margin: 6px 0 0; color: var(--muted); font-size: 13px;">
+        $K$ = number of classes (vocab size for a language model). The denominator
+        $\sum_k e^{z_k}$ is the <em>partition function</em> — the normaliser that
+        guarantees $\sum_i p_i = 1$.
+      </p>
+    </div>
+  </div>
+
+  <h2>Three properties that matter for the gradient proof</h2>
+  <div class="grid-3">
+    <div class="step-card">
+      <h4><span class="step-num">1</span>sums to 1</h4>
+      <p>$\sum_i p_i = 1$. So the gradient $P-Y$ has components that also sum to zero — you
+        can sanity-check any backward pass.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">2</span>shift-invariant</h4>
+      <p>$\mathrm{softmax}(Z) = \mathrm{softmax}(Z + c)$. Subtract the max before
+        exponentiating to avoid overflow.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">3</span>self-derivative</h4>
+      <p>$\dfrac{\partial p_i}{\partial z_j} = p_i(\delta_{ij} - p_j)$ — the heart of the
+        derivation. We'll prove it in tab 4.</p>
+    </div>
+  </div>
+
+  <h2>Numerically-stable softmax</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">the max-subtract trick — what every framework actually runs</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">softmax</span>(z):
+    z = z - z.<span class="tok-f">max</span>()              <span class="tok-c"># shift-invariance — avoid overflow</span>
+    e = np.<span class="tok-f">exp</span>(z)
+    <span class="tok-k">return</span> e / e.<span class="tok-f">sum</span>()</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Want more on softmax alone?</strong> See
+    <a href="softmax.html" style="color: var(--accent);">softmax.html</a> — temperature,
+    log-sum-exp, sparsemax, attention rows. This page focuses on the <em>combination</em> with
+    cross-entropy.
+  </div>
+</section>
+
+<!-- ========================= CROSS-ENTROPY RECAP ========================= -->
+<section class="tab-section" id="tab-ce">
+  <h1>Cross-Entropy — surprise on the true class</h1>
+  <p class="lead">
+    Cross-entropy measures how surprised the model is by the truth. Given a predicted
+    distribution $P$ and a target distribution $Y$, it is:
+  </p>
+
+  <div class="key-eq" style="font-size: 18px;">
+    $L = -\sum_{i=1}^{K} y_i \log p_i$
+  </div>
+
+  <h2>The one-hot collapse</h2>
+  <p class="lead">
+    For classification the target $Y$ is one-hot: $y_c = 1$ for the correct class $c$ and
+    $y_i = 0$ everywhere else. Every term in the sum dies except $i = c$:
+  </p>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="activation-formula">
+        $L = -\sum_i y_i \log p_i \;=\; -\,1 \cdot \log p_c \;-\; 0 \cdot \log p_{\neq c} \;=\; -\log p_c$
+      </div>
+      <p style="margin: 8px 0 0; color: var(--muted); font-size: 13px;">
+        Cross-entropy on a one-hot target is exactly <strong>negative log-likelihood</strong>
+        of the true class. The whole batch loss reduces to averaging $-\log p_c$ over examples.
+      </p>
+    </div>
+  </div>
+
+  <h2>Pain curve — why $-\log$?</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">surprise grows without bound as $p_c \to 0$</div></div>
+      <div class="card-body">
+        $-\log 1.0 = 0$ — perfectly confident, zero loss.<br>
+        $-\log 0.5 \approx 0.69$ — coin-flip on the right answer.<br>
+        $-\log 0.1 \approx 2.30$ — bad, but recoverable.<br>
+        $-\log 10^{-6} \approx 13.8$ — disaster: the gradient will be huge.
+      </div>
+    </div>
+    <div class="canvas-card" style="margin: 0;">
+      <h3>−log p<sub>c</sub></h3>
+      <canvas id="ceCurve" width="380" height="220"></canvas>
+      <p style="color: var(--muted); font-size: 12px; margin: 6px 0 0;">
+        The curve explodes as the model assigns the truth zero probability. That's the
+        feedback signal that drives learning.
+      </p>
+    </div>
+  </div>
+
+  <h2>Soft targets, briefly</h2>
+  <p class="lead">
+    Sometimes $Y$ isn't one-hot — label smoothing, knowledge distillation, mixup. The
+    derivation still gives $\partial L / \partial Z = P - Y$ verbatim; only the shape of $Y$
+    changes. Everything in this page works for any target distribution that sums to 1.
+  </p>
+
+  <div class="note">
+    <strong>Want a deeper dive?</strong> See
+    <a href="cross-entropy.html" style="color: var(--accent);">cross-entropy.html</a> —
+    information theory, perplexity, label smoothing. Here we focus on the gradient that
+    falls out when you stack softmax in front.
+  </div>
+</section>
+
+<!-- ========================= DERIVATION ========================= -->
+<section class="tab-section" id="tab-deriv">
+  <h1>The derivation — every cancellation made visible</h1>
+  <p class="lead">
+    Six steps. Tightening each one is worth it: this is the proof you'll see again in attention
+    backward passes, in mixture-of-experts routers, in any softmax-driven loss.
+  </p>
+
+  <!-- step 1 -->
+  <div class="deriv-step">
+    <div class="badge-num">1</div>
+    <div>
+      <h4>Start with the loss</h4>
+      <p>Cross-entropy on a one-hot target collapses to negative log-likelihood:</p>
+      <div class="formula-block">
+        $L \;=\; -\sum_{i=1}^{K} y_i \log p_i \;=\; -\log p_c$
+      </div>
+      <p>where $c$ is the index of the correct class ($y_c = 1$, all others $0$).</p>
+    </div>
+  </div>
+
+  <!-- step 2 -->
+  <div class="deriv-step">
+    <div class="badge-num">2</div>
+    <div>
+      <h4>Outer chain rule</h4>
+      <p>$L$ depends on every $z_j$ through every $p_i$, so we need the full sum:</p>
+      <div class="formula-block">
+        $\dfrac{\partial L}{\partial z_j} \;=\; \sum_{i=1}^{K} \dfrac{\partial L}{\partial p_i}\,\dfrac{\partial p_i}{\partial z_j}$
+      </div>
+      <p>The first factor is straightforward: $\dfrac{\partial L}{\partial p_i} = -\dfrac{y_i}{p_i}$.</p>
+    </div>
+  </div>
+
+  <!-- step 3 -->
+  <div class="deriv-step">
+    <div class="badge-num">3</div>
+    <div>
+      <h4>Differentiate softmax — the quotient rule</h4>
+      <p>Recall $p_i = e^{z_i} / \sum_k e^{z_k}$. Let $S = \sum_k e^{z_k}$. Then:</p>
+      <div class="formula-block">
+        $\dfrac{\partial p_i}{\partial z_j} \;=\; \dfrac{\partial}{\partial z_j}\!\left[\dfrac{e^{z_i}}{S}\right]
+        \;=\; \dfrac{(\partial e^{z_i}/\partial z_j)\,S - e^{z_i}(\partial S/\partial z_j)}{S^2}$
+      </div>
+      <p>$\partial e^{z_i}/\partial z_j = e^{z_j}$ if $i = j$, else $0$. And
+        $\partial S/\partial z_j = e^{z_j}$. Plug in and simplify:</p>
+      <div class="formula-block">
+        $\dfrac{\partial p_i}{\partial z_j} \;=\; p_i\,(\delta_{ij} - p_j)$
+      </div>
+      <p>$\delta_{ij}$ is $1$ when $i = j$ and $0$ otherwise (Kronecker delta). The two cases:
+        <span class="pill green">i = j</span> $\;p_i(1 - p_i)$  <span class="pill red">i ≠ j</span> $\;-p_i\,p_j$.</p>
+    </div>
+  </div>
+
+  <!-- step 4 -->
+  <div class="deriv-step">
+    <div class="badge-num">4</div>
+    <div>
+      <h4>Plug into the chain rule</h4>
+      <p>Substitute $\partial L/\partial p_i = -y_i/p_i$ and the softmax derivative:</p>
+      <div class="formula-block">
+        $\dfrac{\partial L}{\partial z_j}
+        \;=\; \sum_{i=1}^{K} \!\left(-\dfrac{y_i}{p_i}\right) p_i\,(\delta_{ij} - p_j)
+        \;=\; -\sum_{i=1}^{K} y_i\,(\delta_{ij} - p_j)$
+      </div>
+      <p>Notice $p_i$ in numerator and denominator cancel — that's the magic. No more
+        division, no more risk of $\log 0$.</p>
+    </div>
+  </div>
+
+  <!-- step 5 -->
+  <div class="deriv-step">
+    <div class="badge-num">5</div>
+    <div>
+      <h4>Distribute and simplify</h4>
+      <p>Split the sum into the two pieces:</p>
+      <div class="formula-block">
+        $\dfrac{\partial L}{\partial z_j}
+        \;=\; -\sum_i y_i\,\delta_{ij} + p_j\sum_i y_i
+        \;=\; -y_j + p_j \cdot 1
+        \;=\; p_j - y_j$
+      </div>
+      <p>Two facts collapsed the sum: (a) $\sum_i y_i\,\delta_{ij} = y_j$ — only the $i = j$ term
+        survives. (b) $\sum_i y_i = 1$ because targets are a probability distribution.</p>
+    </div>
+  </div>
+
+  <!-- step 6 -->
+  <div class="deriv-step">
+    <div class="badge-num">6</div>
+    <div>
+      <h4>Vectorise</h4>
+      <p>Collect every $j$ into one tidy vector / matrix equation:</p>
+      <div class="formula-block" style="font-size: 18px; padding: 18px;">
+        $\dfrac{\partial L}{\partial Z} \;=\; P - Y$
+      </div>
+      <p>For a batch, divide by $B$ if $L$ is the mean. That's the entire backward pass for
+        the softmax + cross-entropy block — one subtraction, no exp, no log.</p>
+    </div>
+  </div>
+
+  <h2>The two cases, explicitly</h2>
+  <p class="lead">
+    Walking through $j = c$ and $j \neq c$ separately makes the cancellation visceral.
+  </p>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="pill green">j = c</span> the correct class</div></div>
+      <div class="card-body">
+        <div class="activation-formula" style="font-size: 14px;">
+          $\dfrac{\partial L}{\partial z_c} = -\dfrac{1}{p_c} \cdot p_c(1 - p_c) = p_c - 1$
+        </div>
+        <p style="margin: 0; color: var(--muted); font-size: 13px;">
+          Always negative (since $p_c \in (0,1)$). Gradient descent <em>increases</em> $z_c$ —
+          push the right logit up. Magnitude $1 - p_c$ is the model's "uncertainty" about
+          the truth.
+        </p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="pill red">j ≠ c</span> any wrong class</div></div>
+      <div class="card-body">
+        <div class="activation-formula" style="font-size: 14px;">
+          $\dfrac{\partial L}{\partial z_j} = -\dfrac{1}{p_c} \cdot (-p_c\,p_j) = p_j - 0 = p_j$
+        </div>
+        <p style="margin: 0; color: var(--muted); font-size: 13px;">
+          Always positive. Gradient descent <em>decreases</em> $z_j$ — push wrong logits
+          down. Magnitude is exactly the probability mass the model misallocated.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <strong>Total magnitude check:</strong> $\sum_j (p_j - y_j) = \sum_j p_j - \sum_j y_j = 1 - 1 = 0$.
+    The gradient vector always sums to zero. That's the geometric reason it lives on the
+    "probability simplex's tangent plane".
+  </div>
+</section>
+
+<!-- ========================= SANDBOX ========================= -->
+<section class="tab-section" id="tab-sandbox">
+  <h1>Live sandbox — slide the logits, watch the gradient</h1>
+  <p class="lead">
+    Three classes. Drag the logits. Pick which one is the true class. The page recomputes
+    softmax, the one-hot target, and the gradient $P - Y$ in real time. Hit <em>step</em> to
+    apply one round of gradient descent and watch the correct logit grow.
+  </p>
+
+  <div class="canvas-card">
+    <h3>logits → softmax → cross-entropy gradient</h3>
+    <div class="shape-flow">
+      <span class="pill blue">Z [3]</span>
+      <span class="arrow">→ softmax →</span>
+      <span class="pill">P [3]</span>
+      <span class="arrow">+ target →</span>
+      <span class="pill warn">Y [3]</span>
+      <span class="arrow">→ subtract →</span>
+      <span class="pill red">∂L/∂Z = P − Y [3]</span>
+    </div>
+
+    <div class="grid-2">
+      <div>
+        <div class="slider-row">
+          <label>z<sub>0</sub></label>
+          <input type="range" id="zlog0" min="-5" max="5" step="0.1" value="2.0">
+          <span class="val" id="zlog0v">2.00</span>
+        </div>
+        <div class="slider-row">
+          <label>z<sub>1</sub></label>
+          <input type="range" id="zlog1" min="-5" max="5" step="0.1" value="1.0">
+          <span class="val" id="zlog1v">1.00</span>
+        </div>
+        <div class="slider-row">
+          <label>z<sub>2</sub></label>
+          <input type="range" id="zlog2" min="-5" max="5" step="0.1" value="0.0">
+          <span class="val" id="zlog2v">0.00</span>
+        </div>
+
+        <div style="margin-top: 14px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;">true class (Y)</div>
+        <div class="radio-row" id="trueClassRow">
+          <label class="active" data-c="0"><input type="radio" name="truec" value="0" checked> class 0</label>
+          <label data-c="1"><input type="radio" name="truec" value="1"> class 1</label>
+          <label data-c="2"><input type="radio" name="truec" value="2"> class 2</label>
+        </div>
+
+        <div class="slider-row" style="margin-top: 14px;">
+          <label>η (lr)</label>
+          <input type="range" id="lrSlider" min="0.05" max="2.0" step="0.05" value="0.5">
+          <span class="val" id="lrSliderV">0.50</span>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+          <button class="btn" onclick="gradStep()">step ↓ z := z − η·(P − Y)</button>
+          <button class="btn ghost" onclick="resetSandbox()">reset</button>
+        </div>
+
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 14px; font-family: ui-monospace, monospace; font-size: 13px;">
+          <div>L = <b style="color: var(--bad);" id="sbLoss">—</b>  <span style="color: var(--muted);">(= −log p_c)</span></div>
+          <div>p<sub>c</sub> = <b style="color: var(--good);" id="sbPc">—</b></div>
+          <div>‖P − Y‖<sub>1</sub> = <b style="color: var(--accent);" id="sbNorm">—</b></div>
+          <div>step # <b style="color: var(--accent);" id="sbStep">0</b></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="barchart">
+          <h4><span>P  =  softmax(Z)</span><span class="pill green">sums to 1.000</span></h4>
+          <div class="legend-row">
+            <span><span class="legend-swatch" style="background: linear-gradient(90deg,#34d399,#4ade80);"></span>probability</span>
+          </div>
+          <div id="pBars"></div>
+        </div>
+
+        <div class="barchart" style="margin-top: 12px;">
+          <h4><span>Y  =  one-hot target</span><span class="pill warn" id="yPill">class 0</span></h4>
+          <div id="yBars"></div>
+        </div>
+
+        <div class="barchart" style="margin-top: 12px;">
+          <h4><span>∂L/∂Z  =  P − Y</span><span class="pill red" id="gradPill">sum = 0.000</span></h4>
+          <div class="legend-row">
+            <span><span class="legend-swatch" style="background: linear-gradient(90deg,#f87171,#fb923c);"></span>negative — push z up</span>
+            <span><span class="legend-swatch" style="background: linear-gradient(90deg,#38bdf8,#4ade80);"></span>positive — push z down</span>
+          </div>
+          <div id="gBars"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>What to notice:</strong> the bar for the correct class in $P − Y$ is always
+    <span style="color: var(--bad); font-weight: 700;">negative</span> (so the optimiser pushes
+    that logit <em>up</em>); every other bar is
+    <span style="color: var(--accent); font-weight: 700;">positive</span> (push down). The
+    bars sum to exactly zero — try sliding the sliders and confirm.
+  </div>
+
+  <div class="note warn">
+    <strong>Try this:</strong> set <code>z = [0, 0, 0]</code>, true class = 0, and click step
+    a few times. Watch $z_0$ grow while $z_1, z_2$ shrink — that's exactly what training does
+    every batch.
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Practice — type the gradient</h1>
+  <p class="lead">
+    Fifteen drills covering the formula, the derivation, and the code. Tab moves between
+    blanks · Enter checks · Hint reveals all unsolved blanks (toggle).
+  </p>
+
+  <h2>The headline formula</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> The whole point of this page in three symbols.</div>
+    <pre class="exercise">∂L/∂Z = <input class="blank" data-answer="P-Y|P − Y|P-y|p-y" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> P is what you get when you apply <em>this</em> to the logits Z.</div>
+    <pre class="exercise">P = <input class="blank" data-answer="softmax" size="9" placeholder="?">(Z)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Y is the <em>____-hot</em> target vector for the correct class.</div>
+    <pre class="exercise">Y = <input class="blank" data-answer="one" size="5" placeholder="?">_hot(label)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Cross-entropy with one-hot Y</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Cross-entropy on one-hot Y collapses to negative log-likelihood of the correct class.</div>
+    <pre class="exercise">L = -Σᵢ yᵢ · log pᵢ   →   L = -log <input class="blank" data-answer="p_c|pc|p[c]|p_correct" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Loss when the model already nails the truth (p_c = 1)?</div>
+    <pre class="exercise">L = -log(1) = <input class="blank" data-answer="0" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>The softmax derivative</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> The Kronecker delta — equals 1 when i and j match, otherwise 0.</div>
+    <pre class="exercise">∂pᵢ/∂zⱼ = pᵢ · (<input class="blank" data-answer="δ_ij|delta_ij|delta|δ|kronecker" size="10" placeholder="?"> − pⱼ)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Diagonal case (i = j) — fill the missing factor.</div>
+    <pre class="exercise">∂pᵢ/∂zᵢ = pᵢ · (1 − <input class="blank" data-answer="p_i|pi|p[i]" size="6" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> Off-diagonal case (i ≠ j) — fill the sign + factor.</div>
+    <pre class="exercise">∂pᵢ/∂zⱼ = <input class="blank" data-answer="-p_i*p_j|-pi*pj|-p_i p_j|-pipj|-pᵢpⱼ|-p_ip_j" size="10" placeholder="?">     # i ≠ j</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Putting it together</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> The chain rule sums over which index?</div>
+    <pre class="exercise">∂L/∂zⱼ = Σ_<input class="blank" data-answer="i" size="3" placeholder="?"> (∂L/∂pᵢ) · (∂pᵢ/∂zⱼ)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> The cancellation. Plug in ∂L/∂pᵢ = −yᵢ/pᵢ — which factor disappears?</div>
+    <pre class="exercise">Σᵢ (−yᵢ/pᵢ) · pᵢ · (δᵢⱼ − pⱼ)
+    →   Σᵢ −yᵢ · (δᵢⱼ − pⱼ)        # the <input class="blank" data-answer="p_i|pi|p_i's|pᵢ" size="6" placeholder="?"> cancelled</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Symbolic punchline: the derivative on logit j.</div>
+    <pre class="exercise">∂L/∂zⱼ = pⱼ − <input class="blank" data-answer="y_j|yj|y[j]|yⱼ" size="5" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Numerical practice</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Softmax([2, 1, 0]) ≈ [0.66, 0.24, 0.09]. Given y = [1, 0, 0], the gradient is [_, _, _].</div>
+    <pre class="exercise">∂L/∂Z ≈ [<input class="blank" data-answer="-0.34|−0.34" size="7" placeholder="?">, <input class="blank" data-answer="0.24" size="6" placeholder="?">, <input class="blank" data-answer="0.09|0.10" size="6" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> If P = [0.7, 0.2, 0.1] and Y = [0, 1, 0], the gradient is:</div>
+    <pre class="exercise">∂L/∂Z = [<input class="blank" data-answer="0.7" size="5" placeholder="?">, <input class="blank" data-answer="-0.8|−0.8" size="6" placeholder="?">, <input class="blank" data-answer="0.1" size="5" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Why does each component of P − Y lie in [−1, 1]? Because every entry of P and Y is a ___ between 0 and 1.</div>
+    <pre class="exercise">P − Y is bounded because both vectors are <input class="blank" data-answer="probabilities|probability|probs|prob" size="14" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Code</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> Manual backward pass for softmax + CE — type the missing line.</div>
+    <pre class="exercise">def forward_backward(Z, y):              # Z: (B,V), y: (B,) int labels
+    P = softmax(Z, axis=-1)               # forward
+    L = -np.log(P[np.arange(B), y]).mean()
+    Y = one_hot(y, V)                     # (B, V)
+    dZ = (<input class="blank" data-answer="P-Y|P − Y|P-y" size="6" placeholder="?">) / B          # ← the whole point
+    return L, dZ</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>Done all fifteen?</strong> You now understand the single most-used gradient in
+    deep learning. Every transformer head — language, vision, audio — backprop starts with
+    exactly this <code>P − Y</code>. Companion pages:
+    <a href="softmax.html" style="color: var(--accent);">softmax.html</a> ·
+    <a href="cross-entropy.html" style="color: var(--accent);">cross-entropy.html</a> ·
+    <a href="transformers.html" style="color: var(--accent);">transformers.html</a>.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Click anywhere to dismiss.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">∂L/∂Z = P − Y</strong> — the identity that makes
+  transformer training work. Companion to
+  <a href="softmax.html">softmax.html</a> ·
+  <a href="cross-entropy.html">cross-entropy.html</a> ·
+  <a href="transformers.html">transformers.html</a>
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'P − Y indeed.', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'clean cancellation.', 'gradient approves.', 'no NaN today.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'red. try once more.', 'one of P, Y, or a sign is off.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#10b981','#34d399','#a7f3d0','#4ade80','#fbbf24','#38bdf8','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== CROSS-ENTROPY CURVE (tab 3) ==============
+function drawCEcurve() {
+  const c = document.getElementById('ceCurve');
+  if (!c) return;
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  // axes
+  const padL = 36, padR = 16, padT = 14, padB = 28;
+  ctx.strokeStyle = 'rgba(138,161,189,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT); ctx.lineTo(padL, H - padB);
+  ctx.lineTo(W - padR, H - padB);
+  ctx.stroke();
+
+  // labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('p_c', W - 28, H - 10);
+  ctx.fillText('L', 8, padT + 8);
+
+  // ticks
+  for (let p = 0.2; p <= 1.001; p += 0.2) {
+    const x = padL + p * (W - padL - padR);
+    ctx.beginPath();
+    ctx.moveTo(x, H - padB); ctx.lineTo(x, H - padB + 4);
+    ctx.stroke();
+    ctx.fillText(p.toFixed(1), x - 9, H - padB + 16);
+  }
+
+  // curve y = -log(x), clipped to L = 5
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#10b981';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  const Lmax = 5;
+  let started = false;
+  for (let p = 0.005; p <= 1.001; p += 0.004) {
+    const L = -Math.log(p);
+    if (L > Lmax) continue;
+    const x = padL + p * (W - padL - padR);
+    const y = (H - padB) - (L / Lmax) * (H - padT - padB);
+    if (!started) { ctx.moveTo(x, y); started = true; }
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // mark a few points
+  const marks = [
+    { p: 1.0, lbl: 'L=0' },
+    { p: 0.5, lbl: '0.69' },
+    { p: 0.1, lbl: '2.3' }
+  ];
+  marks.forEach(m => {
+    const L = -Math.log(m.p);
+    if (L > Lmax) return;
+    const x = padL + m.p * (W - padL - padR);
+    const y = (H - padB) - (L / Lmax) * (H - padT - padB);
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#34d399';
+    ctx.fill();
+    ctx.fillStyle = '#e6f1ff';
+    ctx.fillText(m.lbl, x + 6, y - 4);
+  });
+}
+drawCEcurve();
+
+// ============== SANDBOX (tab 5) ==============
+let sandboxStep = 0;
+let trueClass = 0;
+
+function softmax(zs) {
+  const m = Math.max(...zs);
+  const ex = zs.map(z => Math.exp(z - m));
+  const s = ex.reduce((a, b) => a + b, 0);
+  return ex.map(e => e / s);
+}
+
+function getZ() {
+  return [0, 1, 2].map(i => +document.getElementById('zlog' + i).value);
+}
+function setZ(zs) {
+  zs.forEach((z, i) => {
+    const el = document.getElementById('zlog' + i);
+    el.value = z.toFixed(2);
+    document.getElementById('zlog' + i + 'v').textContent = (+z).toFixed(2);
+  });
+}
+
+function makeBarRow(idx, value, kind, max, opts) {
+  // kind: 'pos' (probability 0..1), 'target' (0/1), 'bipolar' (-1..1)
+  const row = document.createElement('div');
+  row.className = 'bar-row';
+  const lbl = document.createElement('div'); lbl.className = 'lbl';
+  lbl.textContent = (opts && opts.lbl) || ('z' + idx);
+  row.appendChild(lbl);
+
+  const track = document.createElement('div');
+  track.className = 'bar-track' + (kind === 'bipolar' ? ' bipolar' : '');
+  const fill = document.createElement('div');
+  fill.className = 'bar-fill';
+
+  if (kind === 'bipolar') {
+    // value in [-1,1], 50% is the zero line
+    const half = 50;
+    if (value >= 0) {
+      fill.classList.add('pos');
+      fill.style.left = '50%';
+      fill.style.width = (value * half) + '%';
+    } else {
+      fill.classList.add('neg');
+      fill.style.left = ((1 + value) * half) + '%';
+      fill.style.width = (-value * half) + '%';
+    }
+  } else if (kind === 'target') {
+    fill.classList.add('target');
+    fill.style.left = '0%';
+    fill.style.width = (value * 100) + '%';
+  } else {
+    // probability
+    fill.classList.add('pos');
+    fill.style.left = '0%';
+    fill.style.width = (value * 100) + '%';
+  }
+  track.appendChild(fill);
+  row.appendChild(track);
+
+  const num = document.createElement('div');
+  num.className = 'num-out' + (value === 0 ? ' muted' : '');
+  let s = value.toFixed(3);
+  if (kind === 'bipolar' && value > 0) s = '+' + s;
+  num.textContent = s;
+  row.appendChild(num);
+  return row;
+}
+
+function renderSandbox() {
+  const zs = getZ();
+  const ps = softmax(zs);
+  const ys = [0, 0, 0];
+  ys[trueClass] = 1;
+  const grad = ps.map((p, i) => p - ys[i]);
+
+  // P bars
+  const pHost = document.getElementById('pBars');
+  pHost.innerHTML = '';
+  ps.forEach((p, i) => {
+    pHost.appendChild(makeBarRow(i, p, 'pos', 1, { lbl: 'p' + i }));
+  });
+
+  // Y bars
+  const yHost = document.getElementById('yBars');
+  yHost.innerHTML = '';
+  ys.forEach((y, i) => {
+    yHost.appendChild(makeBarRow(i, y, 'target', 1, { lbl: 'y' + i }));
+  });
+  document.getElementById('yPill').textContent = 'class ' + trueClass;
+
+  // gradient bars
+  const gHost = document.getElementById('gBars');
+  gHost.innerHTML = '';
+  grad.forEach((g, i) => {
+    gHost.appendChild(makeBarRow(i, g, 'bipolar', 1, { lbl: 'g' + i }));
+  });
+
+  // stats
+  const pc = ps[trueClass];
+  const L = -Math.log(Math.max(1e-12, pc));
+  const norm1 = grad.reduce((a, b) => a + Math.abs(b), 0);
+  document.getElementById('sbLoss').textContent = L.toFixed(3);
+  document.getElementById('sbPc').textContent = pc.toFixed(3);
+  document.getElementById('sbNorm').textContent = norm1.toFixed(3);
+  document.getElementById('sbStep').textContent = sandboxStep;
+
+  const sumGrad = grad.reduce((a, b) => a + b, 0);
+  document.getElementById('gradPill').textContent = 'sum = ' + sumGrad.toFixed(3);
+}
+
+function gradStep() {
+  const lr = +document.getElementById('lrSlider').value;
+  const zs = getZ();
+  const ps = softmax(zs);
+  const ys = [0, 0, 0];
+  ys[trueClass] = 1;
+  const grad = ps.map((p, i) => p - ys[i]);
+  const newZ = zs.map((z, i) => {
+    const v = z - lr * grad[i];
+    return Math.max(-5, Math.min(5, v));
+  });
+  setZ(newZ);
+  sandboxStep++;
+  renderSandbox();
+}
+
+function resetSandbox() {
+  setZ([2.0, 1.0, 0.0]);
+  trueClass = 0;
+  document.querySelectorAll('#trueClassRow label').forEach(l => {
+    l.classList.toggle('active', +l.dataset.c === 0);
+    const r = l.querySelector('input');
+    if (r) r.checked = (+l.dataset.c === 0);
+  });
+  document.getElementById('lrSlider').value = '0.5';
+  document.getElementById('lrSliderV').textContent = '0.50';
+  sandboxStep = 0;
+  renderSandbox();
+}
+
+// wire up sliders
+['zlog0','zlog1','zlog2'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    document.getElementById(id + 'v').textContent = (+el.value).toFixed(2);
+    renderSandbox();
+  });
+});
+const lrEl = document.getElementById('lrSlider');
+if (lrEl) lrEl.addEventListener('input', () => {
+  document.getElementById('lrSliderV').textContent = (+lrEl.value).toFixed(2);
+});
+
+// true class radios
+document.querySelectorAll('#trueClassRow label').forEach(l => {
+  l.addEventListener('click', () => {
+    document.querySelectorAll('#trueClassRow label').forEach(o => o.classList.remove('active'));
+    l.classList.add('active');
+    const r = l.querySelector('input');
+    if (r) r.checked = true;
+    trueClass = +l.dataset.c;
+    renderSandbox();
+  });
+});
+
+renderSandbox();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'softmax','3':'ce','4':'deriv','5':'sandbox','6':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

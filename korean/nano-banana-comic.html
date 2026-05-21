@@ -1,0 +1,2042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nano Banana Comics — Interactive Drill</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #facc15;        /* banana yellow */
+    --accent-2: #fb923c;      /* orange */
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --ink: #0a0610;
+    --paper: #fff8e1;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(250,204,21,0.10), transparent 55%),
+      radial-gradient(ellipse at bottom right, rgba(251,146,60,0.08), transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  /* halftone background pattern reusable */
+  .halftone {
+    background-image: radial-gradient(rgba(250,204,21,0.18) 1.4px, transparent 1.6px);
+    background-size: 10px 10px;
+  }
+  .halftone-orange {
+    background-image: radial-gradient(rgba(251,146,60,0.20) 1.4px, transparent 1.6px);
+    background-size: 10px 10px;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1f1a0a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(250,204,21,0.07) 1.2px, transparent 1.4px);
+    background-size: 14px 14px;
+    pointer-events: none;
+  }
+  .logo {
+    font-weight: 900; font-size: 20px;
+    display: flex; align-items: center; gap: 10px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    position: relative;
+  }
+  .logo .spark {
+    color: var(--accent); font-size: 26px;
+    filter: drop-shadow(0 0 8px var(--accent));
+    display: inline-block;
+    transform: rotate(-12deg);
+  }
+  .badge {
+    background: var(--accent); color: var(--ink);
+    padding: 3px 8px; border-radius: 4px;
+    font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.6px;
+    border: 2px solid var(--ink);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+    position: relative;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+    position: relative;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(250,204,21,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    position: relative;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--ink);
+    background: var(--accent);
+    border-color: var(--ink);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+  nav.tabs button.active .check { color: var(--ink); }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 {
+    font-size: 30px; margin: 0 0 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1.1;
+  }
+  h1 .pow {
+    display: inline-block;
+    background: var(--accent); color: var(--ink);
+    border: 3px solid var(--ink);
+    padding: 4px 12px;
+    border-radius: 8px;
+    transform: rotate(-2deg);
+    box-shadow: 4px 4px 0 var(--ink);
+    margin-right: 6px;
+  }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+    white-space: pre-wrap;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: var(--ink);
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: var(--ink); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+    white-space: pre-wrap;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 80px; max-width: 260px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(250,204,21,0.25);
+    background: rgba(250,204,21,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: var(--ink);
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+    text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .btn:hover { filter: brightness(1.1); box-shadow: 0 0 14px rgba(250,204,21,0.5); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(250,204,21,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+  .note.orange { background: rgba(251,146,60,0.10); border-left-color: var(--accent-2); }
+  .note.orange strong { color: var(--accent-2); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+
+  .pill {
+    display: inline-block;
+    background: rgba(250,204,21,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.orange { background: rgba(251,146,60,0.18); color: var(--accent-2); }
+  .pill.warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red  { background: rgba(248,113,113,0.15); color: var(--bad); }
+
+  /* Comic panel */
+  .comic-panel {
+    position: relative;
+    background: var(--paper);
+    color: var(--ink);
+    border: 3px solid var(--ink);
+    border-radius: 4px;
+    box-shadow: 4px 4px 0 var(--ink);
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    font-family: "Comic Sans MS", "Marker Felt", system-ui, sans-serif;
+  }
+  .comic-panel .panel-inner {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: flex-end;
+    padding: 10px;
+  }
+  .comic-panel .panel-bg { position: absolute; inset: 0; }
+  .comic-panel .panel-label {
+    position: absolute; top: 6px; left: 6px;
+    background: var(--paper); color: var(--ink);
+    padding: 2px 6px;
+    font-weight: 800; font-size: 10px;
+    border: 2px solid var(--ink);
+    letter-spacing: 0.3px;
+    z-index: 2;
+  }
+  .speech-bubble {
+    position: relative;
+    background: #fff; color: var(--ink);
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    padding: 5px 9px;
+    font-size: 12px; font-weight: 700;
+    max-width: 84%;
+    box-shadow: 2px 2px 0 var(--ink);
+    z-index: 2;
+  }
+  .speech-bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -10px; left: 18px;
+    width: 0; height: 0;
+    border: 6px solid transparent;
+    border-top-color: var(--ink);
+  }
+  .speech-bubble::before {
+    content: "";
+    position: absolute;
+    bottom: -7px; left: 20px;
+    width: 0; height: 0;
+    border: 4px solid transparent;
+    border-top-color: #fff;
+    z-index: 3;
+  }
+  .narration-box {
+    position: absolute;
+    top: 6px; right: 6px;
+    background: #fff8a8; color: var(--ink);
+    border: 2px solid var(--ink);
+    padding: 3px 7px;
+    font-size: 11px; font-weight: 700;
+    max-width: 60%;
+    z-index: 2;
+  }
+
+  /* Strip layout */
+  .comic-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 10px 0;
+  }
+  @media (max-width: 700px) {
+    .comic-strip { grid-template-columns: 1fr; }
+  }
+
+  /* Step cards */
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 24px; height: 24px;
+    background: var(--accent); color: var(--ink);
+    border-radius: 4px; text-align: center; line-height: 24px;
+    font-weight: 900; font-size: 13px; margin-right: 8px;
+    border: 2px solid var(--ink);
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center;
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--accent); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  /* Onomatopoeia */
+  .onomatopoeia {
+    display: inline-block;
+    font-family: "Bangers", "Comic Sans MS", system-ui, sans-serif;
+    background: var(--accent);
+    color: var(--ink);
+    padding: 4px 14px;
+    border: 3px solid var(--ink);
+    border-radius: 8px;
+    font-weight: 900;
+    font-size: 22px;
+    transform: rotate(-3deg);
+    box-shadow: 4px 4px 0 var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .onomatopoeia.orange { background: var(--accent-2); }
+  .onomatopoeia.cyan { background: #67e8f9; }
+
+  /* Character sheet box */
+  .char-sheet {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin: 10px 0;
+  }
+  .char-pose {
+    background: var(--paper);
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    aspect-ratio: 3/4;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 3px 3px 0 var(--ink);
+  }
+  .char-pose .lbl {
+    position: absolute; top: 4px; left: 4px;
+    background: var(--accent);
+    color: var(--ink);
+    border: 1.5px solid var(--ink);
+    font-size: 9px; font-weight: 900;
+    padding: 1px 5px;
+    text-transform: uppercase;
+    z-index: 2;
+  }
+
+  /* Prompt builder */
+  .pb-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 800px) { .pb-grid { grid-template-columns: 1fr; } }
+  .pb-row { display: flex; flex-direction: column; gap: 4px; }
+  .pb-row label {
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.4px;
+    font-weight: 700;
+  }
+  .pb-row select, .pb-row input[type="text"] {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+  .pb-row select:focus, .pb-row input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(250,204,21,0.25);
+  }
+  .prompt-output {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    color: var(--text);
+    margin-top: 12px;
+    position: relative;
+    min-height: 110px;
+  }
+  .prompt-output .pp { color: var(--accent); font-weight: 700; }
+  .prompt-output .pp-2 { color: var(--accent-2); font-weight: 700; }
+  .prompt-output .pp-3 { color: #67e8f9; font-weight: 700; }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(250,204,21,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* Banana mark */
+  .banana-mark {
+    display: inline-block;
+    width: 14px; height: 22px;
+    background: var(--accent);
+    border-radius: 14px 14px 14px 14px / 30px 30px 14px 14px;
+    transform: rotate(35deg);
+    border: 1.5px solid var(--ink);
+    margin: 0 2px;
+    vertical-align: middle;
+  }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">🍌</span> Nano Banana Comics <span class="badge">Type to Learn</span>
+    </div>
+    <div class="progress-bar-outer" title="overall progress">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercises completed">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="streak">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. What is it?</button>
+    <button data-tab="plan">2. Plan</button>
+    <button data-tab="character">3. Character Sheet</button>
+    <button data-tab="prompts">4. Prompt Patterns</button>
+    <button data-tab="iterate">5. Iterate</button>
+    <button data-tab="builder">6. Prompt Builder</button>
+    <button data-tab="drills">7. Practice</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1><span class="pow">POW!</span> Make a Comic with Nano Banana</h1>
+  <p class="lead">
+    "Nano Banana" is the affectionate nickname for Google's
+    <strong>Gemini 2.5 Flash Image</strong> model — a multimodal image generator that takes text
+    <em>and</em> reference images, edits in place, and (most importantly for us) keeps a character
+    looking like the same character across panels. That last property is what makes it usable for
+    comics in the first place.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">what nano banana actually is</div></div>
+      <div class="card-body">
+        A fast, multimodal image model from Google DeepMind. You can use it through
+        <span class="pill">Google AI Studio</span>
+        <span class="pill">Gemini API</span>
+        <span class="pill">Gemini app</span>.
+        The official model id is <code style="color:var(--accent)">gemini-2.5-flash-image</code>.
+        It accepts both text and one or more reference images in the same prompt.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">why it's good for comics</div></div>
+      <div class="card-body">
+        Three reasons:
+        <ul style="margin: 6px 0 0 16px; padding: 0; color: var(--muted);">
+          <li><strong style="color: var(--accent)">Character consistency</strong> — feed a reference, the same face survives shot changes.</li>
+          <li><strong style="color: var(--accent)">In-place edits</strong> — "keep everything, change her expression to surprised" works.</li>
+          <li><strong style="color: var(--accent)">Speed</strong> — fast enough to iterate panel-by-panel.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>The whole pipeline at a glance</h2>
+  <div class="grid-3" style="margin: 14px 0;">
+    <div class="step-card">
+      <h4><span class="step-num">1</span>script</h4>
+      <p>Write the dialogue and beats. Decide panel count (3-strip vs full page).</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">2</span>character sheet</h4>
+      <p>Generate a model-sheet image: front / side / back / expressions. This is your <em>consistency anchor</em>.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">3</span>panels</h4>
+      <p>For each panel: <code>[ref image] + prompt</code>. Always re-supply the reference.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">4</span>iterate</h4>
+      <p>Edit in place: "same panel, change weather to rain", "change pose", "fix hands".</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">5</span>letter</h4>
+      <p>Add speech bubbles in <strong>Figma / Canva / Photoshop</strong>. Nano Banana renders text but post-lettering reads cleaner.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">6</span>stitch</h4>
+      <p>Drop panels into a page layout, gutters, page numbers. Done.</p>
+    </div>
+  </div>
+
+  <h2>Sample 3-panel strip</h2>
+  <p class="lead" style="margin-bottom: 8px;">
+    Here's the kind of strip you can produce in maybe ten minutes, end-to-end. The art below is
+    SVG mocks (we can't call the actual API in a browser drill), but the layout and flow are the
+    same.
+  </p>
+
+  <div class="comic-strip" id="welcomeStrip" aria-hidden="true">
+    <!-- panels rendered by JS so we can re-render with builder later -->
+  </div>
+
+  <div class="note">
+    <strong>How to use this page:</strong> walk through the tabs in order. Tab 6 is a live prompt
+    builder — pick options and watch a Nano Banana prompt assemble itself. Tab 7 has drills.
+    Press <kbd>?</kbd> for keyboard shortcuts.
+  </div>
+</section>
+
+<!-- ========================= PLAN ========================= -->
+<section class="tab-section" id="tab-plan">
+  <h1><span class="pow">PLAN!</span> Script Before You Generate</h1>
+  <p class="lead">
+    The biggest mistake first-timers make: open Gemini, type "draw me a comic". You'll get one
+    panel of generic art. Comics are a <em>sequence</em>, and the model can't sequence for you —
+    you have to plan the beats first.
+  </p>
+
+  <h2>1. Pick your format</h2>
+  <div class="grid-3">
+    <div class="step-card">
+      <h4>3-panel strip</h4>
+      <p>Setup → turn → punchline. Newspaper-style. Easiest to iterate on.</p>
+    </div>
+    <div class="step-card">
+      <h4>1-page (4–6 panels)</h4>
+      <p>One scene. Mix shot sizes — wide → close-up → reaction.</p>
+    </div>
+    <div class="step-card">
+      <h4>Multi-page</h4>
+      <p>Real story. Plan a beat sheet first, then page layout, then panels.</p>
+    </div>
+  </div>
+
+  <h2>2. Write a beat sheet</h2>
+  <p class="lead">For each panel, jot down: <em>shot type · who's there · action · dialogue · mood</em>.</p>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">example: 3-panel strip — "Aria finds the cat"</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># Panel 1 — establishing</span>
+shot:     <span class="tok-s">wide</span>
+who:      <span class="tok-s">Aria</span>
+where:    <span class="tok-s">rainy alley at night, neon signs</span>
+action:   <span class="tok-s">walking, looking at phone</span>
+dialogue: <span class="tok-s">"Where did it go..."</span>
+mood:     <span class="tok-s">noir, lonely</span>
+
+<span class="tok-c"># Panel 2 — discovery</span>
+shot:     <span class="tok-s">medium</span>
+who:      <span class="tok-s">Aria + cat</span>
+where:    <span class="tok-s">behind dumpster, same alley</span>
+action:   <span class="tok-s">crouching, surprised</span>
+dialogue: <span class="tok-s">"There you are!"</span>
+mood:     <span class="tok-s">tender, soft glow</span>
+
+<span class="tok-c"># Panel 3 — reaction / punchline</span>
+shot:     <span class="tok-s">close-up</span>
+who:      <span class="tok-s">cat</span>
+where:    <span class="tok-s">cradled in hands</span>
+action:   <span class="tok-s">cat staring deadpan</span>
+dialogue: <span class="tok-s">"meow."</span>
+mood:     <span class="tok-s">comedic, warm</span></code></pre>
+  </div>
+
+  <h2>3. Decide your style anchor</h2>
+  <p class="lead">
+    Pick one short style phrase you'll repeat in <em>every</em> panel prompt. This is one of the
+    cheapest consistency tricks.
+  </p>
+  <div class="grid-4">
+    <div class="step-card"><h4>manga</h4><p>"black-and-white manga, screentone shading, ink linework"</p></div>
+    <div class="step-card"><h4>american comic</h4><p>"american comic book art, bold inks, flat color, halftone"</p></div>
+    <div class="step-card"><h4>watercolor</h4><p>"watercolor illustration, loose lines, soft pastels"</p></div>
+    <div class="step-card"><h4>pixel</h4><p>"16-bit pixel art, limited palette, scanlines"</p></div>
+  </div>
+
+  <div class="note orange">
+    <strong>Tip:</strong> if you change the style phrase mid-comic, the look will drift. Lock it
+    in before you start, and copy-paste it verbatim into every panel prompt.
+  </div>
+</section>
+
+<!-- ========================= CHARACTER SHEET ========================= -->
+<section class="tab-section" id="tab-character">
+  <h1><span class="pow">SHEET!</span> The Consistency Anchor</h1>
+  <p class="lead">
+    The single most important file in your project is the <strong>character sheet</strong> — also
+    called a <em>model sheet</em>. It's one image showing the character from multiple angles and
+    expressions. You'll attach this image to every panel prompt.
+  </p>
+
+  <h2>Generate the sheet first</h2>
+  <p class="lead">Send Nano Banana a prompt like the one below, with no reference image yet:</p>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">prompt — generate character sheet</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code>Character sheet for "Aria", a young detective in a tan trenchcoat,
+short black bob, green eyes, age 24. Show four full-body poses on a
+plain neutral grey background:
+  - front view, neutral expression
+  - 3/4 view, smiling
+  - side profile
+  - back view
+Plus three head shots in the corner: surprised, angry, laughing.
+Style: american comic book art, bold inks, flat color.
+Label each pose. No background scene.</code></pre>
+  </div>
+
+  <h2>What it looks like</h2>
+  <p class="lead">A model sheet has four standardized views plus a row of expressions:</p>
+
+  <div class="canvas-card">
+    <div class="char-sheet" aria-hidden="true">
+      <div class="char-pose"><span class="lbl">FRONT</span><svg viewBox="0 0 60 80" width="100%" height="100%"><rect width="60" height="80" fill="#f7f0d4"/><circle cx="30" cy="22" r="9" fill="#f4d4b8" stroke="#0a0610" stroke-width="1.4"/><path d="M22 18 Q30 8 38 18 L38 14 Q30 6 22 14 Z" fill="#1a1a2e"/><circle cx="27" cy="22" r="1.2" fill="#0a0610"/><circle cx="33" cy="22" r="1.2" fill="#0a0610"/><path d="M27 26 Q30 28 33 26" stroke="#0a0610" stroke-width="1" fill="none"/><rect x="20" y="32" width="20" height="32" fill="#c89060" stroke="#0a0610" stroke-width="1.4" rx="2"/><line x1="30" y1="32" x2="30" y2="64" stroke="#0a0610" stroke-width="0.8"/><rect x="22" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/><rect x="32" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/></svg></div>
+      <div class="char-pose"><span class="lbl">3/4</span><svg viewBox="0 0 60 80" width="100%" height="100%"><rect width="60" height="80" fill="#f7f0d4"/><circle cx="32" cy="22" r="9" fill="#f4d4b8" stroke="#0a0610" stroke-width="1.4"/><path d="M24 18 Q33 8 40 16 L40 14 Q33 6 24 14 Z" fill="#1a1a2e"/><circle cx="29" cy="22" r="1.2" fill="#0a0610"/><circle cx="35" cy="22" r="1.2" fill="#0a0610"/><path d="M29 26 Q33 28 36 25" stroke="#0a0610" stroke-width="1" fill="none"/><path d="M22 32 Q26 30 32 30 Q40 30 42 34 L42 64 L20 64 Z" fill="#c89060" stroke="#0a0610" stroke-width="1.4"/><rect x="22" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/><rect x="32" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/></svg></div>
+      <div class="char-pose"><span class="lbl">SIDE</span><svg viewBox="0 0 60 80" width="100%" height="100%"><rect width="60" height="80" fill="#f7f0d4"/><path d="M28 14 Q22 14 22 22 Q22 30 26 30 L30 30 Q34 30 34 26 L34 18 Z" fill="#f4d4b8" stroke="#0a0610" stroke-width="1.4"/><path d="M22 18 L26 12 L34 12 L34 20 Q30 16 22 18 Z" fill="#1a1a2e"/><circle cx="29" cy="22" r="1.2" fill="#0a0610"/><path d="M22 26 L20 24 L22 24 Z" fill="#f4d4b8" stroke="#0a0610" stroke-width="0.8"/><path d="M22 30 Q22 32 24 32 L36 32 L36 64 L20 64 Z" fill="#c89060" stroke="#0a0610" stroke-width="1.4"/><rect x="22" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/><rect x="30" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/></svg></div>
+      <div class="char-pose"><span class="lbl">BACK</span><svg viewBox="0 0 60 80" width="100%" height="100%"><rect width="60" height="80" fill="#f7f0d4"/><circle cx="30" cy="22" r="9" fill="#1a1a2e" stroke="#0a0610" stroke-width="1.4"/><path d="M22 22 L22 28 L24 30 L36 30 L38 28 L38 22 Q38 12 30 12 Q22 12 22 22 Z" fill="#1a1a2e"/><rect x="20" y="30" width="20" height="34" fill="#c89060" stroke="#0a0610" stroke-width="1.4" rx="2"/><line x1="30" y1="30" x2="30" y2="64" stroke="#0a0610" stroke-width="0.8"/><rect x="22" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/><rect x="32" y="64" width="6" height="14" fill="#1a1a2e" stroke="#0a0610" stroke-width="1"/></svg></div>
+    </div>
+    <div style="display: flex; gap: 8px; margin-top: 10px;">
+      <span class="pill orange">happy</span>
+      <span class="pill orange">surprised</span>
+      <span class="pill orange">angry</span>
+      <span class="pill orange">tired</span>
+    </div>
+    <p style="color: var(--muted); font-size: 12.5px; margin: 10px 0 0;">
+      The sheet doesn't have to be pretty. It has to be <em>recognizable</em> from any angle.
+    </p>
+  </div>
+
+  <h2>Why a model sheet beats a single portrait</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">single portrait (bad)</div></div>
+      <div class="card-body">
+        The model sees one angle and one expression. When you ask for "side view, angry", it has
+        to invent both — and small inventions accumulate into a different person.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">model sheet (good)</div></div>
+      <div class="card-body">
+        The model has explicit reference for every angle and expression you'll need. New panels
+        become <em>interpolation</em> instead of invention. Identity holds.
+      </div>
+    </div>
+  </div>
+
+  <div class="note warn">
+    <strong>Pro move:</strong> after the first sheet, pick one panel where the character looks
+    perfect and crop a clean head shot. Add that head shot as a <em>second</em> reference image
+    when generating close-ups. Two refs is better than one.
+  </div>
+
+  <h2>Naming</h2>
+  <p class="lead">
+    Give the character a name and use it in every prompt — "Aria", not "the woman". Named
+    entities seem to lock in identity better than descriptions alone.
+  </p>
+</section>
+
+<!-- ========================= PROMPT PATTERNS ========================= -->
+<section class="tab-section" id="tab-prompts">
+  <h1><span class="pow">ZAP!</span> The Panel Prompt Pattern</h1>
+  <p class="lead">
+    Every panel prompt has the same five-part shape. Once you internalize it, you can crank out
+    panels at conversational speed.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">the formula</div></div>
+    <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 14px; line-height: 2;">
+      <span class="pill">[character ref image]</span><br>
+      <span class="pill orange">[shot type]</span> of
+      <span class="pill orange">[character name]</span>
+      <span class="pill orange">[action]</span> in
+      <span class="pill orange">[setting]</span>.<br>
+      <span class="pill" style="background:rgba(103,232,249,0.18);color:#67e8f9">[mood / lighting]</span>.<br>
+      <span class="pill green">[style anchor]</span>.<br>
+      <span class="pill warn">[panel-specific instructions]</span>
+    </div>
+  </div>
+
+  <h2>Worked example — Panel 1 of "Aria finds the cat"</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">prompt + attachments</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># attached: aria_charsheet.png</span>
+
+Wide establishing shot of Aria walking down a rainy alley at night,
+holding her phone, looking confused. Neon signs reflecting in
+puddles. Noir lighting, deep shadows, single rim light.
+
+Style: american comic book art, bold inks, flat color, halftone
+shading. Square aspect ratio.
+
+Keep Aria's face, hair, and trenchcoat exactly as in the reference.</code></pre>
+  </div>
+
+  <h2>Shot-type vocabulary</h2>
+  <div class="grid-4">
+    <div class="step-card"><h4>wide / establishing</h4><p>Whole scene, character small. Sets the location.</p></div>
+    <div class="step-card"><h4>medium</h4><p>Knees-up. Daily comic default.</p></div>
+    <div class="step-card"><h4>close-up</h4><p>Head and shoulders. For emotion beats.</p></div>
+    <div class="step-card"><h4>extreme close</h4><p>Just the eyes. Dramatic punctuation.</p></div>
+    <div class="step-card"><h4>over-the-shoulder</h4><p>Looking past one character at another. Conversation.</p></div>
+    <div class="step-card"><h4>low angle</h4><p>Camera from below. Makes subject feel powerful.</p></div>
+    <div class="step-card"><h4>high angle</h4><p>From above. Subject feels small / vulnerable.</p></div>
+    <div class="step-card"><h4>POV</h4><p>Through character's eyes. Rare but punchy.</p></div>
+  </div>
+
+  <h2>Mood vocabulary</h2>
+  <div class="grid-4">
+    <div class="step-card"><h4>noir</h4><p>Hard shadows, single light source, blue/teal tint, rain.</p></div>
+    <div class="step-card"><h4>sunny / warm</h4><p>Golden hour, soft shadows, yellow cast.</p></div>
+    <div class="step-card"><h4>dramatic</h4><p>Rim light, strong contrast, particles in air.</p></div>
+    <div class="step-card"><h4>cozy</h4><p>Warm interior lighting, soft palette, no hard edges.</p></div>
+  </div>
+
+  <h2>Five consistency tricks (do all of them)</h2>
+  <div class="grid-2">
+    <div class="step-card">
+      <h4><span class="step-num">1</span>attach the ref every time</h4>
+      <p>Don't trust prior conversation memory. Re-attach the character sheet on every panel.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">2</span>name the character</h4>
+      <p>Use the same proper name across prompts. "Aria does X", not "she does X".</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">3</span>lock the style phrase</h4>
+      <p>Identical wording every panel. "american comic book art, bold inks, flat color, halftone".</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">4</span>describe what stays</h4>
+      <p>"Keep face, hair, outfit exactly as reference." Spell out what shouldn't drift.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">5</span>fix the aspect ratio</h4>
+      <p>Same aspect across panels — square or 4:3. Mixed ratios make a strip feel sloppy.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">6</span>seed when possible</h4>
+      <p>If your interface exposes a seed, pin it for a sequence. Cheaper than re-prompting.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= ITERATE ========================= -->
+<section class="tab-section" id="tab-iterate">
+  <h1><span class="pow">FIX!</span> Iterate, Edit, Letter</h1>
+  <p class="lead">
+    First-pass generations are rarely perfect. The Nano Banana superpower is <em>in-place
+    editing</em> — you can keep most of the image and surgically change one thing.
+  </p>
+
+  <h2>The edit instruction pattern</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">template</div></div>
+    <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13.5px; line-height: 1.9;">
+      <span class="pill green">Keep</span> <em>everything else exactly</em>,
+      <span class="pill orange">change</span> <em>X</em> to <em>Y</em>.
+    </div>
+  </div>
+
+  <h2>Examples of edits that work</h2>
+  <div class="grid-2">
+    <div class="step-card">
+      <h4>expression</h4>
+      <p><code>Keep the panel exactly, change Aria's expression to surprised, mouth slightly open.</code></p>
+    </div>
+    <div class="step-card">
+      <h4>pose</h4>
+      <p><code>Same scene, change Aria's pose so she's crouching down to the cat instead of standing.</code></p>
+    </div>
+    <div class="step-card">
+      <h4>weather / time</h4>
+      <p><code>Same composition, change rain to light snow, time to dusk instead of night.</code></p>
+    </div>
+    <div class="step-card">
+      <h4>add a character</h4>
+      <p><code>Same panel, add a small black cat sitting next to the dumpster.</code></p>
+    </div>
+    <div class="step-card">
+      <h4>fix hands</h4>
+      <p><code>Keep the rest, redraw both hands holding the phone correctly. Five fingers each.</code></p>
+    </div>
+    <div class="step-card">
+      <h4>simplify</h4>
+      <p><code>Same panel, remove the background characters. Only Aria visible.</code></p>
+    </div>
+  </div>
+
+  <h2>When to redo vs. when to edit</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">edit in place if...</div></div>
+      <div class="card-body">
+        <ul style="margin: 0 0 0 16px; color: var(--muted);">
+          <li>composition is right, one element is wrong</li>
+          <li>the character looks correct (don't risk losing identity)</li>
+          <li>you only need to swap mood / time / weather</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">redo from scratch if...</div></div>
+      <div class="card-body">
+        <ul style="margin: 0 0 0 16px; color: var(--muted);">
+          <li>shot type is wrong (close-up instead of wide)</li>
+          <li>character identity has drifted</li>
+          <li>art style mismatches other panels</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>Lettering — how to handle dialogue</h2>
+  <p class="lead">
+    Nano Banana <em>can</em> render speech bubbles and short text in-image, and it's gotten good
+    enough that one-off panels are fine. For a polished comic, generate the panels <em>without</em>
+    text and add bubbles in post.
+  </p>
+
+  <div class="grid-3">
+    <div class="step-card">
+      <h4><span class="step-num">A</span>generate clean</h4>
+      <p>Add <code>"no text, no speech bubbles, no captions"</code> to your panel prompt. Get clean art.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">B</span>letter in figma / canva</h4>
+      <p>Drop bubbles, captions, sound effects on top. Use a comic font (Bangers, Anime Ace, BadaBoom).</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">C</span>stitch the page</h4>
+      <p>Arrange panels in a 2×2 / 2×3 grid. White gutters between. Export PNG / PDF.</p>
+    </div>
+  </div>
+
+  <h2>The lettered output (mock)</h2>
+  <div class="comic-strip" id="iterateStrip" aria-hidden="true"></div>
+
+  <div class="note">
+    <strong>Onomatopoeia tip:</strong> sound effects look great as a hand-lettered overlay rather
+    than baked into the image. Try
+    <span class="onomatopoeia" style="font-size: 14px; padding: 2px 8px;">POW!</span>
+    <span class="onomatopoeia orange" style="font-size: 14px; padding: 2px 8px;">CRASH!</span>
+    over a finished panel.
+  </div>
+</section>
+
+<!-- ========================= PROMPT BUILDER ========================= -->
+<section class="tab-section" id="tab-builder">
+  <h1><span class="pow">BUILD!</span> Live Prompt Builder</h1>
+  <p class="lead">
+    Pick options below — the prompt assembles itself in real time. Copy it into Google AI Studio
+    or the Gemini app, attach your character sheet, and generate. The mock panel underneath
+    updates as a sanity check on your choices.
+  </p>
+
+  <div class="canvas-card">
+    <h3>🍌 panel prompt builder</h3>
+
+    <div class="pb-grid">
+      <div class="pb-row">
+        <label>character name</label>
+        <input type="text" id="pbName" value="Aria">
+      </div>
+      <div class="pb-row">
+        <label>character description</label>
+        <input type="text" id="pbDesc" value="young detective in a tan trenchcoat, short black bob">
+      </div>
+
+      <div class="pb-row">
+        <label>shot type</label>
+        <select id="pbShot">
+          <option value="wide establishing">wide establishing</option>
+          <option value="medium" selected>medium</option>
+          <option value="close-up">close-up</option>
+          <option value="extreme close-up">extreme close-up</option>
+          <option value="over-the-shoulder">over-the-shoulder</option>
+          <option value="low angle">low angle</option>
+          <option value="high angle">high angle</option>
+        </select>
+      </div>
+      <div class="pb-row">
+        <label>action</label>
+        <input type="text" id="pbAction" value="walking, looking at phone">
+      </div>
+
+      <div class="pb-row">
+        <label>setting</label>
+        <select id="pbSetting">
+          <option value="rainy alley at night, neon signs reflecting in puddles" selected>rainy alley at night</option>
+          <option value="sunlit rooftop, city skyline behind">sunlit rooftop</option>
+          <option value="cozy bookstore interior, warm lamps">cozy bookstore</option>
+          <option value="cyberpunk subway car, flickering lights">cyberpunk subway</option>
+          <option value="quiet forest path, autumn leaves falling">forest path</option>
+          <option value="busy street market, lanterns overhead">street market</option>
+        </select>
+      </div>
+      <div class="pb-row">
+        <label>mood / lighting</label>
+        <select id="pbMood">
+          <option value="noir, deep shadows, single rim light, blue tint" selected>noir</option>
+          <option value="sunny golden hour, warm soft shadows">sunny / warm</option>
+          <option value="dramatic, strong contrast, particles in air">dramatic</option>
+          <option value="cozy, soft warm interior light, no hard edges">cozy</option>
+          <option value="dreamy, soft pastel haze, lens flare">dreamy</option>
+          <option value="tense, low key, top-down spotlight">tense</option>
+        </select>
+      </div>
+
+      <div class="pb-row">
+        <label>art style</label>
+        <select id="pbStyle">
+          <option value="black-and-white manga, screentone shading, ink linework, dynamic paneling">manga</option>
+          <option value="american comic book art, bold inks, flat color, halftone shading" selected>american comic</option>
+          <option value="watercolor illustration, loose lines, soft pastels, paper texture">watercolor</option>
+          <option value="16-bit pixel art, limited palette, scanlines">pixel</option>
+          <option value="european ligne claire, clean even lines, flat colors">ligne claire</option>
+          <option value="painterly digital, expressive brush, dramatic lighting">painterly</option>
+        </select>
+      </div>
+      <div class="pb-row">
+        <label>aspect ratio</label>
+        <select id="pbAspect">
+          <option value="square">square (1:1)</option>
+          <option value="4:3 landscape" selected>4:3 landscape</option>
+          <option value="3:4 portrait">3:4 portrait</option>
+          <option value="16:9 wide">16:9 wide</option>
+          <option value="9:16 tall">9:16 tall</option>
+        </select>
+      </div>
+
+      <div class="pb-row" style="grid-column: 1 / -1;">
+        <label>panel-specific note (optional)</label>
+        <input type="text" id="pbNote" value="Keep face, hair, and outfit exactly as in the reference.">
+      </div>
+    </div>
+
+    <div style="display:flex; gap: 8px; align-items:center; margin-top: 12px; flex-wrap: wrap;">
+      <strong style="font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px;">attach as reference:</strong>
+      <span class="pill orange">aria_charsheet.png</span>
+      <span class="pill orange">aria_headshot.png</span>
+      <span style="color: var(--muted); font-size: 12px; margin-left: auto;">(in Gemini app: drag-drop both into the chat)</span>
+    </div>
+
+    <div class="prompt-output" id="pbOutput"></div>
+
+    <div style="display:flex; gap:8px; margin-top: 10px; flex-wrap: wrap;">
+      <button class="btn" onclick="copyPrompt()">📋 copy prompt</button>
+      <button class="btn ghost" onclick="randomizePrompt()">🎲 randomize</button>
+    </div>
+  </div>
+
+  <h2>Mock preview — what the panel might look like</h2>
+  <p class="lead" style="margin-bottom: 10px;">
+    SVG approximation, not a real generation. The point is to give you a feel for how the
+    options interact (mood + style + setting).
+  </p>
+  <div style="max-width: 360px;">
+    <div class="comic-panel" id="pbPanel">
+      <div class="panel-bg" id="pbPanelBg"></div>
+      <span class="panel-label" id="pbPanelLabel">PANEL 1</span>
+      <div class="panel-inner">
+        <div class="speech-bubble" id="pbBubble">"Where did it go..."</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Sequencing — chain three panels</h2>
+  <p class="lead">
+    Once you've nailed Panel 1, the next two are the same prompt with different
+    <em>shot / action / mood</em>. The character, setting, style, and ref images stay locked.
+  </p>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">three-panel prompt template</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># attached: aria_charsheet.png, aria_headshot.png</span>
+
+Generate three comic panels in sequence, same character (Aria),
+same alley setting, same style.
+
+Style anchor (use exactly this in all three):
+  american comic book art, bold inks, flat color, halftone shading.
+
+Panel 1 — wide establishing shot of Aria walking down a rainy
+  alley at night, looking at her phone. Noir lighting.
+
+Panel 2 — medium shot of Aria crouching down behind a dumpster,
+  surprised expression, reaching out to a small black cat.
+
+Panel 3 — close-up of the cat staring deadpan at the camera,
+  cradled in Aria's hands. Warm soft light.
+
+Aspect ratio for all: square. No text or speech bubbles in the
+output — leave space for lettering.</code></pre>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1><span class="pow">DRILL!</span> Practice — Type the Workflow</h1>
+  <p class="lead">
+    Twelve drills covering Nano Banana basics, character consistency, prompt structure, and
+    iteration. Tab moves between blanks · Enter checks · Hint reveals all unsolved blanks
+    (toggle).
+  </p>
+
+  <h2>The model</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> What's the official model name behind the "Nano Banana" nickname?</div>
+    <pre class="exercise">model = "<input class="blank" data-answer="gemini-2.5-flash-image|gemini 2.5 flash image" size="26" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Which company built Nano Banana?</div>
+    <pre class="exercise">creator = "<input class="blank" data-answer="google|google deepmind|deepmind" size="10" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Consistency</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> The single most important thing for keeping a character looking the same across panels is the…</div>
+    <pre class="exercise">consistency_anchor = "<input class="blank" data-answer="reference image|reference|character sheet|model sheet|ref image" size="20" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> A character sheet shows the character from how many standard angles? (number)</div>
+    <pre class="exercise">poses = front + threequarter + side + back   # = <input class="blank" data-answer="4|four" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> For every new panel, you should ___-attach the reference image. Don't rely on prior chat context.</div>
+    <pre class="exercise">policy = "<input class="blank" data-answer="re|always|repeat|reattach" size="6" placeholder="?">-attach the character sheet"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Prompt structure</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Fill in the missing piece of the panel-prompt formula.</div>
+    <pre class="exercise">[ref image]
+[<input class="blank" data-answer="shot type|shot|shot-type" size="10" placeholder="?">] of [character] [action] in [setting].
+[mood / lighting]. [style anchor].</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Complete this Panel 1 prompt. The shot is broad enough to set the location.</div>
+    <pre class="exercise">[character ref]. <input class="blank" data-answer="wide|establishing|wide establishing" size="10" placeholder="?"> shot of Aria
+walking into a rainy alley. Noir lighting.
+Style: american comic book art, bold inks.</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> Tight headshot variant — for the emotional reaction beat, you'd use a…</div>
+    <pre class="exercise">panel_3_shot = "<input class="blank" data-answer="close-up|closeup|close up" size="10" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Iteration &amp; lettering</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> When you want to keep most of an image but tweak one element, you ask Nano Banana to ___ it instead of regenerating.</div>
+    <pre class="exercise">action = "<input class="blank" data-answer="edit|inpaint|edit in place" size="8" placeholder="?">"   # not regenerate</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> Complete the edit instruction template — pin everything else first.</div>
+    <pre class="exercise"><input class="blank" data-answer="keep" size="6" placeholder="?"> everything else exactly, change Aria's expression to surprised.</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Speech bubbles render best when added <em>after</em> generation in a tool like…</div>
+    <pre class="exercise">letter_in = "<input class="blank" data-answer="figma|canva|photoshop|post|figma/canva" size="12" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> The five-part panel prompt ends with this anchor that locks the look across panels.</div>
+    <pre class="exercise">panel_prompt += "Style: <input class="blank" data-answer="anchor|style anchor" size="12" placeholder="?">"   # repeat verbatim every panel</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>Done all twelve?</strong> Open Google AI Studio, generate a character sheet, and ship
+    your first 3-panel strip today. The whole loop — script → sheet → 3 panels → letter — is
+    realistically a 30-minute exercise once you've done it once.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Click anywhere to dismiss.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Browser-side simulation</strong> — the prompt builder
+  assembles real Nano Banana prompts, but the panel previews are SVG mocks, not API calls. Pair
+  with <a href="comfyui.html">comfyui.html</a> · <a href="clip.html">clip.html</a> · 🍌 one
+  reference image, infinite panels.
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'panel approved.', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'POW!', 'banana certified.', 'inked.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'redo this panel.', 'editor says no.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#facc15','#fb923c','#fde047','#4ade80','#fbbf24','#fff8a8','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'plan','3':'character','4':'prompts','5':'iterate','6':'builder','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// =================================================================
+// =============== COMIC PANEL MOCK RENDERING ======================
+// =================================================================
+
+// Helper — escape user text for SVG / DOM
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// Render a stylized SVG panel background based on a setting / mood / style id
+function panelBgSvg({ setting, mood, style }) {
+  // Color choices
+  const palettes = {
+    'noir':         { sky: '#1a2238', mid: '#2d3a5c', accent: '#4a90b8', glow: '#fbbf24' },
+    'sunny':        { sky: '#ffe4a6', mid: '#ffb46b', accent: '#ff8c42', glow: '#fff8a8' },
+    'dramatic':     { sky: '#3a0f1f', mid: '#7b1f3a', accent: '#ffb347', glow: '#fff' },
+    'cozy':         { sky: '#f4d4b8', mid: '#d49060', accent: '#a36540', glow: '#fff8a8' },
+    'dreamy':       { sky: '#d8c8f0', mid: '#a78bfa', accent: '#f4a8d0', glow: '#fff' },
+    'tense':        { sky: '#0a0a14', mid: '#1f1f2e', accent: '#f87171', glow: '#fff' }
+  };
+  const moodKey = mood.split(',')[0].trim().toLowerCase().split(' ')[0];
+  const p = palettes[moodKey] || palettes['noir'];
+
+  // Setting motif
+  const settingKey = (setting || '').toLowerCase();
+  let settingSvg = '';
+  if (settingKey.includes('alley') || settingKey.includes('subway')) {
+    // alley: vertical buildings + neon
+    settingSvg = `
+      <rect x="0" y="0" width="100%" height="100%" fill="${p.sky}"/>
+      <rect x="0" y="60%" width="100%" height="40%" fill="${p.mid}"/>
+      <rect x="10%" y="20%" width="14%" height="60%" fill="${p.mid}" stroke="#0a0610" stroke-width="1"/>
+      <rect x="76%" y="25%" width="14%" height="55%" fill="${p.mid}" stroke="#0a0610" stroke-width="1"/>
+      <rect x="13%" y="30%" width="3%" height="3%" fill="${p.glow}"/>
+      <rect x="20%" y="40%" width="3%" height="3%" fill="${p.glow}"/>
+      <rect x="80%" y="35%" width="3%" height="3%" fill="${p.accent}"/>
+      <rect x="84%" y="50%" width="3%" height="3%" fill="${p.glow}"/>
+      <line x1="0" y1="80%" x2="100%" y2="80%" stroke="#0a0610" stroke-width="1.5"/>
+    `;
+  } else if (settingKey.includes('rooftop') || settingKey.includes('skyline')) {
+    settingSvg = `
+      <rect x="0" y="0" width="100%" height="100%" fill="${p.sky}"/>
+      <circle cx="20%" cy="25%" r="8%" fill="${p.glow}" opacity="0.8"/>
+      <rect x="0" y="55%" width="100%" height="45%" fill="${p.mid}"/>
+      <rect x="5%" y="40%" width="10%" height="20%" fill="${p.accent}" stroke="#0a0610"/>
+      <rect x="20%" y="35%" width="8%" height="25%" fill="${p.accent}" stroke="#0a0610"/>
+      <rect x="32%" y="42%" width="12%" height="18%" fill="${p.accent}" stroke="#0a0610"/>
+      <rect x="50%" y="38%" width="10%" height="22%" fill="${p.accent}" stroke="#0a0610"/>
+      <rect x="64%" y="44%" width="9%" height="16%" fill="${p.accent}" stroke="#0a0610"/>
+      <rect x="78%" y="38%" width="14%" height="22%" fill="${p.accent}" stroke="#0a0610"/>
+    `;
+  } else if (settingKey.includes('bookstore') || settingKey.includes('cozy')) {
+    settingSvg = `
+      <rect x="0" y="0" width="100%" height="100%" fill="${p.sky}"/>
+      <rect x="0" y="0" width="100%" height="35%" fill="${p.mid}"/>
+      <line x1="0" y1="35%" x2="100%" y2="35%" stroke="#0a0610" stroke-width="1.5"/>
+      ${[10,25,40,55,70,85].map(x => `<rect x="${x}%" y="40%" width="11%" height="35%" fill="${p.mid}" stroke="#0a0610"/>`).join('')}
+      ${[10,25,40,55,70,85].map(x => `<line x1="${x}%" y1="55%" x2="${x+11}%" y2="55%" stroke="#0a0610"/>`).join('')}
+      <circle cx="50%" cy="20%" r="6%" fill="${p.glow}" opacity="0.6"/>
+    `;
+  } else if (settingKey.includes('forest')) {
+    settingSvg = `
+      <rect x="0" y="0" width="100%" height="100%" fill="${p.sky}"/>
+      <rect x="0" y="70%" width="100%" height="30%" fill="${p.mid}"/>
+      ${[10,35,60,85].map(x => `<polygon points="${x}%,20% ${x-8}%,70% ${x+8}%,70%" fill="${p.mid}" stroke="#0a0610"/>`).join('')}
+      <circle cx="80%" cy="20%" r="6%" fill="${p.glow}" opacity="0.7"/>
+    `;
+  } else if (settingKey.includes('market')) {
+    settingSvg = `
+      <rect x="0" y="0" width="100%" height="100%" fill="${p.sky}"/>
+      <rect x="0" y="65%" width="100%" height="35%" fill="${p.mid}"/>
+      ${[15,40,65,85].map(x => `<circle cx="${x}%" cy="20%" r="5%" fill="${p.glow}" stroke="#0a0610" stroke-width="1"/>`).join('')}
+      ${[15,40,65,85].map(x => `<line x1="${x}%" y1="0" x2="${x}%" y2="20%" stroke="#0a0610"/>`).join('')}
+    `;
+  } else {
+    settingSvg = `<rect x="0" y="0" width="100%" height="100%" fill="${p.sky}"/>`;
+  }
+
+  // Style overlay
+  let styleOverlay = '';
+  const styleKey = (style || '').toLowerCase();
+  if (styleKey.includes('manga')) {
+    // grayscale-ish veil + screentone-ish dots
+    styleOverlay = `<rect x="0" y="0" width="100%" height="100%" fill="rgba(20,20,30,0.32)"/>`;
+  } else if (styleKey.includes('halftone') || styleKey.includes('comic')) {
+    // bold ink frame and bottom halftone
+    styleOverlay = `<rect x="0" y="0" width="100%" height="100%" fill="none" stroke="#0a0610" stroke-width="2"/>`;
+  } else if (styleKey.includes('watercolor')) {
+    styleOverlay = `<rect x="0" y="0" width="100%" height="100%" fill="rgba(255,255,255,0.18)"/>`;
+  } else if (styleKey.includes('pixel')) {
+    styleOverlay = `<rect x="0" y="0" width="100%" height="100%" fill="url(#pixelGrid)" opacity="0.25"/>`;
+  }
+
+  // simple character silhouette (viewBox is 0..100; no percentages allowed in transform/path)
+  const charSilhouette = `
+    <g transform="translate(50 0)">
+      <ellipse cx="0" cy="62" rx="14" ry="6" fill="#000" opacity="0.25"/>
+      <circle cx="0" cy="42" r="6" fill="#f4d4b8" stroke="#0a0610" stroke-width="1.5"/>
+      <path d="M -6 38 Q 0 30 6 38 L 6 36 Q 0 28 -6 36 Z" fill="#1a1a2e"/>
+      <rect x="-7" y="48" width="14" height="18" fill="${p.accent}" stroke="#0a0610" stroke-width="1.5" rx="2"/>
+    </g>
+  `;
+
+  return `
+    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="pixelGrid" width="6" height="6" patternUnits="userSpaceOnUse">
+          <rect width="6" height="6" fill="none"/>
+          <rect width="3" height="3" fill="rgba(0,0,0,0.3)"/>
+          <rect x="3" y="3" width="3" height="3" fill="rgba(0,0,0,0.3)"/>
+        </pattern>
+      </defs>
+      ${settingSvg}
+      ${charSilhouette}
+      ${styleOverlay}
+    </svg>
+  `;
+}
+
+// Render a comic strip into a container — variant data drives panels
+function renderStrip(containerId, panels) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = '';
+  panels.forEach((p, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'comic-panel';
+    wrap.innerHTML = `
+      <div class="panel-bg">${panelBgSvg(p)}</div>
+      <span class="panel-label">PANEL ${i + 1}</span>
+      ${p.narration ? `<div class="narration-box">${esc(p.narration)}</div>` : ''}
+      <div class="panel-inner">
+        ${p.dialogue ? `<div class="speech-bubble">"${esc(p.dialogue)}"</div>` : ''}
+      </div>
+    `;
+    c.appendChild(wrap);
+  });
+}
+
+const stripData = [
+  { setting: 'rainy alley', mood: 'noir', style: 'american comic',
+    narration: 'A rainy night.', dialogue: 'Where did it go...' },
+  { setting: 'rainy alley', mood: 'cozy', style: 'american comic',
+    dialogue: 'There you are!' },
+  { setting: 'rainy alley', mood: 'cozy', style: 'american comic',
+    dialogue: 'meow.' }
+];
+
+renderStrip('welcomeStrip', stripData);
+renderStrip('iterateStrip', [
+  { setting: 'rainy alley', mood: 'noir', style: 'american comic', dialogue: 'Where did it go...' },
+  { setting: 'rainy alley', mood: 'dramatic', style: 'american comic', dialogue: 'There you are!' },
+  { setting: 'rainy alley', mood: 'cozy', style: 'american comic', dialogue: 'meow.' }
+]);
+
+// =================================================================
+// =============== PROMPT BUILDER ==================================
+// =================================================================
+
+const pbIds = ['pbName','pbDesc','pbShot','pbAction','pbSetting','pbMood','pbStyle','pbAspect','pbNote'];
+function readBuilder() {
+  const v = {};
+  pbIds.forEach(id => v[id] = (document.getElementById(id).value || '').trim());
+  return v;
+}
+
+function buildPromptText(v) {
+  // Five parts, color-coded
+  const lines = [];
+  lines.push(`<span class="pp">[character ref image attached]</span>`);
+  lines.push('');
+  lines.push(`<span class="pp-2">${esc(v.pbShot)}</span> shot of <span class="pp-2">${esc(v.pbName)}</span> (<span style="color:var(--muted)">${esc(v.pbDesc)}</span>) <span class="pp-2">${esc(v.pbAction)}</span>`);
+  lines.push(`in <span class="pp-2">${esc(v.pbSetting)}</span>.`);
+  lines.push('');
+  lines.push(`<span class="pp-3">Mood: ${esc(v.pbMood)}.</span>`);
+  lines.push('');
+  lines.push(`<span class="pp">Style: ${esc(v.pbStyle)}.</span>`);
+  lines.push(`<span class="pp">Aspect ratio: ${esc(v.pbAspect)}.</span>`);
+  if (v.pbNote) {
+    lines.push('');
+    lines.push(`<span style="color: var(--warn)">${esc(v.pbNote)}</span>`);
+  }
+  return lines.join('\n');
+}
+
+function buildPromptPlain(v) {
+  const lines = [];
+  lines.push('[character ref image attached]');
+  lines.push('');
+  lines.push(`${v.pbShot} shot of ${v.pbName} (${v.pbDesc}) ${v.pbAction}`);
+  lines.push(`in ${v.pbSetting}.`);
+  lines.push('');
+  lines.push(`Mood: ${v.pbMood}.`);
+  lines.push('');
+  lines.push(`Style: ${v.pbStyle}.`);
+  lines.push(`Aspect ratio: ${v.pbAspect}.`);
+  if (v.pbNote) { lines.push(''); lines.push(v.pbNote); }
+  return lines.join('\n');
+}
+
+function renderBuilder() {
+  const v = readBuilder();
+  const out = document.getElementById('pbOutput');
+  out.innerHTML = buildPromptText(v);
+
+  // Update mock panel
+  const bg = document.getElementById('pbPanelBg');
+  if (bg) {
+    bg.innerHTML = panelBgSvg({
+      setting: v.pbSetting,
+      mood: v.pbMood,
+      style: v.pbStyle
+    });
+  }
+  const bubble = document.getElementById('pbBubble');
+  if (bubble) {
+    // synthesize a one-line dialogue-ish caption from the action
+    const act = (v.pbAction || '').split(',')[0].trim();
+    bubble.textContent = act ? `(${act})` : '...';
+  }
+  const label = document.getElementById('pbPanelLabel');
+  if (label) label.textContent = `PANEL · ${v.pbShot.toUpperCase()}`;
+}
+
+function copyPrompt() {
+  const v = readBuilder();
+  const txt = buildPromptPlain(v);
+  navigator.clipboard.writeText(txt).then(() => {
+    showToast('prompt copied · paste into Google AI Studio');
+  });
+}
+
+const RANDOM = {
+  shot: ['wide establishing','medium','close-up','extreme close-up','over-the-shoulder','low angle','high angle'],
+  action: ['walking, looking at phone','sprinting away from something','laughing with a friend','staring out a window','holding a glowing object','sliding across the floor','sitting alone with a cup of tea'],
+  setting: [
+    'rainy alley at night, neon signs reflecting in puddles',
+    'sunlit rooftop, city skyline behind',
+    'cozy bookstore interior, warm lamps',
+    'cyberpunk subway car, flickering lights',
+    'quiet forest path, autumn leaves falling',
+    'busy street market, lanterns overhead'
+  ],
+  mood: [
+    'noir, deep shadows, single rim light, blue tint',
+    'sunny golden hour, warm soft shadows',
+    'dramatic, strong contrast, particles in air',
+    'cozy, soft warm interior light, no hard edges',
+    'dreamy, soft pastel haze, lens flare',
+    'tense, low key, top-down spotlight'
+  ],
+  style: [
+    'black-and-white manga, screentone shading, ink linework, dynamic paneling',
+    'american comic book art, bold inks, flat color, halftone shading',
+    'watercolor illustration, loose lines, soft pastels, paper texture',
+    '16-bit pixel art, limited palette, scanlines',
+    'european ligne claire, clean even lines, flat colors',
+    'painterly digital, expressive brush, dramatic lighting'
+  ]
+};
+
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function setSelectByValue(id, val) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const opt = Array.from(el.options).find(o => o.value === val);
+  if (opt) el.value = val;
+  else if (el.options.length) el.value = el.options[0].value;
+}
+
+function randomizePrompt() {
+  document.getElementById('pbAction').value = pick(RANDOM.action);
+  setSelectByValue('pbShot', pick(RANDOM.shot));
+  setSelectByValue('pbSetting', pick(RANDOM.setting));
+  setSelectByValue('pbMood', pick(RANDOM.mood));
+  setSelectByValue('pbStyle', pick(RANDOM.style));
+  renderBuilder();
+}
+
+pbIds.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', renderBuilder);
+});
+renderBuilder();
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

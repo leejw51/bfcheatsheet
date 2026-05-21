@@ -1,0 +1,2978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention Tensors — shapes through the encoder</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #fb923c;          /* orange */
+    --accent-2: #f59e0b;         /* amber */
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --dim-b: #7dd3fc;
+    --dim-t: #c4b5fd;
+    --dim-d: #fb923c;
+    --dim-h: #f472b6;
+    --dim-k: #34d399;
+    --dim-ff: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(251,146,60,0.10), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #2a1810 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .badge {
+    background: var(--accent); color: #1a0b00;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(251,146,60,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(251,146,60,0.12);
+    border-color: rgba(251,146,60,0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #1a0b00;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.95;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 240px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(251,146,60,0.25);
+    background: rgba(251,146,60,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #1a0b00;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(251,146,60,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(251,146,60,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+  .note.green { background: rgba(74,222,128,0.08); border-left-color: var(--good); }
+  .note.green strong { color: var(--good); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* Shape pills — color-coded per dimension */
+  .shape {
+    display: inline-flex; align-items: center; gap: 2px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .shape .br { color: var(--muted); font-weight: 700; }
+  .shape .dim { color: var(--text); font-weight: 700; }
+  .shape .dim.b  { color: var(--dim-b); }
+  .shape .dim.t  { color: var(--dim-t); }
+  .shape .dim.d  { color: var(--dim-d); }
+  .shape .dim.h  { color: var(--dim-h); }
+  .shape .dim.k  { color: var(--dim-k); }
+  .shape .dim.ff { color: var(--dim-ff); }
+  .shape .lbl { color: var(--muted); font-size: 10px; margin-right: 2px; }
+  .shape .arrow { color: var(--muted); margin: 0 4px; }
+
+  .pill {
+    display: inline-block;
+    background: rgba(251,146,60,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn  { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red   { background: rgba(248,113,113,0.15); color: var(--bad); }
+  .pill.blue  { background: rgba(125,211,252,0.15); color: var(--dim-b); }
+  .pill.violet{ background: rgba(196,181,253,0.15); color: var(--dim-t); }
+  .pill.pink  { background: rgba(244,114,182,0.15); color: var(--dim-h); }
+
+  /* Pipeline (sandbox) */
+  .pipeline {
+    display: flex; flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .stage {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    display: grid;
+    grid-template-columns: 38px 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .stage:hover { border-left-color: var(--accent); transform: translateX(2px); }
+  .stage .stage-num {
+    width: 30px; height: 30px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px; font-weight: 800; color: var(--muted);
+  }
+  .stage .stage-name {
+    font-weight: 700; font-size: 13.5px;
+    color: var(--text);
+  }
+  .stage .stage-name .meta { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+  .stage .params {
+    font-family: ui-monospace, monospace;
+    font-size: 11px; color: var(--muted);
+    white-space: nowrap;
+  }
+  .stage .params b { color: var(--accent-2); font-weight: 700; }
+  .stage.changed { border-left-color: var(--accent); background: linear-gradient(90deg, rgba(251,146,60,0.06), transparent); }
+  .stage[data-section="attn"] .stage-num { color: var(--dim-h); }
+  .stage[data-section="ffn"]  .stage-num { color: var(--dim-ff); }
+  .stage[data-section="emb"]  .stage-num { color: var(--dim-t); }
+
+  .legend {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    margin: 4px 0 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .legend .dot {
+    width: 10px; height: 10px; border-radius: 2px;
+    display: inline-block;
+  }
+
+  /* sandbox controls */
+  .sandbox-controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 12px 0;
+  }
+  .sandbox-controls .knob {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .sandbox-controls .knob label {
+    font-family: ui-monospace, monospace;
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .sandbox-controls .knob input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 14px;
+    outline: none;
+    width: 100%;
+  }
+  .sandbox-controls .knob input:focus { border-color: var(--accent); }
+  .sandbox-controls .knob.derived input {
+    background: var(--panel-2); color: var(--accent);
+    cursor: not-allowed;
+  }
+  .sandbox-controls .knob.bad input {
+    border-color: var(--bad); color: var(--bad);
+  }
+
+  .total-params {
+    background: linear-gradient(135deg, rgba(251,146,60,0.08), rgba(245,158,11,0.04));
+    border: 1px solid rgba(251,146,60,0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  }
+  .total-params b { color: var(--accent); font-size: 16px; }
+
+  /* Step cards (pipeline overview tab) */
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--accent); color: #1a0b00;
+    border-radius: 50%; text-align: center; line-height: 22px;
+    font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center; flex-wrap: wrap;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  /* Architecture diagram (welcome) */
+  .arch-svg {
+    width: 100%; max-width: 560px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    display: block;
+    margin: 0 auto;
+  }
+
+  /* table */
+  .matrix-table {
+    width: 100%; border-collapse: collapse;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .matrix-table th, .matrix-table td {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+  .matrix-table th {
+    background: var(--panel-2);
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .matrix-table td.shape-cell { color: var(--text); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(251,146,60,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .formula {
+    text-align: center; padding: 12px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    font-size: 16px;
+    margin: 10px 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">⚡</span> Attention Tensors <span class="badge">Type to Learn</span>
+    </div>
+    <div class="progress-bar-outer" title="overall progress">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercises completed">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="streak">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. What is it?</button>
+    <button data-tab="inputs">2. Inputs &amp; Embeddings</button>
+    <button data-tab="attn">3. Multi-Head Attention</button>
+    <button data-tab="ffn">4. FFN &amp; Encoder block</button>
+    <button data-tab="decoder">5. Decoder block</button>
+    <button data-tab="output">6. Output &rarr; logits</button>
+    <button data-tab="training">7. Training</button>
+    <button data-tab="inference">8. Inference</button>
+    <button data-tab="sandbox">9. Live Shapes</button>
+    <button data-tab="drills">0. Practice</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>One tensor, all the way to logits</h1>
+  <p class="lead">
+    The <em>Attention Is All You Need</em> transformer is a recipe: take a tensor of source token IDs,
+    push it through an encoder, push the target tokens through a decoder that <em>cross-attends</em>
+    to the encoder, project to the vocabulary, and out come <strong>next-token logits</strong>.
+    This page tracks <strong>shape</strong> — every stage from input IDs to final
+    <code>[B, T_tgt, V]</code> probabilities, color-coded so you can read the paper without ever losing
+    the tensor.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">paper defaults (base)</div></div>
+      <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        <div>B (batch)        = <b style="color: var(--dim-b)">2</b>   <span style="color: var(--muted);"># batch size</span></div>
+        <div>T_src (src len)  = <b style="color: var(--dim-t)">8</b>   <span style="color: var(--muted);"># source tokens</span></div>
+        <div>T_tgt (tgt len)  = <b style="color: var(--dim-t)">7</b>   <span style="color: var(--muted);"># target tokens</span></div>
+        <div>d_model          = <b style="color: var(--dim-d)">512</b> <span style="color: var(--muted);"># embedding dim</span></div>
+        <div>h (heads)        = <b style="color: var(--dim-h)">8</b>   <span style="color: var(--muted);"># attention heads</span></div>
+        <div>d_k = d_v        = <b style="color: var(--dim-k)">64</b>  <span style="color: var(--muted);"># d_model / h</span></div>
+        <div>d_ff             = <b style="color: var(--dim-ff)">2048</b><span style="color: var(--muted);"># FFN inner dim (4·d_model)</span></div>
+        <div>V (vocab)        = <b style="color: var(--accent-2)">37000</b><span style="color: var(--muted);"># EN→DE BPE vocab</span></div>
+        <div>N (layers)       = <b>6</b>     <span style="color: var(--muted);"># enc layers = dec layers</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">color legend (used everywhere)</div></div>
+      <div class="card-body">
+        <div class="legend">
+          <span><span class="dot" style="background: var(--dim-b)"></span> B  batch</span>
+          <span><span class="dot" style="background: var(--dim-t)"></span> T  tokens</span>
+          <span><span class="dot" style="background: var(--dim-d)"></span> d_model</span>
+          <span><span class="dot" style="background: var(--dim-h)"></span> h  heads</span>
+          <span><span class="dot" style="background: var(--dim-k)"></span> d_k</span>
+          <span><span class="dot" style="background: var(--dim-ff)"></span> d_ff</span>
+        </div>
+        <p style="margin: 6px 0 0; color: var(--muted); font-size: 12.5px;">
+          When a dimension changes between stages, it lights up. Watch the same tensor get
+          split into heads, multiplied, scaled, soft-maxed, and stitched back together.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <h2>The full pipeline at a glance</h2>
+  <div class="card">
+    <div class="card-body" style="padding: 6px 0;">
+      <table class="matrix-table">
+        <tr><th style="width: 40px;">#</th><th>Stage</th><th>Shape (with paper defaults)</th></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Encoder · ×6 layers</td></tr>
+        <tr><td>1</td><td>Source token IDs</td><td class="shape-cell">[B=2, T_src=8] <span style="color: var(--muted);">int</span></td></tr>
+        <tr><td>2</td><td>Source embedding lookup</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>3</td><td>+ Positional encoding</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>4</td><td>Q, K, V projections</td><td class="shape-cell">[2, 8, 512] × 3</td></tr>
+        <tr><td>5</td><td>Reshape for heads</td><td class="shape-cell">[2, h=8, T_src=8, d_k=64]</td></tr>
+        <tr><td>6</td><td>Q @ Kᵀ</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>7</td><td>Scale by 1/√d_k</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>8</td><td>Softmax (last axis)</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>9</td><td>Attn @ V</td><td class="shape-cell">[2, 8, 8, 64]</td></tr>
+        <tr><td>10</td><td>Concat heads</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>11</td><td>Output projection W_O</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>12</td><td>Residual + LayerNorm</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>13</td><td>FFN linear 1</td><td class="shape-cell">[2, 8, 2048]</td></tr>
+        <tr><td>14</td><td>ReLU</td><td class="shape-cell">[2, 8, 2048]</td></tr>
+        <tr><td>15</td><td>FFN linear 2</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>16</td><td>Residual + LayerNorm <span style="color: var(--muted);">(=encoder output, "memory")</span></td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Decoder · ×6 layers</td></tr>
+        <tr><td>17</td><td>Target token IDs (shifted right)</td><td class="shape-cell">[B=2, T_tgt=7] <span style="color: var(--muted);">int</span></td></tr>
+        <tr><td>18</td><td>Target embed + positional</td><td class="shape-cell">[2, 7, 512]</td></tr>
+        <tr><td>19</td><td><b>Masked</b> self-attn (causal)</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 7]</td></tr>
+        <tr><td>20</td><td><b>Cross-attn</b>: Q from dec, K/V from enc</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 8]</td></tr>
+        <tr><td>21</td><td>FFN + residual + LN</td><td class="shape-cell">[2, 7, 512]</td></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Output head</td></tr>
+        <tr><td>22</td><td>Linear W_lm (often tied to embed)</td><td class="shape-cell">[2, 7, V=37000]</td></tr>
+        <tr><td>23</td><td>Softmax (last axis) — train probs</td><td class="shape-cell">[2, 7, 37000]</td></tr>
+        <tr><td>24</td><td><b>Training</b>: cross-entropy vs labels [B, T_tgt]</td><td class="shape-cell">scalar loss</td></tr>
+        <tr><td>25</td><td><b>Inference</b>: argmax / sample at last position</td><td class="shape-cell">[B] next-token IDs</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h2>The encoder block, drawn</h2>
+  <div class="canvas-card">
+    <svg viewBox="0 0 580 600" class="arch-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="boxGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#fb923c" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#fb923c" stop-opacity="0.04"/>
+        </linearGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- vertical flow line -->
+      <line x1="290" y1="20" x2="290" y2="580" stroke="#283449" stroke-width="2" stroke-dasharray="4,4"/>
+
+      <!-- input -->
+      <g font-family="ui-monospace, monospace" font-size="12" fill="#e6f1ff">
+        <rect x="200" y="20" width="180" height="34" rx="6" fill="#182338" stroke="#7dd3fc" stroke-width="1.5"/>
+        <text x="290" y="38" text-anchor="middle">Token IDs</text>
+        <text x="290" y="50" text-anchor="middle" fill="#7dd3fc" font-size="10">[B, T]</text>
+      </g>
+      <line x1="290" y1="54" x2="290" y2="74" stroke="#fb923c" stroke-width="2"/>
+
+      <g font-family="ui-monospace, monospace" font-size="12" fill="#e6f1ff">
+        <rect x="200" y="74" width="180" height="34" rx="6" fill="#182338" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="290" y="92" text-anchor="middle">Embedding + Positional</text>
+        <text x="290" y="104" text-anchor="middle" fill="#fb923c" font-size="10">[B, T, d_model]</text>
+      </g>
+      <line x1="290" y1="108" x2="290" y2="128" stroke="#fb923c" stroke-width="2"/>
+
+      <!-- big block: Multi-Head Attention -->
+      <rect x="100" y="128" width="380" height="170" rx="10" fill="url(#boxGrad)" stroke="#fb923c" stroke-width="1.5" filter="url(#glow)"/>
+      <text x="290" y="148" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="12" font-weight="800">MULTI-HEAD ATTENTION</text>
+
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#e6f1ff">
+        <rect x="120" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="170" y="177" text-anchor="middle">Q proj</text>
+        <rect x="240" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="177" text-anchor="middle">K proj</text>
+        <rect x="360" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="410" y="177" text-anchor="middle">V proj</text>
+
+        <rect x="120" y="200" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="216" text-anchor="middle" fill="#f472b6">reshape → [B, h, T, d_k]</text>
+
+        <rect x="120" y="234" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="250" text-anchor="middle" fill="#34d399">softmax(Q Kᵀ / √d_k) · V</text>
+
+        <rect x="120" y="266" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="282" text-anchor="middle">concat heads · W_O</text>
+      </g>
+
+      <line x1="290" y1="298" x2="290" y2="318" stroke="#fb923c" stroke-width="2"/>
+      <!-- residual arrow -->
+      <path d="M 488 95 Q 540 95 540 320 L 510 320" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
+      <text x="555" y="200" fill="#fbbf24" font-family="ui-monospace, monospace" font-size="10" transform="rotate(90, 555, 200)">residual</text>
+
+      <rect x="200" y="318" width="180" height="34" rx="6" fill="#182338" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="290" y="338" text-anchor="middle" fill="#e6f1ff" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
+      <line x1="290" y1="352" x2="290" y2="372" stroke="#fb923c" stroke-width="2"/>
+
+      <!-- FFN -->
+      <rect x="100" y="372" width="380" height="120" rx="10" fill="url(#boxGrad)" stroke="#fb923c" stroke-width="1.5"/>
+      <text x="290" y="392" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="12" font-weight="800">FEED FORWARD</text>
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#e6f1ff">
+        <rect x="120" y="404" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="420" text-anchor="middle" fill="#fbbf24">Linear: d_model → d_ff (= 4·d_model)</text>
+        <rect x="120" y="436" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="452" text-anchor="middle" fill="#4ade80">ReLU</text>
+        <rect x="120" y="468" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <text x="290" y="484" text-anchor="middle">Linear: d_ff → d_model</text>
+      </g>
+
+      <line x1="290" y1="492" x2="290" y2="512" stroke="#fb923c" stroke-width="2"/>
+      <!-- residual 2 -->
+      <path d="M 488 360 Q 565 360 565 514 L 510 514" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
+
+      <rect x="200" y="512" width="180" height="34" rx="6" fill="#182338" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="290" y="532" text-anchor="middle" fill="#e6f1ff" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
+      <line x1="290" y1="546" x2="290" y2="566" stroke="#fb923c" stroke-width="2"/>
+
+      <text x="290" y="582" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="11" font-weight="700">[B, T, d_model]  →  next layer</text>
+    </svg>
+  </div>
+
+  <div class="note">
+    <strong>How to use this page:</strong> jump through tabs in order. Tab 5 is the killer
+    feature — change B, T, d_model, h and watch every stage update live. Tab 6 has 14 drills.
+    Press <kbd>?</kbd> for shortcuts.
+  </div>
+</section>
+
+<!-- ========================= INPUTS & EMBEDDINGS ========================= -->
+<section class="tab-section" id="tab-inputs">
+  <h1>Stages 1–3 · From token IDs to a contextual-ready tensor</h1>
+  <p class="lead">
+    Before any attention, the input has to become a tensor of vectors. Three quick stages:
+    integer IDs in, real-valued vectors out, with positional info baked in by addition.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 1 · token IDs</div></div>
+    <div class="card-body">
+      <div style="margin-bottom: 6px;">
+        Tokenizer output. Two examples in a batch, eight tokens each.
+      </div>
+      <div class="formula">
+        $\text{ids}\in\mathbb{Z}^{B\times T}$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="lbl">shape</span>
+          <span class="br">[</span><span class="dim b">B=2</span>, <span class="dim t">T=8</span><span class="br">]</span>
+          <span class="arrow">·</span>
+          dtype: int32
+        </span>
+      </div>
+      <pre class="code"><code><span class="tok-c"># two sentences, each padded/truncated to T=8 tokens</span>
+ids = [[ <span class="tok-n">101</span>, <span class="tok-n">2057</span>, <span class="tok-n">2293</span>, <span class="tok-n">3019</span>, <span class="tok-n">2025</span>, <span class="tok-n">2748</span>, <span class="tok-n">102</span>, <span class="tok-n">0</span> ],
+       [ <span class="tok-n">101</span>, <span class="tok-n">7592</span>, <span class="tok-n">2088</span>,  <span class="tok-n">102</span>,    <span class="tok-n">0</span>,    <span class="tok-n">0</span>,   <span class="tok-n">0</span>, <span class="tok-n">0</span> ]]
+<span class="tok-c"># shape: [B=2, T=8]</span></code></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 2 · embedding lookup</div></div>
+    <div class="card-body">
+      <p>
+        A weight matrix $E\in\mathbb{R}^{V\times d_{model}}$ holds one row per vocabulary entry.
+        Lookup by ID. The tensor gains a dimension: a real-valued vector of size <code>d_model</code>
+        replaces each integer.
+      </p>
+      <div class="formula">
+        $X = E[\text{ids}] \;\in\; \mathbb{R}^{B\times T\times d_{model}}$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="arrow">→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+embed = nn.<span class="tok-f">Embedding</span>(num_embeddings=<span class="tok-n">30522</span>, embedding_dim=<span class="tok-n">512</span>)
+X = embed(ids)            <span class="tok-c"># [B, T] -> [B, T, d_model]</span>
+<span class="tok-f">print</span>(X.shape)            <span class="tok-c"># torch.Size([2, 8, 512])</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        Param count: $V \cdot d_{model} = 30522 \cdot 512 \approx 15.6\text{M}$ — the embedding
+        table alone is bigger than the rest of any single layer.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 3 · + positional encoding</div></div>
+    <div class="card-body">
+      <p>
+        Self-attention is permutation-equivariant — without position info, "the cat sat" and
+        "sat cat the" produce the same outputs. The paper adds a fixed sinusoidal pattern of
+        the same shape as $X$.
+      </p>
+      <div class="formula">
+        $\mathrm{PE}_{(pos, 2i)} = \sin\!\big(pos / 10000^{2i/d_{model}}\big)$<br>
+        $\mathrm{PE}_{(pos, 2i+1)} = \cos\!\big(pos / 10000^{2i/d_{model}}\big)$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">+</span>
+          <span class="br">[</span><span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code><span class="tok-c"># PE has shape [T, d_model], broadcasts over B</span>
+X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -> [B, T, d_model]</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        Same shape in, same shape out. The information goes into the values, not the dims.
+      </p>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>End of stage 3:</strong> we now have a tensor of shape
+    <span class="shape"><span class="br">[</span><span class="dim b">B</span>, <span class="dim t">T</span>, <span class="dim d">d_model</span><span class="br">]</span></span>
+    that's both <em>about</em> the words and <em>about where they are</em>. Every later stage
+    is a transformation on this layout.
+  </div>
+</section>
+
+<!-- ========================= ATTENTION ========================= -->
+<section class="tab-section" id="tab-attn">
+  <h1>Stages 4–11 · Multi-head attention, dimension by dimension</h1>
+  <p class="lead">
+    The whole reason this paper exists. Each token becomes a query, key, and value;
+    similarities are computed, scaled, soft-maxed, and used to mix the values. We also reshape
+    twice: once to split heads, once to glue them back.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stages 4 · Q, K, V projections</div></div>
+    <div class="card-body">
+      <p>Three independent linear maps, each $\mathbb{R}^{d_{model}}\to\mathbb{R}^{d_{model}}$:</p>
+      <div class="formula">
+        $Q = X W^Q,\quad K = X W^K,\quad V = X W^V$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="lbl">X</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+        <span class="shape">
+          <span class="lbl">Wᵠ</span>
+          <span class="br">[</span><span class="dim d">512</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+        <span class="arrow">→</span>
+        <span class="shape">
+          <span class="lbl">Q</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code><span class="tok-c"># three linear layers, no bias in the paper but a bias is fine in practice</span>
+Wq = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># 512*512 = 262 144 params</span>
+Wk = nn.<span class="tok-f">Linear</span>(d_model, d_model)
+Wv = nn.<span class="tok-f">Linear</span>(d_model, d_model)
+
+Q = Wq(X)                              <span class="tok-c"># [B, T, d_model]</span>
+K = Wk(X)                              <span class="tok-c"># [B, T, d_model]</span>
+V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        Three matrices of shape $[d_{model}, d_{model}]$ — total params here:
+        $3\cdot 512\cdot 512 = 786\,432$. In some implementations these three are fused into a
+        single $[d_{model}, 3\cdot d_{model}]$ matrix.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 5 · reshape &amp; transpose for h heads</div></div>
+    <div class="card-body">
+      <p>
+        Slice the last dim into $h$ chunks of $d_k = d_{model}/h$ each, then transpose so heads
+        become an outer dim. <strong>No new parameters</strong> — just view + permute.
+      </p>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">view→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="arrow">transpose(1,2)→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>B, T, d_model = Q.shape
+h, d_k = <span class="tok-n">8</span>, d_model // h         <span class="tok-c"># 8, 64</span>
+
+<span class="tok-c"># split last dim into (h, d_k), then move heads next to batch</span>
+Q = Q.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span>
+K = K.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span>
+V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
+      <div class="note green">
+        <strong>Why heads matter:</strong> with $h=8$ separate $[T, d_k=64]$ subspaces, each
+        head can specialize on a different relational pattern. Compute is unchanged: 8 small
+        $64$-dim attentions instead of one $512$-dim one.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 6 · Q @ Kᵀ — pairwise similarity</div></div>
+    <div class="card-body">
+      <p>
+        For each head, every query attends to every key. The matmul contracts the $d_k$ axis,
+        producing a $T\times T$ score matrix per head per batch.
+      </p>
+      <div class="formula">
+        $\text{scores} = Q K^\top$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="lbl">Q</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+        </span>
+        <span class="shape">
+          <span class="lbl">Kᵀ</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">8</span><span class="br">]</span>
+        </span>
+        <span class="arrow">→</span>
+        <span class="shape">
+          <span class="lbl">scores</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>scores = Q @ K.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)   <span class="tok-c"># [B, h, T, T]</span>
+<span class="tok-c"># entry (b, head, i, j) = how much token i attends to token j (in that head)</span></code></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 7 · scale by 1/√d_k</div></div>
+    <div class="card-body">
+      <p>
+        Without scaling, dot products of $d_k$-dim vectors grow as $\sqrt{d_k}$ — large values
+        push softmax into the saturating regime where gradients vanish. Divide every score by
+        $\sqrt{d_k}$.
+      </p>
+      <div class="formula">
+        $\text{scaled} = \text{scores} / \sqrt{d_k} = \text{scores} / 8$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="arrow">÷ √64</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+        </span>
+        <span class="pill">shape unchanged</span>
+      </div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">math</span>
+scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c"># 1/√64 = 1/8 = 0.125</span></code></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 8 · softmax along the last axis</div></div>
+    <div class="card-body">
+      <p>
+        Turn raw scores into a probability distribution per query. Each row of the
+        $[T,T]$ block sums to 1 — these are the attention <em>weights</em>.
+      </p>
+      <div class="formula">
+        $A = \mathrm{softmax}(\text{scaled},\ \text{dim}=-1)$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="arrow">→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+        </span>
+        <span class="pill green">rows sum to 1</span>
+      </div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)    <span class="tok-c"># [B, h, T, T]</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        For decoder self-attention, an additive $-\infty$ mask is applied <em>before</em>
+        softmax to enforce causality.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 9 · attention @ V</div></div>
+    <div class="card-body">
+      <p>
+        Mix value vectors using the attention weights. Each query's output is a weighted sum of
+        all $T$ value vectors. The contracting axis is the inner $T$.
+      </p>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="lbl">A</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+        </span>
+        <span class="shape">
+          <span class="lbl">V</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+        </span>
+        <span class="arrow">→</span>
+        <span class="shape">
+          <span class="lbl">out</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>head_out = A @ V                  <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 10 · concat heads (transpose + reshape)</div></div>
+    <div class="card-body">
+      <p>
+        Glue the heads back into one big last-dim. <code>transpose(1,2)</code> moves heads next
+        to $d_k$, then <code>reshape</code> merges them. Param-free.
+      </p>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="arrow">transpose→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="arrow">reshape→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]</span>
+out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span class="tok-c"># [B, T, d_model]</span></code></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 11 · output projection W_O</div></div>
+    <div class="card-body">
+      <p>
+        One more $\mathbb{R}^{d_{model}\to d_{model}}$ linear map. Same shape, but lets the
+        model mix information across heads after concat.
+      </p>
+      <div class="formula">
+        $\text{MHA}(X) = \mathrm{Concat}(\text{head}_1, \dots, \text{head}_h)\,W^O$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">·W_O</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># another 262 144 params</span>
+mha_out = Wo(out)                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        <strong>Total MHA params:</strong> $4 \cdot d_{model}^2 = 4\cdot 512^2 = 1{,}048{,}576$
+        (Q, K, V, O — each $d_{model}\times d_{model}$).
+      </p>
+    </div>
+  </div>
+
+  <div class="note green">
+    <strong>End of attention:</strong> we left with shape
+    <span class="shape"><span class="br">[</span><span class="dim b">B</span>, <span class="dim t">T</span>, <span class="dim d">d_model</span><span class="br">]</span></span>
+    — exactly the same shape we entered with. Attention is a <em>same-shape</em> operator.
+  </div>
+</section>
+
+<!-- ========================= FFN & BLOCK ========================= -->
+<section class="tab-section" id="tab-ffn">
+  <h1>Stages 12–16 · LayerNorm, FFN, and the residual highway</h1>
+  <p class="lead">
+    After attention, the encoder block stitches everything with two residual connections,
+    two LayerNorms, and one position-wise FFN. The FFN is where most of the parameters
+    live — and where, many believe, factual knowledge is stored.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 12 · residual + LayerNorm</div></div>
+    <div class="card-body">
+      <p>
+        Add the original $X$ back (skip connection), then normalize per-token across $d_{model}$.
+      </p>
+      <div class="formula">
+        $X' = \mathrm{LayerNorm}(X + \mathrm{MHA}(X))$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">+</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">→ LN →</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>ln1 = nn.<span class="tok-f">LayerNorm</span>(d_model)      <span class="tok-c"># 2 * d_model = 1024 params (γ, β)</span>
+X_post = ln1(X + mha_out)         <span class="tok-c"># [B, T, d_model]</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        LN normalizes across the last axis: each $[d_{model}]$ vector becomes mean-0, var-1, then
+        re-scaled by learned $\gamma, \beta\in\mathbb{R}^{d_{model}}$. Both batch and token
+        positions stay independent.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stages 13–14 · FFN linear 1 + ReLU</div></div>
+    <div class="card-body">
+      <p>
+        A position-wise feed-forward network: same MLP applied to every token independently.
+        First linear expands $d_{model} \to d_{ff}$ (typically $4\cdot d_{model}$).
+      </p>
+      <div class="formula">
+        $H = \mathrm{ReLU}(X' W_1 + b_1)$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">·W₁</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim ff">2048</span><span class="br">]</span>
+          <span class="arrow">→ ReLU →</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim ff">2048</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>W1 = nn.<span class="tok-f">Linear</span>(d_model, d_ff)       <span class="tok-c"># 512 * 2048 = 1 048 576 params</span>
+H = F.<span class="tok-f">relu</span>(W1(X_post))            <span class="tok-c"># [B, T, d_ff]</span></code></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 15 · FFN linear 2</div></div>
+    <div class="card-body">
+      <p>
+        Second linear projects back: $d_{ff} \to d_{model}$. Restores the canonical shape so the
+        next block can start fresh.
+      </p>
+      <div class="formula">
+        $Y = H W_2 + b_2$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim ff">2048</span><span class="br">]</span>
+          <span class="arrow">·W₂</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+      </div>
+      <pre class="code"><code>W2 = nn.<span class="tok-f">Linear</span>(d_ff, d_model)       <span class="tok-c"># 2048 * 512 = another 1 048 576 params</span>
+ffn_out = W2(H)                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
+      <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
+        <strong>Total FFN params:</strong> $2\cdot d_{model}\cdot d_{ff} = 2\cdot 512\cdot 2048 = 2{,}097{,}152$ —
+        roughly twice the cost of all four attention projections combined. This is where
+        big models put their weight.
+      </p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">stage 16 · residual + LayerNorm (again)</div></div>
+    <div class="card-body">
+      <p>
+        Same pattern as stage 12. Add the pre-FFN tensor, layer-normalize, and the encoder
+        block is done.
+      </p>
+      <div class="formula">
+        $Y' = \mathrm{LayerNorm}(X' + Y)$
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">→</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+        </span>
+        <span class="pill">block-output shape = block-input shape</span>
+      </div>
+      <pre class="code"><code>ln2 = nn.<span class="tok-f">LayerNorm</span>(d_model)
+out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></code></pre>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Stack &amp; repeat:</strong> the paper stacks $N=6$ identical encoder blocks. Each
+    one's input shape equals its output shape, which is why they compose cleanly.
+    Total encoder params (one block, base): roughly
+    $4\cdot 512^2 + 2\cdot 512\cdot 2048 + 4\cdot 512 \approx 3.15$M.
+  </div>
+
+  <h2>The whole encoder block in 14 lines</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">EncoderBlock — minimal PyTorch</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">EncoderBlock</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, d_model=<span class="tok-n">512</span>, h=<span class="tok-n">8</span>, d_ff=<span class="tok-n">2048</span>):
+        <span class="tok-f">super</span>().__init__()
+        self.attn = nn.<span class="tok-f">MultiheadAttention</span>(d_model, h, batch_first=<span class="tok-k">True</span>)
+        self.ffn  = nn.<span class="tok-f">Sequential</span>(
+            nn.<span class="tok-f">Linear</span>(d_model, d_ff), nn.<span class="tok-f">ReLU</span>(), nn.<span class="tok-f">Linear</span>(d_ff, d_model)
+        )
+        self.ln1 = nn.<span class="tok-f">LayerNorm</span>(d_model)
+        self.ln2 = nn.<span class="tok-f">LayerNorm</span>(d_model)
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+        <span class="tok-c"># x: [B, T, d_model]</span>
+        a, _ = self.<span class="tok-f">attn</span>(x, x, x)
+        x = self.<span class="tok-f">ln1</span>(x + a)
+        x = self.<span class="tok-f">ln2</span>(x + self.<span class="tok-f">ffn</span>(x))
+        <span class="tok-k">return</span> x                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
+  </div>
+</section>
+
+<!-- ========================= DECODER ========================= -->
+<section class="tab-section" id="tab-decoder">
+  <h1>Stages 17–21 · The decoder block</h1>
+  <p class="lead">
+    The decoder takes <em>target</em> tokens (shifted right by one) and produces a tensor that
+    knows about both (a) the target tokens it has seen so far — via <strong>masked self-attn</strong>
+    — and (b) the source — via <strong>cross-attn</strong>, where Q comes from the decoder
+    and K, V come from the encoder output (the &ldquo;memory&rdquo;). Same embedding dim, same residual+LN
+    discipline as the encoder. Three sub-blocks per layer, six layers in the paper.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">paper config (still)</div></div>
+      <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        <div>B = <b style="color: var(--dim-b)">2</b>, T_src = <b style="color: var(--dim-t)">8</b>, T_tgt = <b style="color: var(--dim-t)">7</b></div>
+        <div>d_model = <b style="color: var(--dim-d)">512</b>, h = <b style="color: var(--dim-h)">8</b>, d_k = <b style="color: var(--dim-k)">64</b></div>
+        <div style="margin-top:6px; color: var(--muted);"># T_tgt is independent of T_src.</div>
+        <div style="color: var(--muted);"># cross-attn is the only place they meet.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">why &ldquo;shifted right&rdquo;?</div></div>
+      <div class="card-body">
+        <p style="margin:0 0 6px;">During training the decoder sees the gold target prefixed with
+          <code>&lt;sos&gt;</code> and predicts the same target ending in <code>&lt;eos&gt;</code>.</p>
+        <pre class="code" style="margin:0;"><code><span class="tok-c"># target  : "die katze sitzt"           ← truth</span>
+<span class="tok-c"># dec_in  : "&lt;sos&gt; die katze sitzt"     ← shifted right (input)</span>
+<span class="tok-c"># labels  : "die katze sitzt &lt;eos&gt;"     ← what we predict</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h2>Stage 17 · Decoder input → embedding</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="legend">
+        <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>[B, T_tgt]</span>
+        <span style="color: var(--muted);">→ embed lookup →</span>
+        <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
+        <span style="color: var(--muted);">= [2, 7, 512]</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Stage 19 · Masked self-attention <span style="color: var(--muted); font-weight:400; font-size:14px;">(causal mask)</span></h2>
+  <div class="card">
+    <div class="card-body">
+      <p style="margin:0 0 8px;">Identical to encoder self-attn — except the score matrix gets
+        <em>−∞</em> stamped on every position above the diagonal so position <code>i</code> can
+        never look at <code>i+1, i+2, ...</code>. After softmax those positions become exactly 0.</p>
+      <pre class="code"><code><span class="tok-c"># scores: [B, h, T_tgt, T_tgt] = [2, 8, 7, 7]</span>
+mask = torch.<span class="tok-f">triu</span>(torch.<span class="tok-f">ones</span>(T_tgt, T_tgt), diagonal=<span class="tok-n">1</span>).<span class="tok-f">bool</span>()
+scores = scores.<span class="tok-f">masked_fill</span>(mask, <span class="tok-k">float</span>(<span class="tok-s">'-inf'</span>))
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)        <span class="tok-c"># lower triangle, rows sum to 1</span></code></pre>
+      <div class="legend" style="margin-top:8px;">
+        <span class="pill"><span class="dot" style="background: var(--dim-h)"></span>[B, h, T_tgt, T_tgt]</span>
+        <span style="color: var(--muted);">= [2, 8, 7, 7]</span>
+        <span style="color: var(--muted); margin-left:auto;">upper-triangle = 0 after softmax</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Stage 20 · Cross-attention <span style="color: var(--muted); font-weight:400; font-size:14px;">(Q ← decoder, K, V ← encoder)</span></h2>
+  <div class="card">
+    <div class="card-body">
+      <p style="margin:0 0 8px;">This is where the encoder finally talks to the decoder. The decoder
+        emits queries; the encoder output supplies keys and values.</p>
+      <pre class="code"><code><span class="tok-c"># dec_x: [B, T_tgt, d_model] = [2, 7, 512]   ← from masked self-attn</span>
+<span class="tok-c"># memory: [B, T_src, d_model] = [2, 8, 512]  ← encoder output (stage 16)</span>
+Q = W_q(dec_x).<span class="tok-f">view</span>(B, T_tgt, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_tgt, d_k]</span>
+K = W_k(memory).<span class="tok-f">view</span>(B, T_src, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_src, d_k]</span>
+V = W_v(memory).<span class="tok-f">view</span>(B, T_src, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_src, d_k]</span>
+scores = Q @ K.<span class="tok-f">transpose</span>(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>) / math.<span class="tok-f">sqrt</span>(d_k)         <span class="tok-c"># [B, h, T_tgt, T_src] = [2, 8, 7, 8]</span>
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)                              <span class="tok-c"># last axis is T_src</span>
+out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>).<span class="tok-f">reshape</span>(B, T_tgt, d_model) <span class="tok-c"># [2, 7, 512]</span></code></pre>
+      <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
+        Crucially: the score matrix is <em>not square</em>. It is
+        <code>[B, h, T_tgt, T_src]</code> — every target token attends over every source token.
+      </p>
+    </div>
+  </div>
+
+  <h2>The decoder block in 16 lines</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">DecoderBlock — minimal PyTorch</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">DecoderBlock</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, d=<span class="tok-n">512</span>, h=<span class="tok-n">8</span>, d_ff=<span class="tok-n">2048</span>):
+        <span class="tok-f">super</span>().__init__()
+        self.self_attn  = nn.<span class="tok-f">MultiheadAttention</span>(d, h, batch_first=<span class="tok-k">True</span>)
+        self.cross_attn = nn.<span class="tok-f">MultiheadAttention</span>(d, h, batch_first=<span class="tok-k">True</span>)
+        self.ffn = nn.<span class="tok-f">Sequential</span>(nn.<span class="tok-f">Linear</span>(d, d_ff), nn.<span class="tok-f">ReLU</span>(), nn.<span class="tok-f">Linear</span>(d_ff, d))
+        self.ln1, self.ln2, self.ln3 = nn.<span class="tok-f">LayerNorm</span>(d), nn.<span class="tok-f">LayerNorm</span>(d), nn.<span class="tok-f">LayerNorm</span>(d)
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x, memory, causal_mask):
+        <span class="tok-c"># x:      [B, T_tgt, d]      memory: [B, T_src, d]</span>
+        a, _ = self.<span class="tok-f">self_attn</span>(x, x, x, attn_mask=causal_mask)
+        x = self.<span class="tok-f">ln1</span>(x + a)                 <span class="tok-c"># [B, T_tgt, d]</span>
+        c, _ = self.<span class="tok-f">cross_attn</span>(x, memory, memory)
+        x = self.<span class="tok-f">ln2</span>(x + c)                 <span class="tok-c"># [B, T_tgt, d]</span>
+        x = self.<span class="tok-f">ln3</span>(x + self.<span class="tok-f">ffn</span>(x))
+        <span class="tok-k">return</span> x                            <span class="tok-c"># [B, T_tgt, d]</span></code></pre>
+  </div>
+
+  <p style="color: var(--muted); margin-top: 14px;">
+    Output of the decoder stack (after 6 of these): <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
+    = <code>[2, 7, 512]</code>. Next stop: project to vocabulary.
+  </p>
+</section>
+
+<!-- ========================= OUTPUT &rarr; LOGITS ========================= -->
+<section class="tab-section" id="tab-output">
+  <h1>Stages 22–23 · From hidden state to logits</h1>
+  <p class="lead">
+    A single <code>nn.Linear(d_model, V)</code> turns each per-token hidden vector into a score for
+    every word in the vocabulary. Softmax along the last axis turns those scores into probabilities.
+    That's the entire output head. In the paper, <code>W_lm</code> is <em>tied</em> to the input
+    embedding matrix — same parameters, transposed.
+  </p>
+
+  <h2>Stage 22 · Linear projection to vocabulary</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="legend">
+        <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
+        <span style="color: var(--muted);">@ W_lm.T →</span>
+        <span class="pill"><span class="dot" style="background: var(--accent-2)"></span>[B, T_tgt, V]</span>
+        <span style="color: var(--muted);">= [2, 7, 37000]</span>
+      </div>
+      <pre class="code" style="margin-top:10px;"><code><span class="tok-c"># dec_out: [B, T_tgt, d_model]</span>
+<span class="tok-c"># W_lm:    [V, d_model]   ← often tied to embed.weight</span>
+logits = dec_out @ W_lm.<span class="tok-f">T</span>           <span class="tok-c"># [B, T_tgt, V]</span>
+<span class="tok-c"># or simply:</span>
+logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-c"># nn.Linear(d_model, V)</span></code></pre>
+      <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
+        These are <strong>raw scores</strong> — one per vocabulary token, per position, per example.
+        Not probabilities yet. Don't softmax them if your loss is <code>CrossEntropyLoss</code>;
+        it does that internally for numerical stability.
+      </p>
+    </div>
+  </div>
+
+  <h2>Stage 23 · Softmax → probabilities <span style="color: var(--muted); font-weight:400; font-size:14px;">(only when you actually need them)</span></h2>
+  <div class="card">
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>probs = F.<span class="tok-f">softmax</span>(logits, dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B, T_tgt, V] — rows over V sum to 1</span></code></pre>
+      <p style="margin:8px 0 0;">
+        At each of the <code>B·T_tgt</code> positions you now have a distribution over the entire
+        vocabulary. <em>Most of those 37,000 numbers are tiny.</em> A handful concentrate near the
+        right answer.
+      </p>
+    </div>
+  </div>
+
+  <h2>Parameter count of the output head</h2>
+  <div class="card">
+    <div class="card-body">
+      <p style="margin:0;">
+        <code>W_lm</code> alone is <code>V × d_model = 37000 × 512 ≈ 19M parameters</code> —
+        usually the single largest weight in the model. The paper ties it to the input embedding
+        matrix, halving the weight memory and (empirically) helping generalization.
+      </p>
+    </div>
+  </div>
+
+  <h2>The full forward, end-to-end</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Transformer.forward — paper-faithful</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, src_ids, tgt_in_ids):
+    <span class="tok-c"># src_ids:    [B, T_src]   tgt_in_ids: [B, T_tgt]</span>
+    src = self.<span class="tok-f">src_embed</span>(src_ids) + self.<span class="tok-f">pos</span>(src_ids)        <span class="tok-c"># [B, T_src, d]</span>
+    tgt = self.<span class="tok-f">tgt_embed</span>(tgt_in_ids) + self.<span class="tok-f">pos</span>(tgt_in_ids)    <span class="tok-c"># [B, T_tgt, d]</span>
+
+    memory = src
+    <span class="tok-k">for</span> layer <span class="tok-k">in</span> self.encoder_layers:
+        memory = <span class="tok-f">layer</span>(memory)                                  <span class="tok-c"># [B, T_src, d]</span>
+
+    causal = self.<span class="tok-f">causal_mask</span>(tgt_in_ids.shape[<span class="tok-n">1</span>])
+    x = tgt
+    <span class="tok-k">for</span> layer <span class="tok-k">in</span> self.decoder_layers:
+        x = <span class="tok-f">layer</span>(x, memory, causal)                            <span class="tok-c"># [B, T_tgt, d]</span>
+
+    logits = self.<span class="tok-f">lm_head</span>(x)                                     <span class="tok-c"># [B, T_tgt, V]</span>
+    <span class="tok-k">return</span> logits</code></pre>
+  </div>
+</section>
+
+<!-- ========================= TRAINING ========================= -->
+<section class="tab-section" id="tab-training">
+  <h1>Training — the whole paper, one step</h1>
+  <p class="lead">
+    A single training step on a batch of <em>(source, target)</em> string pairs. We tokenize
+    both, build the encoder &amp; decoder inputs, run the full transformer (embeds → positional →
+    6 encoder layers → 6 decoder layers → linear head), compute cross-entropy against the
+    shifted-right labels, backprop, and take an optimizer step. <strong>Initial input: a list
+    of string pairs. Final output: a scalar loss + updated parameters.</strong>
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">paper config (still — held fixed across all stages)</div></div>
+    <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+      <div>B = <b style="color: var(--dim-b)">2</b>, T_src = <b style="color: var(--dim-t)">8</b>, T_tgt = <b style="color: var(--dim-t)">7</b>, d_model = <b style="color: var(--dim-d)">512</b>, h = <b style="color: var(--dim-h)">8</b>, d_k = <b style="color: var(--dim-k)">64</b>, d_ff = <b style="color: var(--dim-ff)">2048</b>, V = <b style="color: var(--accent-2)">37000</b>, N = <b>6</b></div>
+      <div style="color: var(--muted); margin-top: 4px;">tokens shown: &lt;sos&gt;=1, &lt;eos&gt;=2, &lt;pad&gt;=0; English/German IDs are illustrative.</div>
+    </div>
+  </div>
+
+  <h2>Step 1 · Initial input — raw strings <span style="color: var(--muted); font-weight:400; font-size:14px;">(no tensor yet)</span></h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">a batch of B=2 (src, tgt) pairs</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>list[(str, str)], len = B</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code>batch = [
+  (<span class="tok-s">"the cat sat"</span>, <span class="tok-s">"die katze sitzt"</span>),
+  (<span class="tok-s">"i love you"</span>,  <span class="tok-s">"ich liebe dich"</span>),
+]</code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code><span class="tok-c"># nothing yet — pure Python strings</span>
+<span class="tok-f">type</span>(batch)        <span class="tok-c"># list</span>
+<span class="tok-f">len</span>(batch)         <span class="tok-c"># 2  (= B)</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Step 2 · Tokenize source — strings → integer IDs</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">BPE tokenizer · pad to T_src</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_src)</span>
+      <span class="pill" style="margin-left:6px;">[2, 8] int64</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code><span class="tok-c"># each row: &lt;sos&gt;, words..., &lt;eos&gt;, &lt;pad&gt;...</span>
+src_ids = [
+  [<span class="tok-n">1</span>, <span class="tok-n">1996</span>, <span class="tok-n">4937</span>, <span class="tok-n">2938</span>, <span class="tok-n">2</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
+  [<span class="tok-n">1</span>, <span class="tok-n">1045</span>, <span class="tok-n">2293</span>, <span class="tok-n">2017</span>, <span class="tok-n">2</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
+]</code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>src_ids = torch.<span class="tok-f">tensor</span>(src_ids)
+src_ids.shape   <span class="tok-c"># torch.Size([2, 8])  = (B, T_src)</span>
+src_ids.dtype   <span class="tok-c"># torch.int64</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Step 3 · Tokenize target — and shift right</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">decoder input vs. labels</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>dec_in: (B, T_tgt) · labels: (B, T_tgt)</span>
+    </div>
+    <div class="card-body">
+      <p style="margin: 0 0 8px;">
+        The decoder is trained to predict <em>each next token</em>. So <code>dec_in</code> is the
+        target prefixed with <code>&lt;sos&gt;</code> and <code>labels</code> is the same target
+        ending in <code>&lt;eos&gt;</code>. Position <code>i</code> of <code>dec_in</code> must
+        predict position <code>i</code> of <code>labels</code>.
+      </p>
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code><span class="tok-c"># dec_in: prepend &lt;sos&gt;, drop final &lt;eos&gt;</span>
+dec_in = [
+  [<span class="tok-n">1</span>, <span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
+  [<span class="tok-n">1</span>, <span class="tok-n">1156</span>, <span class="tok-n">4502</span>, <span class="tok-n">3299</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
+]
+<span class="tok-c"># labels: drop &lt;sos&gt;, append &lt;eos&gt;, pad with -100</span>
+labels = [
+  [<span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>, <span class="tok-n">2</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>],
+  [<span class="tok-n">1156</span>, <span class="tok-n">4502</span>, <span class="tok-n">3299</span>, <span class="tok-n">2</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>],
+]</code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>dec_in.shape    <span class="tok-c"># (2, 7) = (B, T_tgt)</span>
+labels.shape    <span class="tok-c"># (2, 7) = (B, T_tgt)</span>
+<span class="tok-c"># -100 is the default ignore_index for CE</span>
+<span class="tok-c"># so padding contributes nothing to the loss</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Step 4 · Source embedding lookup <span style="color: var(--muted); font-weight:400; font-size:14px;">(× √d_model, per the paper)</span></h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">int IDs → dense vectors</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
+      <span class="pill" style="margin-left:6px;">[2, 8, 512]</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <pre class="code"><code>src = src_embed(src_ids) * math.<span class="tok-f">sqrt</span>(d_model)
+<span class="tok-c"># src_embed: nn.Embedding(V, d_model)</span></code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>src.shape       <span class="tok-c"># (2, 8, 512)</span>
+src.dtype       <span class="tok-c"># torch.float32</span>
+<span class="tok-c"># src[0, 0, :5] e.g. tensor([ 0.31, -0.07, ...])</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Step 5 · Sinusoidal positional encoding (added)</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">PE(pos, 2i) = sin(pos / 10000<sup>2i/d</sup>) · PE(pos, 2i+1) = cos(...)</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model) — same shape</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>src = src + pe[:T_src]              <span class="tok-c"># pe: precomputed [max_len, d_model]</span></code></pre>
+    </div>
+  </div>
+
+  <h2>Step 6 · Encoder — N=6 layers → memory</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">each layer: MHA → add+LN → FFN → add+LN</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
+      <span class="pill" style="margin-left:6px;">[2, 8, 512]</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0 0 8px;"><code>memory = src
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> encoder_layers:    <span class="tok-c"># 6 of them</span>
+    memory = <span class="tok-f">layer</span>(memory)       <span class="tok-c"># [2, 8, 512] in, [2, 8, 512] out</span></code></pre>
+      <p style="margin:0; color: var(--muted); font-size: 13px;">
+        Inside each layer: <code>x = LN(x + MHA(x,x,x))</code> then <code>x = LN(x + FFN(x))</code>.
+        Shapes: <code>[B, T_src, d_model]</code> in and out, scratch goes through <code>[B, h, T_src, d_k]</code>
+        and <code>[B, T_src, d_ff]</code>.
+      </p>
+    </div>
+  </div>
+
+  <h2>Step 7 · Target embedding + positional encoding</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">decoder input pipeline</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_tgt, d_model)</span>
+      <span class="pill" style="margin-left:6px;">[2, 7, 512]</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>tgt = tgt_embed(dec_in) * math.<span class="tok-f">sqrt</span>(d_model)
+tgt = tgt + pe[:T_tgt]              <span class="tok-c"># [2, 7, 512]</span></code></pre>
+    </div>
+  </div>
+
+  <h2>Step 8 · Decoder — N=6 layers (causal mask + cross-attn)</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">each layer: masked-MHA → cross-MHA(memory) → FFN, all with add+LN</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_tgt, d_model)</span>
+      <span class="pill" style="margin-left:6px;">[2, 7, 512]</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>causal = torch.<span class="tok-f">triu</span>(torch.<span class="tok-f">ones</span>(T_tgt, T_tgt), diagonal=<span class="tok-n">1</span>).<span class="tok-f">bool</span>()
+x = tgt
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> decoder_layers:    <span class="tok-c"># 6 of them</span>
+    x = <span class="tok-f">layer</span>(x, memory, causal)       <span class="tok-c"># [2, 7, 512]</span></code></pre>
+      <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
+        Inner shapes: masked-attn scores <code>[2, 8, 7, 7]</code>; cross-attn scores
+        <code>[2, 8, 7, 8]</code> (T_tgt × T_src — non-square!); FFN scratch <code>[2, 7, 2048]</code>.
+      </p>
+    </div>
+  </div>
+
+  <h2>Step 9 · LM head — project to vocabulary</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">linear: d_model → V (often weight-tied to tgt_embed)</div>
+      <span class="pill"><span class="dot" style="background: var(--accent-2)"></span>(B, T_tgt, V)</span>
+      <span class="pill" style="margin-left:6px;">[2, 7, 37000]</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <pre class="code"><code>logits = lm_head(x)
+<span class="tok-c"># lm_head: nn.Linear(d_model, V, bias=False)</span></code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>logits.shape    <span class="tok-c"># (2, 7, 37000)</span>
+logits.dtype    <span class="tok-c"># float32</span>
+<span class="tok-c"># raw scores — NOT softmaxed yet</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Step 10 · Cross-entropy loss</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">flatten the batch · padding ignored via -100</div>
+      <span class="pill">scalar</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <pre class="code"><code>loss = F.<span class="tok-f">cross_entropy</span>(
+    logits.<span class="tok-f">view</span>(-<span class="tok-n">1</span>, V),    <span class="tok-c"># [B*T_tgt, V] = [14, 37000]</span>
+    labels.<span class="tok-f">view</span>(-<span class="tok-n">1</span>),       <span class="tok-c"># [B*T_tgt] = [14]</span>
+    ignore_index=-<span class="tok-n">100</span>,
+    label_smoothing=<span class="tok-n">0.1</span>     <span class="tok-c"># paper §5.4</span>
+)</code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>loss.shape          <span class="tok-c"># torch.Size([])  — 0-dim scalar</span>
+loss.<span class="tok-f">item</span>()          <span class="tok-c"># e.g. 6.93</span>
+<span class="tok-c"># ∂L/∂logits = (P − Y) — see softmax-ce.html</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Step 11 · Backward + optimizer step</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">∂L flows back through every parameter</div>
+      <span class="pill">scalar in, ~65M parameters updated</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0 0 8px;"><code>optimizer.<span class="tok-f">zero_grad</span>()
+loss.<span class="tok-f">backward</span>()           <span class="tok-c"># autograd walks: loss → logits → lm_head → 6 dec → 6 enc → embeds</span>
+optimizer.<span class="tok-f">step</span>()         <span class="tok-c"># Adam, β₁=0.9, β₂=0.98, ε=1e-9, with warmup (paper §5.3)</span></code></pre>
+      <p style="margin:0; color: var(--muted); font-size: 13px;">
+        Every weight tensor — <code>src_embed.weight</code>, <code>tgt_embed.weight</code>,
+        all 6+6 layers' Q/K/V/O/FFN/LN params, <code>lm_head.weight</code> — receives
+        <code>.grad</code> with the same shape as itself, then gets nudged by the optimizer.
+      </p>
+    </div>
+  </div>
+
+  <h2 style="color: var(--accent);">Final output of the training step</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code><span class="tok-c"># 1) a scalar to log</span>
+loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
+
+<span class="tok-c"># 2) updated weights (in-place)</span>
+<span class="tok-c"># every parameter has been nudged</span></code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>loss            <span class="tok-c"># tensor(6.93)  shape=()</span>
+<span class="tok-c"># model state has changed; no new tensor returned</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>The whole training step in one shot</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">train_step — paper-faithful, ~20 lines</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">train_step</span>(model, optimizer, batch):
+    <span class="tok-c"># batch: list[(src_str, tgt_str)] of length B</span>
+    src_ids = <span class="tok-f">tokenize_src</span>(batch)         <span class="tok-c"># [B, T_src]    int64</span>
+    dec_in, labels = <span class="tok-f">tokenize_tgt</span>(batch)  <span class="tok-c"># [B, T_tgt] each</span>
+
+    src = model.<span class="tok-f">src_embed</span>(src_ids)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(src_ids)
+    tgt = model.<span class="tok-f">tgt_embed</span>(dec_in)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(dec_in)
+
+    memory = src
+    <span class="tok-k">for</span> layer <span class="tok-k">in</span> model.encoder_layers: memory = <span class="tok-f">layer</span>(memory)
+
+    causal = model.<span class="tok-f">causal_mask</span>(dec_in.shape[<span class="tok-n">1</span>])
+    x = tgt
+    <span class="tok-k">for</span> layer <span class="tok-k">in</span> model.decoder_layers: x = <span class="tok-f">layer</span>(x, memory, causal)
+
+    logits = model.<span class="tok-f">lm_head</span>(x)              <span class="tok-c"># [B, T_tgt, V]</span>
+    loss = F.<span class="tok-f">cross_entropy</span>(
+        logits.<span class="tok-f">view</span>(-<span class="tok-n">1</span>, V), labels.<span class="tok-f">view</span>(-<span class="tok-n">1</span>),
+        ignore_index=-<span class="tok-n">100</span>, label_smoothing=<span class="tok-n">0.1</span>)
+
+    optimizer.<span class="tok-f">zero_grad</span>(); loss.<span class="tok-f">backward</span>(); optimizer.<span class="tok-f">step</span>()
+    <span class="tok-k">return</span> loss.<span class="tok-f">item</span>()                     <span class="tok-c"># scalar</span></code></pre>
+  </div>
+
+  <p style="color: var(--muted); margin-top: 14px;">
+    <strong>Summary of shapes during one training step:</strong>
+    raw strings (B) →
+    <span class="pill">[B, T_src]</span> →
+    <span class="pill">[B, T_src, d]</span> →
+    <span class="pill">[B, T_tgt, d]</span> →
+    <span class="pill">[B, T_tgt, V]</span> → scalar loss → ∂L/∂θ on every param.
+  </p>
+</section>
+
+<!-- ========================= INFERENCE ========================= -->
+<section class="tab-section" id="tab-inference">
+  <h1>Inference — generating one translation</h1>
+  <p class="lead">
+    At test time we have a single source string (B=1 in this walkthrough). We tokenize, run the
+    encoder <em>once</em> to get <code>memory</code>, then loop: <em>decode → take the last
+    position's logits → pick a token → append it</em>. Repeat until <code>&lt;eos&gt;</code> or
+    a max length. <strong>Initial input: a string. Final output: a string.</strong>
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">config for this walkthrough</div></div>
+    <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+      <div>B = <b style="color: var(--dim-b)">1</b>, T_src = <b style="color: var(--dim-t)">5</b> (no padding needed for B=1), d_model = <b style="color: var(--dim-d)">512</b>, V = <b style="color: var(--accent-2)">37000</b>, max_len = <b>32</b></div>
+      <div style="color: var(--muted); margin-top: 4px;">No labels. No loss. <code>torch.no_grad()</code> wraps everything.</div>
+    </div>
+  </div>
+
+  <h2 style="color: var(--accent);">Phase A — preprocess the source <em>once</em></h2>
+
+  <h3>Step 1 · Initial input — one raw string</h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">B = 1</div>
+      <span class="pill">str</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code>src_text = <span class="tok-s">"the cat sat"</span></code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code><span class="tok-c"># nothing yet — pure Python str</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Step 2 · Tokenize source</h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">str → int IDs · wrap in batch dim</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_src)</span>
+      <span class="pill" style="margin-left:6px;">[1, 5] int64</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code><span class="tok-c"># &lt;sos&gt; the cat sat &lt;eos&gt;</span>
+src_ids = [[<span class="tok-n">1</span>, <span class="tok-n">1996</span>, <span class="tok-n">4937</span>, <span class="tok-n">2938</span>, <span class="tok-n">2</span>]]</code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>src_ids = torch.<span class="tok-f">tensor</span>(src_ids)
+src_ids.shape   <span class="tok-c"># (1, 5)</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Step 3 · Source embed + positional</h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">int → dense vectors</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
+      <span class="pill" style="margin-left:6px;">[1, 5, 512]</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>src = model.<span class="tok-f">src_embed</span>(src_ids) * math.<span class="tok-f">sqrt</span>(d_model)
+src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c"># [1, 5, 512]</span></code></pre>
+    </div>
+  </div>
+
+  <h3>Step 4 · Encoder — N=6 layers → memory <em>(computed once, reused every loop step)</em></h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">memory = encoder(src)</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
+      <span class="pill" style="margin-left:6px;">[1, 5, 512]</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>memory = src
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> model.encoder_layers:
+    memory = <span class="tok-f">layer</span>(memory)        <span class="tok-c"># [1, 5, 512]</span></code></pre>
+    </div>
+  </div>
+
+  <h2 style="color: var(--accent);">Phase B — autoregressive decoding loop</h2>
+
+  <h3>Step 5 · Initialize decoder input with <code>&lt;sos&gt;</code></h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">start with one token; T_tgt grows by 1 every step</div>
+      <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_tgt=1)</span>
+      <span class="pill" style="margin-left:6px;">[1, 1] int64</span>
+    </div>
+    <div class="card-body">
+      <pre class="code" style="margin:0;"><code>dec_in = torch.<span class="tok-f">tensor</span>([[<span class="tok-n">1</span>]])     <span class="tok-c"># &lt;sos&gt; — shape (1, 1)</span></code></pre>
+    </div>
+  </div>
+
+  <h3>Steps 6–9 · Loop body — repeat until <code>&lt;eos&gt;</code> or <code>max_len</code></h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">each pass grows T_tgt by exactly one</div>
+    </div>
+    <div class="card-body">
+      <table class="matrix-table">
+        <tr><th>#</th><th>operation</th><th>shape (B=1)</th><th>data (e.g. step t)</th></tr>
+        <tr><td>6</td><td>tgt_embed(dec_in) + pe[:t]</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
+        <tr><td>7</td><td>decoder × 6 (causal + cross-attn over memory)</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
+        <tr><td>8</td><td>lm_head → logits</td><td class="shape-cell">[1, t, V] = [1, t, 37000]</td><td><span style="color: var(--muted);">raw scores</span></td></tr>
+        <tr><td>9a</td><td>take last position only</td><td class="shape-cell">[1, V]</td><td><code>logits[:, -1, :]</code></td></tr>
+        <tr><td>9b</td><td>argmax (greedy) <em>or</em> multinomial(softmax/τ)</td><td class="shape-cell">[1]</td><td><code>next_id</code></td></tr>
+        <tr><td>9c</td><td>append: dec_in = cat(dec_in, next_id[:, None])</td><td class="shape-cell">[1, t+1]</td><td>grows by 1</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h3>A concrete trace (greedy)</h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">how dec_in grows; what gets sampled</div>
+    </div>
+    <div class="card-body">
+      <table class="matrix-table">
+        <tr><th>step</th><th>dec_in (data)</th><th>dec_in.shape</th><th>last_logits.shape</th><th>argmax → token</th></tr>
+        <tr><td>t=1</td><td><code>[[1]]</code></td><td class="shape-cell">[1, 1]</td><td class="shape-cell">[1, 37000]</td><td><code>521</code> &nbsp;<em>"die"</em></td></tr>
+        <tr><td>t=2</td><td><code>[[1, 521]]</code></td><td class="shape-cell">[1, 2]</td><td class="shape-cell">[1, 37000]</td><td><code>8901</code> &nbsp;<em>"katze"</em></td></tr>
+        <tr><td>t=3</td><td><code>[[1, 521, 8901]]</code></td><td class="shape-cell">[1, 3]</td><td class="shape-cell">[1, 37000]</td><td><code>2334</code> &nbsp;<em>"sitzt"</em></td></tr>
+        <tr><td>t=4</td><td><code>[[1, 521, 8901, 2334]]</code></td><td class="shape-cell">[1, 4]</td><td class="shape-cell">[1, 37000]</td><td><code>2</code> &nbsp;<em>&lt;eos&gt;</em> — stop</td></tr>
+      </table>
+      <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
+        The encoder ran exactly once. The decoder ran four times. In a production decoder you'd
+        cache K and V from previous steps (KV cache) so each loop step only computes the new last
+        column instead of rebuilding the whole prefix.
+      </p>
+    </div>
+  </div>
+
+  <h3>Step 10 · Detokenize → final output string</h3>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">int IDs → string</div>
+      <span class="pill">str</span>
+    </div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code><span class="tok-c"># strip &lt;sos&gt; and &lt;eos&gt;</span>
+out_ids  = [<span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>]
+out_text = <span class="tok-s">"die katze sitzt"</span></code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <pre class="code"><code>out_ids.shape    <span class="tok-c"># (1, 3) before detokenize</span>
+<span class="tok-f">type</span>(out_text)    <span class="tok-c"># str</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="color: var(--accent);">Final output of inference</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="grid-2">
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <pre class="code"><code>out_text = <span class="tok-s">"die katze sitzt"</span></code></pre>
+        </div>
+        <div>
+          <h4 style="margin:0 0 6px; color: var(--accent);">tensor (intermediate)</h4>
+          <pre class="code"><code><span class="tok-c"># the generated IDs before detokenize</span>
+generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>The whole inference loop in one shot</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">generate — greedy, ~20 lines</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">@torch.no_grad</span>()
+<span class="tok-k">def</span> <span class="tok-f">generate</span>(model, src_text, max_len=<span class="tok-n">32</span>):
+    src_ids = <span class="tok-f">tokenize_src</span>([(src_text, <span class="tok-s">""</span>)])      <span class="tok-c"># [1, T_src]</span>
+
+    src = model.<span class="tok-f">src_embed</span>(src_ids)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(src_ids)
+    memory = src
+    <span class="tok-k">for</span> layer <span class="tok-k">in</span> model.encoder_layers:
+        memory = <span class="tok-f">layer</span>(memory)                          <span class="tok-c"># [1, T_src, d]</span>
+
+    dec_in = torch.<span class="tok-f">tensor</span>([[SOS]])                         <span class="tok-c"># [1, 1]</span>
+    <span class="tok-k">for</span> _ <span class="tok-k">in</span> <span class="tok-f">range</span>(max_len):
+        tgt = model.<span class="tok-f">tgt_embed</span>(dec_in)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(dec_in)
+        causal = model.<span class="tok-f">causal_mask</span>(dec_in.shape[<span class="tok-n">1</span>])
+        x = tgt
+        <span class="tok-k">for</span> layer <span class="tok-k">in</span> model.decoder_layers:
+            x = <span class="tok-f">layer</span>(x, memory, causal)                 <span class="tok-c"># [1, t, d]</span>
+        logits = model.<span class="tok-f">lm_head</span>(x)                          <span class="tok-c"># [1, t, V]</span>
+        next_id = logits[:, -<span class="tok-n">1</span>, :].<span class="tok-f">argmax</span>(-<span class="tok-n">1</span>, keepdim=<span class="tok-k">True</span>)
+        <span class="tok-k">if</span> next_id.<span class="tok-f">item</span>() == EOS: <span class="tok-k">break</span>
+        dec_in = torch.<span class="tok-f">cat</span>([dec_in, next_id], dim=<span class="tok-n">1</span>)    <span class="tok-c"># [1, t+1]</span>
+
+    <span class="tok-k">return</span> <span class="tok-f">detokenize</span>(dec_in[<span class="tok-n">0</span>, <span class="tok-n">1</span>:].<span class="tok-f">tolist</span>())          <span class="tok-c"># str</span></code></pre>
+  </div>
+
+  <p style="color: var(--muted); margin-top: 14px;">
+    <strong>Summary of shapes during inference:</strong>
+    raw string →
+    <span class="pill">[1, T_src]</span> →
+    <span class="pill">[1, T_src, d]</span> (memory, once) →
+    loop: <span class="pill">[1, t]</span> → <span class="pill">[1, t, d]</span> →
+    <span class="pill">[1, t, V]</span> → <span class="pill">[1, V]</span> →
+    <span class="pill">[1]</span> → append → grow → final string.
+  </p>
+</section>
+
+<!-- ========================= LIVE SANDBOX ========================= -->
+
+<!-- ========================= LIVE SANDBOX ========================= -->
+<section class="tab-section" id="tab-sandbox">
+  <h1>Live shape sandbox</h1>
+  <p class="lead">
+    Edit B, T, d_model, h. Every stage recomputes — shape pills, parameter counts, and the
+    derived $d_k$ all update. Try $d_{model}=768, h=12$ (BERT-base). Or $d_{model}=4096, h=32$
+    (LLaMA-7B). Same recipe, different numbers.
+  </p>
+
+  <div class="canvas-card">
+    <h3>knobs</h3>
+    <div class="sandbox-controls">
+      <div class="knob">
+        <label>B (batch)</label>
+        <input type="number" id="sB" value="2" min="1" max="64" step="1">
+      </div>
+      <div class="knob">
+        <label>T (seq len)</label>
+        <input type="number" id="sT" value="8" min="1" max="2048" step="1">
+      </div>
+      <div class="knob">
+        <label>d_model</label>
+        <input type="number" id="sD" value="512" min="8" max="8192" step="8">
+      </div>
+      <div class="knob">
+        <label>h (heads)</label>
+        <input type="number" id="sH" value="8" min="1" max="64" step="1">
+      </div>
+      <div class="knob derived">
+        <label>d_k = d_model/h</label>
+        <input type="text" id="sK" value="64" disabled>
+      </div>
+      <div class="knob derived">
+        <label>d_ff = 4·d_model</label>
+        <input type="text" id="sFF" value="2048" disabled>
+      </div>
+    </div>
+    <div id="sandboxWarn" style="display:none; margin: 4px 0 10px; color: var(--bad); font-size: 13px; font-family: ui-monospace, monospace;"></div>
+
+    <div class="legend">
+      <span><span class="dot" style="background: var(--dim-b)"></span> B</span>
+      <span><span class="dot" style="background: var(--dim-t)"></span> T</span>
+      <span><span class="dot" style="background: var(--dim-d)"></span> d_model</span>
+      <span><span class="dot" style="background: var(--dim-h)"></span> h</span>
+      <span><span class="dot" style="background: var(--dim-k)"></span> d_k</span>
+      <span><span class="dot" style="background: var(--dim-ff)"></span> d_ff</span>
+      <span style="margin-left: auto;">orange highlight = dim changed from prev stage</span>
+    </div>
+
+    <div class="pipeline" id="pipeline"></div>
+
+    <div class="total-params" id="totalParams"></div>
+  </div>
+
+  <div class="note">
+    <strong>What stays constant:</strong> the input and output shapes of every encoder block
+    are identical, $[B, T, d_{model}]$. That's what makes stacking $N$ of them trivial.<br>
+    <strong>What changes inside:</strong> the tensor dilates to 4D for attention and to
+    $4\cdot d_{model}$ inside the FFN, then collapses back.
+  </div>
+
+  <h2>Famous configurations</h2>
+  <div class="grid-3">
+    <div class="step-card">
+      <h4>Transformer base</h4>
+      <p>d_model=512, h=8, d_ff=2048, N=6.<br>
+         Params per encoder block: ~3.1M.</p>
+    </div>
+    <div class="step-card">
+      <h4>BERT-base</h4>
+      <p>d_model=768, h=12, d_ff=3072, N=12.<br>
+         d_k = 64. ~7M params per block.</p>
+    </div>
+    <div class="step-card">
+      <h4>GPT-2 small</h4>
+      <p>d_model=768, h=12, d_ff=3072, N=12.<br>
+         Same shape per block as BERT-base.</p>
+    </div>
+    <div class="step-card">
+      <h4>LLaMA-7B</h4>
+      <p>d_model=4096, h=32, d_ff=11008, N=32.<br>
+         d_k = 128. SwiGLU instead of ReLU.</p>
+    </div>
+    <div class="step-card">
+      <h4>GPT-3 175B</h4>
+      <p>d_model=12288, h=96, d_ff=49152, N=96.<br>
+         d_k = 128. Huge.</p>
+    </div>
+    <div class="step-card">
+      <h4>your model</h4>
+      <p>type whatever you like above and see the shapes flow.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Practice — type the shapes</h1>
+  <p class="lead">
+    Twenty-two drills. Tab moves between blanks · Enter checks · Hint reveals all unsolved
+    blanks (click again to hide). Numbers below assume the paper's base config:
+    B=2, T_src=8, T_tgt=7, d_model=512, h=8, d_k=64, d_ff=2048, V=37000.
+  </p>
+
+  <h2>The numbers</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> If d_model = 512 and h = 8, what is d_k?</div>
+    <pre class="exercise">d_k = d_model / h = 512 / 8 = <input class="blank" data-answer="64" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> The FFN inner dim is typically what multiple of d_model? (paper choice)</div>
+    <pre class="exercise">d_ff = <input class="blank" data-answer="4" size="3" placeholder="?"> * d_model      # 2048 = ? * 512</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Scaling factor in attention. Why divide by √d_k? To prevent softmax saturation when d_k is ___.</div>
+    <pre class="exercise">scaled = scores / sqrt(d_k)   # protects gradients when d_k is <input class="blank" data-answer="large|big|high" size="7" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Softmax in attention is taken along which axis? (use the PyTorch convention)</div>
+    <pre class="exercise">A = F.softmax(scores, dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>The shapes — fill the blanks</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> After embedding lookup, the tensor has 3 dims. The new last dim is ___.</div>
+    <pre class="exercise"># ids: [B, T]
+X = embed(ids)        # [B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> After the head reshape, Q has shape [_, _, _, _].</div>
+    <pre class="exercise">Q = Q.view(B, T, h, d_k).transpose(1, 2)
+# Q.shape = [<input class="blank" data-answer="B|2" size="3" placeholder="?">, <input class="blank" data-answer="h|8" size="3" placeholder="?">, <input class="blank" data-answer="T|8" size="3" placeholder="?">, <input class="blank" data-answer="d_k|dk|64" size="5" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> The attention score matrix Q @ Kᵀ has shape [B, h, T, ___].</div>
+    <pre class="exercise">scores = Q @ K.transpose(-2, -1)
+# scores.shape = [B, h, T, <input class="blank" data-answer="T|8" size="3" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> After A @ V, before concat, shape is [B, h, T, ___].</div>
+    <pre class="exercise">head_out = A @ V
+# head_out.shape = [B, h, T, <input class="blank" data-answer="d_k|dk|d_v|64" size="5" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> After concat heads, the tensor returns to its pre-head-split shape [B, T, ___].</div>
+    <pre class="exercise">out = head_out.transpose(1, 2).reshape(B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> The first FFN linear expands d_model → d_ff. Output last-dim:</div>
+    <pre class="exercise">H = F.relu(W1(X))
+# H.shape = [B, T, <input class="blank" data-answer="d_ff|dff|2048" size="6" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>The code</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Fill in the scaled dot-product attention formula.</div>
+    <pre class="exercise">def attention(Q, K, V):
+    d_k = Q.size(-1)
+    scores = Q @ K.transpose(-2, -1) / math.sqrt(<input class="blank" data-answer="d_k|dk|64" size="5" placeholder="?">)
+    A = F.softmax(scores, dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)
+    return A @ <input class="blank" data-answer="V|v" size="3" placeholder="?">    # weighted values</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Splitting heads. Last dim becomes (h, d_k). What method "reshapes without copying"?</div>
+    <pre class="exercise">Q = Q.<input class="blank" data-answer="view|reshape" size="7" placeholder="?">(B, T, h, d_k).transpose(1, 2)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> The encoder block ends with a residual + LayerNorm. Fill the wrap.</div>
+    <pre class="exercise">x = self.ln2(x + self.<input class="blank" data-answer="ffn|mlp" size="5" placeholder="?">(x))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Total parameters of the four attention projections (Q, K, V, O), each [d_model, d_model]:</div>
+    <pre class="exercise"># 4 matrices, each d_model × d_model
+total_attn_params = <input class="blank" data-answer="4" size="3" placeholder="?"> * d_model * d_model     # = 4 * 512^2 = 1,048,576</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Decoder, output, training, inference</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> Cross-attention scores are <em>not</em> square. Their shape is [B, h, T_tgt, ___].</div>
+    <pre class="exercise">scores = Q_dec @ K_enc.transpose(-2, -1)   # [B, h, T_tgt, <input class="blank" data-answer="T_src|Tsrc|src|8" size="6" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> The decoder's <em>masked</em> self-attention zeros out positions above the diagonal so token <code>i</code> can't see token ___.</div>
+    <pre class="exercise">scores = scores.masked_fill(causal_mask, float('-inf'))   # token i sees ≤ <input class="blank" data-answer="i|i-1|itself" size="5" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> The output head projects each hidden vector to vocabulary scores. The shape goes [B, T_tgt, d_model] → [B, T_tgt, ___].</div>
+    <pre class="exercise">logits = self.lm_head(dec_out)   # [B, T_tgt, <input class="blank" data-answer="V|vocab|vocab_size" size="8" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> Training loss reduces all those logits to a single scalar via cross-entropy. Fill the call.</div>
+    <pre class="exercise">loss = F.<input class="blank" data-answer="cross_entropy|crossentropy" size="14" placeholder="?">(
+    logits.view(-1, V),    # [B*T_tgt, V]
+    labels.view(-1)        # [B*T_tgt]
+)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> Softmax + cross-entropy at the output head has a famously simple gradient. With P = softmax(z) and one-hot Y:</div>
+    <pre class="exercise">dL/dz = <input class="blank" data-answer="P-Y|P - Y|p-y|p - y" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> At inference time you only need the <em>last</em> position to pick the next token. Slice it.</div>
+    <pre class="exercise">last_logits = logits[:, <input class="blank" data-answer="-1" size="3" placeholder="?">, :]   # [B, V]
+next_id = last_logits.argmax(dim=<input class="blank" data-answer="-1" size="3" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> Sampling with temperature. Lower temp ⇒ sharper distribution. Where does temperature go?</div>
+    <pre class="exercise">probs = F.softmax(logits / <input class="blank" data-answer="temperature|T|temp" size="13" placeholder="?">, dim=-1)
+next_id = torch.multinomial(probs, 1)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> Inference wraps the loop in a context manager that disables autograd. Fill it.</div>
+    <pre class="exercise">with torch.<input class="blank" data-answer="no_grad|inference_mode" size="13" placeholder="?">():
+    memory = encoder(src_ids)
+    for _ in range(max_len):
+        ...</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>Done all twenty-two?</strong> You can now read the attention paper without losing
+    track of any tensor — encoder, decoder, output head, loss, and the inference loop. Pop over to
+    <a href="transformers.html" style="color: var(--accent);">transformers.html</a>
+    for an end-to-end walkthrough,
+    <a href="softmax-ce.html" style="color: var(--accent);">softmax-ce.html</a>
+    for the full P − Y derivation,
+    or <a href="bert.html" style="color: var(--accent);">bert.html</a>
+    to see the same shapes inside the BERT-base config.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Click anywhere to dismiss.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Browser-side</strong> — every shape and parameter
+  count in the live sandbox is computed in JavaScript on each keystroke. No server, no
+  Python, no PyTorch import needed. Companion to
+  <a href="transformers.html">transformers.html</a> · ⚡ 16 stages, one tensor
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'clean.', 'tensor approved.', 'shapes line up.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check the dim.', 'red. try once more.', 'shapes don\'t match.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter handling inside blanks
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#fb923c','#f59e0b','#fbbf24','#4ade80','#7dd3fc','#c4b5fd','#f472b6','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== HELP ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'inputs','3':'attn','4':'ffn','5':'decoder','6':'output','7':'training','8':'inference','9':'sandbox','0':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== LIVE SHAPE SANDBOX ==============
+// Each stage produces a list of dim cells: {label, value, kind: 'b'|'t'|'d'|'h'|'k'|'ff', extra?}
+// `kind` controls color. `changed` is computed by diffing against previous stage's flat key list.
+
+function fmt(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(n);
+}
+
+function buildStages(B, T, D, h) {
+  const dk = D / h;
+  const dff = 4 * D;
+
+  // helper to make a shape pill data structure
+  // dims: [ { kind, label, value } ]
+  const stages = [];
+
+  function S(idx, name, dims, params, section, meta) {
+    stages.push({ idx, name, dims, params, section, meta });
+  }
+
+  S(1,  'Token IDs',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}],
+     0, 'emb', 'int32 indices into vocab');
+
+  S(2,  'Embedding lookup',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     null, 'emb', 'E[ids] · row per ID');     // params: vocab-dependent, skip
+
+  S(3,  '+ Positional encoding',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     0, 'emb', 'fixed sinusoidal · same shape');
+
+  S(4,  'Q, K, V projections',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     3 * D * D, 'attn', '×3 (Q, K, V)');
+
+  S(5,  'Reshape for heads',
+     [{kind:'b', label:'B', value: B}, {kind:'h', label:'h', value: h}, {kind:'t', label:'T', value: T}, {kind:'k', label:'d_k', value: dk}],
+     0, 'attn', 'view + transpose · param-free');
+
+  S(6,  'Q @ Kᵀ',
+     [{kind:'b', label:'B', value: B}, {kind:'h', label:'h', value: h}, {kind:'t', label:'T', value: T}, {kind:'t', label:'T', value: T}],
+     0, 'attn', 'pairwise scores per head');
+
+  S(7,  'Scale by 1/√d_k',
+     [{kind:'b', label:'B', value: B}, {kind:'h', label:'h', value: h}, {kind:'t', label:'T', value: T}, {kind:'t', label:'T', value: T}],
+     0, 'attn', '÷ √' + dk + ' = ' + (1/Math.sqrt(dk)).toFixed(4));
+
+  S(8,  'Softmax (last axis)',
+     [{kind:'b', label:'B', value: B}, {kind:'h', label:'h', value: h}, {kind:'t', label:'T', value: T}, {kind:'t', label:'T', value: T}],
+     0, 'attn', 'rows sum to 1');
+
+  S(9,  'Attn @ V',
+     [{kind:'b', label:'B', value: B}, {kind:'h', label:'h', value: h}, {kind:'t', label:'T', value: T}, {kind:'k', label:'d_k', value: dk}],
+     0, 'attn', 'weighted sum of values');
+
+  S(10, 'Concat heads',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     0, 'attn', 'transpose + reshape · param-free');
+
+  S(11, 'Output projection W_O',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     D * D, 'attn', '[d_model, d_model]');
+
+  S(12, 'Residual + LayerNorm',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     2 * D, 'attn', 'γ, β each [d_model]');
+
+  S(13, 'FFN linear 1',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'ff', label:'d_ff', value: dff}],
+     D * dff, 'ffn', 'd_model → d_ff (=4·d_model)');
+
+  S(14, 'ReLU',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'ff', label:'d_ff', value: dff}],
+     0, 'ffn', 'param-free · same shape');
+
+  S(15, 'FFN linear 2',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     dff * D, 'ffn', 'd_ff → d_model');
+
+  S(16, 'Residual + LayerNorm',
+     [{kind:'b', label:'B', value: B}, {kind:'t', label:'T', value: T}, {kind:'d', label:'d_model', value: D}],
+     2 * D, 'ffn', 'γ, β each [d_model]');
+
+  return stages;
+}
+
+// Compute which dims changed vs previous stage (by position+value)
+function diffDims(prev, curr) {
+  // returns array of booleans matching curr.dims length
+  if (!prev) return curr.dims.map(() => false);
+  const changed = [];
+  // If different number of dims, treat all as changed
+  if (prev.dims.length !== curr.dims.length) {
+    return curr.dims.map(() => true);
+  }
+  for (let i = 0; i < curr.dims.length; i++) {
+    const p = prev.dims[i], c = curr.dims[i];
+    changed.push(p.kind !== c.kind || p.value !== c.value);
+  }
+  return changed;
+}
+
+function renderShape(dims, changedFlags) {
+  // returns DOM element
+  const span = document.createElement('span');
+  span.className = 'shape';
+  const open = document.createElement('span');
+  open.className = 'br'; open.textContent = '['; span.appendChild(open);
+
+  dims.forEach((d, i) => {
+    if (i > 0) {
+      const comma = document.createElement('span');
+      comma.className = 'br'; comma.textContent = ', '; span.appendChild(comma);
+    }
+    const lab = document.createElement('span');
+    lab.className = 'lbl'; lab.textContent = d.label + '=';
+    span.appendChild(lab);
+    const v = document.createElement('span');
+    v.className = 'dim ' + d.kind;
+    v.textContent = d.value;
+    if (changedFlags && changedFlags[i]) {
+      v.style.textShadow = '0 0 8px currentColor';
+    }
+    span.appendChild(v);
+  });
+
+  const close = document.createElement('span');
+  close.className = 'br'; close.textContent = ']'; span.appendChild(close);
+  return span;
+}
+
+function renderPipeline() {
+  const B = parseInt(document.getElementById('sB').value);
+  const T = parseInt(document.getElementById('sT').value);
+  const D = parseInt(document.getElementById('sD').value);
+  const h = parseInt(document.getElementById('sH').value);
+
+  const warn = document.getElementById('sandboxWarn');
+  const knobD = document.getElementById('sD').parentElement;
+  const knobH = document.getElementById('sH').parentElement;
+  knobD.classList.remove('bad');
+  knobH.classList.remove('bad');
+
+  // validate
+  let bad = null;
+  if (!Number.isFinite(B) || B < 1) bad = 'B must be a positive integer.';
+  else if (!Number.isFinite(T) || T < 1) bad = 'T must be a positive integer.';
+  else if (!Number.isFinite(D) || D < 1) bad = 'd_model must be a positive integer.';
+  else if (!Number.isFinite(h) || h < 1) bad = 'h must be a positive integer.';
+  else if (D % h !== 0) {
+    bad = 'd_model (' + D + ') is not divisible by h (' + h + '). d_k must be an integer.';
+    knobD.classList.add('bad');
+    knobH.classList.add('bad');
+  }
+
+  if (bad) {
+    warn.style.display = 'block';
+    warn.textContent = '⚠ ' + bad;
+    document.getElementById('sK').value = '—';
+    document.getElementById('sFF').value = '—';
+    return;
+  }
+  warn.style.display = 'none';
+
+  const dk = D / h;
+  const dff = 4 * D;
+  document.getElementById('sK').value = dk;
+  document.getElementById('sFF').value = dff;
+
+  const stages = buildStages(B, T, D, h);
+  const root = document.getElementById('pipeline');
+  root.innerHTML = '';
+
+  let totalParams = 0;
+  let prev = null;
+
+  stages.forEach((st, i) => {
+    const row = document.createElement('div');
+    row.className = 'stage';
+    row.dataset.section = st.section;
+
+    const num = document.createElement('div');
+    num.className = 'stage-num';
+    num.textContent = st.idx;
+    row.appendChild(num);
+
+    const nameWrap = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'stage-name';
+    const nameText = document.createElement('span');
+    nameText.textContent = st.name;
+    name.appendChild(nameText);
+    if (st.meta) {
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = '· ' + st.meta;
+      name.appendChild(meta);
+    }
+    nameWrap.appendChild(name);
+
+    const changed = diffDims(prev, st);
+    const shape = renderShape(st.dims, changed);
+    nameWrap.appendChild(shape);
+    row.appendChild(nameWrap);
+
+    // params
+    const params = document.createElement('div');
+    params.className = 'params';
+    if (st.params === null) {
+      params.innerHTML = '<span style="color: var(--muted);">vocab·d_model</span>';
+    } else if (st.params === 0) {
+      params.innerHTML = '<span style="color: var(--muted);">0 params</span>';
+    } else {
+      params.innerHTML = '<b>' + fmt(st.params) + '</b><span style="color: var(--muted);"> params</span>';
+      totalParams += st.params;
+    }
+    row.appendChild(params);
+
+    // arrow column for visual rhythm
+    const ar = document.createElement('div');
+    ar.style.color = 'var(--muted)';
+    ar.style.fontFamily = 'ui-monospace, monospace';
+    ar.style.fontSize = '14px';
+    ar.textContent = i < stages.length - 1 ? '↓' : '✓';
+    row.appendChild(ar);
+
+    // mark changed if any flag is true
+    if (changed.some(x => x)) row.classList.add('changed');
+
+    root.appendChild(row);
+    prev = st;
+  });
+
+  // total
+  const tp = document.getElementById('totalParams');
+  tp.innerHTML = '';
+  const left = document.createElement('div');
+  left.innerHTML = '<span style="color: var(--muted);">params per encoder block (excl. embedding):</span> <b>' + fmt(totalParams) + '</b>';
+  const right = document.createElement('div');
+  right.style.color = 'var(--muted)';
+  right.innerHTML = 'attention: <b style="color: var(--dim-h)">' + fmt(4 * D * D) + '</b> &nbsp;·&nbsp; FFN: <b style="color: var(--dim-ff)">' + fmt(2 * D * dff) + '</b>';
+  tp.appendChild(left);
+  tp.appendChild(right);
+}
+
+['sB','sT','sD','sH'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', renderPipeline);
+});
+
+// ============== INIT ==============
+renderPipeline();
+updateProgress();
+</script>
+</body>
+</html>

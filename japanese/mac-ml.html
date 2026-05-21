@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mac で MLX / PyTorch / Python — インタラクティブ・ドリル</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #121821;
+    --panel-2: #1a212c;
+    --border: #2a3340;
+    --text: #e8eef5;
+    --muted: #8a96a8;
+    --accent: #5ac8fa;       /* Apple aqua */
+    --accent-2: #c0c8d2;      /* silver */
+    --accent-warm: #a8d8ff;
+    --code-bg: #060a10;
+    --keyword: #ff7b9c;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6c7a8c;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --mlx: #5ac8fa;
+    --pyt: #ee8b4c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, #0e1622 0%, var(--bg) 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15202c 0%, #0a0e14 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(120deg, #fff 0%, var(--accent) 60%, var(--accent-2) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .logo .apple {
+    color: var(--accent-2);
+    -webkit-text-fill-color: var(--accent-2);
+    font-size: 22px;
+    filter: drop-shadow(0 0 6px rgba(90, 200, 250, 0.5));
+  }
+  .badge {
+    background: linear-gradient(135deg, var(--accent), #4aa8d6);
+    color: #04121b;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    box-shadow: 0 0 10px rgba(90, 200, 250, 0.35);
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(90, 200, 250, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(90, 200, 250, 0.12);
+    border-color: rgba(90, 200, 250, 0.4);
+    box-shadow: inset 0 0 12px rgba(90, 200, 250, 0.08);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 {
+    font-size: 30px; margin: 0 0 8px;
+    letter-spacing: -0.5px;
+    background: linear-gradient(120deg, #fff 0%, var(--accent-2) 80%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+    letter-spacing: -0.2px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(90, 200, 250, 0.4);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: linear-gradient(135deg, var(--accent), #3aa9d8);
+    color: #04121b;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #04121b; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(90, 200, 250, 0.25);
+    background: rgba(90, 200, 250, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: linear-gradient(135deg, var(--accent), #3aa9d8);
+    color: #04121b;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+    box-shadow: 0 0 12px rgba(90, 200, 250, 0.18);
+  }
+  .btn:hover { filter: brightness(1.1); box-shadow: 0 0 16px rgba(90, 200, 250, 0.35); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(90, 200, 250, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* Comparison table */
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13.5px;
+    background: var(--panel);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table.compare th, table.compare td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+  table.compare thead th {
+    background: var(--panel-2);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+  }
+  table.compare thead th.mlx-col { color: var(--mlx); }
+  table.compare thead th.pyt-col { color: var(--pyt); }
+  table.compare tbody tr:last-child td { border-bottom: none; }
+  table.compare td.label { color: var(--muted); font-weight: 600; width: 22%; }
+  table.compare td code {
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--tag);
+  }
+
+  .tag-mlx, .tag-pyt {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    font-family: ui-monospace, monospace;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .tag-mlx { background: rgba(90, 200, 250, 0.15); color: var(--mlx); }
+  .tag-pyt { background: rgba(238, 139, 76, 0.15); color: var(--pyt); }
+
+  /* Mac chip diagram */
+  .chip-card {
+    background:
+      radial-gradient(ellipse at top right, rgba(90, 200, 250, 0.08), transparent 60%),
+      var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .chip-card h3 {
+    margin: 0 0 12px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .chip-svg {
+    display: block;
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    margin: 0 auto;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  /* Project card */
+  .project-card {
+    background: linear-gradient(135deg, rgba(90,200,250,0.08), rgba(192,200,210,0.02));
+    border: 1px solid rgba(90, 200, 250, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(90, 200, 250, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(90, 200, 250, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.silver { background: rgba(192,200,210,0.12); color: var(--accent-2); }
+  .pill.warm { background: rgba(238, 139, 76, 0.15); color: var(--pyt); }
+
+  /* Tip list */
+  .tip-row {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .tip-row:last-child { border-bottom: none; }
+  .tip-row .icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #3aa9d8);
+    color: #04121b;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px;
+    box-shadow: 0 0 10px rgba(90, 200, 250, 0.3);
+  }
+  .tip-row .body strong { color: var(--text); }
+  .tip-row .body { font-size: 13.5px; color: var(--muted); }
+  .tip-row .body code { color: var(--tag); font-family: ui-monospace, monospace; font-size: 12.5px; }
+
+  .row-flex {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="apple"></span> Mac ML <span class="badge">MLX · MPS · Python</span>
+    </div>
+    <div class="progress-bar-outer" title="全体の進捗">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="完了したエクササイズ">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">解決</span>
+    </div>
+    <div class="streak" title="連続正解">
+      <span class="flame-mini"></span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. はじめに</button>
+    <button data-tab="python">2. Python セットアップ</button>
+    <button data-tab="mps">3. PyTorch + MPS</button>
+    <button data-tab="mlx">4. MLX 入門</button>
+    <button data-tab="compare">5. MLX vs PyTorch</button>
+    <button data-tab="mlxlm">6. mlx-lm</button>
+    <button data-tab="perf">7. パフォーマンス Tips</button>
+    <button data-tab="drills">8. ドリル</button>
+    <button data-tab="project">9. ミニプロジェクト</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>Mac を ML ワークステーションに</h1>
+  <p class="lead">
+    Apple Silicon (M1/M2/M3/M4) は本格的な ML マシン。あなたの IDE を動かすのと同じチップで、
+    Transformer の学習、LoRA のファインチューニング、7B パラメータモデルのローカルサービングが
+    できます — GPU レンタル不要、<code>nvidia-smi</code> 不要。このページで必要な 3 つのツールを
+    打ち込んで覚えましょう:
+    <span class="pill silver">arm64 の Python</span>
+    <span class="pill">PyTorch + MPS</span>
+    <span class="pill">MLX</span>
+    。
+  </p>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Unified memory</div></div>
+      <div class="card-body">
+        On Apple Silicon, CPU and GPU share the same RAM. No <code>cuda</code> copies, no
+        <code>.to(device)</code> bottlenecks. A model that fits in 16 GB just <em>runs</em>,
+        whether you call it from PyTorch (MPS) or MLX.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">PyTorch on Mac</div></div>
+      <div class="card-body">
+        Full PyTorch with the <strong>MPS</strong> backend (Metal Performance Shaders).
+        Same API as everywhere else — just swap <code>cuda</code> for <code>mps</code>.
+        Most ops work; rare ones fall back to CPU.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">MLX</div></div>
+      <div class="card-body">
+        Apple's array framework, built from scratch for Apple Silicon. NumPy-like,
+        lazy by default, automatic differentiation, native LLM tooling. Smaller, faster,
+        Mac-native.
+      </div>
+    </div>
+  </div>
+
+  <h2>What you'll get</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="tip-row"><div class="icon">1</div><div class="body"><strong>A clean arm64 Python.</strong> Verified native, in a virtual environment, ready for ML packages.</div></div>
+      <div class="tip-row"><div class="icon">2</div><div class="body"><strong>PyTorch on the GPU.</strong> The exact <code>device = torch.device("mps" if ...)</code> incantation.</div></div>
+      <div class="tip-row"><div class="icon">3</div><div class="body"><strong>MLX hello-world.</strong> Linear regression that uses <code>mx.value_and_grad</code> and <code>mx.eval</code> the right way.</div></div>
+      <div class="tip-row"><div class="icon">4</div><div class="body"><strong>Local LLMs.</strong> One <code>mlx_lm.generate</code> command and you're chatting with a 7B model from the terminal.</div></div>
+      <div class="tip-row"><div class="icon">5</div><div class="body"><strong>A decision rule.</strong> Side-by-side table: when to pick MLX vs PyTorch.</div></div>
+    </div>
+  </div>
+
+  <h2>The Mac ML stack at a glance</h2>
+  <div class="chip-card">
+    <h3>chip → frameworks → workloads</h3>
+    <svg class="chip-svg" viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="chipGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#5ac8fa" stop-opacity="0.3"/>
+          <stop offset="1" stop-color="#c0c8d2" stop-opacity="0.05"/>
+        </linearGradient>
+        <linearGradient id="mlxGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#5ac8fa" stop-opacity="0.6"/>
+          <stop offset="1" stop-color="#5ac8fa" stop-opacity="0.15"/>
+        </linearGradient>
+        <linearGradient id="pytGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ee8b4c" stop-opacity="0.6"/>
+          <stop offset="1" stop-color="#ee8b4c" stop-opacity="0.15"/>
+        </linearGradient>
+      </defs>
+      <!-- chip -->
+      <rect x="280" y="20" width="160" height="80" rx="12" fill="url(#chipGrad)" stroke="#5ac8fa" stroke-width="1.5"/>
+      <text x="360" y="50" text-anchor="middle" fill="#e8eef5" font-size="13" font-weight="700" font-family="ui-monospace, monospace">Apple Silicon</text>
+      <text x="360" y="68" text-anchor="middle" fill="#8a96a8" font-size="11" font-family="ui-monospace, monospace">CPU + GPU + Neural Engine</text>
+      <text x="360" y="86" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">unified memory</text>
+      <!-- branches -->
+      <line x1="350" y1="100" x2="180" y2="150" stroke="#5ac8fa" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <line x1="370" y1="100" x2="540" y2="150" stroke="#ee8b4c" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <!-- MLX framework -->
+      <rect x="80" y="150" width="200" height="50" rx="10" fill="url(#mlxGrad)" stroke="#5ac8fa"/>
+      <text x="180" y="175" text-anchor="middle" fill="#5ac8fa" font-size="14" font-weight="800" font-family="ui-monospace, monospace">MLX</text>
+      <text x="180" y="192" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">native · lazy · NumPy-like</text>
+      <!-- PyTorch framework -->
+      <rect x="440" y="150" width="200" height="50" rx="10" fill="url(#pytGrad)" stroke="#ee8b4c"/>
+      <text x="540" y="175" text-anchor="middle" fill="#ee8b4c" font-size="14" font-weight="800" font-family="ui-monospace, monospace">PyTorch (MPS)</text>
+      <text x="540" y="192" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">universal · cross-platform</text>
+      <!-- workloads -->
+      <line x1="180" y1="200" x2="180" y2="225" stroke="#5ac8fa" stroke-width="1"/>
+      <line x1="540" y1="200" x2="540" y2="225" stroke="#ee8b4c" stroke-width="1"/>
+      <text x="180" y="245" text-anchor="middle" fill="#e8eef5" font-size="11.5" font-family="ui-monospace, monospace">mlx_lm · LoRA · custom kernels</text>
+      <text x="180" y="261" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">research · LLM serving on Mac</text>
+      <text x="540" y="245" text-anchor="middle" fill="#e8eef5" font-size="11.5" font-family="ui-monospace, monospace">torchvision · HuggingFace · diffusers</text>
+      <text x="540" y="261" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">port from CUDA · existing code</text>
+    </svg>
+  </div>
+
+  <div class="note">
+    <strong>How to use this page:</strong> read each section, then type into the
+    <span class="pill">blanks</span> (Tab moves to next, Enter checks). Hit each one with the
+    right token and the page scores you, with a streak counter and a final mini-project that
+    runs an MLX-style training loop in your browser.
+  </div>
+</section>
+
+<!-- ========================= PYTHON ========================= -->
+<section class="tab-section" id="tab-python">
+  <h1>Python on Mac (arm64)</h1>
+  <p class="lead">
+    The single biggest source of Mac ML pain is using an <strong>x86_64</strong> Python under
+    Rosetta 2 by accident — wheels that should be GPU-accelerated silently run on emulated x86.
+    Verify <code>arm64</code>, then live in a venv.
+  </p>
+
+  <h2>Three ways to get Python — pick one</h2>
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="pill silver">recommended</span> uv</div></div>
+      <div class="card-body">
+        Rust-based, fast, drop-in replacement for pip + pyenv + venv. One binary.
+        <pre class="code"><code>brew install uv
+uv python install <span class="tok-n">3.11</span>
+uv venv .venv
+<span class="tok-k">source</span> .venv/bin/activate</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pyenv</div></div>
+      <div class="card-body">
+        The classic way to manage multiple Python versions per project.
+        <pre class="code"><code>brew install pyenv
+pyenv install <span class="tok-n">3.11</span>
+pyenv local <span class="tok-n">3.11</span>
+python -m venv .venv</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">python.org</div></div>
+      <div class="card-body">
+        Download the universal2 installer from python.org. Simple, no Homebrew needed.
+        <pre class="code"><code><span class="tok-c"># after running installer</span>
+python3 -m venv .venv
+<span class="tok-k">source</span> .venv/bin/activate
+python --version</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h2>Verify arm64 — never skip this</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">two checks that tell you the truth</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. shell architecture</span>
+arch
+<span class="tok-c"># expected: arm64   (NOT i386)</span>
+
+<span class="tok-c"># 2. python's own report</span>
+python -c <span class="tok-s">"import platform; print(platform.machine())"</span>
+<span class="tok-c"># expected: arm64</span>
+
+<span class="tok-c"># 3. which python is this anyway?</span>
+which python
+file $(which python)
+<span class="tok-c"># expected: ...arm64</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>If it says <code>x86_64</code> or <code>i386</code></strong>: your Terminal app
+    is running under Rosetta. Right-click Terminal in Finder → Get Info → uncheck
+    "Open using Rosetta". Or use a fresh Terminal/iTerm install.
+  </div>
+
+  <h2>The venv ritual</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">always work inside one</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># create</span>
+python -m venv .venv
+
+<span class="tok-c"># activate (zsh / bash)</span>
+<span class="tok-k">source</span> .venv/bin/activate
+
+<span class="tok-c"># install</span>
+pip install --upgrade pip
+pip install torch numpy mlx
+
+<span class="tok-c"># deactivate when done</span>
+deactivate</code></pre>
+  </div>
+
+  <h2>Try it</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Confirm Python is running native arm64.</div>
+    <pre class="exercise">python -c "import platform; print(platform.<input class="blank" data-answer="machine" size="9" placeholder="?">())"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Activate a venv created in <code>.venv</code> (zsh/bash):</div>
+    <pre class="exercise">source .venv/bin/<input class="blank" data-answer="activate" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Create a virtual environment in <code>.venv</code>:</div>
+    <pre class="exercise">python -m <input class="blank" data-answer="venv" size="6" placeholder="?"> .venv</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= PYTORCH MPS ========================= -->
+<section class="tab-section" id="tab-mps">
+  <h1>PyTorch + MPS — the GPU on your Mac</h1>
+  <p class="lead">
+    Since PyTorch 1.12 (May 2022), the <strong>MPS</strong> backend uses Apple's
+    Metal Performance Shaders to run tensor ops on the integrated GPU. Same PyTorch API,
+    Mac-flavored device.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">install</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># the regular pytorch wheel for mac is mps-enabled</span>
+pip install torch torchvision
+
+<span class="tok-c"># nightlies usually have better mps coverage</span>
+pip install --pre torch torchvision \
+    --index-url https://download.pytorch.org/whl/nightly/cpu</code></pre>
+  </div>
+
+  <h2>The device dance</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">portable code that picks the best device</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+
+<span class="tok-c"># works on Mac (mps), Linux (cuda), and CPU-only boxes</span>
+device = torch.device(
+    <span class="tok-s">"mps"</span>  <span class="tok-k">if</span> torch.backends.mps.is_available() <span class="tok-k">else</span>
+    <span class="tok-s">"cuda"</span> <span class="tok-k">if</span> torch.cuda.is_available()        <span class="tok-k">else</span>
+    <span class="tok-s">"cpu"</span>
+)
+
+x = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>).to(device)
+W = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>).to(device)
+y = x @ W                         <span class="tok-c"># runs on Apple GPU</span>
+<span class="tok-f">print</span>(y.device)                  <span class="tok-c"># mps:0</span></code></pre>
+  </div>
+
+  <h2>The CPU-fallback escape hatch</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">when an op isn't yet implemented for MPS</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># export this BEFORE python starts (or set in Python before importing torch)</span>
+<span class="tok-k">export</span> PYTORCH_ENABLE_MPS_FALLBACK=<span class="tok-n">1</span>
+
+<span class="tok-c"># or, in code:</span>
+<span class="tok-k">import</span> <span class="tok-t">os</span>
+os.environ[<span class="tok-s">"PYTORCH_ENABLE_MPS_FALLBACK"</span>] = <span class="tok-s">"1"</span>
+<span class="tok-k">import</span> <span class="tok-t">torch</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>What this does:</strong> if PyTorch hits an op that's not yet ported to MPS, it
+    silently falls back to CPU instead of crashing. Slower, but your code finishes. As of
+    PyTorch 2.x most common ops work — fallback is rare.
+  </div>
+
+  <h2>Tiny end-to-end example</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">a 1-layer MLP, trained on noise, on the GPU</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+
+device = torch.device(<span class="tok-s">"mps"</span> <span class="tok-k">if</span> torch.backends.mps.is_available() <span class="tok-k">else</span> <span class="tok-s">"cpu"</span>)
+
+X = torch.randn(<span class="tok-n">256</span>, <span class="tok-n">8</span>, device=device)
+y = torch.randn(<span class="tok-n">256</span>, <span class="tok-n">1</span>, device=device)
+
+model = nn.Sequential(
+    nn.Linear(<span class="tok-n">8</span>, <span class="tok-n">32</span>), nn.ReLU(),
+    nn.Linear(<span class="tok-n">32</span>, <span class="tok-n">1</span>),
+).to(device)
+
+opt = torch.optim.Adam(model.parameters(), lr=<span class="tok-n">1e-3</span>)
+loss_fn = nn.MSELoss()
+
+<span class="tok-k">for</span> step <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">200</span>):
+    pred = model(X)
+    loss = loss_fn(pred, y)
+    opt.zero_grad(); loss.backward(); opt.step()
+
+<span class="tok-f">print</span>(<span class="tok-s">"final loss"</span>, loss.item())</code></pre>
+  </div>
+
+  <h2>Try it</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Pick the Apple GPU on Mac, fall back to CPU otherwise. Type the device string.</div>
+    <pre class="exercise">device = torch.device("<input class="blank" data-answer="mps" size="5" placeholder="?">" if torch.backends.mps.is_available() else "cpu")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> The env var that lets unsupported MPS ops fall back to CPU:</div>
+    <pre class="exercise">export <input class="blank" data-answer="PYTORCH_ENABLE_MPS_FALLBACK" size="32" placeholder="?">=1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> The PyTorch namespace for Mac GPU availability:</div>
+    <pre class="exercise">if torch.backends.<input class="blank" data-answer="mps" size="5" placeholder="?">.is_available():
+    print("Apple GPU ready")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Move a tensor to the chosen device:</div>
+    <pre class="exercise">x = torch.randn(64, 64).<input class="blank" data-answer="to" size="4" placeholder="?">(device)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MLX ========================= -->
+<section class="tab-section" id="tab-mlx">
+  <h1>MLX — Apple's array framework</h1>
+  <p class="lead">
+    <strong>MLX</strong> is Apple's research framework for machine learning on Apple Silicon.
+    Think NumPy meets JAX with PyTorch ergonomics. It's lazy, supports automatic differentiation,
+    and exploits unified memory natively. Designed for the Mac, by the team that ships the Mac.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">install</div>
+        <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+      </div>
+      <pre class="code"><code><span class="tok-c"># core array library</span>
+pip install mlx
+
+<span class="tok-c"># LLM helpers (mlx_lm)</span>
+pip install mlx-lm</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">imports you'll always type</div>
+        <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+      </div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <span class="tok-t">mx</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.nn</span>   <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.optimizers</span> <span class="tok-k">as</span> <span class="tok-t">optim</span></code></pre>
+    </div>
+  </div>
+
+  <h2>Three ideas you must internalize</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="tip-row">
+        <div class="icon">L</div>
+        <div class="body">
+          <strong>Lazy by default.</strong> <code>mx</code> ops build a graph. Nothing computes
+          until you call <code>mx.eval(x)</code> or read a value (e.g. <code>print</code>,
+          <code>numpy()</code>). This lets MLX fuse + schedule.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">U</div>
+        <div class="body">
+          <strong>Unified memory, not "device".</strong> No <code>.to(device)</code>.
+          Arrays live in shared memory; ops can run on CPU or GPU automatically.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">A</div>
+        <div class="body">
+          <strong>Autograd is functional.</strong> Use <code>mx.grad(fn)</code> or
+          <code>mx.value_and_grad(fn)</code> — they return a function that returns gradients.
+          No <code>.backward()</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Hello-world: linear regression in MLX</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">fit y = 2x + 1, with autograd, in 25 lines</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <span class="tok-t">mx</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.nn</span>   <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.optimizers</span> <span class="tok-k">as</span> <span class="tok-t">optim</span>
+
+<span class="tok-c"># synthetic data: y = 2x + 1 + noise</span>
+mx.random.seed(<span class="tok-n">0</span>)
+X = mx.random.normal((<span class="tok-n">100</span>, <span class="tok-n">1</span>))
+y = <span class="tok-n">2.0</span> * X + <span class="tok-n">1.0</span> + <span class="tok-n">0.1</span> * mx.random.normal((<span class="tok-n">100</span>, <span class="tok-n">1</span>))
+
+<span class="tok-c"># model = a single Linear layer</span>
+model = nn.Linear(<span class="tok-n">1</span>, <span class="tok-n">1</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">loss_fn</span>(model, X, y):
+    pred = model(X)
+    <span class="tok-k">return</span> mx.mean((pred - y) ** <span class="tok-n">2</span>)
+
+loss_and_grad = nn.value_and_grad(model, loss_fn)
+opt = optim.SGD(learning_rate=<span class="tok-n">0.1</span>)
+
+<span class="tok-k">for</span> step <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">200</span>):
+    loss, grads = loss_and_grad(model, X, y)
+    opt.update(model, grads)
+    mx.eval(model.parameters(), opt.state)   <span class="tok-c"># force computation</span>
+
+<span class="tok-f">print</span>(model.weight.item(), model.bias.item())   <span class="tok-c"># ≈ 2.0, 1.0</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>The <code>mx.eval</code> trick:</strong> because MLX is lazy, gradients are not
+    actually computed until you ask. Call <code>mx.eval(model.parameters(), opt.state)</code>
+    once per training step to materialize them — otherwise the graph keeps growing.
+  </div>
+
+  <h2>Try it</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> The conventional alias for the MLX core module:</div>
+    <pre class="exercise">import mlx.core as <input class="blank" data-answer="mx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> Force a lazy graph to actually compute:</div>
+    <pre class="exercise">y = mx.matmul(A, B)
+mx.<input class="blank" data-answer="eval" size="6" placeholder="?">(y)   # now y is materialized</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> Build a function that returns the gradient of <code>loss_fn</code> w.r.t. its first arg:</div>
+    <pre class="exercise">grad_fn = mx.<input class="blank" data-answer="grad" size="6" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Get the loss <em>and</em> the gradient in one call:</div>
+    <pre class="exercise">loss_and_grad = mx.<input class="blank" data-answer="value_and_grad" size="16" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= COMPARE ========================= -->
+<section class="tab-section" id="tab-compare">
+  <h1>MLX vs PyTorch — when to use which</h1>
+  <p class="lead">
+    Both are excellent on Apple Silicon. They overlap a lot. Here's how to decide.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th></th>
+        <th class="mlx-col">MLX</th>
+        <th class="pyt-col">PyTorch (MPS)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label">Designed for</td>
+        <td><span class="tag-mlx">apple silicon</span> Mac-only, native</td>
+        <td><span class="tag-pyt">universal</span> Mac · Linux · Windows · CUDA</td>
+      </tr>
+      <tr>
+        <td class="label">API style</td>
+        <td>NumPy + functional autograd (JAX-like)</td>
+        <td>NumPy + <code>nn.Module</code> + <code>.backward()</code></td>
+      </tr>
+      <tr>
+        <td class="label">Execution</td>
+        <td>Lazy — <code>mx.eval()</code> to materialize</td>
+        <td>Eager (default); <code>torch.compile</code> opt-in</td>
+      </tr>
+      <tr>
+        <td class="label">Memory model</td>
+        <td>Unified — no device dance</td>
+        <td>Device-explicit — <code>.to("mps")</code></td>
+      </tr>
+      <tr>
+        <td class="label">Op coverage</td>
+        <td>Smaller library — growing fast</td>
+        <td>Huge — almost everything works (some MPS gaps)</td>
+      </tr>
+      <tr>
+        <td class="label">LLM serving</td>
+        <td><code>mlx_lm</code> — quantization, LoRA, generate, server</td>
+        <td>Use <code>transformers</code> + <code>accelerate</code></td>
+      </tr>
+      <tr>
+        <td class="label">Ecosystem</td>
+        <td>Young — <code>mlx-community</code> on HF, growing tooling</td>
+        <td>Massive — torchvision, HuggingFace, lightning, etc.</td>
+      </tr>
+      <tr>
+        <td class="label">Performance on M-series</td>
+        <td>Often fastest (native + lazy fusion)</td>
+        <td>Excellent, sometimes faster on heavy CNN ops</td>
+      </tr>
+      <tr>
+        <td class="label">Debugging</td>
+        <td>Lazy makes printing tricky — call <code>eval</code></td>
+        <td>Eager — print anywhere, just works</td>
+      </tr>
+      <tr>
+        <td class="label">Pick it when</td>
+        <td>Local LLM work, Mac-targeted research, peak Apple perf</td>
+        <td>Porting CUDA code, using existing HF model, cross-platform</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-mlx">MLX</span> — pick when…</div></div>
+      <div class="card-body">
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.9;">
+          <li>You're running Llama-class LLMs locally</li>
+          <li>You want to LoRA-fine-tune on your laptop</li>
+          <li>You like JAX-style functional code</li>
+          <li>Your project is Mac-only — no CUDA target</li>
+          <li>You want minimal dependencies + fast startup</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-pyt">PyTorch</span> — pick when…</div></div>
+      <div class="card-body">
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.9;">
+          <li>You're porting existing PyTorch code from CUDA</li>
+          <li>You need <code>torchvision</code> / <code>diffusers</code> / <code>transformers</code></li>
+          <li>You'll deploy to Linux GPUs later</li>
+          <li>You want the largest community / docs / Stack Overflow</li>
+          <li>You need niche layers (e.g. complex spectral ops)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>Same task, both frameworks</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-mlx">MLX</span> matmul</div></div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <span class="tok-t">mx</span>
+
+A = mx.random.normal((<span class="tok-n">1024</span>, <span class="tok-n">1024</span>))
+B = mx.random.normal((<span class="tok-n">1024</span>, <span class="tok-n">1024</span>))
+C = A @ B
+mx.eval(C)
+<span class="tok-f">print</span>(C.shape)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-pyt">PyTorch</span> matmul</div></div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+
+dev = <span class="tok-s">"mps"</span> <span class="tok-k">if</span> torch.backends.mps.is_available() <span class="tok-k">else</span> <span class="tok-s">"cpu"</span>
+A = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>, device=dev)
+B = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>, device=dev)
+C = A @ B
+<span class="tok-f">print</span>(C.shape)</code></pre>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Honest answer:</strong> for most beginners on Mac the right answer is "use both."
+    Start in PyTorch (everything is documented), and reach for MLX when you want maximum Mac
+    performance for LLMs.
+  </div>
+</section>
+
+<!-- ========================= MLX-LM ========================= -->
+<section class="tab-section" id="tab-mlxlm">
+  <h1>mlx-lm — local LLMs in one command</h1>
+  <p class="lead">
+    <code>mlx-lm</code> is a companion package that ships ready-to-run LLM scripts:
+    <code>generate</code> for inference, <code>lora</code> for fine-tuning,
+    <code>server</code> for an OpenAI-compatible HTTP API. The <a href="https://huggingface.co/mlx-community" style="color: var(--accent);">mlx-community</a>
+    org on Hugging Face hosts hundreds of pre-converted, quantized models.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">install</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code>pip install mlx-lm</code></pre>
+  </div>
+
+  <h2>Generate from any mlx-community model</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">one-shot CLI</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># downloads + caches on first run</span>
+python -m mlx_lm.generate \
+    --model mlx-community/Llama-3.2-3B-Instruct-4bit \
+    --prompt <span class="tok-s">"Explain unified memory in one sentence."</span> \
+    --max-tokens <span class="tok-n">200</span></code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">from Python</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">mlx_lm</span> <span class="tok-k">import</span> load, generate
+
+model, tokenizer = load(<span class="tok-s">"mlx-community/Llama-3.2-3B-Instruct-4bit"</span>)
+
+response = generate(
+    model, tokenizer,
+    prompt=<span class="tok-s">"Write a haiku about Apple Silicon."</span>,
+    max_tokens=<span class="tok-n">100</span>,
+)
+<span class="tok-f">print</span>(response)</code></pre>
+  </div>
+
+  <h2>Fine-tune with LoRA</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">prepare jsonl, run lora</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># data/train.jsonl — one {"text": "..."} per line</span>
+
+python -m mlx_lm.lora \
+    --model mlx-community/Mistral-7B-Instruct-v0.3-4bit \
+    --train \
+    --data ./data \
+    --iters <span class="tok-n">600</span> \
+    --batch-size <span class="tok-n">4</span> \
+    --lora-layers <span class="tok-n">8</span></code></pre>
+  </div>
+
+  <h2>OpenAI-compatible server</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">drop-in for any OpenAI client</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code>python -m mlx_lm.server \
+    --model mlx-community/Llama-3.2-3B-Instruct-4bit \
+    --port <span class="tok-n">8080</span>
+
+<span class="tok-c"># elsewhere:</span>
+curl http://localhost:8080/v1/chat/completions \
+    -H <span class="tok-s">"Content-Type: application/json"</span> \
+    -d <span class="tok-s">'{"messages":[{"role":"user","content":"hi"}]}'</span></code></pre>
+  </div>
+
+  <h2>Try it</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Generate text from a model in one CLI call:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="generate" size="10" placeholder="?"> --model mlx-community/Llama-3.2-3B-Instruct-4bit --prompt "hi"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> Run a LoRA fine-tune via the mlx-lm CLI:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="lora" size="6" placeholder="?"> --model mlx-community/Mistral-7B-Instruct-v0.3-4bit --train --data ./data</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Load a model and tokenizer in Python (from mlx_lm):</div>
+    <pre class="exercise">from mlx_lm import <input class="blank" data-answer="load" size="6" placeholder="?">, generate
+model, tokenizer = load("mlx-community/Llama-3.2-3B-Instruct-4bit")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>Tip:</strong> the <code>-4bit</code> suffix on most <code>mlx-community</code>
+    models means 4-bit quantization. A 7B model in 4-bit fits comfortably in 8 GB RAM and
+    runs at usable speeds on M1/M2/M3.
+  </div>
+</section>
+
+<!-- ========================= PERFORMANCE ========================= -->
+<section class="tab-section" id="tab-perf">
+  <h1>Performance tips for Mac ML</h1>
+  <p class="lead">
+    A handful of habits separates fast Mac ML from slow Mac ML. Most are about respecting
+    unified memory and avoiding unnecessary work.
+  </p>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="tip-row">
+        <div class="icon">1</div>
+        <div class="body">
+          <strong>Stay arm64 end-to-end.</strong> One Rosetta dependency contaminates the chain.
+          <code>file $(which python)</code> should report arm64. Same for <code>brew --prefix</code>
+          (it should be <code>/opt/homebrew</code>, not <code>/usr/local</code>).
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">2</div>
+        <div class="body">
+          <strong>Pin a recent PyTorch.</strong> MPS support improves every release. Aim for
+          PyTorch <code>2.3+</code>. The nightlies often have op coverage the stable hasn't shipped.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">3</div>
+        <div class="body">
+          <strong>Batch your <code>mx.eval</code>.</strong> Don't call it after every op — call
+          it once per training step on the things that need to materialize:
+          <code>mx.eval(model.parameters(), opt.state)</code>.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">4</div>
+        <div class="body">
+          <strong>Quantize for inference.</strong> 4-bit cuts memory ~4x with negligible quality
+          loss for chat. Both MLX and PyTorch (via bitsandbytes — limited on Mac) support this.
+          Easiest path: pull <code>-4bit</code> models from <code>mlx-community</code>.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">5</div>
+        <div class="body">
+          <strong>Watch unified memory.</strong> The Mac shares RAM between CPU and GPU.
+          A 64 GB Mac can run 70B-ish 4-bit models; an 8 GB Mac is closer to 3B 4-bit. Activity
+          Monitor → Memory tab is your friend.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">6</div>
+        <div class="body">
+          <strong>Don't fight the lazy graph.</strong> In MLX, accumulating Python-side state
+          (e.g. <code>losses.append(loss)</code>) inside a loop without periodic <code>eval</code>
+          balloons the graph. <code>mx.eval(loss)</code> before <code>append</code>.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">7</div>
+        <div class="body">
+          <strong>Avoid CPU↔MPS round trips.</strong> Every <code>.to("cpu")</code> or
+          <code>.numpy()</code> in PyTorch costs you. Build the whole training step on-device,
+          materialize at the boundaries (logging, checkpointing).
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">8</div>
+        <div class="body">
+          <strong>Float types matter.</strong> MLX defaults to float32; <code>mx.float16</code>
+          and <code>mx.bfloat16</code> roughly halve memory and often speed inference up.
+          PyTorch: <code>torch.set_default_dtype(torch.float16)</code> or autocast.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">9</div>
+        <div class="body">
+          <strong>Use <code>torch.compile</code> selectively.</strong> On MPS it can help and it
+          can hurt — measure. Wrap only the inner forward pass and keep the outer training loop
+          as plain Python.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">10</div>
+        <div class="body">
+          <strong>Plug in.</strong> Apple Silicon is sandbagged on battery — perf-cores throttle,
+          GPU clocks drop. For benchmarks, plug in and use a high-power profile.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Common gotchas</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">"my MPS code prints inf / nan"</div></div>
+      <div class="card-body">
+        Some ops (especially older PyTorch + complex spectral ops) overflow on MPS where they
+        don't on CUDA. Try <code>PYTORCH_ENABLE_MPS_FALLBACK=1</code> and a smaller learning rate.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">"MLX is slower than expected"</div></div>
+      <div class="card-body">
+        Almost always: missing <code>mx.eval</code>. Check that you're materializing once per
+        step, not every minibatch op or worse — never until the end.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">"pip install torch fails"</div></div>
+      <div class="card-body">
+        You're on x86_64 Python under Rosetta. Switch to an arm64 Python (uv / pyenv / python.org
+        installer) and <code>file $(which python)</code> to verify.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">"my LLM hangs / OOMs"</div></div>
+      <div class="card-body">
+        4-bit quantize, drop max-tokens / context length, or pick a smaller model (3B instead of 7B).
+        Unified memory is shared with everything else on the system.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Drills — type the cheats</h1>
+  <p class="lead">
+    Mixed-bag drills that pull from every section. Tab between blanks, Enter to check, Hint
+    reveals all blanks in a drill (click again to hide). Streak bonus for not using hints.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> Verify the python interpreter is native arm64:</div>
+    <pre class="exercise">python -c "import platform; print(platform.<input class="blank" data-answer="machine" size="9" placeholder="?">())"
+# expected: arm64</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> Pick MPS if available, else CPU:</div>
+    <pre class="exercise">device = torch.device("<input class="blank" data-answer="mps" size="5" placeholder="?">" if torch.backends.mps.is_available() else "cpu")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> Enable CPU fallback for unsupported MPS ops:</div>
+    <pre class="exercise"><input class="blank" data-answer="PYTORCH_ENABLE_MPS_FALLBACK" size="32" placeholder="?">=1 python train.py</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> Standard MLX import alias:</div>
+    <pre class="exercise">import mlx.core as <input class="blank" data-answer="mx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> Build a function that returns gradients of <code>loss_fn</code>:</div>
+    <pre class="exercise">grad_fn = mx.<input class="blank" data-answer="grad" size="6" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> Get loss and gradient together:</div>
+    <pre class="exercise">loss_and_grad = mx.<input class="blank" data-answer="value_and_grad" size="16" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> Materialize a lazy MLX array:</div>
+    <pre class="exercise">mx.<input class="blank" data-answer="eval" size="6" placeholder="?">(x)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> Generate text from a model with the mlx-lm CLI:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="generate" size="10" placeholder="?"> --model ... --prompt "hi"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> Run a LoRA fine-tune via the mlx-lm CLI:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="lora" size="6" placeholder="?"> --model ... --train</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> Activate a venv on macOS (zsh/bash):</div>
+    <pre class="exercise">source .venv/bin/<input class="blank" data-answer="activate" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> Two-blanker — full PyTorch device pick:</div>
+    <pre class="exercise">device = torch.<input class="blank" data-answer="device" size="8" placeholder="?">("<input class="blank" data-answer="mps" size="5" placeholder="?">" if torch.backends.mps.is_available() else "cpu")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> Install the MLX core library:</div>
+    <pre class="exercise"><input class="blank" data-answer="pip" size="5" placeholder="?"> install mlx</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>Mini project — full MLX training script</h1>
+  <p class="lead">
+    Fill in the blanks to complete a fully self-contained MLX program: a small MLP that learns
+    a noisy quadratic. When everything is green, click <em>Train Model</em> and the page will
+    simulate the training loss curve descending — the same curve you'd see if you ran this code
+    on your Mac.
+  </p>
+
+  <div class="project-card">
+    <h3>complete the program</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      10 blanks. Hit <em>Train Model</em> when they're all green.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-c"># mlx_quadratic.py — fit y = x^2 + noise on Apple Silicon</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <input class="blank" data-answer="mx" size="4" placeholder="?">
+<span class="tok-k">import</span> <span class="tok-t">mlx.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.optimizers</span> <span class="tok-k">as</span> <span class="tok-t">optim</span>
+
+<span class="tok-c"># --- data ---</span>
+mx.random.seed(<span class="tok-n">42</span>)
+X = mx.random.uniform(low=-<span class="tok-n">1</span>, high=<span class="tok-n">1</span>, shape=(<span class="tok-n">256</span>, <span class="tok-n">1</span>))
+Y = X ** <span class="tok-n">2</span> + <span class="tok-n">0.05</span> * mx.random.normal((<span class="tok-n">256</span>, <span class="tok-n">1</span>))
+
+<span class="tok-c"># --- model ---</span>
+<span class="tok-k">class</span> <span class="tok-f">MLP</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self):
+        <span class="tok-f">super</span>().__init__()
+        self.l1 = nn.Linear(<input class="blank" data-answer="1" size="3" placeholder="?">, 32)
+        self.l2 = nn.Linear(32, 32)
+        self.l3 = nn.Linear(32, <input class="blank" data-answer="1" size="3" placeholder="?">)
+
+    <span class="tok-k">def</span> <span class="tok-f">__call__</span>(self, x):
+        x = nn.relu(self.l1(x))
+        x = nn.relu(self.l2(x))
+        <span class="tok-k">return</span> self.<input class="blank" data-answer="l3" size="4" placeholder="?">(x)
+
+model = MLP()
+
+<span class="tok-c"># --- loss + autograd ---</span>
+<span class="tok-k">def</span> <span class="tok-f">loss_fn</span>(model, X, Y):
+    <span class="tok-k">return</span> mx.mean((model(X) - Y) ** <span class="tok-n">2</span>)
+
+loss_and_grad = nn.<input class="blank" data-answer="value_and_grad" size="16" placeholder="?">(model, loss_fn)
+opt = optim.<input class="blank" data-answer="Adam" size="6" placeholder="?">(learning_rate=<span class="tok-n">3e-3</span>)
+
+<span class="tok-c"># --- training loop ---</span>
+<span class="tok-k">for</span> step <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">500</span>):
+    loss, grads = loss_and_grad(model, X, Y)
+    opt.<input class="blank" data-answer="update" size="8" placeholder="?">(model, grads)
+    mx.<input class="blank" data-answer="eval" size="6" placeholder="?">(model.parameters(), opt.state)
+    <span class="tok-k">if</span> step % <span class="tok-n">50</span> == <span class="tok-n">0</span>:
+        <span class="tok-f">print</span>(f<span class="tok-s">"step {step:4d}  loss {loss.item():.4f}"</span>)
+
+<span class="tok-c"># --- save weights ---</span>
+mx.<input class="blank" data-answer="save_safetensors|savez" size="16" placeholder="?">(<span class="tok-s">"model.safetensors"</span>, dict(<span class="tok-f">tree_flatten</span>(model.parameters())))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">Check All</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="trainProject()" disabled>▶ Train Model</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="chip-card">
+      <h3>training loss (live)</h3>
+      <canvas id="projLossCanvas" width="500" height="220" style="display:block; width:100%;background:var(--code-bg);border-radius:8px;border:1px solid var(--border);"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        step <span id="projEpoch" style="color: var(--accent); font-weight: 700;">—</span>
+        · loss <span id="projLoss" style="color: var(--accent); font-weight: 700;">—</span>
+        · grad-norm <span id="projAcc" style="color: var(--good); font-weight: 700;">—</span>
+      </div>
+    </div>
+    <div class="chip-card">
+      <h3>predictions vs ground truth</h3>
+      <canvas id="projScatterCanvas" width="500" height="220" style="display:block; width:100%;background:var(--code-bg);border-radius:8px;border:1px solid var(--border);"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        light blue = model prediction · silver = noisy training points · darker curve = y = x²
+      </div>
+    </div>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">Trained.</strong>
+    The same code, saved to <code>mlx_quadratic.py</code>, runs end-to-end on any M1/M2/M3/M4
+    Mac in a few seconds. Add more layers, swap the dataset to MNIST via <code>mlx.data</code>,
+    or extend the same scaffold to LLM fine-tuning with <code>mlx-lm</code>.
+  </div>
+
+  <h2>What's next?</h2>
+  <p class="lead">
+    Try this real exercise on your machine: change the dataset to MNIST (use
+    <code>mlx-data</code>), swap the loss to <code>nn.losses.cross_entropy</code>, and the
+    output dim to 10. The training loop is line-for-line the same. Welcome to ML on Mac.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>キーボードショートカット</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>次の空欄へジャンプ</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>現在のドリルをチェック</td></tr>
+      <tr><td><kbd>?</kbd></td><td>このヘルプ</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>タブ切替</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>オーバーレイを閉じる</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      どこかをクリックで閉じます。
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Browser simulates the training</strong> — the loss curve
+  here is honest-looking math (exp decay + noise), not a real MLX run. Drop the same script into
+  Python with <code style="color: var(--accent);">pip install mlx</code> on any M-series Mac to
+  train it for real.<br><br>
+  Companion to <a href="basicai.html">basicai.html</a> · Apple Silicon · MLX · MPS
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  let n = 0;
+  document.querySelectorAll('[data-drill]').forEach(d => {
+    n += d.querySelectorAll('.blank').length;
+  });
+  n += document.querySelectorAll('#finalCode .blank').length;
+  return n;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正解 — ' + newlySolved + ' 個正解、続けよう。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答えを隠しました — 自分で打ち込んでみよう';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '全部完了済み。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '答えをすべて表示 · もう一度押すと隠れます';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['ナイス。', '正解。', 'バッチリ。', 'その通り。', '冴えてる。', 'それです。', 'クリーン。', 'シリコン速い。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['惜しい — もう一度。', '近い。ヒント見る?', 'ほぼ。スペル確認。', '不正解。もう一度。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('セクション完了 · +' + drills.length + ' 問');
+    // mark tab
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '全部緑 — モデルを学習を押そう。';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' 正解。赤を直して。';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#5ac8fa','#a8d8ff','#c0c8d2','#4ade80','#79c0ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'コピー済み!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'コピー'; }, 1300);
+  });
+}
+
+// ============== PROJECT TRAINING ANIMATION ==============
+const projLossCanvas = document.getElementById('projLossCanvas');
+const projScatterCanvas = document.getElementById('projScatterCanvas');
+let projLossHistory = [], projEpoch = 0, projTimer = null;
+
+function drawProjLoss() {
+  if (!projLossCanvas) return;
+  const ctx = projLossCanvas.getContext('2d');
+  const W = projLossCanvas.width, H = projLossCanvas.height;
+  ctx.fillStyle = '#060a10';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(138, 150, 168, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#8a96a8';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('loss', 4, 12);
+  ctx.fillText('step', W - 26, H - 4);
+
+  if (projLossHistory.length < 2) return;
+  const maxLoss = 0.6;
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#5ac8fa');
+  grad.addColorStop(1, '#c0c8d2');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#5ac8fa'; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  projLossHistory.forEach((l, i) => {
+    const x = 30 + (W - 30) * i / 200;
+    const y = (H - 16) * (1 - Math.min(l, maxLoss) / maxLoss);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // last point
+  const last = projLossHistory[projLossHistory.length - 1];
+  const lx = 30 + (W - 30) * (projLossHistory.length - 1) / 200;
+  const ly = (H - 16) * (1 - Math.min(last, maxLoss) / maxLoss);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawProjScatter(progress) {
+  if (!projScatterCanvas) return;
+  const ctx = projScatterCanvas.getContext('2d');
+  const W = projScatterCanvas.width, H = projScatterCanvas.height;
+  ctx.fillStyle = '#060a10';
+  ctx.fillRect(0, 0, W, H);
+
+  // map x in [-1, 1] → [0, W], y in [-0.2, 1.2] → bottom→top
+  function toPx(x, y) {
+    return [(x + 1) / 2 * W, H - (y + 0.2) / 1.4 * H];
+  }
+
+  // grid
+  ctx.strokeStyle = 'rgba(138, 150, 168, 0.15)';
+  ctx.lineWidth = 1;
+  for (let gx = -1; gx <= 1; gx += 0.5) {
+    const [px, _] = toPx(gx, 0);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+  }
+  for (let gy = 0; gy <= 1; gy += 0.5) {
+    const [_, py] = toPx(0, gy);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+  }
+
+  // truth curve y = x^2
+  ctx.strokeStyle = '#3aa9d8';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  for (let x = -1; x <= 1.001; x += 0.01) {
+    const y = x * x;
+    const [px, py] = toPx(x, y);
+    if (x === -1) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // training points
+  const seed = 42;
+  const rand = mulberry32(seed);
+  for (let i = 0; i < 70; i++) {
+    const x = rand() * 2 - 1;
+    const y = x * x + (rand() - 0.5) * 0.1;
+    const [px, py] = toPx(x, y);
+    ctx.fillStyle = 'rgba(192, 200, 210, 0.55)';
+    ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // model prediction curve — morphs from flat (0.5) to y=x^2 with progress
+  ctx.strokeStyle = '#5ac8fa';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#5ac8fa'; ctx.shadowBlur = 10;
+  ctx.beginPath();
+  for (let x = -1; x <= 1.001; x += 0.01) {
+    const truth = x * x;
+    const init = 0.5 + 0.05 * Math.sin(x * 4);  // wavy init
+    const y = init + (truth - init) * progress;
+    const [px, py] = toPx(x, y);
+    if (x === -1) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function trainProject() {
+  if (projTimer) return;
+  projLossHistory = []; projEpoch = 0;
+  document.getElementById('projDone').style.display = 'none';
+  const totalEpochs = 200;
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = 'training...';
+  projTimer = setInterval(() => {
+    const base = 0.55 * Math.exp(-projEpoch / 30) + 0.012;
+    const noise = (Math.random() - 0.45) * 0.05 * Math.exp(-projEpoch / 50);
+    const l = Math.max(0.005, base + noise);
+    projLossHistory.push(l);
+    projEpoch++;
+    const progress = Math.min(1, projEpoch / 90);
+    const gnorm = Math.max(0.01, 1.5 * Math.exp(-projEpoch / 35) + 0.02);
+    document.getElementById('projEpoch').textContent = projEpoch;
+    document.getElementById('projLoss').textContent = l.toFixed(4);
+    document.getElementById('projAcc').textContent = gnorm.toFixed(3);
+    drawProjLoss();
+    drawProjScatter(progress);
+    if (projEpoch >= totalEpochs) {
+      clearInterval(projTimer); projTimer = null;
+      document.getElementById('projDone').style.display = '';
+      document.getElementById('trainProjectBtn').textContent = '✓ trained';
+      burstConfetti();
+      showToast('二次関数を学習完了 · 最終損失 ' + l.toFixed(4));
+    }
+  }, 30);
+}
+
+drawProjScatter(0);
+drawProjLoss();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  // ignore if typing in a blank or input
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'python','3':'mps','4':'mlx',
+    '5':'compare','6':'mlxlm','7':'perf','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

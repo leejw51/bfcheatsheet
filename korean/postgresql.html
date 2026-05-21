@@ -1,0 +1,2177 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PostgreSQL CLI — 인터랙티브 드릴</title>
+<style>
+  :root {
+    --bg: #0a1628;
+    --panel: #11203a;
+    --panel-2: #172a48;
+    --border: #29456e;
+    --text: #e6edf3;
+    --muted: #8ba0bd;
+    --accent: #336791;       /* PostgreSQL elephant blue */
+    --accent-2: #4a8bc2;
+    --accent-deep: #1e4870;
+    --code-bg: #060f1f;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7b8fa8;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #142a48 0%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .elephant { color: var(--accent-2); font-size: 24px; }
+  .badge {
+    background: var(--accent); color: #fff;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent-2); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(74, 139, 194, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent-2);
+    background: rgba(74, 139, 194, 0.14);
+    border-color: rgba(74, 139, 194, 0.5);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent-2); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent-2); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent-2);
+    border-radius: 4px;
+    color: var(--accent-2);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(74, 139, 194, 0.28);
+    background: rgba(74, 139, 194, 0.06);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(74, 139, 194, 0.08);
+    border-left: 3px solid var(--accent-2);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent-2); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Meta-command reference table */
+  table.meta {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.meta th, table.meta td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.meta th {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    font-weight: 700; text-transform: uppercase;
+    font-size: 11px; letter-spacing: 0.5px;
+  }
+  table.meta td:first-child {
+    font-family: ui-monospace, monospace;
+    color: var(--accent-2); font-weight: 700;
+    white-space: nowrap;
+  }
+  table.meta td:last-child { color: var(--muted); }
+  table.meta tr:last-child td { border-bottom: none; }
+  table.meta tr:hover td { background: rgba(74, 139, 194, 0.04); }
+
+  /* Faux psql terminal simulator */
+  .terminal {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .terminal-head {
+    background: linear-gradient(180deg, #1a3052, #142540);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .terminal-head .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+  .terminal-head .title {
+    color: var(--muted); font-size: 12px; margin-left: 8px;
+  }
+  .terminal-body {
+    padding: 14px;
+    min-height: 240px;
+    max-height: 480px;
+    overflow-y: auto;
+    line-height: 1.65;
+    color: #d3deeb;
+  }
+  .term-prompt { color: var(--accent-2); font-weight: 700; }
+  .term-user-input { color: var(--good); }
+  .term-output { color: #c5d2e2; white-space: pre; display: block; margin: 4px 0 8px; }
+  .term-comment { color: var(--muted); font-style: italic; }
+
+  .query-buttons {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 10px;
+  }
+  .query-buttons button {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .query-buttons button:hover {
+    background: rgba(74, 139, 194, 0.14);
+    border-color: var(--accent-2);
+  }
+  .query-buttons button.recent {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* Mini project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(74,139,194,0.07), rgba(51,103,145,0.02));
+    border: 1px solid rgba(74, 139, 194, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent-2); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Pipeline ladder for mini project */
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+  .ladder .step {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    transition: all 0.3s;
+  }
+  .ladder .step.active {
+    border-color: var(--accent-2);
+    background: rgba(74, 139, 194, 0.14);
+    box-shadow: 0 0 14px rgba(74, 139, 194, 0.3);
+    transform: translateY(-2px);
+  }
+  .ladder .step .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .ladder .step .name { color: var(--text); font-weight: 700; font-family: ui-monospace, monospace; }
+  .ladder .step .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(74, 139, 194, 0.18);
+    color: var(--accent-2);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.warn { background: rgba(248,113,113,0.13); color: var(--bad); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent-2); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent-2);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent-2);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(74, 139, 194, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent-2); text-decoration: none; }
+  footer code { color: var(--accent-2); }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="elephant">🐘</span> PostgreSQL CLI <span class="badge">타이핑으로 배우기</span>
+    </div>
+    <div class="progress-bar-outer" title="전체 진행도">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="완료한 연습 문제">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="연속 정답">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent-2); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 환영</button>
+    <button data-tab="connect">2. 접속</button>
+    <button data-tab="meta">3. 메타 명령</button>
+    <button data-tab="inspect">4. 살펴보기</button>
+    <button data-tab="simulator">5. 시뮬레이터</button>
+    <button data-tab="queries">6. 유용한 쿼리</button>
+    <button data-tab="backup">7. 백업 / 복원</button>
+    <button data-tab="drills">8. 드릴</button>
+    <button data-tab="project">9. 미니 프로젝트</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>PostgreSQL CLI — 손에 박힐 때까지 <code style="color: var(--tag); font-size: 22px;">psql</code> 드릴</h1>
+  <p class="lead">
+    <code style="color: var(--tag)">psql</code>은 PostgreSQL의 공식 터미널 클라이언트입니다. 모든 서버에
+    함께 제공되며, 스크립트로 돌릴 수 있고, 매우 빠르며, 어떤 GUI도 따라올 수 없는
+    <em>백슬래시 메타 명령</em>이 가득합니다. 이 페이지를 끝낼 때쯤이면 접속 플래그, 메타 명령,
+    SQL, dump/restore, 유지보수 한 줄 명령, 그리고 작은 엔드투엔드 프로젝트까지 직접
+    <strong>타이핑</strong>해 본 상태가 됩니다.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">psql이 뭔가?</div></div>
+      <div class="card-body">
+        PostgreSQL 와이어 프로토콜로 통신하는 터미널 프로그램입니다. SQL은 물론
+        <em>백슬래시 명령</em>도 실행합니다 — 예: <code style="color: var(--tag)">\dt</code>(테이블 목록),
+        <code style="color: var(--tag)">\d users</code>(테이블 설명). 탭 자동 완성, 히스토리,
+        <code style="color: var(--tag)">-c / -f</code>로 스크립팅, <code style="color: var(--tag)">\copy</code>로 대량 로드.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">왜 GUI가 아닌가?</div></div>
+      <div class="card-body">
+        GUI는 실제 명령을 숨기고, 스크립트가 안 되며, SSH 너머의 원격 서버에서 못 돌고, 큰 결과
+        세트에서 깨지기 때문입니다. <code style="color: var(--tag)">\d</code>,
+        <code style="color: var(--tag)">\dt+</code>, <code style="color: var(--tag)">\watch</code>가
+        손가락에 박히면 지구상 어떤 UI보다 빨라집니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">psql의 친구들</div></div>
+      <div class="card-body">
+        백업용 <code style="color: var(--tag)">pg_dump</code> / <code style="color: var(--tag)">pg_restore</code>,
+        헬스체크용 <code style="color: var(--tag)">pg_isready</code>,
+        얇은 래퍼인 <code style="color: var(--tag)">createdb</code> / <code style="color: var(--tag)">dropdb</code>,
+        <code style="color: var(--tag)">vacuumdb</code>, <code style="color: var(--tag)">reindexdb</code>.
+        모두 같은 접속 플래그를 씁니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">관습</div></div>
+      <div class="card-body">
+        기본 포트 <span class="pill">5432</span>, 기본 DB와 사용자는 보통 OS 사용자와 같습니다.
+        <code style="color: var(--tag)">psql</code> 안에서:
+        <code style="color: var(--tag)">\?</code>는 메타 명령 목록,
+        <code style="color: var(--tag)">\h SELECT</code>는 SQL 문법,
+        <code style="color: var(--tag)">\q</code>는 종료.
+      </div>
+    </div>
+  </div>
+
+  <h2>외워둘 psql 치트시트</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">필수</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 접속</span>
+psql -h db.example.com -p 5432 -U app -d shop
+
+<span class="tok-c"># psql 안에서</span>
+\l            <span class="tok-c"># 데이터베이스 목록</span>
+\c shop       <span class="tok-c"># "shop" DB로 접속</span>
+\dt           <span class="tok-c"># 테이블 목록</span>
+\d users      <span class="tok-c"># "users" 테이블 설명</span>
+\df           <span class="tok-c"># 함수 목록</span>
+\du           <span class="tok-c"># 롤 목록</span>
+\timing on    <span class="tok-c"># 모든 쿼리에 실행 시간 표시</span>
+\watch 2      <span class="tok-c"># 마지막 쿼리를 2초마다 재실행</span>
+\copy users TO 'users.csv' CSV HEADER
+\q            <span class="tok-c"># 종료</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>이 페이지 사용법:</strong> 섹션을 탭으로 넘기고, <span class="pill">빈칸</span>에
+    직접 타이핑하세요(Enter로 확인, Tab으로 이동). 연속 정답을 노리세요. 종이 폭죽이 터지면
+    섹션을 끝낸 겁니다.
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    준비되셨나요? 위쪽의 <strong>2. 접속</strong>을 클릭하세요. 모든 세션이 시작되는 곳에서
+    시작합니다 — 들어가기.
+  </p>
+</section>
+
+<!-- ========================= CONNECT ========================= -->
+<section class="tab-section" id="tab-connect">
+  <h1>접속 — psql에 들어가기</h1>
+  <p class="lead">
+    접속하는 여섯 가지 방법. 상황에 맞는 걸 고르세요.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">모든 접속 스타일</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. 기본값 — $PGUSER / $PGDATABASE / unix 소켓 사용</span>
+psql
+
+<span class="tok-c"># 2. 명시적 플래그</span>
+psql -h db.example.com -p 5432 -U alice -d shop
+
+<span class="tok-c"># 3. URI 형태 (환경 변수 / CI에 좋음)</span>
+psql postgresql://alice:secret@db.example.com:5432/shop
+
+<span class="tok-c"># 4. 일회성 쿼리, 인터랙티브 셸 없이</span>
+psql -h host -U alice -d shop -c "SELECT now();"
+
+<span class="tok-c"># 5. .sql 스크립트 실행</span>
+psql -h host -U alice -d shop -f migrate.sql
+
+<span class="tok-c"># 6. 환경 변수와 함께</span>
+PGHOST=db PGUSER=alice PGDATABASE=shop psql</code></pre>
+  </div>
+
+  <h2>매번 비밀번호 입력 없이 인증</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">~/.pgpass</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># ~/.pgpass — 한 줄에 (host, port, db, user, password)</span>
+<span class="tok-c"># 모든 필드에 와일드카드 허용</span>
+db.example.com:5432:shop:alice:s3cret
+*:*:*:postgres:rootpw
+
+<span class="tok-c"># 반드시 chmod 600 — 아니면 psql이 무시함</span>
+chmod 600 ~/.pgpass</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>psql 안에서 본인 비밀번호 설정</strong>은
+    <code style="color: var(--tag)">\password</code>로. 클라이언트 측에서 해시되므로 평문이 터미널을
+    벗어나지 않아 훨씬 안전합니다 — 서버 로그에 남는
+    <code style="color: var(--tag)">ALTER USER ... PASSWORD '...'</code>보다.
+  </div>
+
+  <h2>접속 플래그 타이핑</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 호스트 <code style="color: var(--tag)">db.example.com</code>, 포트 5432, 사용자 <code style="color: var(--tag)">alice</code>, DB <code style="color: var(--tag)">shop</code>으로 접속. 호스트 플래그를 채우세요.</div>
+    <pre class="exercise">psql <input class="blank" data-answer="-h" size="3" placeholder="?"> db.example.com -p 5432 -U alice -d shop</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 같은 접속, 사용자 플래그를 채우세요.</div>
+    <pre class="exercise">psql -h db.example.com -p 5432 <input class="blank" data-answer="-U" size="3" placeholder="?"> alice -d shop</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> URI 형태 — Postgres 기본 포트를 입력하세요.</div>
+    <pre class="exercise">psql postgresql://user:pass@host:<input class="blank" data-answer="5432" size="6" placeholder="?">/dbname</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> psql 종료.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="q" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> psql 안에서 본인 비밀번호를 안전하게 설정.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="password" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> psql이 <code style="color: var(--tag)">~/.pgpass</code>를 읽기 위해 필요한 권한은? (8진수)</div>
+    <pre class="exercise">chmod <input class="blank" data-answer="600" size="5" placeholder="?"> ~/.pgpass</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> SQL 문법의 내장 도움말 표시.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="h" size="3" placeholder="?"> SELECT</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>계속 타이핑하세요:</strong> <code style="color: var(--tag)">\?</code>는 모든 메타 명령 목록.
+    <code style="color: var(--tag)">\h</code>는 모든 SQL 문 목록. 둘이 가장 좋은 친구입니다.
+  </div>
+</section>
+
+<!-- ========================= META ========================= -->
+<section class="tab-section" id="tab-meta">
+  <h1>메타 명령 치트 카드</h1>
+  <p class="lead">
+    백슬래시 메타 명령은 특별합니다 — 서버로 보내지 않고 psql이 로컬에서 해석합니다.
+    상세 출력은 <code style="color: var(--tag)">+</code>를 붙이고, 설명은
+    <code style="color: var(--tag)">\d</code>를 앞에 붙입니다.
+  </p>
+
+  <h2>목록 보기</h2>
+  <table class="meta">
+    <tr><th>명령</th><th>설명</th></tr>
+    <tr><td>\l</td><td>모든 데이터베이스 목록 (크기, 소유자, 인코딩)</td></tr>
+    <tr><td>\c <em>dbname</em></td><td>다른 데이터베이스로 접속</td></tr>
+    <tr><td>\dt</td><td>현재 스키마의 테이블 목록</td></tr>
+    <tr><td>\dt+</td><td>같음 + 크기와 설명</td></tr>
+    <tr><td>\dt *.*</td><td><em>모든</em> 스키마의 테이블 목록</td></tr>
+    <tr><td>\dn</td><td>스키마 목록</td></tr>
+    <tr><td>\dv</td><td>뷰 목록</td></tr>
+    <tr><td>\di</td><td>인덱스 목록</td></tr>
+    <tr><td>\df</td><td>함수 목록</td></tr>
+    <tr><td>\du</td><td>롤 / 사용자 목록</td></tr>
+    <tr><td>\dx</td><td>설치된 확장 목록</td></tr>
+  </table>
+
+  <h2>설명 보기</h2>
+  <table class="meta">
+    <tr><th>명령</th><th>설명</th></tr>
+    <tr><td>\d <em>table</em></td><td>컬럼, 타입, 인덱스, 제약, FK</td></tr>
+    <tr><td>\d+ <em>table</em></td><td>모든 것 + 스토리지와 통계 타깃</td></tr>
+    <tr><td>\d <em>view</em></td><td>기반 SELECT를 보여줌</td></tr>
+    <tr><td>\d <em>idx</em></td><td>인덱스 컬럼과 정의</td></tr>
+    <tr><td>\sf <em>func</em></td><td>함수의 전체 소스 보기</td></tr>
+  </table>
+
+  <h2>편집 및 실행</h2>
+  <table class="meta">
+    <tr><th>명령</th><th>설명</th></tr>
+    <tr><td>\e</td><td>마지막 쿼리를 $EDITOR로 열기</td></tr>
+    <tr><td>\i <em>file.sql</em></td><td>스크립트 파일 실행</td></tr>
+    <tr><td>\copy <em>tbl</em> FROM 'f.csv' CSV HEADER</td><td>클라이언트 측 대량 로드 (서버 파일 접근 불필요)</td></tr>
+    <tr><td>\watch <em>n</em></td><td>마지막 쿼리를 <em>n</em>초마다 재실행</td></tr>
+    <tr><td>\timing on</td><td>모든 쿼리 후 실행 시간 출력</td></tr>
+    <tr><td>\x</td><td>확장 표시 토글 (각 행을 위아래로)</td></tr>
+    <tr><td>\set</td><td>psql 변수 보기 / 설정</td></tr>
+    <tr><td>\password [<em>user</em>]</td><td>비밀번호를 안전하게 변경</td></tr>
+    <tr><td>\?</td><td>전체 메타 명령 도움말</td></tr>
+    <tr><td>\h <em>STMT</em></td><td>SQL 문법 도움말</td></tr>
+    <tr><td>\q</td><td>psql 종료</td></tr>
+  </table>
+
+  <h2>드릴</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 모든 데이터베이스 목록.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="l|list" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 현재 스키마의 모든 테이블 목록.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="dt" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> <code style="color: var(--tag)">orders</code>라는 테이블 하나 설명.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="d" size="3" placeholder="?"> orders</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> <code style="color: var(--tag)">mydb</code>라는 다른 DB로 전환.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="c|connect" size="6" placeholder="?"> mydb</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 쿼리별 실행 시간 켜기.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="timing" size="8" placeholder="?"> on</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 직전 쿼리를 1초마다 재실행 (라이브 모니터).</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="watch" size="7" placeholder="?"> 1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 설치된 확장 목록.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="dx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= INSPECT ========================= -->
+<section class="tab-section" id="tab-inspect">
+  <h1>살펴보기 — 스키마, 타입, 인덱스, 플랜</h1>
+  <p class="lead">
+    접속한 뒤 가장 먼저 하는 일은 둘러보기입니다. 데이터베이스에 뭐가 있는지 알아내는 방법.
+  </p>
+
+  <h2>SQL DDL — 실제로 쓰는 타입들</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">CREATE TABLE — 풍부한 타입</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">CREATE TABLE</span> users (
+    id          <span class="tok-t">UUID</span>        <span class="tok-k">PRIMARY KEY</span> <span class="tok-k">DEFAULT</span> gen_random_uuid(),
+    email       <span class="tok-t">TEXT</span>        <span class="tok-k">NOT NULL UNIQUE</span>,
+    age         <span class="tok-t">INT</span>         <span class="tok-k">CHECK</span> (age &gt;= <span class="tok-n">0</span>),
+    tags        <span class="tok-t">TEXT</span>[],                                <span class="tok-c">-- ARRAY</span>
+    profile     <span class="tok-t">JSONB</span>       <span class="tok-k">NOT NULL</span> <span class="tok-k">DEFAULT</span> <span class="tok-s">'{}'</span>,    <span class="tok-c">-- JSONB</span>
+    created_at  <span class="tok-t">TIMESTAMPTZ</span> <span class="tok-k">NOT NULL</span> <span class="tok-k">DEFAULT</span> now()
+);
+
+<span class="tok-c">-- 외래 키</span>
+<span class="tok-k">CREATE TABLE</span> orders (
+    id       <span class="tok-t">BIGSERIAL</span> <span class="tok-k">PRIMARY KEY</span>,
+    user_id  <span class="tok-t">UUID</span> <span class="tok-k">NOT NULL REFERENCES</span> users(id) <span class="tok-k">ON DELETE CASCADE</span>,
+    total    <span class="tok-t">NUMERIC</span>(<span class="tok-n">10</span>,<span class="tok-n">2</span>) <span class="tok-k">NOT NULL</span>
+);</code></pre>
+  </div>
+
+  <h2>인덱스 — 대부분의 일을 커버하는 세 가지 종류</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">인덱스 패턴</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c">-- 1. 평범한 B-tree (기본)</span>
+<span class="tok-k">CREATE INDEX</span> idx_orders_user <span class="tok-k">ON</span> orders(user_id);
+
+<span class="tok-c">-- 2. 인덱스를 통한 유니크 제약</span>
+<span class="tok-k">CREATE UNIQUE INDEX</span> idx_users_email <span class="tok-k">ON</span> users(lower(email));
+
+<span class="tok-c">-- 3. 부분 — "live" 행만 인덱싱</span>
+<span class="tok-k">CREATE INDEX</span> idx_open_orders <span class="tok-k">ON</span> orders(user_id)
+    <span class="tok-k">WHERE</span> status = <span class="tok-s">'open'</span>;
+
+<span class="tok-c">-- 4. JSONB / 배열 / 전문 검색을 위한 GIN</span>
+<span class="tok-k">CREATE INDEX</span> idx_users_profile <span class="tok-k">ON</span> users <span class="tok-k">USING GIN</span> (profile);
+<span class="tok-k">CREATE INDEX</span> idx_users_tags    <span class="tok-k">ON</span> users <span class="tok-k">USING GIN</span> (tags);</code></pre>
+  </div>
+
+  <h2>EXPLAIN — 쿼리 플랜 읽기</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">explain analyze</div></div>
+    <pre class="code"><code><span class="tok-k">EXPLAIN</span> (ANALYZE, BUFFERS) <span class="tok-k">SELECT</span> * <span class="tok-k">FROM</span> orders <span class="tok-k">WHERE</span> user_id = <span class="tok-s">'...'</span>;
+<span class="tok-c">--  Index Scan using idx_orders_user on orders  (cost=0.42..8.44 rows=1 width=...)</span>
+<span class="tok-c">--    Index Cond: (user_id = '...'::uuid)</span>
+<span class="tok-c">--  Planning Time: 0.12 ms</span>
+<span class="tok-c">--  Execution Time: 0.04 ms</span></code></pre>
+  </div>
+  <div class="note">
+    <strong>EXPLAIN 읽기:</strong> 위에서 아래로 실행, 아래에서 위로 비용. 큰 테이블에서
+    <em>Index Scan</em>을 기대했는데 <em>Seq Scan</em>이 나오면 인덱스가 없거나 안 쓰는 겁니다.
+    디스크 읽기 vs 캐시 히트를 보려면 <code style="color: var(--tag)">BUFFERS</code> 옵션을 쓰세요.
+  </div>
+
+  <h2>UPSERT, CTE, 윈도우 함수 — 좋은 것들</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">upsert (INSERT … ON CONFLICT)</div></div>
+    <pre class="code"><code><span class="tok-k">INSERT INTO</span> users (id, email)
+<span class="tok-k">VALUES</span> (<span class="tok-s">'a-uuid'</span>, <span class="tok-s">'a@x'</span>)
+<span class="tok-k">ON CONFLICT</span> (id) <span class="tok-k">DO UPDATE SET</span> email = <span class="tok-k">EXCLUDED</span>.email;</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">CTE + 윈도우 함수</div></div>
+    <pre class="code"><code><span class="tok-k">WITH</span> ranked <span class="tok-k">AS</span> (
+    <span class="tok-k">SELECT</span> user_id, total,
+           ROW_NUMBER() <span class="tok-k">OVER</span> (<span class="tok-k">PARTITION BY</span> user_id <span class="tok-k">ORDER BY</span> total <span class="tok-k">DESC</span>) <span class="tok-k">AS</span> rn
+    <span class="tok-k">FROM</span> orders
+)
+<span class="tok-k">SELECT</span> * <span class="tok-k">FROM</span> ranked <span class="tok-k">WHERE</span> rn = <span class="tok-n">1</span>;   <span class="tok-c">-- 사용자별 최대 주문</span></code></pre>
+  </div>
+
+  <h2>드릴</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> <code style="color: var(--tag)">orders.user_id</code>에서 <code style="color: var(--tag)">users(id)</code>로 외래 키 연결.</div>
+    <pre class="exercise">FOREIGN KEY (user_id) <input class="blank" data-answer="REFERENCES|references" size="11" placeholder="?"> users(id)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> UPSERT — <code style="color: var(--tag)">ON</code> 다음에 오는 키워드?</div>
+    <pre class="exercise">INSERT INTO users (id, email) VALUES (...)
+ON <input class="blank" data-answer="CONFLICT|conflict" size="9" placeholder="?"> (id) DO UPDATE SET email = EXCLUDED.email;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> 윈도우 함수 — 윈도우를 도입하는 키워드를 채우세요.</div>
+    <pre class="exercise">SELECT user_id,
+       ROW_NUMBER() <input class="blank" data-answer="OVER|over" size="6" placeholder="?"> (PARTITION BY user_id ORDER BY total DESC) AS rn
+FROM orders;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> JSONB 포함 쿼리에 최적화된 인덱스 만들기.</div>
+    <pre class="exercise">CREATE INDEX idx_profile ON users USING <input class="blank" data-answer="GIN|gin" size="5" placeholder="?"> (profile);</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> 쿼리의 실제 실행 시간 + 버퍼 보기.</div>
+    <pre class="exercise"><input class="blank" data-answer="EXPLAIN|explain" size="9" placeholder="?"> (ANALYZE, BUFFERS) SELECT * FROM orders WHERE user_id = '...';</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= SIMULATOR ========================= -->
+<section class="tab-section" id="tab-simulator">
+  <h1>인터랙티브 psql 시뮬레이터</h1>
+  <p class="lead">
+    미리 만든 쿼리를 클릭하면 실제 <code style="color: var(--tag)">psql</code> 세션과 똑같이
+    캔드 출력을 보여줍니다. 데이터베이스 필요 없음.
+  </p>
+
+  <div class="terminal">
+    <div class="terminal-head">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title">alice@db.example.com — psql (16.2)</span>
+    </div>
+    <div class="terminal-body" id="termBody">
+<div><span class="term-prompt">$</span> <span class="term-user-input">psql -h db.example.com -U alice -d shop</span></div>
+<span class="term-output">psql (16.2)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384)
+Type "help" for help.
+
+shop=&gt;</span>
+    </div>
+  </div>
+
+  <p style="margin-top: 14px; color: var(--muted); font-size: 13px;">시뮬레이터에서 실행할 쿼리를 클릭하세요:</p>
+  <div class="query-buttons" id="queryButtons">
+    <button data-q="\l">\l</button>
+    <button data-q="\dt">\dt</button>
+    <button data-q="\d users">\d users</button>
+    <button data-q="\du">\du</button>
+    <button data-q="\dx">\dx</button>
+    <button data-q="\timing on">\timing on</button>
+    <button data-q="select-now">SELECT now();</button>
+    <button data-q="select-version">SELECT version();</button>
+    <button data-q="count-users">SELECT count(*) FROM users;</button>
+    <button data-q="big-tables">상위 5개 큰 테이블</button>
+    <button data-q="active">실행 중 쿼리 (pg_stat_activity)</button>
+    <button data-q="size">데이터베이스 크기</button>
+    <button data-q="explain">EXPLAIN ANALYZE</button>
+    <button data-q="clear">지우기</button>
+  </div>
+
+  <div class="note" style="margin-top: 18px;">
+    <strong>여기서 실제인 것:</strong> 프롬프트 형식, 컬럼 레이아웃, 메타 명령 출력 방식, 타이밍.
+    실제 행은 픽스처입니다 — SQL을 실제 psql 세션에 붙여넣으면 동작합니다.
+  </div>
+</section>
+
+<!-- ========================= QUERIES ========================= -->
+<section class="tab-section" id="tab-queries">
+  <h1>유용한 한 줄 쿼리</h1>
+  <p class="lead">
+    프로덕션 DBA가 새벽 3시에 실제로 붙여 넣는 쿼리들. 저장해두세요.
+  </p>
+
+  <h2>상위 5개 큰 테이블</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">크기 탐정</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">SELECT</span>
+    schemaname || <span class="tok-s">'.'</span> || relname           <span class="tok-k">AS</span> table,
+    pg_size_pretty(pg_total_relation_size(relid))  <span class="tok-k">AS</span> total_size,
+    pg_size_pretty(pg_relation_size(relid))        <span class="tok-k">AS</span> data_size,
+    pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) <span class="tok-k">AS</span> idx_size
+<span class="tok-k">FROM</span> pg_catalog.pg_statio_user_tables
+<span class="tok-k">ORDER BY</span> pg_total_relation_size(relid) <span class="tok-k">DESC</span>
+<span class="tok-k">LIMIT</span> <span class="tok-n">5</span>;</code></pre>
+  </div>
+
+  <h2>실행 중 쿼리 — 누가 지금 뭘 하고 있나</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">pg_stat_activity</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">SELECT</span> pid, usename, application_name, state,
+       now() - query_start <span class="tok-k">AS</span> runtime,
+       <span class="tok-f">left</span>(query, <span class="tok-n">100</span>) <span class="tok-k">AS</span> q
+<span class="tok-k">FROM</span> pg_stat_activity
+<span class="tok-k">WHERE</span> state &lt;&gt; <span class="tok-s">'idle'</span>
+<span class="tok-k">ORDER BY</span> runtime <span class="tok-k">DESC</span>;</code></pre>
+  </div>
+
+  <h2>폭주 쿼리 취소 / 종료</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">cancel vs terminate</div></div>
+    <pre class="code"><code><span class="tok-c">-- 정중함: 쿼리에 멈추라고 요청 (연결은 유지)</span>
+<span class="tok-k">SELECT</span> pg_cancel_backend(<span class="tok-n">12345</span>);
+
+<span class="tok-c">-- 핵폭탄: 연결 전체를 죽임</span>
+<span class="tok-k">SELECT</span> pg_terminate_backend(<span class="tok-n">12345</span>);</code></pre>
+  </div>
+
+  <h2>롤 및 GRANT</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">읽기 전용 사용자 만들기</div></div>
+    <pre class="code"><code><span class="tok-k">CREATE ROLE</span> readonly <span class="tok-k">LOGIN PASSWORD</span> <span class="tok-s">'change-me'</span>;
+<span class="tok-k">GRANT CONNECT</span> <span class="tok-k">ON DATABASE</span> shop <span class="tok-k">TO</span> readonly;
+<span class="tok-k">GRANT USAGE</span> <span class="tok-k">ON SCHEMA</span> public <span class="tok-k">TO</span> readonly;
+<span class="tok-k">GRANT SELECT</span> <span class="tok-k">ON ALL TABLES</span> <span class="tok-k">IN SCHEMA</span> public <span class="tok-k">TO</span> readonly;
+<span class="tok-k">ALTER DEFAULT PRIVILEGES</span> <span class="tok-k">IN SCHEMA</span> public
+    <span class="tok-k">GRANT SELECT</span> <span class="tok-k">ON TABLES</span> <span class="tok-k">TO</span> readonly;</code></pre>
+  </div>
+
+  <h2>알아두면 좋은 확장</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">pg_stat_statements</div></div>
+      <div class="card-body">
+        모든 쿼리의 런타임 + 플랜 통계를 추적. 진지한 DBA가 <em>가장 먼저</em> 설치하는 것.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pg_stat_statements;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pgcrypto</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">gen_random_uuid()</code>, <code style="color: var(--tag)">crypt()</code>,
+        bcrypt 비밀번호 해싱.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pgcrypto;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">uuid-ossp</div></div>
+      <div class="card-body">
+        오래된 UUID 생성기 (v1, v3, v4, v5). 최신 PG에서는 <em>pgcrypto</em>의
+        <code style="color: var(--tag)">gen_random_uuid()</code>를 쓰는 것이 좋습니다.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> <span class="tok-s">"uuid-ossp"</span>;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pg_trgm</div></div>
+      <div class="card-body">
+        퍼지 / 유사도 텍스트 검색. GIN 인덱스와 결합하면
+        <code style="color: var(--tag)">LIKE '%foo%'</code> 성능이 폭발적.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pg_trgm;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pgvector</div></div>
+      <div class="card-body">
+        벡터 임베딩 저장; <code style="color: var(--tag)">&lt;-&gt;</code> = L2,
+        <code style="color: var(--tag)">&lt;=&gt;</code> = 코사인. 네이티브 AI/RAG 지원.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> vector;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h2>드릴</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> 실행 중 쿼리 뷰 — 릴레이션 이름을 입력하세요.</div>
+    <pre class="exercise">SELECT pid, query FROM pg_stat_<input class="blank" data-answer="activity" size="10" placeholder="?"> WHERE state &lt;&gt; 'idle';</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> PID 12345에서 실행 중인 쿼리를 정중하게 취소.</div>
+    <pre class="exercise">SELECT pg_cancel_<input class="blank" data-answer="backend" size="9" placeholder="?">(12345);</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> 표준 확장 중 하나를 이름으로 설치 (pgcrypto, pg_trgm, vector 등).</div>
+    <pre class="exercise">CREATE EXTENSION IF NOT EXISTS <input class="blank" data-answer="pgcrypto|pg_trgm|pgvector|vector|pg_stat_statements|uuid-ossp" size="14" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> 스키마 <code style="color: var(--tag)">public</code>의 모든 테이블에 SELECT를 <code style="color: var(--tag)">readonly</code>에게 부여.</div>
+    <pre class="exercise">GRANT <input class="blank" data-answer="SELECT|select" size="8" placeholder="?"> ON ALL TABLES IN SCHEMA public TO readonly;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= BACKUP ========================= -->
+<section class="tab-section" id="tab-backup">
+  <h1>백업 및 복원 — pg_dump / pg_restore</h1>
+  <p class="lead">
+    바이너리 두 개, 플래그 네 개. 마스터하면 데이터가 안전합니다.
+  </p>
+
+  <h2>네 가지 포맷</h2>
+  <table class="meta">
+    <tr><th>플래그</th><th>포맷</th><th>언제 쓰나</th></tr>
+    <tr><td>-Fp</td><td>plain SQL</td><td>작은 DB, 사람이 읽기 쉬움, <code>psql -f</code>로 재생</td></tr>
+    <tr><td>-Fc</td><td>custom (binary)</td><td><strong>운영 기본</strong> — 압축됨, 병렬 복원, 테이블 필터</td></tr>
+    <tr><td>-Ft</td><td>tar</td><td>비압축 디렉토리 tarball — 드묾</td></tr>
+    <tr><td>-Fd</td><td>directory</td><td><code>-j N</code>으로 병렬 <strong>덤프</strong></td></tr>
+  </table>
+
+  <h2>레시피</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">백업</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 단일 DB, custom 포맷 (권장)</span>
+pg_dump -h host -U alice -Fc shop &gt; shop.dump
+
+<span class="tok-c"># 압축된 plain SQL</span>
+pg_dump -h host -U alice shop | gzip &gt; shop.sql.gz
+
+<span class="tok-c"># 스키마만 / 데이터만</span>
+pg_dump -Fc --schema-only shop &gt; shop_schema.dump
+pg_dump -Fc --data-only   shop &gt; shop_data.dump
+
+<span class="tok-c"># 병렬 디렉토리 덤프 (4 작업)</span>
+pg_dump -Fd -j 4 -f shop_dir shop
+
+<span class="tok-c"># 클러스터의 모든 데이터베이스 (롤 포함)</span>
+pg_dumpall -U postgres &gt; cluster.sql</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">복원</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># custom 포맷 → pg_restore 사용</span>
+createdb shop_new
+pg_restore -h host -U alice -d shop_new -j 4 shop.dump
+
+<span class="tok-c"># plain SQL → psql -f 사용</span>
+psql -h host -U alice -d shop_new -f shop.sql
+
+<span class="tok-c"># custom 덤프 내용 목록 (실제 복원 안 함)</span>
+pg_restore -l shop.dump | head
+
+<span class="tok-c"># 한 테이블만 복원</span>
+pg_restore -d shop_new -t users shop.dump</code></pre>
+  </div>
+
+  <h2>유지보수 — PG를 행복하게</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">vacuum / analyze / reindex</div></div>
+    <pre class="code"><code><span class="tok-c">-- 죽은 행 회수 + 플래너 통계 갱신</span>
+<span class="tok-k">VACUUM ANALYZE</span>;
+<span class="tok-k">VACUUM ANALYZE</span> orders;            <span class="tok-c">-- 한 테이블</span>
+
+<span class="tok-c">-- 공격적: 테이블 락, 다시 씀 (거의 필요 없음)</span>
+<span class="tok-k">VACUUM FULL</span> orders;
+
+<span class="tok-c">-- 비대해진 인덱스 재구축</span>
+<span class="tok-k">REINDEX TABLE CONCURRENTLY</span> orders;
+<span class="tok-k">REINDEX INDEX</span> idx_orders_user;</code></pre>
+  </div>
+
+  <h2>드릴</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> 데이터베이스 <code style="color: var(--tag)">mydb</code>를 custom 포맷 파일로 덤프. 파일 확장자를 입력하세요.</div>
+    <pre class="exercise">pg_dump -Fc mydb &gt; out.<input class="blank" data-answer="dump" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> 권장 운영 포맷(바이너리, 압축, <code style="color: var(--tag)">-j</code> 지원) 플래그를 고르세요.</div>
+    <pre class="exercise">pg_dump <input class="blank" data-answer="-Fc|-fc" size="5" placeholder="?"> mydb &gt; out.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> custom 포맷 파일을 4개 워커로 병렬 복원.</div>
+    <pre class="exercise">pg_restore -d mydb_new -<input class="blank" data-answer="j" size="3" placeholder="?"> 4 out.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">27</span> 죽은 튜플 회수와 플래너 통계 갱신을 한 문장으로.</div>
+    <pre class="exercise"><input class="blank" data-answer="VACUUM|vacuum" size="9" placeholder="?"> ANALYZE orders;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>복원의 황금 규칙:</strong> 항상 <em>새</em> 빈 데이터베이스에 복원하세요
+    (<code style="color: var(--tag)">createdb shop_new</code>), 검증한 뒤, 이름을 바꾸거나 앱이
+    가리키는 곳을 바꾸세요. 라이브 DB 위에 절대 복원하지 마세요.
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>혼합 드릴</h1>
+  <p class="lead">
+    이전 섹션의 모든 것을 섞었습니다. 힌트 없이 다 풀면 자다가도 psql을 칠 수 있습니다.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">28</span> 확장 표시 토글 (한 화면에 한 행, 컬럼 쌓임).</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="x" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">29</span> psql 안에서 <code style="color: var(--tag)">migrate.sql</code> 스크립트 실행.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="i" size="3" placeholder="?"> migrate.sql</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">30</span> 로컬 <code style="color: var(--tag)">users.csv</code>를 <code style="color: var(--tag)">users</code> 테이블에 대량 로드 (클라이언트 측, 서버 파일 접근 없이).</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="copy" size="6" placeholder="?"> users FROM 'users.csv' CSV HEADER</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">31</span> 트랜잭션 시작.</div>
+    <pre class="exercise">shop=# <input class="blank" data-answer="BEGIN|begin" size="7" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">32</span> 트랜잭션 롤백.</div>
+    <pre class="exercise">shop=# <input class="blank" data-answer="ROLLBACK|rollback" size="9" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">33</span> $EDITOR로 마지막 쿼리 열기.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="e" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">34</span> 범용 고유 식별자 — <code style="color: var(--tag)">gen_random_uuid()</code>로 생성하는 PK 컬럼 타입.</div>
+    <pre class="exercise">id <input class="blank" data-answer="UUID|uuid" size="6" placeholder="?"> PRIMARY KEY DEFAULT gen_random_uuid()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">35</span> 인덱싱 가능한 JSON 컬럼 타입 (바이너리, 쿼리 가능).</div>
+    <pre class="exercise">profile <input class="blank" data-answer="JSONB|jsonb" size="6" placeholder="?"> NOT NULL DEFAULT '{}'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>미니 프로젝트 — 작은 스토어를 처음부터 끝까지 만들기</h1>
+  <p class="lead">
+    다섯 단계: 데이터베이스 생성, 스키마 정의, 데이터 삽입, 쿼리, 백업. 각 단계에 빈칸이
+    한두 개 있습니다. 모두 초록이 되면 <em>파이프라인 실행</em>을 클릭해서 시뮬레이션된 psql
+    세션이 실행되는 걸 보세요.
+  </p>
+
+  <div class="ladder" id="projLadder">
+    <div class="step" data-step="0">
+      <span class="icon">🏗️</span>
+      <div class="name">createdb</div>
+      <div class="desc">DB 생성</div>
+    </div>
+    <div class="step" data-step="1">
+      <span class="icon">📐</span>
+      <div class="name">schema</div>
+      <div class="desc">CREATE TABLE</div>
+    </div>
+    <div class="step" data-step="2">
+      <span class="icon">📥</span>
+      <div class="name">insert</div>
+      <div class="desc">행 로드</div>
+    </div>
+    <div class="step" data-step="3">
+      <span class="icon">🔍</span>
+      <div class="name">query</div>
+      <div class="desc">SELECT</div>
+    </div>
+    <div class="step" data-step="4">
+      <span class="icon">💾</span>
+      <div class="name">pg_dump</div>
+      <div class="desc">백업</div>
+    </div>
+  </div>
+
+  <div class="project-card">
+    <h3>빈칸 채우기</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      9개 빈칸. <em>전체 확인</em> 후 <em>파이프라인 실행</em>.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-c"># 1. 데이터베이스 생성 (셸에서)</span>
+<span class="tok-k">createdb</span> -U alice shop
+
+<span class="tok-c"># 2. 접속</span>
+psql -U alice -d shop
+
+<span class="tok-c"># 3. 스키마</span>
+shop=&gt; CREATE EXTENSION IF NOT EXISTS <input class="blank" data-answer="pgcrypto" size="10" placeholder="?">;
+
+shop=&gt; CREATE TABLE users (
+    id    <input class="blank" data-answer="UUID|uuid" size="6" placeholder="?"> PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
+    profile <input class="blank" data-answer="JSONB|jsonb" size="6" placeholder="?"> NOT NULL DEFAULT '{}'
+);
+
+shop=&gt; CREATE TABLE orders (
+    id      BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL <input class="blank" data-answer="REFERENCES|references" size="11" placeholder="?"> users(id) ON DELETE CASCADE,
+    total   NUMERIC(10,2) NOT NULL
+);
+
+<span class="tok-c"># 4. 삽입 (UPSERT로 멱등하게)</span>
+shop=&gt; INSERT INTO users (email) VALUES ('a@x'), ('b@x')
+       ON <input class="blank" data-answer="CONFLICT|conflict" size="9" placeholder="?"> (email) DO NOTHING;
+
+<span class="tok-c"># 5. 쿼리: 사용자별 최대 주문</span>
+shop=&gt; SELECT user_id, total,
+              ROW_NUMBER() <input class="blank" data-answer="OVER|over" size="6" placeholder="?"> (PARTITION BY user_id ORDER BY total DESC) AS rn
+       FROM orders;
+
+<span class="tok-c"># 6. 살펴보기</span>
+shop=&gt; \<input class="blank" data-answer="dt" size="4" placeholder="?">
+
+<span class="tok-c"># 7. 백업 (다시 셸에서)</span>
+shop=&gt; \<input class="blank" data-answer="q" size="3" placeholder="?">
+$ pg_dump -<input class="blank" data-answer="Fc|fc" size="4" placeholder="?"> shop &gt; shop.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">전체 확인</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="runPipeline()" disabled>▶ 파이프라인 실행</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="terminal" style="margin-top: 18px;">
+    <div class="terminal-head">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title">파이프라인 출력</span>
+    </div>
+    <div class="terminal-body" id="pipelineBody" style="min-height: 280px;">
+<span class="term-comment">— 모든 빈칸이 초록이면 "파이프라인 실행"을 클릭하세요 —</span>
+    </div>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">파이프라인 완료!</strong>
+    접속하고, UUID와 JSONB로 스키마를 설계하고, UPSERT로 데이터를 로드하고, 윈도우 함수 쿼리를
+    실행하고, 이식 가능한 백업을 만들었습니다. 어떤 새로운 Postgres 데이터베이스의 첫 날치고도
+    이 정도면 충분합니다.
+  </div>
+
+  <h2>다음은?</h2>
+  <p class="lead">
+    <code style="color: var(--tag)">postgresql-client</code>를 설치하고 이 페이지의 모든 명령을
+    실제 데이터베이스에 시도해 보세요. 30초 만에 Postgres 띄우기:
+    <code style="color: var(--tag)">docker run -e POSTGRES_PASSWORD=pw -p 5432:5432 postgres:16</code>,
+    접속은 <code style="color: var(--tag)">psql -h localhost -U postgres</code>.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>키보드 단축키</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로 이동</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 드릴 확인</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>오버레이 닫기</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      아무 곳이나 클릭하면 닫힙니다.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent-2);">시뮬레이터 출력은 픽스처입니다</strong> — 어떤 SQL이든
+  실제 <code>psql</code> 세션에 붙여 넣으면 실제로 실행됩니다. 로컬에서 Postgres 띄우기:
+  <code>docker run -e POSTGRES_PASSWORD=pw -p 5432:5432 postgres:16</code>.<br><br>
+  <a href="basicai.html">basicai.html</a>의 동반 페이지 · 🐘 connect, query, dump
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('[data-drill]').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속 가세요.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '답이 숨겨졌어요 — 직접 입력해 보세요';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '모두 풀었어요.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '모든 답 공개됨 · 다시 클릭하면 숨겨집니다';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답!', '정확합니다.', '✓ 그거예요.', '예리해요.', '바로 그거.', '깔끔!', 'psql 수준!'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아쉬워요 — 다시 시도하세요.', '거의요. 힌트를 볼까요?', '거의 맞았어요. 철자를 확인하세요.', '빨강. 한 번 더.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('섹션 완료! 🐘  +' + drills.length + '개 풀었어요');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT CHECK ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '모두 초록! 파이프라인 실행을 클릭하세요.';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + '개 정답. 빨간 부분을 고치세요.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent-2));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent-2);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#336791','#4a8bc2','#79c0ff','#4ade80','#a5d6ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '복사됨!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '복사'; }, 1300);
+  });
+}
+
+// ============== SIMULATOR ==============
+const fixtures = {
+  '\\l': `                                List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges
+-----------+----------+----------+------------+------------+-----------------------
+ postgres  | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 |
+ shop      | alice    | UTF8     | en_US.UTF8 | en_US.UTF8 |
+ template0 | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+ template1 | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+(4 rows)`,
+  '\\dt': `         List of relations
+ Schema |  Name    | Type  | Owner
+--------+----------+-------+-------
+ public | users    | table | alice
+ public | orders   | table | alice
+ public | products | table | alice
+ public | reviews  | table | alice
+(4 rows)`,
+  '\\d users': `                                       Table "public.users"
+   Column   |           Type           | Collation | Nullable |          Default
+------------+--------------------------+-----------+----------+----------------------------
+ id         | uuid                     |           | not null | gen_random_uuid()
+ email      | text                     |           | not null |
+ age        | integer                  |           |          |
+ tags       | text[]                   |           |          |
+ profile    | jsonb                    |           | not null | '{}'::jsonb
+ created_at | timestamp with time zone |           | not null | now()
+Indexes:
+    "users_pkey" PRIMARY KEY, btree (id)
+    "users_email_key" UNIQUE CONSTRAINT, btree (email)
+    "idx_users_profile" gin (profile)
+Referenced by:
+    TABLE "orders" CONSTRAINT "orders_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
+  '\\du': `                              List of roles
+ Role name |                         Attributes                         | Member of
+-----------+------------------------------------------------------------+-----------
+ alice     | Create DB                                                  | {}
+ postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
+ readonly  |                                                            | {}`,
+  '\\dx': `                       List of installed extensions
+        Name        | Version |   Schema   |              Description
+--------------------+---------+------------+----------------------------------------
+ pgcrypto           | 1.3     | public     | cryptographic functions
+ pg_stat_statements | 1.10    | public     | track planning and execution statistics
+ pg_trgm            | 1.6     | public     | trigram-based similarity matching
+ plpgsql            | 1.0     | pg_catalog | PL/pgSQL procedural language
+(4 rows)`,
+  '\\timing on': `Timing is on.`,
+  'select-now': {
+    sql: 'SELECT now();',
+    out: `              now
+-------------------------------
+ 2026-05-20 14:32:09.471293+00
+(1 row)
+
+Time: 1.124 ms`
+  },
+  'select-version': {
+    sql: 'SELECT version();',
+    out: `                                                version
+---------------------------------------------------------------------------------------------------------
+ PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc 11.4.0, 64-bit
+(1 row)`
+  },
+  'count-users': {
+    sql: 'SELECT count(*) FROM users;',
+    out: ` count
+-------
+  4287
+(1 row)
+
+Time: 3.812 ms`
+  },
+  'big-tables': {
+    sql: `SELECT schemaname || '.' || relname AS table,
+       pg_size_pretty(pg_total_relation_size(relid)) AS size
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC LIMIT 5;`,
+    out: `      table       |   size
+------------------+----------
+ public.events    | 4128 MB
+ public.orders    |  812 MB
+ public.users     |   94 MB
+ public.products  |   12 MB
+ public.reviews   | 6312 kB
+(5 rows)
+
+Time: 8.402 ms`
+  },
+  'active': {
+    sql: `SELECT pid, usename, state, now() - query_start AS runtime, left(query,60) AS q
+FROM pg_stat_activity WHERE state <> 'idle';`,
+    out: `  pid  | usename | state  |     runtime     |                              q
+-------+---------+--------+-----------------+--------------------------------------------------------------
+ 31204 | alice   | active | 00:00:00.418722 | SELECT * FROM orders WHERE created_at > now() - interval '1
+ 31318 | alice   | active | 00:00:12.041000 | UPDATE users SET profile = profile || '{"plan":"pro"}' WHE
+ 31521 | bob     | active | 00:00:00.002013 | SELECT pid, usename, state, now() - query_start AS runtime
+(3 rows)
+
+Time: 2.114 ms`
+  },
+  'size': {
+    sql: "SELECT pg_size_pretty(pg_database_size('shop')) AS size;",
+    out: `   size
+----------
+ 5234 MB
+(1 row)
+
+Time: 1.221 ms`
+  },
+  'explain': {
+    sql: `EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = '7c2e1a96-...';`,
+    out: `                                                    QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_orders_user on orders  (cost=0.42..8.44 rows=1 width=42) (actual time=0.018..0.020 rows=3 loops=1)
+   Index Cond: (user_id = '7c2e1a96-...'::uuid)
+ Planning Time: 0.124 ms
+ Execution Time: 0.041 ms
+(4 rows)
+
+Time: 0.612 ms`
+  }
+};
+
+const termBody = document.getElementById('termBody');
+const queryButtons = document.getElementById('queryButtons');
+
+queryButtons.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  const q = e.target.dataset.q;
+  // mark recent
+  queryButtons.querySelectorAll('button').forEach(b => b.classList.remove('recent'));
+  e.target.classList.add('recent');
+  if (q === 'clear') {
+    termBody.innerHTML = '<div><span class="term-prompt">shop=&gt;</span> <span class="term-comment">terminal cleared</span></div>';
+    return;
+  }
+  appendTerm(q);
+});
+
+function appendTerm(q) {
+  const fx = fixtures[q];
+  const line = document.createElement('div');
+  let inputText, outputText;
+  if (typeof fx === 'string') {
+    inputText = q;
+    outputText = fx;
+  } else if (fx && typeof fx === 'object') {
+    inputText = fx.sql;
+    outputText = fx.out;
+  } else {
+    inputText = q;
+    outputText = `ERROR: command "${q}" not implemented in simulator`;
+  }
+  line.innerHTML =
+    '<span class="term-prompt">shop=&gt;</span> <span class="term-user-input">' + escapeHtml(inputText) + '</span>';
+  termBody.appendChild(line);
+  const out = document.createElement('span');
+  out.className = 'term-output';
+  out.textContent = outputText + '\n';
+  termBody.appendChild(out);
+  // scroll to bottom
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// ============== PIPELINE (mini project) ==============
+const pipelineSteps = [
+  {
+    cmd: '$ createdb -U alice shop',
+    out: 'CREATE DATABASE'
+  },
+  {
+    cmd: '$ psql -U alice -d shop',
+    out: `psql (16.2)
+Type "help" for help.
+
+shop=>`
+  },
+  {
+    cmd: 'shop=> CREATE EXTENSION IF NOT EXISTS pgcrypto;',
+    out: 'CREATE EXTENSION'
+  },
+  {
+    cmd: 'shop=> CREATE TABLE users ( id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT NOT NULL UNIQUE, profile JSONB NOT NULL DEFAULT \'{}\' );',
+    out: 'CREATE TABLE'
+  },
+  {
+    cmd: 'shop=> CREATE TABLE orders ( id BIGSERIAL PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, total NUMERIC(10,2) NOT NULL );',
+    out: 'CREATE TABLE'
+  },
+  {
+    cmd: "shop=> INSERT INTO users (email) VALUES ('a@x'),('b@x') ON CONFLICT (email) DO NOTHING;",
+    out: 'INSERT 0 2'
+  },
+  {
+    cmd: "shop=> INSERT INTO orders (user_id, total) SELECT id, (random()*200)::numeric(10,2) FROM users, generate_series(1,3);",
+    out: 'INSERT 0 6'
+  },
+  {
+    cmd: 'shop=> SELECT user_id, total, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY total DESC) AS rn FROM orders LIMIT 4;',
+    out: `              user_id               | total  | rn
+--------------------------------------+--------+----
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a | 187.41 |  1
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a |  92.18 |  2
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a |  14.05 |  3
+ b1f7d2e8-3a9b-4c2d-8e1a-7c4b0f5a9e2d | 198.72 |  1
+(4 rows)`
+  },
+  {
+    cmd: 'shop=> \\dt',
+    out: `        List of relations
+ Schema |  Name  | Type  | Owner
+--------+--------+-------+-------
+ public | orders | table | alice
+ public | users  | table | alice
+(2 rows)`
+  },
+  {
+    cmd: 'shop=> \\q',
+    out: ''
+  },
+  {
+    cmd: '$ pg_dump -Fc shop > shop.dump',
+    out: '$ ls -lh shop.dump\n-rw-r--r--  1 alice  staff  43K May 20 14:32 shop.dump'
+  }
+];
+
+const ladderTotalSteps = 5;
+const stepGroups = [
+  [0, 1],            // createdb + connect
+  [2, 3, 4],         // schema
+  [5, 6],            // insert
+  [7, 8],            // query / inspect
+  [9, 10]            // backup
+];
+
+let pipelineRunning = false;
+function runPipeline() {
+  if (pipelineRunning) return;
+  pipelineRunning = true;
+  const body = document.getElementById('pipelineBody');
+  body.innerHTML = '';
+  document.getElementById('projDone').style.display = 'none';
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = '실행 중...';
+
+  let i = 0;
+  let groupIdx = 0;
+  function nextStep() {
+    if (i >= pipelineSteps.length) {
+      pipelineRunning = false;
+      document.getElementById('trainProjectBtn').textContent = '✓ 완료';
+      document.getElementById('projDone').style.display = '';
+      document.querySelectorAll('#projLadder .step').forEach(s => s.classList.remove('active'));
+      burstConfetti();
+      showToast('파이프라인 완료 · 백업 준비 완료 🐘');
+      return;
+    }
+    const step = pipelineSteps[i];
+    // figure out which group this index belongs to
+    while (groupIdx < stepGroups.length && !stepGroups[groupIdx].includes(i)) groupIdx++;
+    document.querySelectorAll('#projLadder .step').forEach((s, idx) => {
+      s.classList.toggle('active', idx === groupIdx);
+    });
+
+    const line = document.createElement('div');
+    const isShell = step.cmd.startsWith('$');
+    line.innerHTML = '<span class="term-prompt">' + (isShell ? '$' : 'shop=&gt;') + '</span> '
+      + '<span class="term-user-input">' + escapeHtml(step.cmd.replace(/^\$ |^shop=&gt;\s|^shop=>\s/, '')) + '</span>';
+    body.appendChild(line);
+    if (step.out) {
+      const out = document.createElement('span');
+      out.className = 'term-output';
+      out.textContent = step.out + '\n';
+      body.appendChild(out);
+    }
+    body.scrollTop = body.scrollHeight;
+    i++;
+    setTimeout(nextStep, 520);
+  }
+  nextStep();
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'connect','3':'meta','4':'inspect',
+    '5':'simulator','6':'queries','7':'backup','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

@@ -1,0 +1,2118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLIP — 인터랙티브 드릴</title>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --panel: #11172a;
+    --panel-2: #182040;
+    --border: #2a3357;
+    --text: #e6edf3;
+    --muted: #8b94b3;
+    --accent: #38bdf8;       /* electric blue */
+    --accent-2: #ec4899;     /* magenta */
+    --accent-soft: rgba(56, 189, 248, 0.12);
+    --code-bg: #070b15;
+    --keyword: #f472b6;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #8b94b3;
+    --fn: #c4b5fd;
+    --tag: #67e8f9;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(800px circle at 10% -10%, rgba(56,189,248,0.10), transparent 50%),
+      radial-gradient(600px circle at 110% 20%, rgba(236,72,153,0.10), transparent 50%);
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #0e1428 0%, #0b0f1a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    position: relative;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo .glyph {
+    font-size: 22px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-weight: 900;
+  }
+  .badge {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; position: relative; z-index: 1; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 {
+    font-size: 28px; margin: 0 0 8px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent-2) 110%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(56, 189, 248, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.magenta {
+    background: rgba(236, 72, 153, 0.08);
+    border-left-color: var(--accent-2);
+  }
+  .note.magenta strong { color: var(--accent-2); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 80px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 56px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .pill {
+    display: inline-block;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.magenta { background: rgba(236, 72, 153, 0.15); color: var(--accent-2); }
+
+  /* Architecture diagram */
+  .arch-svg {
+    width: 100%; height: auto;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* Similarity matrix */
+  .sim-matrix-wrap {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .sim-matrix {
+    border-collapse: collapse;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    margin: 0 auto;
+  }
+  .sim-matrix th, .sim-matrix td {
+    border: 1px solid var(--border);
+    padding: 0;
+    text-align: center;
+    width: 64px; height: 56px;
+    position: relative;
+  }
+  .sim-matrix th {
+    background: var(--panel-2);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 6px;
+    width: auto; height: auto;
+  }
+  .sim-matrix .corner { background: transparent; border: none; }
+  .sim-cell {
+    width: 100%; height: 100%;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    text-align: center;
+    cursor: ns-resize;
+    outline: none;
+  }
+  .sim-cell:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+  .sim-matrix td.diag {
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+
+  .loss-readout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .loss-readout .row { display: flex; justify-content: space-between; }
+  .loss-readout .row .lab { color: var(--muted); }
+  .loss-readout .row .val {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .loss-readout .row.total .val { color: var(--accent-2); font-size: 15px; }
+
+  /* temperature softmax bars */
+  .softmax-bars {
+    display: grid;
+    grid-template-columns: 90px 1fr 60px;
+    gap: 6px 10px;
+    align-items: center;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+  .softmax-bars .bar-label { color: var(--text); }
+  .softmax-bars .bar-track {
+    height: 16px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+  }
+  .softmax-bars .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.25s ease;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+  }
+  .softmax-bars .bar-val { color: var(--accent); text-align: right; font-weight: 700; }
+
+  /* zero-shot demo */
+  .zs-demo {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 720px) { .zs-demo { grid-template-columns: 1fr; } }
+  .zs-image {
+    aspect-ratio: 1 / 1;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 110px;
+    user-select: none;
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.08) inset;
+  }
+  .zs-thumbs {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .zs-thumb {
+    width: 44px; height: 44px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .zs-thumb:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .zs-thumb.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+    transform: scale(1.05);
+  }
+  .zs-cap-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 70px;
+    gap: 8px;
+    align-items: center;
+    margin: 6px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .zs-cap-row .cap {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--text);
+  }
+  .zs-cap-row .cap.top {
+    border-color: var(--accent-2);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(236, 72, 153, 0.3);
+  }
+  .zs-cap-row .bar-track {
+    height: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .zs-cap-row .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.4s ease;
+  }
+  .zs-cap-row .pct {
+    color: var(--accent);
+    font-weight: 700;
+    text-align: right;
+  }
+
+  /* Boss / mini project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(56,189,248,0.06), rgba(236,72,153,0.04));
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .formula {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "Computer Modern", ui-monospace, monospace;
+    font-size: 14px;
+    text-align: center;
+    margin: 10px 0;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  .formula em { color: var(--accent); font-style: italic; font-weight: 600; }
+  .formula b { color: var(--accent-2); }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="glyph">◐◑</span> CLIP <span class="badge">타이핑하며 배우기</span>
+    </div>
+    <div class="progress-bar-outer" title="전체 진행도">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="완료한 연습 문제">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="연속 정답">
+      <span class="flame-mini">⚡</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 시작</button>
+    <button data-tab="arch">2. 아키텍처</button>
+    <button data-tab="contrastive">3. 대조 손실</button>
+    <button data-tab="temp">4. 온도</button>
+    <button data-tab="zeroshot">5. 제로샷</button>
+    <button data-tab="code">6. 코드 드릴</button>
+    <button data-tab="boss">7. 보스</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>CLIP — 사진과 단어를 같은 공간에</h1>
+  <p class="lead">
+    <strong>CLIP</strong>(Contrastive Language–Image Pre-training, OpenAI 2021)은
+    멀티모달 골드러시를 시작한 모델입니다. 이미지 인코더와 텍스트 인코더를 학습시켜,
+    매칭되는 이미지–캡션 쌍은 공유 임베딩 공간의 같은 지점에 두고 — 관련 없는
+    쌍은 멀리 떨어뜨리도록 합니다. 학습이 끝나면 클래스 이름을 문장으로
+    써주는 것만으로 <em>제로샷</em> 분류가 가능합니다.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">두 인코더, 하나의 공간</div></div>
+      <div class="card-body">
+        이미지 인코더(ViT-B/32 또는 ResNet-50)와 텍스트 인코더(Transformer)가
+        각각 벡터를 출력합니다. 양쪽의 작은 <em>프로젝션 헤드</em>가 둘 다
+        같은 <code style="color: var(--tag)">d=512</code> 임베딩 공간으로 매핑합니다.
+        그런 다음 코사인 유사도를 측정합니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">대조 학습 목표</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">N</code>개의 이미지–텍스트 쌍 배치에 대해,
+        <code style="color: var(--tag)">N×N</code> 유사도 행렬을 만듭니다. 대각선 셀이
+        실제 매칭(양성)이고, 그 외 모든 칸은 음성입니다. 대각선은 끌어올리고,
+        대각선 외는 눌러내립니다 — 행 <em>과</em> 열에 대해 대칭 교차 엔트로피를 적용합니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">왜 중요한가</div></div>
+      <div class="card-body">
+        학습 데이터: 웹에서 스크래핑한 이미지–텍스트 쌍 4억 개. 사람이 단 라벨은 없습니다 —
+        캡션이 곧 라벨입니다. 결과: 한 번도 명시적으로 배운 적 없는 것을,
+        문장 매칭만으로 인식하는 모델입니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">무엇을 가능하게 하는가</div></div>
+      <div class="card-body">
+        DALL·E 2의 CLIP 가이던스, Stable Diffusion의 텍스트 인코더(CLIP-L/14),
+        제로샷 분류기, 이미지 검색, 콘텐츠 모더레이션, 검색, 이미지-투-이미지,
+        텍스트-투-이미지 점수 매기기, OpenCLIP, SigLIP, EVA-CLIP… 모두 그 후손입니다.
+      </div>
+    </div>
+  </div>
+
+  <h2>한 호흡으로 보는 레시피</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <pre class="code"><code><span class="tok-c"># 의사코드 (Radford 외, 2021)</span>
+I_f = image_encoder(I)            <span class="tok-c"># [N, d_i]</span>
+T_f = text_encoder(T)             <span class="tok-c"># [N, d_t]</span>
+
+I_e = l2_normalize(W_i @ I_f)     <span class="tok-c"># [N, d]  프로젝션 + 정규화</span>
+T_e = l2_normalize(W_t @ T_f)     <span class="tok-c"># [N, d]</span>
+
+logits = (I_e @ T_e.T) * exp(t)   <span class="tok-c"># [N, N] 온도로 스케일링</span>
+labels = arange(N)                <span class="tok-c"># 대각선이 정답</span>
+loss   = (CE(logits, labels) + CE(logits.T, labels)) / 2</code></pre>
+  </div>
+
+  <div class="note magenta">
+    <strong>이 페이지를 읽는 법:</strong> 각 탭을 순서대로 클릭하세요.
+    <span class="pill">빈칸</span>에 타이핑합니다(Tab으로 다음 칸, Enter로 확인).
+    유사도 행렬의 셀을 드래그해서 손실의 변화를 느껴보세요.
+    온도 슬라이더를 움직여 소프트맥스가 날카로워지는 것을 보세요.
+    작은 이모지 이미지 위에서 후보 캡션을 골라 제로샷 분류를 해보세요.
+    보스를 풀면 마무리입니다.
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    위 탭 바의 <strong>2. 아키텍처</strong>를 눌러 시작하세요.
+  </p>
+</section>
+
+<!-- ========================= ARCHITECTURE ========================= -->
+<section class="tab-section" id="tab-arch">
+  <h1>아키텍처 — 두 개의 타워, 하나의 방</h1>
+  <p class="lead">
+    CLIP은 <em>듀얼 인코더</em>입니다. 두 개의 독립적인 타워가 각자의 입력을 고정 길이
+    벡터로 변환하고, 작은 선형 프로젝션이 둘을 같은 차원으로 정렬한 후, L2 정규화하고,
+    내적 = 코사인 유사도를 계산합니다.
+  </p>
+
+  <div class="canvas-card">
+    <h3>듀얼 타워 다이어그램</h3>
+    <svg class="arch-svg" viewBox="0 0 920 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="gImg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#0ea5e9"/>
+        </linearGradient>
+        <linearGradient id="gTxt" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ec4899"/>
+          <stop offset="100%" stop-color="#a855f7"/>
+        </linearGradient>
+        <linearGradient id="gSpace" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#ec4899"/>
+        </linearGradient>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#8b94b3"/>
+        </marker>
+      </defs>
+
+      <!-- IMAGE TOWER -->
+      <g>
+        <rect x="20" y="40" width="140" height="100" rx="10" fill="#11172a" stroke="url(#gImg)" stroke-width="2"/>
+        <text x="90" y="80" text-anchor="middle" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="13" font-weight="700">image</text>
+        <text x="90" y="100" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">224×224×3</text>
+        <text x="90" y="118" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="20">🐶</text>
+
+        <line x1="160" y1="90" x2="200" y2="90" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="200" y="50" width="180" height="80" rx="10" fill="url(#gImg)" opacity="0.15" stroke="url(#gImg)" stroke-width="2"/>
+        <text x="290" y="80" text-anchor="middle" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="14" font-weight="700">Image Encoder</text>
+        <text x="290" y="100" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">ViT-B/32 or ResNet-50</text>
+        <text x="290" y="118" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">→ I_f ∈ ℝ^768</text>
+
+        <line x1="380" y1="90" x2="420" y2="90" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="420" y="60" width="120" height="60" rx="8" fill="#182040" stroke="#67e8f9" stroke-width="1.5"/>
+        <text x="480" y="85" text-anchor="middle" fill="#fff" font-family="ui-monospace, monospace" font-size="12" font-weight="700">W_i · ‖·‖₂</text>
+        <text x="480" y="105" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">project → 512</text>
+      </g>
+
+      <!-- TEXT TOWER -->
+      <g>
+        <rect x="20" y="240" width="140" height="100" rx="10" fill="#11172a" stroke="url(#gTxt)" stroke-width="2"/>
+        <text x="90" y="278" text-anchor="middle" fill="#f0abfc" font-family="ui-monospace, monospace" font-size="13" font-weight="700">text</text>
+        <text x="90" y="298" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">"a photo of a dog"</text>
+        <text x="90" y="318" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">77 BPE tokens max</text>
+
+        <line x1="160" y1="290" x2="200" y2="290" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="200" y="250" width="180" height="80" rx="10" fill="url(#gTxt)" opacity="0.15" stroke="url(#gTxt)" stroke-width="2"/>
+        <text x="290" y="280" text-anchor="middle" fill="#f0abfc" font-family="ui-monospace, monospace" font-size="14" font-weight="700">Text Encoder</text>
+        <text x="290" y="300" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">12-layer Transformer</text>
+        <text x="290" y="318" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">→ T_f ∈ ℝ^512 (EOS)</text>
+
+        <line x1="380" y1="290" x2="420" y2="290" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="420" y="260" width="120" height="60" rx="8" fill="#182040" stroke="#f0abfc" stroke-width="1.5"/>
+        <text x="480" y="285" text-anchor="middle" fill="#fff" font-family="ui-monospace, monospace" font-size="12" font-weight="700">W_t · ‖·‖₂</text>
+        <text x="480" y="305" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">project → 512</text>
+      </g>
+
+      <!-- merge into joint space -->
+      <line x1="540" y1="90"  x2="600" y2="180" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="540" y1="290" x2="600" y2="200" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+      <rect x="600" y="135" width="290" height="110" rx="14" fill="url(#gSpace)" opacity="0.10" stroke="url(#gSpace)" stroke-width="2"/>
+      <text x="745" y="170" text-anchor="middle" fill="#fff" font-family="ui-monospace, monospace" font-size="14" font-weight="700">Shared Embedding Space</text>
+      <text x="745" y="192" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">ℝ^512 · unit hypersphere</text>
+
+      <!-- vectors on sphere -->
+      <circle cx="710" cy="220" r="5" fill="#67e8f9"/>
+      <circle cx="722" cy="222" r="5" fill="#f0abfc"/>
+      <line x1="710" y1="220" x2="722" y2="222" stroke="#fff" stroke-dasharray="3 3" stroke-width="1"/>
+      <text x="745" y="232" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">cosine sim ≈ 1</text>
+    </svg>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">이미지 인코더 옵션</div></div>
+      <div class="card-body" style="font-size: 13px;">
+        <div><span class="pill">ViT-B/32</span> 12층, 패치 32, 86M 파라미터(원 논문 기본값)</div>
+        <div style="margin-top:6px;"><span class="pill">ViT-L/14</span> 24층, 패치 14, 304M 파라미터(Stable Diffusion이 사용)</div>
+        <div style="margin-top:6px;"><span class="pill">RN50, RN101</span> ResNet 변형, GAP 대신 어텐션 풀링</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">텍스트 인코더 세부사항</div></div>
+      <div class="card-body" style="font-size: 13px;">
+        <div><span class="pill magenta">구조</span> 12층 Transformer, 8 헤드, 512차원, 마스크 셀프 어텐션</div>
+        <div style="margin-top:6px;"><span class="pill magenta">토큰</span> 49,152 단어 BPE; 시퀀스당 최대 77 토큰</div>
+        <div style="margin-top:6px;"><span class="pill magenta">풀링</span> <code style="color: var(--tag)">[EOS]</code> 토큰의 히든 스테이트, 그 후 선형 프로젝션</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>아키텍처 타이핑</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 두 타워는 프로젝션에 도달할 때까지 <em>아무것도</em> 공유하지 않습니다. 코사인 유사도는 두 벡터가 같은 <span class="pill">d</span>차원 공간에 있어야 작동합니다 — <code style="color: var(--tag)">W_i</code>와 <code style="color: var(--tag)">W_t</code>가 그 일을 합니다. 내적 전에 크기를 무관하게 만드는 연산의 이름은?</div>
+    <pre class="exercise">image_features = image_features / image_features.<input class="blank" data-answer="norm" size="6" placeholder="?">(dim=-1, keepdim=True)
+text_features  = text_features  / text_features.norm(dim=-1, keepdim=True)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 원본 CLIP 이미지 인코더는 패치 크기 32(ViT-B/32)의 <em>비전 트랜스포머</em>를 사용합니다. 클래스 이름을 입력하세요(대소문자 구분).</div>
+    <pre class="exercise">image_encoder = <input class="blank" data-answer="VisionTransformer|ViT" size="20" placeholder="?">(patch_size=32, width=768, layers=12)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 텍스트 인코더는 어떤 특수 토큰의 위치에서 히든 스테이트를 풀링하나요?</div>
+    <pre class="exercise"><span class="tok-c"># eot 임베딩 위치의 특징을 사용 (eot_token은 각 시퀀스에서 가장 큰 번호)</span>
+x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)]
+<span class="tok-c"># 이것은 [<input class="blank" data-answer="EOS|EOT|eos|eot" size="5" placeholder="?">] 토큰</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> 두 프로젝션을 거친 후, 배치의 쌍별 유사도 <em>행렬</em>을 계산합니다. 이미지 특징 <code style="color: var(--tag)">[N, d]</code>, 텍스트 특징 <code style="color: var(--tag)">[N, d]</code> — 올바른 텐서 연산은:</div>
+    <pre class="exercise">logits_per_image = image_features @ text_features.<input class="blank" data-answer="T|t()" size="5" placeholder="?">   <span class="tok-c"># [N, N]</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CONTRASTIVE ========================= -->
+<section class="tab-section" id="tab-contrastive">
+  <h1>대조 손실 — 대각선을 끌어올리기</h1>
+  <p class="lead">
+    <code style="color: var(--tag)">N</code>개의 이미지–캡션 쌍 배치 안에서,
+    <code style="color: var(--tag)">N×N</code> 유사도 행렬을 만듭니다. 대각선 항목만이
+    유일한 정답 매칭이고, 나머지는 모두 <em>배치 내 음성</em>입니다. 손실은 대칭
+    교차 엔트로피입니다: 행은 각 이미지에 맞는 캡션을 고르고, 열은 각 캡션에 맞는
+    이미지를 고릅니다.
+  </p>
+
+  <div class="formula">
+    L = ½ · ( CE(logits, labels) + CE(logitsᵀ, labels) ),  labels = [0, 1, 2, …, N−1]
+  </div>
+
+  <div class="canvas-card">
+    <h3>4×4 배치로 놀아보기 — 셀을 드래그하면 손실이 변합니다</h3>
+    <p style="color: var(--muted); font-size: 12.5px; margin: 0 0 10px;">
+      각 셀은 이미지 <code style="color: var(--tag)">i</code>(행)와 텍스트
+      <code style="color: var(--tag)">j</code>(열) 사이의 <em>로짓</em>(유사도 × 온도)입니다.
+      셀을 클릭한 다음
+      <kbd style="background: var(--code-bg); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent);">↑</kbd>
+      / <kbd style="background: var(--code-bg); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent);">↓</kbd>로 값을 미세 조정하세요. 대각선 셀은 파란색 테두리로 표시됩니다 — 질량이
+      여기로 모여야 합니다.
+    </p>
+    <div class="grid-2" style="grid-template-columns: 1.6fr 1fr;">
+      <div>
+        <table class="sim-matrix" id="simMatrix">
+          <thead>
+            <tr>
+              <th class="corner"></th>
+              <th>📷 cat</th>
+              <th>📷 dog</th>
+              <th>📷 car</th>
+              <th>📷 tree</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>"a cat" 🐱</th>
+              <td class="diag" data-i="0" data-j="0"></td>
+              <td data-i="0" data-j="1"></td>
+              <td data-i="0" data-j="2"></td>
+              <td data-i="0" data-j="3"></td>
+            </tr>
+            <tr>
+              <th>"a dog" 🐶</th>
+              <td data-i="1" data-j="0"></td>
+              <td class="diag" data-i="1" data-j="1"></td>
+              <td data-i="1" data-j="2"></td>
+              <td data-i="1" data-j="3"></td>
+            </tr>
+            <tr>
+              <th>"a car" 🚗</th>
+              <td data-i="2" data-j="0"></td>
+              <td data-i="2" data-j="1"></td>
+              <td class="diag" data-i="2" data-j="2"></td>
+              <td data-i="2" data-j="3"></td>
+            </tr>
+            <tr>
+              <th>"a tree" 🌳</th>
+              <td data-i="3" data-j="0"></td>
+              <td data-i="3" data-j="1"></td>
+              <td data-i="3" data-j="2"></td>
+              <td class="diag" data-i="3" data-j="3"></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+          <button class="btn" onclick="presetSim('random')">랜덤</button>
+          <button class="btn ghost" onclick="presetSim('untrained')">미학습 (~0)</button>
+          <button class="btn ghost" onclick="presetSim('trained')">학습됨 (대각선 뜨거움)</button>
+          <button class="btn ghost" onclick="presetSim('worst')">최악 (반대각선)</button>
+        </div>
+      </div>
+      <div>
+        <div class="loss-readout">
+          <div class="row"><span class="lab">L_i (이미지→텍스트 CE)</span><span class="val" id="lossI">—</span></div>
+          <div class="row"><span class="lab">L_t (텍스트→이미지 CE)</span><span class="val" id="lossT">—</span></div>
+          <div class="row total"><span class="lab">전체 L</span><span class="val" id="lossTotal">—</span></div>
+          <div class="row"><span class="lab">정확도 (이미지→텍스트)</span><span class="val" id="accI">—</span></div>
+          <div class="row"><span class="lab">정확도 (텍스트→이미지)</span><span class="val" id="accT">—</span></div>
+        </div>
+        <div class="note" style="margin-top: 14px; font-size: 12.5px;">
+          <strong>목표:</strong> 행/열 대비 대각선 값을 높이세요.
+          손실 = 0이라는 건 모든 행과 모든 열의 argmax가 대각선에 있다는 뜻입니다.
+          미학습 CLIP은 <code style="color: var(--tag)">log(N) ≈ 1.39</code> 근처에서 시작합니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>손실 타이핑</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 라벨은 단순히 <span class="pill">0, 1, 2, …, N−1</span> — 각 행의 대각선 항목 인덱스입니다. PyTorch 함수를 입력하세요:</div>
+    <pre class="exercise">labels = torch.<input class="blank" data-answer="arange" size="8" placeholder="?">(N, device=device)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 대칭 손실: 행 CE와 열 CE를 평균합니다.</div>
+    <pre class="exercise">loss_i = F.cross_entropy(logits_per_image, labels)        <span class="tok-c"># 행</span>
+loss_t = F.cross_entropy(logits_per_text,  labels)        <span class="tok-c"># 열 (= logits.T)</span>
+loss   = (loss_i + <input class="blank" data-answer="loss_t|loss_text" size="9" placeholder="?">) / 2</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> 대각선 외 항목은 <em>배치 내 음성</em>입니다. 배치가 클수록 → 음성이 많아지고 → 대조 신호가 좋아집니다. CLIP이 학습한 N은?</div>
+    <pre class="exercise"><span class="tok-c"># 원본 CLIP 배치 크기:</span>
+N = <input class="blank" data-answer="32768|32_768" size="8" placeholder="?">    <span class="tok-c"># 2^15</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> <code style="color: var(--tag)">logits_per_image</code>를 재계산 없이 <code style="color: var(--tag)">logits_per_text</code>로 변환 — 그냥 전치하세요:</div>
+    <pre class="exercise">logits_per_text = logits_per_image.<input class="blank" data-answer="T|t()" size="5" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= TEMPERATURE ========================= -->
+<section class="tab-section" id="tab-temp">
+  <h1>온도 — 소프트맥스는 얼마나 날카로운가?</h1>
+  <p class="lead">
+    원시 유사도 <code style="color: var(--tag)">I_e @ T_e.T</code>는
+    <code style="color: var(--tag)">[-1, 1]</code> 범위에 있습니다 — 유용한 소프트맥스에는
+    너무 평평합니다. CLIP은 학습 가능한 스케일 <code style="color: var(--tag)">exp(t)</code>를
+    곱하는데, 여기서 <code style="color: var(--tag)">t</code>는 단일 스칼라 파라미터입니다
+    (초기값은 <code style="color: var(--tag)">log(1/0.07) ≈ 2.66</code>).
+  </p>
+
+  <div class="formula">
+    P(text=j | image=i) = softmax<sub>j</sub>( <em>τ</em> · cos(I<sub>i</sub>, T<sub>j</sub>) ),  with  <em>τ</em> = exp(<b>t</b>)
+  </div>
+
+  <div class="canvas-card">
+    <h3>온도를 조절해 소프트맥스가 날카로워지는 모습 보기</h3>
+    <p style="color: var(--muted); font-size: 12.5px; margin: 0 0 12px;">
+      이미지: 🐶. 4개의 후보 캡션, 다음의 코사인 유사도를 가집니다:
+      <strong>0.30, 0.10, 0.27, 0.18</strong>. τ가 커질수록 모델은 더 확신을 갖고 —
+      가장 큰 유사도가 지배적이게 됩니다.
+    </p>
+    <div class="slider-row">
+      <label>로그 스케일 t</label>
+      <input type="range" id="tempT" min="-1" max="5" step="0.05" value="2.66">
+      <span class="val" id="tempTval">2.66</span>
+    </div>
+    <div class="slider-row">
+      <label>τ = exp(t)</label>
+      <div style="flex:1; height: 8px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; opacity: 0.3;"></div>
+      <span class="val" id="tempTau">14.3</span>
+    </div>
+
+    <div class="softmax-bars" id="softmaxBars" style="margin-top: 16px;">
+      <div class="bar-label">"a dog" 🐶</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="0"></div></div>
+        <div class="bar-val" data-val="0">—</div>
+      <div class="bar-label">"a cat" 🐱</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="1"></div></div>
+        <div class="bar-val" data-val="1">—</div>
+      <div class="bar-label">"a wolf" 🐺</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="2"></div></div>
+        <div class="bar-val" data-val="2">—</div>
+      <div class="bar-label">"a fox" 🦊</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="3"></div></div>
+        <div class="bar-val" data-val="3">—</div>
+    </div>
+
+    <div class="note magenta" style="margin-top: 16px; font-size: 12.5px;">
+      <strong>τ의 상한:</strong> CLIP은 학습 불안정을 막기 위해
+      <code style="color: var(--tag)">t</code>를 <code style="color: var(--tag)">log(100) ≈ 4.6</code>으로
+      클램핑합니다. 슬라이더를 끝까지 오른쪽으로 끌어보세요 — 막대가 거의 원-핫에 가까워집니다.
+    </div>
+  </div>
+
+  <h2>온도 타이핑</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 스케일된 로짓 — 여기서 <code style="color: var(--tag)">temperature</code>는 <em>로그-온도 파라미터</em> <code style="color: var(--tag)">t</code>입니다.</div>
+    <pre class="exercise">logit_scale = self.logit_scale.<input class="blank" data-answer="exp" size="5" placeholder="?">()
+logits = logit_scale * image_features @ text_features.T</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 로그-온도의 초기값. CLIP은 τ ≈ 1/0.07로 시작합니다; 공식 코드에 나오는 <code style="color: var(--tag)">numpy</code> log 표현을 그대로 입력하세요:</div>
+    <pre class="exercise">self.logit_scale = nn.Parameter(torch.ones([]) * np.<input class="blank" data-answer="log" size="5" placeholder="?">(1 / 0.07))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 로그-스케일에 대한 안정성 클램프(τ가 100을 넘지 않도록):</div>
+    <pre class="exercise">self.logit_scale.data.clamp_(0, math.log(<input class="blank" data-answer="100" size="5" placeholder="?">))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= ZERO-SHOT ========================= -->
+<section class="tab-section" id="tab-zeroshot">
+  <h1>제로샷 — 학습 없이 분류하기</h1>
+  <p class="lead">
+    CLIP의 초능력: 모든 분류 작업을 텍스트 매칭 문제로 바꿉니다. 각 클래스 이름을 문장
+    템플릿(<em>"a photo of a {class}"</em>)으로 감싸 한 번에 인코딩한 다음, 어떤 이미지든
+    인코딩하고 클래스 임베딩과 내적, 소프트맥스 → 끝. 파인튜닝도, 라벨도 필요 없습니다.
+  </p>
+
+  <div class="canvas-card">
+    <h3>이미지 선택 → CLIP의 캡션 랭킹 보기</h3>
+
+    <div class="zs-demo">
+      <div>
+        <div class="zs-image" id="zsImage">🐶</div>
+        <div class="zs-thumbs" id="zsThumbs">
+          <div class="zs-thumb active" data-img="dog">🐶</div>
+          <div class="zs-thumb" data-img="cat">🐱</div>
+          <div class="zs-thumb" data-img="car">🚗</div>
+          <div class="zs-thumb" data-img="pizza">🍕</div>
+          <div class="zs-thumb" data-img="rocket">🚀</div>
+          <div class="zs-thumb" data-img="violin">🎻</div>
+        </div>
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); margin-top: 12px;">
+          임베딩 (간략화된 6차원 표시):
+          <div id="zsEmbed" style="margin-top: 4px; color: var(--accent); font-size: 11px; word-break: break-all;"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-bottom: 6px;">
+          후보 캡션 (템플릿: <code style="color: var(--tag)">"a photo of a {class}"</code>)
+        </div>
+        <div id="zsCaptions"></div>
+        <div class="note" style="margin-top: 14px; font-size: 12.5px;">
+          <strong>팁:</strong> 프롬프트 템플릿이 매우 중요합니다. <em>"a photo of a {x}"</em>는
+          <em>"{x}"</em>보다 ImageNet에서 약 1.3 포인트 더 좋습니다. 80개 템플릿을
+          앙상블하는 것이 표준 CLIP 제로샷 레시피입니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>제로샷 레시피 타이핑</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 토큰화 전에 클래스 이름을 표준 프롬프트 템플릿으로 감쌉니다:</div>
+    <pre class="exercise">classes = ["cat", "dog", "car", "pizza"]
+prompts = [<input class="blank" data-answer='f&quot;a photo of a {c}&quot;|&quot;a photo of a &quot; + c|f&apos;a photo of a {c}&apos;' size="28" placeholder="?"> for c in classes]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 단일 이미지 임베딩 <code style="color: var(--tag)">img_emb</code>와 클래스 텍스트 임베딩 <code style="color: var(--tag)">text_embs</code>가 있을 때, 예측 클래스는:</div>
+    <pre class="exercise">logits = (100.0 * img_emb @ text_embs.T)
+probs  = logits.softmax(dim=-1)
+pred   = probs.<input class="blank" data-answer="argmax" size="8" placeholder="?">(dim=-1)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 클래스 프롬프트를 토큰화하기 위한 표준 <code style="color: var(--tag)">open_clip</code> import:</div>
+    <pre class="exercise">import open_clip
+tokens = open_clip.<input class="blank" data-answer="tokenize" size="10" placeholder="?">(prompts)   <span class="tok-c"># [N_classes, 77]</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CODE DRILLS ========================= -->
+<section class="tab-section" id="tab-code">
+  <h1>코드 드릴 — 실제 CLIP 사용</h1>
+  <p class="lead">
+    세 개의 실전 스택. <code style="color: var(--tag)">open_clip_torch</code>가 사실상 표준입니다
+    (원본 릴리스보다 더 좋은 모델). <code style="color: var(--tag)">transformers</code>는
+    HuggingFace의 <code style="color: var(--tag)">CLIPModel</code>을 제공합니다. 둘 다 같은
+    수학을 감싼 것입니다.
+  </p>
+
+  <h2>open_clip — 로드 &amp; 임베딩</h2>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">전체 레퍼런스</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>, <span class="tok-t">open_clip</span>
+<span class="tok-k">from</span> <span class="tok-t">PIL</span> <span class="tok-k">import</span> <span class="tok-t">Image</span>
+
+model, _, preprocess = open_clip.create_model_and_transforms(
+    <span class="tok-s">"ViT-B-32"</span>, pretrained=<span class="tok-s">"laion2b_s34b_b79k"</span>)
+tokenizer = open_clip.get_tokenizer(<span class="tok-s">"ViT-B-32"</span>)
+model.eval()
+
+img    = preprocess(Image.open(<span class="tok-s">"cat.jpg"</span>)).unsqueeze(<span class="tok-n">0</span>)
+labels = [<span class="tok-s">"a photo of a cat"</span>, <span class="tok-s">"a photo of a dog"</span>]
+text   = tokenizer(labels)
+
+<span class="tok-k">with</span> torch.no_grad():
+    img_f = model.encode_image(img)
+    txt_f = model.encode_text(text)
+    img_f /= img_f.norm(dim=-1, keepdim=True)
+    txt_f /= txt_f.norm(dim=-1, keepdim=True)
+    probs = (<span class="tok-n">100.0</span> * img_f @ txt_f.T).softmax(dim=-1)
+
+<span class="tok-f">print</span>(<span class="tok-s">"probs"</span>, probs)   <span class="tok-c"># [[0.98, 0.02]]</span></code></pre>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 사전학습된 <code style="color: var(--tag)">open_clip</code> 모델을 로드합니다. 이 함수는 모델, 학습용 변환, 추론용 <em>preprocess</em>를 반환합니다. 호출을 채우세요:</div>
+    <pre class="exercise">model, _, preprocess = open_clip.<input class="blank" data-answer="create_model_and_transforms" size="32" placeholder="?">(
+    "ViT-B-32", pretrained="laion2b_s34b_b79k")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> 실제로 호출하는 두 모델 메서드:</div>
+    <pre class="exercise">img_f = model.<input class="blank" data-answer="encode_image" size="14" placeholder="?">(img)
+txt_f = model.<input class="blank" data-answer="encode_text" size="14" placeholder="?">(text_tokens)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>HuggingFace transformers</h2>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">transformers를 통한 CLIPModel</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">transformers</span> <span class="tok-k">import</span> CLIPProcessor, CLIPModel
+
+model     = CLIPModel.from_pretrained(<span class="tok-s">"openai/clip-vit-base-patch32"</span>)
+processor = CLIPProcessor.from_pretrained(<span class="tok-s">"openai/clip-vit-base-patch32"</span>)
+
+inputs = processor(text=[<span class="tok-s">"a cat"</span>, <span class="tok-s">"a dog"</span>],
+                   images=img, return_tensors=<span class="tok-s">"pt"</span>, padding=<span class="tok-k">True</span>)
+out    = model(**inputs)
+
+logits_per_image = out.logits_per_image     <span class="tok-c"># [batch, n_classes]</span>
+probs            = logits_per_image.softmax(dim=<span class="tok-n">-1</span>)</code></pre>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> HF CLIP 로드 — 모델 클래스는 무엇인가요?</div>
+    <pre class="exercise">from transformers import <input class="blank" data-answer="CLIPModel" size="12" placeholder="?">, CLIPProcessor</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> HF 로짓을 클래스에 대한 확률 분포로 변환:</div>
+    <pre class="exercise">probs = out.logits_per_image.<input class="blank" data-answer="softmax" size="10" placeholder="?">(dim=-1)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>open_clip vs OpenAI 가중치:</strong> open_clip 팀은 LAION-2B에서 훨씬 강력한
+    체크포인트를 학습했습니다(<code style="color: var(--tag)">laion2b_s34b_b79k</code>가 흔히
+    쓰입니다). 새 프로젝트에서는 원본 2021 가중치보다 이쪽을 권장합니다.
+  </div>
+</section>
+
+<!-- ========================= BOSS ========================= -->
+<section class="tab-section" id="tab-boss">
+  <h1>보스 — CLIP 순전파를 한 번에 작성</h1>
+  <p class="lead">
+    최종 시험: 이 코드 블록의 모든 빈칸은 CLIP 순전파 + 손실의 한 부분입니다. 모두
+    초록색이 되면, 페이지가 4×4 CLIP 배치 학습을 시뮬레이션해 유사도 행렬이 대각선
+    위로 날카로워지는 것을 보여줍니다.
+  </p>
+
+  <div class="project-card">
+    <h3>CLIP 학습 스텝 완성하기</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      11개 빈칸. 모두 초록색이 되면 <em>학습</em> 클릭.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
+
+<span class="tok-c"># --- 양 인코더 순전파 -------------------------------------------</span>
+image_features = model.<input class="blank" data-answer="encode_image" size="14" placeholder="?">(images)        <span class="tok-c"># [N, d]</span>
+text_features  = model.<input class="blank" data-answer="encode_text" size="14" placeholder="?">(texts)          <span class="tok-c"># [N, d]</span>
+
+<span class="tok-c"># --- 내적이 코사인 유사도가 되도록 L2 정규화 -------------------</span>
+image_features = image_features / image_features.<input class="blank" data-answer="norm" size="6" placeholder="?">(dim=-1, keepdim=True)
+text_features  = text_features  / text_features.<input class="blank" data-answer="norm" size="6" placeholder="?">(dim=-1, keepdim=True)
+
+<span class="tok-c"># --- N × N 유사도 로짓 구성 -------------------------------------</span>
+logit_scale = model.logit_scale.<input class="blank" data-answer="exp" size="5" placeholder="?">()                 <span class="tok-c"># τ = exp(t)</span>
+logits_per_image = logit_scale * image_features @ text_features.<input class="blank" data-answer="T|t()" size="4" placeholder="?">
+logits_per_text  = logits_per_image.<input class="blank" data-answer="T|t()" size="4" placeholder="?">
+
+<span class="tok-c"># --- 대각선 타깃에 대한 대칭 교차 엔트로피 ---------------------</span>
+N      = images.shape[0]
+labels = torch.<input class="blank" data-answer="arange" size="8" placeholder="?">(N, device=images.device)
+loss_i = F.cross_entropy(logits_per_image, labels)
+loss_t = F.cross_entropy(logits_per_text,  labels)
+loss   = (loss_i + <input class="blank" data-answer="loss_t|loss_text" size="9" placeholder="?">) / 2
+
+<span class="tok-c"># --- 표준 PyTorch 스텝 ------------------------------------------</span>
+optimizer.zero_grad()
+loss.<input class="blank" data-answer="backward" size="10" placeholder="?">()
+optimizer.<input class="blank" data-answer="step" size="6" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">전체 확인</button>
+      <button class="btn ghost" id="trainBossBtn" onclick="trainBoss()" disabled>▶ 학습</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="canvas-card">
+      <h3>학습 손실</h3>
+      <canvas id="bossLossCanvas" width="500" height="220"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        에폭 <span id="bossEpoch" style="color: var(--accent); font-weight: 700;">—</span>
+        · 손실 <span id="bossLoss" style="color: var(--accent); font-weight: 700;">—</span>
+        · 정확도 <span id="bossAcc" style="color: var(--accent-2); font-weight: 700;">—</span>
+      </div>
+    </div>
+    <div class="canvas-card">
+      <h3>대각선 위로 날카로워지는 4×4 유사도 행렬</h3>
+      <canvas id="bossSimCanvas" width="500" height="220"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        시안 = 양성(대각선) · 마젠타 = 음성 · 밝을수록 = 로짓이 큼
+      </div>
+    </div>
+  </div>
+
+  <div class="note magenta" id="bossDone" style="display:none; border-left-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">학습 완료!</strong> 대각선이 자리잡았습니다.
+    실제 CLIP은 이 동일한 루프를 4억 쌍에 대해 32 에폭, ~256개의 V100에서 실행합니다.
+    일반 PyTorch 모델과 같은 다섯 줄의 마법 — 단지 더 흥미로운 손실일 뿐.
+  </div>
+
+  <h2>다음 단계</h2>
+  <p class="lead">
+    <code style="color: var(--tag)">open_clip</code>과 LAION-2B 체크포인트로 자신의
+    사진 라이브러리에서 시도해보세요. <code style="color: var(--tag)">faiss</code> + 이미지
+    임베딩으로 100줄 미만의 개인 이미지 검색 엔진을 만드세요. 그 다음
+    <strong>SigLIP</strong>(소프트맥스 대신 시그모이드 손실)과 <strong>EVA-CLIP</strong>
+    (대규모 스케일업)을 읽어보세요. 이제 그 이후 모든 논문을 따라갈 만큼은 알게 됐습니다.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>키보드 단축키</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로 이동</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 드릴 확인</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>↑</kbd>/<kbd>↓</kbd></td><td>유사도 행렬 셀 미세 조정</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>오버레이 닫기</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      아무 데나 클릭해서 닫기.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">브라우저가 수학을 시뮬레이션합니다</strong> — 손실,
+  소프트맥스, 보스 학습 곡선은 장난감 데이터 위에서 실제 수치 계산이며, 실제 CLIP은 아닙니다.
+  실제 가중치를 사용하려면 같은 코드를 <code style="color: var(--accent);">pip install open_clip_torch</code>로
+  실행하세요.<br><br>
+  <a href="basicai.html">basicai.html</a>의 동반자 · ◐◑ 이미지 · 텍스트 · 하나의 공간
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  // 각 드릴은 자체 빈칸을 가짐; 마지막 코드는 빈칸당 하나씩 추가
+  let count = 0;
+  document.querySelectorAll('[data-drill]').forEach(d => {
+    count += d.querySelectorAll('.blank').length;
+  });
+  count += document.querySelectorAll('#finalCode .blank').length;
+  return count;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '답을 숨겼습니다 — 직접 타이핑해보세요';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '모두 끝.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '모든 답 공개 · 다시 클릭하면 숨김';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답!', '딱 맞아요.', '✓ 정확합니다.', '날카로워요.', '바로 그거예요.', '깔끔해요.', '임베딩 완료.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아쉽네요 — 다시 해보세요.', '아깝네요. 힌트 볼래요?', '거의. 철자 확인.', '빨간불. 한 번 더.', '대각선 밖.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('섹션 완료! 🎉  +' + drills.length + ' 드릴');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '모두 초록! 학습 클릭.';
+    document.getElementById('trainBossBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' 정답. 빨간 부분 수정하세요.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#38bdf8','#ec4899','#a855f7','#fbbf24','#4ade80','#67e8f9','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '복사됨!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '복사'; }, 1300);
+  });
+}
+
+// ============== SIMILARITY MATRIX (interactive) ==============
+const N_SIM = 4;
+let simLogits = [
+  [2.5, 0.4, 0.6, 0.2],
+  [0.5, 2.3, 0.3, 0.4],
+  [0.7, 0.2, 2.6, 0.5],
+  [0.3, 0.5, 0.4, 2.2],
+];
+
+function softmaxRow(arr) {
+  const m = Math.max(...arr);
+  const exps = arr.map(v => Math.exp(v - m));
+  const Z = exps.reduce((a, b) => a + b, 0);
+  return exps.map(v => v / Z);
+}
+
+function computeContrastiveLoss(L) {
+  // image -> text: row CE on diagonal
+  let li = 0, lt = 0, accI = 0, accT = 0;
+  for (let i = 0; i < N_SIM; i++) {
+    const row = L[i];
+    const sm = softmaxRow(row);
+    li -= Math.log(Math.max(1e-12, sm[i]));
+    let am = 0;
+    for (let j = 1; j < N_SIM; j++) if (row[j] > row[am]) am = j;
+    if (am === i) accI++;
+  }
+  for (let j = 0; j < N_SIM; j++) {
+    const col = L.map(r => r[j]);
+    const sm = softmaxRow(col);
+    lt -= Math.log(Math.max(1e-12, sm[j]));
+    let am = 0;
+    for (let i = 1; i < N_SIM; i++) if (col[i] > col[am]) am = i;
+    if (am === j) accT++;
+  }
+  li /= N_SIM; lt /= N_SIM;
+  return { li, lt, total: (li + lt) / 2, accI: accI / N_SIM, accT: accT / N_SIM };
+}
+
+function colorForLogit(v) {
+  // -3 .. 3 → 마젠타(낮음)와 블루(높음) 사이의 그라디언트
+  const t = Math.max(0, Math.min(1, (v + 3) / 6));
+  const r = Math.round(236 + (56 - 236) * t);
+  const g = Math.round(72  + (189 - 72) * t);
+  const b = Math.round(153 + (248 - 153) * t);
+  const a = 0.18 + 0.55 * t;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+function renderSim() {
+  const tds = document.querySelectorAll('#simMatrix td[data-i]');
+  tds.forEach(td => {
+    const i = +td.dataset.i, j = +td.dataset.j;
+    const v = simLogits[i][j];
+    td.innerHTML = '';
+    td.style.background = colorForLogit(v);
+    td.style.cursor = 'pointer';
+    const txt = document.createElement('div');
+    txt.style.color = '#fff';
+    txt.style.fontWeight = '700';
+    txt.style.fontFamily = 'ui-monospace, monospace';
+    txt.style.fontSize = '13px';
+    txt.style.padding = '14px 0';
+    txt.textContent = v.toFixed(2);
+    td.appendChild(txt);
+  });
+
+  const r = computeContrastiveLoss(simLogits);
+  document.getElementById('lossI').textContent = r.li.toFixed(3);
+  document.getElementById('lossT').textContent = r.lt.toFixed(3);
+  document.getElementById('lossTotal').textContent = r.total.toFixed(3);
+  document.getElementById('accI').textContent = (r.accI * 100).toFixed(0) + '%';
+  document.getElementById('accT').textContent = (r.accT * 100).toFixed(0) + '%';
+}
+
+let simSelected = null;
+function setupSim() {
+  const tds = document.querySelectorAll('#simMatrix td[data-i]');
+  tds.forEach(td => {
+    td.tabIndex = 0;
+    td.addEventListener('click', () => {
+      tds.forEach(o => o.style.outline = '');
+      td.style.outline = '2px solid #fff';
+      simSelected = [+td.dataset.i, +td.dataset.j];
+      td.focus();
+    });
+    td.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const i = +td.dataset.i, j = +td.dataset.j;
+      simLogits[i][j] = Math.max(-3, Math.min(5, simLogits[i][j] + (e.deltaY > 0 ? -0.15 : 0.15)));
+      renderSim();
+    }, { passive: false });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!simSelected) return;
+    const active = document.querySelector('section.tab-section.active');
+    if (!active || active.id !== 'tab-contrastive') return;
+    if (e.target.tagName === 'INPUT') return;
+    const [i, j] = simSelected;
+    if (e.key === 'ArrowUp')   { simLogits[i][j] = Math.min(5, simLogits[i][j] + 0.2); renderSim(); e.preventDefault(); }
+    if (e.key === 'ArrowDown') { simLogits[i][j] = Math.max(-3, simLogits[i][j] - 0.2); renderSim(); e.preventDefault(); }
+  });
+}
+
+function presetSim(kind) {
+  if (kind === 'random') {
+    for (let i = 0; i < N_SIM; i++)
+      for (let j = 0; j < N_SIM; j++)
+        simLogits[i][j] = (Math.random() - 0.4) * 3;
+  } else if (kind === 'untrained') {
+    for (let i = 0; i < N_SIM; i++)
+      for (let j = 0; j < N_SIM; j++)
+        simLogits[i][j] = (Math.random() - 0.5) * 0.4;
+  } else if (kind === 'trained') {
+    for (let i = 0; i < N_SIM; i++) {
+      for (let j = 0; j < N_SIM; j++) {
+        simLogits[i][j] = (i === j ? 3.5 : 0.0) + (Math.random() - 0.5) * 0.3;
+      }
+    }
+  } else if (kind === 'worst') {
+    for (let i = 0; i < N_SIM; i++) {
+      for (let j = 0; j < N_SIM; j++) {
+        simLogits[i][j] = (i === j ? -2.5 : 2.5) + (Math.random() - 0.5) * 0.2;
+      }
+    }
+  }
+  renderSim();
+}
+
+renderSim();
+setupSim();
+
+// ============== TEMPERATURE BARS ==============
+const tempSimsBase = [0.30, 0.10, 0.27, 0.18];
+function updateTempBars() {
+  const t = +document.getElementById('tempT').value;
+  const tau = Math.exp(t);
+  document.getElementById('tempTval').textContent = t.toFixed(2);
+  document.getElementById('tempTau').textContent = tau.toFixed(1);
+  const logits = tempSimsBase.map(s => s * tau);
+  const sm = softmaxRow(logits);
+  const max = Math.max(...sm);
+  for (let i = 0; i < 4; i++) {
+    const fill = document.querySelector(`#softmaxBars [data-bar="${i}"]`);
+    const valEl = document.querySelector(`#softmaxBars [data-val="${i}"]`);
+    fill.style.width = (sm[i] * 100) + '%';
+    valEl.textContent = (sm[i] * 100).toFixed(1) + '%';
+    valEl.style.color = (sm[i] === max) ? 'var(--accent-2)' : 'var(--accent)';
+  }
+}
+const tempT = document.getElementById('tempT');
+if (tempT) {
+  tempT.addEventListener('input', updateTempBars);
+  updateTempBars();
+}
+
+// ============== ZERO-SHOT DEMO ==============
+// 카툰 뷰를 위한 가짜 "임베딩"과 캡션 유사도
+const ZS_DATA = {
+  dog:    { embed: [0.62, 0.31, -0.18, 0.44, -0.05, 0.53],
+            sims: [0.78, 0.18, 0.23, 0.15, 0.42, 0.19, 0.11, 0.31] },
+  cat:    { embed: [0.58, -0.22, 0.41, 0.19, 0.27, -0.12],
+            sims: [0.21, 0.81, 0.27, 0.13, 0.38, 0.16, 0.10, 0.22] },
+  car:    { embed: [-0.31, 0.55, 0.40, -0.22, 0.18, 0.07],
+            sims: [0.14, 0.13, 0.09, 0.86, 0.11, 0.18, 0.62, 0.28] },
+  pizza:  { embed: [0.18, 0.46, -0.39, 0.05, 0.61, -0.17],
+            sims: [0.11, 0.16, 0.10, 0.12, 0.22, 0.84, 0.13, 0.19] },
+  rocket: { embed: [-0.15, -0.41, 0.28, 0.55, -0.20, 0.49],
+            sims: [0.16, 0.08, 0.14, 0.31, 0.09, 0.12, 0.79, 0.21] },
+  violin: { embed: [0.43, 0.02, 0.51, -0.34, 0.16, 0.27],
+            sims: [0.18, 0.13, 0.21, 0.10, 0.09, 0.14, 0.16, 0.83] },
+};
+const ZS_EMOJI = {
+  dog: '🐶', cat: '🐱', car: '🚗', pizza: '🍕', rocket: '🚀', violin: '🎻'
+};
+const ZS_CAPS = [
+  ['a photo of a dog',     '🐶'],
+  ['a photo of a cat',     '🐱'],
+  ['a photo of a wolf',    '🐺'],
+  ['a photo of a car',     '🚗'],
+  ['a slice of pizza',     '🍕'],
+  ['a delicious meal',     '🍝'],
+  ['a rocket launch',      '🚀'],
+  ['a violin solo',        '🎻'],
+];
+
+let zsCurrent = 'dog';
+function renderZeroShot() {
+  const data = ZS_DATA[zsCurrent];
+  document.getElementById('zsImage').textContent = ZS_EMOJI[zsCurrent];
+  document.getElementById('zsEmbed').textContent = '[' +
+    data.embed.map(v => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(', ') + ', …]';
+  // 표시되는 캡션 유사도에 대한 소프트맥스 (카툰 tau=20으로 스케일)
+  const tau = 20;
+  const logits = data.sims.map(s => s * tau);
+  const sm = softmaxRow(logits);
+  const sortedIdx = sm
+    .map((v, i) => [v, i])
+    .sort((a, b) => b[0] - a[0])
+    .map(p => p[1]);
+  const top = sortedIdx[0];
+  const container = document.getElementById('zsCaptions');
+  container.innerHTML = '';
+  // 확률 내림차순으로 표시
+  sortedIdx.forEach(idx => {
+    const [cap, em] = ZS_CAPS[idx];
+    const row = document.createElement('div');
+    row.className = 'zs-cap-row';
+    row.innerHTML = `
+      <div class="cap ${idx === top ? 'top' : ''}">${em}  <span style="opacity:0.85">"${cap}"</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width: ${(sm[idx] * 100).toFixed(1)}%"></div></div>
+      <div class="pct">${(sm[idx] * 100).toFixed(1)}%</div>
+    `;
+    container.appendChild(row);
+  });
+}
+document.querySelectorAll('#zsThumbs .zs-thumb').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('#zsThumbs .zs-thumb').forEach(o => o.classList.remove('active'));
+    t.classList.add('active');
+    zsCurrent = t.dataset.img;
+    renderZeroShot();
+  });
+});
+renderZeroShot();
+
+// ============== BOSS SIMULATION ==============
+const bossLossCanvas = document.getElementById('bossLossCanvas');
+const bossSimCanvas  = document.getElementById('bossSimCanvas');
+let bossEpoch = 0, bossHistory = [], bossTimer = null;
+const bossN = 4;
+
+// 랜덤 유사도 행렬 초기화 (미학습)
+let bossSim = Array.from({ length: bossN }, () =>
+  Array.from({ length: bossN }, () => (Math.random() - 0.5) * 0.6));
+
+function drawBossLoss() {
+  if (!bossLossCanvas) return;
+  const ctx = bossLossCanvas.getContext('2d');
+  const W = bossLossCanvas.width, H = bossLossCanvas.height;
+  ctx.fillStyle = '#070b15';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(139, 148, 179, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#8b94b3';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('loss', 4, 12);
+  ctx.fillText(Math.log(bossN).toFixed(2), 4, H * 0.5 + 4);
+
+  if (bossHistory.length < 2) return;
+  const maxLoss = Math.log(bossN) * 1.2;
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#38bdf8');
+  grad.addColorStop(1, '#ec4899');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  bossHistory.forEach((l, i) => {
+    const x = 30 + (W - 30) * i / 200;
+    const y = (H - 16) * (1 - Math.min(l, maxLoss) / maxLoss);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawBossSim() {
+  if (!bossSimCanvas) return;
+  const ctx = bossSimCanvas.getContext('2d');
+  const W = bossSimCanvas.width, H = bossSimCanvas.height;
+  ctx.fillStyle = '#070b15';
+  ctx.fillRect(0, 0, W, H);
+
+  const cell = Math.min((W - 80) / bossN, (H - 40) / bossN);
+  const startX = (W - cell * bossN) / 2 + 20;
+  const startY = (H - cell * bossN) / 2;
+
+  // 라벨
+  ctx.fillStyle = '#8b94b3';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('text →', startX + cell * bossN / 2 - 14, startY - 6);
+  ctx.save();
+  ctx.translate(startX - 30, startY + cell * bossN / 2 + 12);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('image →', 0, 0);
+  ctx.restore();
+
+  for (let i = 0; i < bossN; i++) {
+    for (let j = 0; j < bossN; j++) {
+      const v = bossSim[i][j];
+      // map -3..6 → 0..1
+      const t = Math.max(0, Math.min(1, (v + 3) / 9));
+      const r = Math.round(236 + (56 - 236) * t);
+      const g = Math.round(72  + (189 - 72) * t);
+      const b = Math.round(153 + (248 - 153) * t);
+      const a = 0.2 + 0.7 * t;
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+      ctx.fillRect(startX + j * cell, startY + i * cell, cell - 2, cell - 2);
+      if (i === j) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(startX + j * cell + 1, startY + i * cell + 1, cell - 4, cell - 4);
+      }
+    }
+  }
+}
+
+function trainBoss() {
+  if (bossTimer) return;
+  bossHistory = []; bossEpoch = 0;
+  document.getElementById('bossDone').style.display = 'none';
+  document.getElementById('trainBossBtn').disabled = true;
+  document.getElementById('trainBossBtn').textContent = '학습 중...';
+  // 노이즈로 sim 리셋
+  bossSim = Array.from({ length: bossN }, () =>
+    Array.from({ length: bossN }, () => (Math.random() - 0.5) * 0.6));
+
+  const totalEpochs = 200;
+  bossTimer = setInterval(() => {
+    bossEpoch++;
+    // 점진적으로 대각선은 위로, 비대각선은 작은 음수로 이동
+    const k = 0.04;
+    for (let i = 0; i < bossN; i++) {
+      for (let j = 0; j < bossN; j++) {
+        const target = (i === j) ? 5.5 : -0.5;
+        bossSim[i][j] += (target - bossSim[i][j]) * k + (Math.random() - 0.5) * 0.06;
+      }
+    }
+    const r = computeContrastiveLoss(bossSim);
+    bossHistory.push(r.total);
+    document.getElementById('bossEpoch').textContent = bossEpoch;
+    document.getElementById('bossLoss').textContent = r.total.toFixed(3);
+    document.getElementById('bossAcc').textContent = (((r.accI + r.accT) / 2) * 100).toFixed(0) + '%';
+    drawBossLoss();
+    drawBossSim();
+    if (bossEpoch >= totalEpochs) {
+      clearInterval(bossTimer); bossTimer = null;
+      document.getElementById('bossDone').style.display = '';
+      document.getElementById('trainBossBtn').textContent = '✓ 학습 완료';
+      burstConfetti();
+      showToast('CLIP 순전파 완성 🎉  대각선 정확도 100%');
+    }
+  }, 30);
+}
+
+drawBossLoss();
+drawBossSim();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'arch','3':'contrastive','4':'temp','5':'zeroshot','6':'code','7':'boss' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

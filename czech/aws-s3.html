@@ -1,0 +1,2552 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWS S3 CLI — Interaktivní drill</title>
+<meta name="description" content="aws s3 + aws s3api psaním — cp, sync, presign, versioning, KMS, multipart, lifecycle.">
+<style>
+  :root {
+    --bg: #0c1118;
+    --panel: #131a26;
+    --panel-2: #1a2436;
+    --border: #2a3548;
+    --text: #e6edf3;
+    --muted: #8b95a8;
+    --accent: #ff9900;       /* AWS orange */
+    --accent-2: #ffb547;
+    --teal: #14e0c4;         /* bucket teal */
+    --teal-2: #0bb89f;
+    --code-bg: #08101a;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #8b95a8;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --violet: #c084fc;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(255,153,0,0.08), transparent 60%),
+      radial-gradient(900px 500px at -10% 30%, rgba(20,224,196,0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #18212e 0%, #0c1118 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .bucket {
+    width: 26px; height: 26px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border-radius: 4px 4px 8px 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #1a1208; font-weight: 900; font-size: 13px;
+    box-shadow: 0 0 12px rgba(255,153,0,0.45);
+  }
+  .badge {
+    background: linear-gradient(135deg, var(--teal), var(--teal-2));
+    color: #062018;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--teal));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 14px rgba(255,153,0,0.55);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(255,153,0,0.12);
+    border-color: rgba(255,153,0,0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h1 .sub { color: var(--teal); font-weight: 600; font-size: 16px; margin-left: 6px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: linear-gradient(180deg, var(--accent), var(--teal));
+    border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+  .tok-b { color: var(--accent); font-weight: 700; }   /* bucket / s3 */
+  .tok-flag { color: var(--teal); }                    /* --flags */
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #1a1208;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #032010; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 260px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(255,153,0,0.25);
+    background: rgba(255,153,0,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #1a1208;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+  .btn.teal {
+    background: linear-gradient(135deg, var(--teal), var(--teal-2));
+    color: #052018;
+  }
+  .btn:disabled { filter: grayscale(0.4) brightness(0.7); cursor: not-allowed; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(255,153,0,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note.teal {
+    background: rgba(20,224,196,0.08);
+    border-left-color: var(--teal);
+  }
+  .note.teal strong { color: var(--teal); }
+  .note strong { color: var(--accent); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px;
+  }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .pill {
+    display: inline-block;
+    background: rgba(255,153,0,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    margin: 0 2px;
+  }
+  .pill.teal { background: rgba(20,224,196,0.15); color: var(--teal); }
+  .pill.violet { background: rgba(192,132,252,0.15); color: var(--violet); }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* Tables */
+  table.matrix {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    margin: 12px 0;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  table.matrix th, table.matrix td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.matrix th {
+    background: var(--panel-2);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  table.matrix tr:last-child td { border-bottom: none; }
+  table.matrix tr:hover td { background: rgba(255,153,0,0.04); }
+  table.matrix code { color: var(--teal); font-size: 12px; }
+  table.matrix .yes { color: var(--good); font-weight: 700; }
+  table.matrix .no  { color: var(--bad); }
+  table.matrix .meh { color: var(--muted); }
+
+  /* Project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(255,153,0,0.08), rgba(20,224,196,0.04));
+    border: 1px solid rgba(255,153,0,0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Sync simulator */
+  .sync-sim {
+    display: grid;
+    grid-template-columns: 1fr 60px 1fr;
+    gap: 14px;
+    align-items: stretch;
+    margin: 12px 0;
+  }
+  @media (max-width: 760px) { .sync-sim { grid-template-columns: 1fr; } }
+  .sync-col {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    min-height: 220px;
+  }
+  .sync-col h4 {
+    margin: 0 0 8px; font-size: 13px;
+    color: var(--teal);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sync-col.remote h4 { color: var(--accent); }
+  .sync-col ul {
+    list-style: none; padding: 0; margin: 0;
+    font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  .sync-col li {
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin: 2px 0;
+    display: flex; justify-content: space-between; gap: 8px;
+    transition: all 0.25s;
+  }
+  .sync-col li.add { background: rgba(74,222,128,0.12); color: var(--good); }
+  .sync-col li.update { background: rgba(255,153,0,0.12); color: var(--accent); }
+  .sync-col li.del { background: rgba(248,113,113,0.12); color: var(--bad); text-decoration: line-through; }
+  .sync-col li.same { color: var(--muted); }
+  .sync-arrow {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: var(--accent);
+    text-shadow: 0 0 18px rgba(255,153,0,0.6);
+  }
+  .sync-controls {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin: 10px 0;
+    align-items: center;
+  }
+  .toggle-row {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+  }
+  .toggle-row input[type="checkbox"] { transform: scale(1.2); accent-color: var(--accent); }
+
+  /* Slider */
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 90px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(255,153,0,0.5);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    box-shadow: 0 0 8px rgba(255,153,0,0.5);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 90px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  select, input[type="text"], input[type="number"] {
+    background: var(--code-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+  }
+  select:focus, input[type="text"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(255,153,0,0.18);
+  }
+
+  .estimate {
+    background: var(--code-bg);
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    margin-top: 10px;
+  }
+  .estimate .big {
+    font-size: 22px; color: var(--teal); font-weight: 800;
+  }
+
+  /* Multipart visual */
+  .parts-bar {
+    display: flex; gap: 2px; height: 28px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 10px 0;
+    padding: 2px;
+    border: 1px solid var(--border);
+  }
+  .parts-bar .part {
+    flex: 1;
+    background: linear-gradient(180deg, var(--accent), #c0660d);
+    border-radius: 3px;
+    position: relative;
+    box-shadow: inset 0 0 4px rgba(0,0,0,0.4);
+  }
+  .parts-bar .part:nth-child(odd) {
+    background: linear-gradient(180deg, var(--accent-2), var(--accent));
+  }
+
+  /* Presign */
+  .presign-out {
+    background: var(--code-bg);
+    border: 1px solid var(--teal);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    word-break: break-all;
+    color: var(--teal);
+    margin-top: 10px;
+    line-height: 1.7;
+  }
+  .presign-out .host { color: var(--accent); }
+  .presign-out .path { color: var(--text); }
+  .presign-out .q { color: var(--violet); }
+
+  /* Storage class chooser */
+  .sc-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px; margin: 10px 0;
+  }
+  .sc-card {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+  }
+  .sc-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .sc-card.selected {
+    border-color: var(--accent);
+    background: rgba(255,153,0,0.1);
+    box-shadow: 0 0 14px rgba(255,153,0,0.3);
+  }
+  .sc-card .name { font-weight: 800; font-size: 12.5px; color: var(--accent); }
+  .sc-card .price { color: var(--teal); font-size: 14px; font-family: ui-monospace, monospace; margin-top: 4px; }
+  .sc-card .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(255,153,0,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  code.inline {
+    background: var(--code-bg);
+    color: var(--teal);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+  }
+
+  ul.tight li { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="bucket">S3</span> AWS S3 CLI <span class="badge">aws s3 / s3api</span>
+    </div>
+    <div class="progress-bar-outer" title="celkový postup">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="dokončená cvičení">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">vyřešeno</span>
+    </div>
+    <div class="streak" title="série">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. Vítejte</button>
+    <button data-tab="list">2. Výpis &amp; inspekce</button>
+    <button data-tab="cp">3. cp / mv / sync</button>
+    <button data-tab="s3api">4. Síla s3api</button>
+    <button data-tab="buckets">5. Buckety &amp; politiky</button>
+    <button data-tab="enc">6. Šifrování &amp; třídy</button>
+    <button data-tab="multi">7. Multipart &amp; presign</button>
+    <button data-tab="drills">8. Procvičování</button>
+    <button data-tab="boss">9. Boss</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>AWS S3 CLI <span class="sub">— od <code class="inline">ls</code> po <code class="inline">put-bucket-policy</code></span></h1>
+  <p class="lead">
+    Dvě rodiny CLI, jedna úložná služba. <span class="pill">aws s3</span> je přívětivý
+    high-level wrapper pro každodenní práci — copy, sync, presign. <span class="pill teal">aws s3api</span>
+    je low-level zrcadlo REST API, pro jemné operace jako versioning,
+    lifecycly, multipart uploady a bucket policy. Proklepejte si obojí psaním.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">aws s3 — high-level</div></div>
+      <div class="card-body">
+        Příkazy s pocitem souborového systému: <code class="inline">ls</code>, <code class="inline">cp</code>,
+        <code class="inline">mv</code>, <code class="inline">sync</code>, <code class="inline">rm</code>,
+        <code class="inline">mb</code>, <code class="inline">rb</code>, <code class="inline">presign</code>.
+        Dělá za vás chytré věci automaticky — vícevláknové uploady, multipart pro velké soubory,
+        opakování — a 90 % času saháte právě po něm.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">aws s3api — low-level</div></div>
+      <div class="card-body">
+        Jeden subcommand na každé sloveso S3 API: <code class="inline">list-objects-v2</code>,
+        <code class="inline">head-object</code>, <code class="inline">put-bucket-versioning</code>,
+        <code class="inline">create-multipart-upload</code>, …
+        Použijte ho, když potřebujete funkci, kterou <code class="inline">aws s3</code> nevystavuje, nebo když
+        chcete syrový JSON výstup pro <code class="inline">--query</code> / <code class="inline">jq</code>.
+      </div>
+    </div>
+  </div>
+
+  <h2>S3 URI, které napíšete tisíckrát</h2>
+  <pre class="code"><span class="tok-c"># schéma   název bucketu   klíč (cesta k objektu uvnitř bucketu)</span>
+<span class="tok-b">s3://</span><span class="tok-t">my-bucket</span><span class="tok-b">/</span><span class="tok-s">photos/2026/cat.jpg</span>
+
+<span class="tok-c"># "složka" je jen prefix klíče — jako objekt vlastně neexistuje</span>
+<span class="tok-b">s3://</span><span class="tok-t">my-bucket</span><span class="tok-b">/</span><span class="tok-s">photos/2026/</span></pre>
+
+  <div class="note">
+    <strong>Pozor:</strong> S3 klíče <em>nejsou</em> reálný souborový systém. „Adresář"
+    <code class="inline">photos/2026/</code> existuje jen proto, že existují objekty, jejichž klíče
+    začínají tímto prefixem. Prázdné složky jsou nulobytové objekty končící na <code class="inline">/</code>.
+  </div>
+
+  <h2>Autentizace za 30 sekund</h2>
+  <pre class="code"><span class="tok-c"># Interaktivně: zapsat access klíče do ~/.aws/credentials</span>
+$ aws <span class="tok-f">configure</span>
+AWS Access Key ID: <span class="tok-s">AKIA...</span>
+AWS Secret Access Key: <span class="tok-s">****</span>
+Default region name: <span class="tok-s">us-east-1</span>
+Default output format: <span class="tok-s">json</span>
+
+<span class="tok-c"># Ověření, kdo jste</span>
+$ aws sts <span class="tok-f">get-caller-identity</span>
+{
+  <span class="tok-s">"UserId"</span>: <span class="tok-s">"AIDA..."</span>,
+  <span class="tok-s">"Account"</span>: <span class="tok-s">"123456789012"</span>,
+  <span class="tok-s">"Arn"</span>: <span class="tok-s">"arn:aws:iam::123456789012:user/jane"</span>
+}</pre>
+
+  <h2>Profily &amp; proměnné prostředí</h2>
+  <pre class="code"><span class="tok-c"># ~/.aws/credentials</span>
+<span class="tok-t">[default]</span>
+aws_access_key_id = <span class="tok-s">AKIA...</span>
+aws_secret_access_key = <span class="tok-s">****</span>
+
+<span class="tok-t">[profile work]</span>
+aws_access_key_id = <span class="tok-s">AKIA...</span>
+aws_secret_access_key = <span class="tok-s">****</span>
+region = <span class="tok-s">eu-west-1</span>
+
+<span class="tok-c"># Vyberte profil pro jeden příkaz…</span>
+$ aws s3 ls --<span class="tok-flag">profile</span> work
+
+<span class="tok-c"># …nebo pro celý shell</span>
+$ <span class="tok-k">export</span> AWS_PROFILE=work
+$ <span class="tok-k">export</span> AWS_REGION=eu-west-1
+$ <span class="tok-k">export</span> AWS_ACCESS_KEY_ID=AKIA...
+$ <span class="tok-k">export</span> AWS_SECRET_ACCESS_KEY=****
+$ <span class="tok-k">export</span> AWS_SESSION_TOKEN=...    <span class="tok-c"># pro STS / SSO sessions</span></pre>
+
+  <h2>IAM: čtyři S3 akce, které používáte nejvíc</h2>
+  <table class="matrix">
+    <thead><tr><th>Akce</th><th>Co umožňuje</th><th>Příklad zdroje</th></tr></thead>
+    <tbody>
+      <tr><td><code>s3:ListBucket</code></td><td>Vypsat klíče s daným prefixem</td><td><code>arn:aws:s3:::my-bucket</code></td></tr>
+      <tr><td><code>s3:GetObject</code></td><td>Stáhnout objekt</td><td><code>arn:aws:s3:::my-bucket/*</code></td></tr>
+      <tr><td><code>s3:PutObject</code></td><td>Nahrát objekt</td><td><code>arn:aws:s3:::my-bucket/*</code></td></tr>
+      <tr><td><code>s3:DeleteObject</code></td><td>Smazat (nebo umístit delete-marker na) objekt</td><td><code>arn:aws:s3:::my-bucket/*</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note teal">
+    <strong>Bucket vs object akce:</strong> <code class="inline">s3:ListBucket</code> míří na
+    <em>bucket</em> ARN (bez <code class="inline">/*</code>). <code class="inline">s3:GetObject</code>
+    míří na <em>objekty</em> uvnitř (s <code class="inline">/*</code>). Záměna je
+    příčina #1 chyby „AccessDenied" u nové politiky.
+  </div>
+
+  <h2>Jak tato stránka funguje</h2>
+  <ul class="tight">
+    <li>Každá sekce má drilly k psaní. <kbd>Enter</kbd> zkontroluje; <kbd>Hint</kbd> odhalí (a vrátí zpět).</li>
+    <li>Skóre, série a progress bar se aktualizují nahoře. Dokončení sekce spustí konfety.</li>
+    <li>Sourozenecká stránka <a href="aws.html" style="color: var(--accent);">aws.html</a> pokrývá širší AWS CLI &amp; IAM. Tato je čistě S3.</li>
+  </ul>
+</section>
+
+<!-- ========================= LIST & INSPECT ========================= -->
+<section class="tab-section" id="tab-list">
+  <h1>Výpis &amp; inspekce <span class="sub">— ls, head-object, list-objects-v2, --query</span></h1>
+  <p class="lead">
+    První přikázání cloud storage: vědět, co je v bucketu, než na to sáhnete.
+    Obě CLI rodiny vypisují objekty; <code class="inline">s3api</code> dává JSON, který si
+    můžete krájet pomocí JMESPath přes <code class="inline">--query</code>.
+  </p>
+
+  <h2>aws s3 ls — přívětivý výpis</h2>
+  <pre class="code"><span class="tok-c"># Všechny buckety v účtu</span>
+$ aws s3 <span class="tok-f">ls</span>
+2026-04-01 10:22:13 my-bucket
+2026-04-12 09:01:55 logs-bucket
+
+<span class="tok-c"># Objekty v rootu jednoho bucketu</span>
+$ aws s3 <span class="tok-f">ls</span> <span class="tok-b">s3://my-bucket</span>
+                           PRE photos/
+2026-05-01 14:11:02     1024 readme.txt
+
+<span class="tok-c"># Rekurzivně, čitelně, s řádkem souhrnu</span>
+$ aws s3 <span class="tok-f">ls</span> <span class="tok-b">s3://my-bucket/photos/</span> --<span class="tok-flag">recursive</span> --<span class="tok-flag">human-readable</span> --<span class="tok-flag">summarize</span>
+2026-05-01 14:11:02   2.1 MiB photos/2026/cat.jpg
+2026-05-01 14:11:03   1.7 MiB photos/2026/dog.jpg
+
+Total Objects: 2
+   Total Size: 3.8 MiB</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Rekurzivně vypište vše pod prefixem <code class="inline">photos/</code> v <code class="inline">my-bucket</code>.</div>
+    <pre class="exercise">$ aws s3 ls s3://my-bucket/photos/ --<input class="blank" data-answer="recursive" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Přidejte flag, který tiskne velikosti v MiB / GiB místo bytů.</div>
+    <pre class="exercise">$ aws s3 ls s3://my-bucket --recursive --<input class="blank" data-answer="human-readable" size="16" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>aws s3api list-objects-v2 — programatický výpis</h2>
+  <pre class="code"><span class="tok-c"># Vypsat až 10 klíčů pod prefixem p/, projekce jen klíč + velikost</span>
+$ aws s3api <span class="tok-f">list-objects-v2</span> \
+    --<span class="tok-flag">bucket</span> my-bucket \
+    --<span class="tok-flag">prefix</span> p/ \
+    --<span class="tok-flag">max-items</span> 10 \
+    --<span class="tok-flag">query</span> <span class="tok-s">'Contents[].{Key:Key,Size:Size}'</span>
+
+<span class="tok-c"># Stránkování přes continuation token</span>
+$ aws s3api list-objects-v2 --bucket my-bucket --max-keys 1000 \
+    --<span class="tok-flag">starting-token</span> <span class="tok-s">"$NEXT_TOKEN"</span></pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Promítněte jen pole <code class="inline">Key</code> z každého vypsaného objektu.</div>
+    <pre class="exercise">$ aws s3api list-objects-v2 --bucket my-bucket \
+    --query 'Contents[].<input class="blank" data-answer="Key" size="6" placeholder="?">'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>head-object — metadata bez stahování</h2>
+  <pre class="code">$ aws s3api <span class="tok-f">head-object</span> --<span class="tok-flag">bucket</span> my-bucket --<span class="tok-flag">key</span> photos/cat.jpg
+{
+  <span class="tok-s">"ContentLength"</span>: <span class="tok-n">2156784</span>,
+  <span class="tok-s">"ContentType"</span>: <span class="tok-s">"image/jpeg"</span>,
+  <span class="tok-s">"ETag"</span>: <span class="tok-s">"\"d41d8cd98f00b204e9800998ecf8427e\""</span>,
+  <span class="tok-s">"VersionId"</span>: <span class="tok-s">"3HL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY"</span>,
+  <span class="tok-s">"ServerSideEncryption"</span>: <span class="tok-s">"AES256"</span>,
+  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"STANDARD"</span>,
+  <span class="tok-s">"Metadata"</span>: { <span class="tok-s">"camera"</span>: <span class="tok-s">"Sony A7"</span> }
+}</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Doplňte sloveso s3api, které načte metadata objektu (jen hlavičky, žádné tělo).</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="head-object" size="13" placeholder="?"> --bucket B --key K</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>JMESPath rychlokurz — flag <code class="inline">--query</code></h2>
+  <p class="lead">
+    Každé volání <code class="inline">aws</code> vrací JSON. <code class="inline">--query 'EXPR'</code>
+    spustí JMESPath na klientu, ještě před tím, než <code class="inline">--output</code> formátuje.
+  </p>
+  <pre class="code"><span class="tok-c"># Jen názvy bucketů</span>
+$ aws s3api list-buckets --query <span class="tok-s">'Buckets[].Name'</span>
+
+<span class="tok-c"># Objekty větší než 1 MiB (všimněte si zpětných uvozovek u čísla)</span>
+$ aws s3api list-objects-v2 --bucket B \
+    --query <span class="tok-s">'Contents[?Size > `1048576`].Key'</span>
+
+<span class="tok-c"># 5 nejnovějších objektů</span>
+$ aws s3api list-objects-v2 --bucket B \
+    --query <span class="tok-s">'reverse(sort_by(Contents, &amp;LastModified))[:5].[Key,LastModified]'</span> \
+    --output table
+
+<span class="tok-c"># Celková velikost prefixu (suma)</span>
+$ aws s3api list-objects-v2 --bucket B --prefix logs/ \
+    --query <span class="tok-s">'sum(Contents[].Size)'</span></pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Vraťte jen názvy bucketů z <code class="inline">list-buckets</code>.</div>
+    <pre class="exercise">$ aws s3api list-buckets --query 'Buckets[].<input class="blank" data-answer="Name" size="6" placeholder="?">'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> JMESPath: ponechte jen objekty striktně větší než 1 MiB. Doplňte klíčové slovo.</div>
+    <pre class="exercise">--query 'Contents[<input class="blank" data-answer="?" size="3" placeholder="?">Size > `1048576`].Key'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CP / MV / SYNC ========================= -->
+<section class="tab-section" id="tab-cp">
+  <h1>Upload, download, sync <span class="sub">— cp, mv, sync, exclude/include</span></h1>
+  <p class="lead">
+    Tato čtyři slovesa (<code class="inline">cp</code>, <code class="inline">mv</code>,
+    <code class="inline">sync</code>, <code class="inline">rm</code>) zvládnou 95 % bytů, které
+    putují do S3 nebo z něj. Zvládněte pořadí <code class="inline">--exclude</code> /
+    <code class="inline">--include</code> a <code class="inline">--dryrun</code>
+    dřív, než vůbec napíšete <code class="inline">--delete</code>.
+  </p>
+
+  <h2>cp — jeden soubor nebo rekurzivně</h2>
+  <pre class="code"><span class="tok-c"># Upload</span>
+$ aws s3 <span class="tok-f">cp</span> ./report.pdf <span class="tok-b">s3://my-bucket/reports/</span>
+
+<span class="tok-c"># Download</span>
+$ aws s3 <span class="tok-f">cp</span> <span class="tok-b">s3://my-bucket/reports/report.pdf</span> ./
+
+<span class="tok-c"># Rekurzivně — celý adresář</span>
+$ aws s3 cp ./build/ <span class="tok-b">s3://my-bucket/site/</span> --<span class="tok-flag">recursive</span>
+
+<span class="tok-c"># S třídou úložiště, šifrováním, content-type a metadaty</span>
+$ aws s3 cp big.bin <span class="tok-b">s3://my-bucket/data/big.bin</span> \
+    --<span class="tok-flag">storage-class</span> STANDARD_IA \
+    --<span class="tok-flag">sse</span> aws:kms --<span class="tok-flag">sse-kms-key-id</span> alias/data \
+    --<span class="tok-flag">content-type</span> application/octet-stream \
+    --<span class="tok-flag">metadata</span> ingest=2026-05-20,team=ml \
+    --<span class="tok-flag">acl</span> private</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Nahrajte celý lokální adresář do prefixu v S3.</div>
+    <pre class="exercise">$ aws s3 cp ./build/ s3://my-bucket/site/ --<input class="blank" data-answer="recursive" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Označte upload jako Infrequent-Access. Doplňte třídu úložiště.</div>
+    <pre class="exercise">$ aws s3 cp file.txt s3://b/k --storage-class <input class="blank" data-answer="STANDARD_IA" size="14" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>mv — kopie + smazání zdroje</h2>
+  <pre class="code"><span class="tok-c"># Posunutí buildu ze staging do release prefixu</span>
+$ aws s3 <span class="tok-f">mv</span> <span class="tok-b">s3://b/staging/v1.tar.gz</span> <span class="tok-b">s3://b/release/v1.tar.gz</span>
+
+<span class="tok-c"># Přesun lokál → S3 (po úspěchu lokální soubor smaže)</span>
+$ aws s3 mv ./done.zip <span class="tok-b">s3://b/archive/</span></pre>
+
+  <h2>sync — supersíla na úrovni adresářů</h2>
+  <pre class="code"><span class="tok-c"># Zrcadlit lokál → S3, *přidat* a *aktualizovat*, ale nikdy nemazat</span>
+$ aws s3 <span class="tok-f">sync</span> ./public/ <span class="tok-b">s3://my-site/</span>
+
+<span class="tok-c"># Zrcadlit s mazáním: S3 přesně odpovídá lokálu</span>
+$ aws s3 sync ./public/ <span class="tok-b">s3://my-site/</span> --<span class="tok-flag">delete</span>
+
+<span class="tok-c"># Vyhodit smetí, posílat jen JS a CSS</span>
+$ aws s3 sync ./dist/ <span class="tok-b">s3://my-site/</span> \
+    --<span class="tok-flag">exclude</span> <span class="tok-s">"*"</span> \
+    --<span class="tok-flag">include</span> <span class="tok-s">"*.js"</span> \
+    --<span class="tok-flag">include</span> <span class="tok-s">"*.css"</span>
+
+<span class="tok-c"># Co by se změnilo, bez skutečného provedení</span>
+$ aws s3 sync ./public/ <span class="tok-b">s3://my-site/</span> --delete --<span class="tok-flag">dryrun</span></pre>
+
+  <div class="note">
+    <strong>Záleží na pořadí:</strong> <code class="inline">--exclude</code> /
+    <code class="inline">--include</code> se vyhodnocují zleva doprava a vyhrává poslední shoda.
+    Vzor <code class="inline">--exclude "*"</code> nejdřív, pak znovu zahrňte to, co chcete.
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Zrcadlete lokální adresář do S3 tak, aby smazané lokální soubory byly smazány i v S3, a přitom přeskočte <code class="inline">.tmp</code> soubory.</div>
+    <pre class="exercise">$ aws s3 <input class="blank" data-answer="sync" size="6" placeholder="?"> local/ s3://bucket/prefix/ --<input class="blank" data-answer="delete" size="8" placeholder="?"> --exclude "*.tmp"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Zobrazte náhled toho, co by destruktivní sync udělal, aniž by to provedl.</div>
+    <pre class="exercise">$ aws s3 sync ./public/ s3://site/ --delete --<input class="blank" data-answer="dryrun" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Interaktivně: simulátor synchronizace</h2>
+  <p class="lead">
+    Přepněte <code class="inline">--delete</code> a sledujte, co by se stalo
+    se vzdáleným bucketem podle diffu lokálních souborů.
+  </p>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">./local/  →  s3://demo-bucket/</div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <label class="toggle-row"><input type="checkbox" id="syncDelete"> --delete</label>
+        <label class="toggle-row"><input type="checkbox" id="syncSizeOnly"> --size-only</label>
+        <button class="btn tiny teal" onclick="randomizeSync()">zamíchat</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sync-sim">
+        <div class="sync-col">
+          <h4>lokální soubory</h4>
+          <ul id="localFiles"></ul>
+        </div>
+        <div class="sync-arrow">→</div>
+        <div class="sync-col remote">
+          <h4>s3://demo-bucket/  (po sync)</h4>
+          <ul id="remoteFiles"></ul>
+        </div>
+      </div>
+      <div class="estimate" id="syncSummary">
+        <span style="color: var(--muted);">příkaz:</span>
+        <code id="syncCmd" style="color: var(--accent);"></code><br>
+        <span style="color: var(--muted);">nahraje</span>
+        <span class="big" id="syncUp">0</span>
+        <span style="color: var(--muted);">  · aktualizuje</span>
+        <span class="big" id="syncMod">0</span>
+        <span style="color: var(--muted);">  · smaže</span>
+        <span class="big" id="syncDel">0</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>rm — opatrně, hlavně s --recursive</h2>
+  <pre class="code"><span class="tok-c"># Jeden objekt</span>
+$ aws s3 <span class="tok-f">rm</span> <span class="tok-b">s3://b/old.log</span>
+
+<span class="tok-c"># Celý prefix — bez potvrzení!</span>
+$ aws s3 rm <span class="tok-b">s3://b/tmp/</span> --<span class="tok-flag">recursive</span>
+
+<span class="tok-c"># Selektivně: smazat logs/ ale ponechat .json</span>
+$ aws s3 rm <span class="tok-b">s3://b/logs/</span> --recursive --<span class="tok-flag">exclude</span> <span class="tok-s">"*.json"</span></pre>
+
+  <div class="note teal">
+    <strong>Varování versioning:</strong> <code class="inline">aws s3 rm --recursive</code> na
+    versionovaném bucketu jen přidává <em>delete markery</em> — staré verze tam pořád jsou. Pro skutečné
+    uvolnění místa je třeba mazat verze explicitně přes <code class="inline">s3api</code>.
+  </div>
+</section>
+
+<!-- ========================= S3API POWER ========================= -->
+<section class="tab-section" id="tab-s3api">
+  <h1>s3api Power Tools <span class="sub">— jedno sloveso na akci S3 API</span></h1>
+  <p class="lead">
+    Když přívětivé příkazy <code class="inline">aws s3</code> dojdou, sestupte na
+    <code class="inline">s3api</code>. Výstup je vždy JSON — proženete přes
+    <code class="inline">--query</code> nebo <code class="inline">jq</code>.
+  </p>
+
+  <h2>Operace na úrovni objektů</h2>
+  <pre class="code"><span class="tok-c"># Upload z lokálního souboru s explicitním content-type a metadaty</span>
+$ aws s3api <span class="tok-f">put-object</span> \
+    --<span class="tok-flag">bucket</span> my-bucket \
+    --<span class="tok-flag">key</span> data/blob.bin \
+    --<span class="tok-flag">body</span> ./blob.bin \
+    --<span class="tok-flag">content-type</span> application/octet-stream \
+    --<span class="tok-flag">metadata</span> sha256=abcd...,team=ml
+
+<span class="tok-c"># Stažení do souboru</span>
+$ aws s3api <span class="tok-f">get-object</span> --bucket my-bucket --key data/blob.bin out.bin
+
+<span class="tok-c"># Server-side kopie (žádné byty přes váš laptop)</span>
+$ aws s3api <span class="tok-f">copy-object</span> \
+    --<span class="tok-flag">bucket</span> dest-bucket \
+    --<span class="tok-flag">key</span> archive/blob.bin \
+    --<span class="tok-flag">copy-source</span> my-bucket/data/blob.bin
+
+<span class="tok-c"># Smazat jednu konkrétní verzi</span>
+$ aws s3api <span class="tok-f">delete-object</span> \
+    --bucket my-bucket --key data/blob.bin \
+    --<span class="tok-flag">version-id</span> 3HL4kqtJlcpXroDTDmJ+rmSpXd3dIbrHY</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Server-side zkopírujte klíč z <code class="inline">srcB/srcK</code> do <code class="inline">dstB/dstK</code>. Doplňte sloveso a flag pro zdroj.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="copy-object" size="12" placeholder="?"> \
+    --bucket dstB --key dstK \
+    --<input class="blank" data-answer="copy-source" size="12" placeholder="?"> srcB/srcK</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Tagování objektů</h2>
+  <pre class="code">$ aws s3api <span class="tok-f">put-object-tagging</span> \
+    --bucket my-bucket --key data/x.bin \
+    --<span class="tok-flag">tagging</span> <span class="tok-s">'{"TagSet":[{"Key":"env","Value":"prod"},{"Key":"team","Value":"ml"}]}'</span>
+
+$ aws s3api <span class="tok-f">get-object-tagging</span> --bucket my-bucket --key data/x.bin</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Přečtěte tagy aktuálně nastavené na objektu.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="get-object-tagging" size="20" placeholder="?"> --bucket B --key K</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Versioning</h2>
+  <pre class="code"><span class="tok-c"># Zapnout versioning (skoro nevratné — lze jen Suspend, ne Disable)</span>
+$ aws s3api <span class="tok-f">put-bucket-versioning</span> \
+    --<span class="tok-flag">bucket</span> my-bucket \
+    --<span class="tok-flag">versioning-configuration</span> Status=Enabled
+
+<span class="tok-c"># Zjistit, co je aktuálně nastaveno</span>
+$ aws s3api <span class="tok-f">get-bucket-versioning</span> --bucket my-bucket
+{ <span class="tok-s">"Status"</span>: <span class="tok-s">"Enabled"</span> }
+
+<span class="tok-c"># Všechny verze objektu</span>
+$ aws s3api <span class="tok-f">list-object-versions</span> --bucket my-bucket --prefix data/blob.bin</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Zapněte versioning na bucketu. Doplňte status.</div>
+    <pre class="exercise">$ aws s3api put-bucket-versioning --bucket B \
+    --versioning-configuration Status=<input class="blank" data-answer="Enabled" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Velký tahák — slovesa s3api, která uvidíte nejvíc</h2>
+  <table class="matrix">
+    <thead>
+      <tr><th>Sloveso</th><th>Povinné flagy</th><th>Použití</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>list-buckets</code></td><td><em>žádné</em></td><td>inventář bucketů celého účtu</td></tr>
+      <tr><td><code>list-objects-v2</code></td><td><code>--bucket</code></td><td>stránkování klíči</td></tr>
+      <tr><td><code>head-object</code></td><td><code>--bucket --key</code></td><td>metadata, ETag, verze, šifrování</td></tr>
+      <tr><td><code>head-bucket</code></td><td><code>--bucket</code></td><td>existuje &amp; vidím ho?</td></tr>
+      <tr><td><code>put-object</code></td><td><code>--bucket --key --body</code></td><td>nahrát jeden soubor</td></tr>
+      <tr><td><code>get-object</code></td><td><code>--bucket --key</code> + výstupní soubor</td><td>stáhnout na disk</td></tr>
+      <tr><td><code>delete-object</code></td><td><code>--bucket --key</code></td><td>odstranit (nebo umístit delete-marker)</td></tr>
+      <tr><td><code>delete-objects</code></td><td><code>--bucket --delete</code> JSON</td><td>dávkově smazat až 1000 klíčů</td></tr>
+      <tr><td><code>copy-object</code></td><td><code>--bucket --key --copy-source</code></td><td>server-side přejmenování / mezi buckety</td></tr>
+      <tr><td><code>list-object-versions</code></td><td><code>--bucket</code></td><td>kompletní historie verzí</td></tr>
+      <tr><td><code>create-multipart-upload</code></td><td><code>--bucket --key</code></td><td>start velkého uploadu</td></tr>
+      <tr><td><code>upload-part</code></td><td><code>--upload-id --part-number --body</code></td><td>odeslat jeden chunk</td></tr>
+      <tr><td><code>complete-multipart-upload</code></td><td><code>--multipart-upload</code></td><td>sešít části</td></tr>
+      <tr><td><code>abort-multipart-upload</code></td><td><code>--upload-id</code></td><td>zastavit &amp; uvolnit místo</td></tr>
+      <tr><td><code>list-multipart-uploads</code></td><td><code>--bucket</code></td><td>najít sirotčí uploady (platíte za ně!)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ========================= BUCKETS & POLICY ========================= -->
+<section class="tab-section" id="tab-buckets">
+  <h1>Buckety &amp; politiky <span class="sub">— mb, rb, policy, CORS, lifecycle, public-access block</span></h1>
+  <p class="lead">
+    Konfigurace na úrovni bucketu je místo, kde nejčastěji žije nebo umírá bezpečnost a náklady.
+    Tyto příkazy nastavují versioning, blokování veřejného přístupu, CORS, lifecycle pravidla
+    a bucket policy.
+  </p>
+
+  <h2>Vytvořit &amp; smazat bucket</h2>
+  <pre class="code"><span class="tok-c"># Vytvořit. Region rozhoduje o LocationConstraint (us-east-1 je implicitní / „none")</span>
+$ aws s3 <span class="tok-f">mb</span> <span class="tok-b">s3://my-new-bucket</span> --<span class="tok-flag">region</span> us-east-1
+
+<span class="tok-c"># Smazat. --force ho zároveň vyprázdní (jen high-level).</span>
+$ aws s3 <span class="tok-f">rb</span> <span class="tok-b">s3://my-new-bucket</span> --<span class="tok-flag">force</span>
+
+<span class="tok-c"># Ekvivalenty v s3api (víc knoflíků)</span>
+$ aws s3api <span class="tok-f">create-bucket</span> --bucket my-new-bucket \
+    --create-bucket-configuration LocationConstraint=eu-west-1
+
+$ aws s3api <span class="tok-f">delete-bucket</span> --bucket my-new-bucket</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Vytvořte nový bucket s názvem <code class="inline">cat-photos</code> v <code class="inline">us-east-1</code>.</div>
+    <pre class="exercise">$ aws s3 <input class="blank" data-answer="mb" size="3" placeholder="?"> s3://cat-photos --region us-east-1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Smažte neprázdný bucket najednou. Zvolte flag.</div>
+    <pre class="exercise">$ aws s3 rb s3://cat-photos --<input class="blank" data-answer="force" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Zablokovat veškerý veřejný přístup (udělejte hned!)</h2>
+  <pre class="code">$ aws s3api <span class="tok-f">put-public-access-block</span> \
+    --bucket my-bucket \
+    --<span class="tok-flag">public-access-block-configuration</span> \
+        BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+$ aws s3api <span class="tok-f">get-public-access-block</span> --bucket my-bucket</pre>
+
+  <div class="note">
+    <strong>Štít na úrovni účtu:</strong> stejné flagy existují jako
+    <code class="inline">aws s3control put-public-access-block --account-id …</code> — nastavte je i tam,
+    aby budoucí bucket policy nemohla omylem otevřít díru.
+  </div>
+
+  <h2>Bucket policy</h2>
+  <pre class="code"><span class="tok-c"># policy.json — povolit GetObject všem (jen pro čtení, veřejný bucket)</span>
+{
+  <span class="tok-s">"Version"</span>: <span class="tok-s">"2012-10-17"</span>,
+  <span class="tok-s">"Statement"</span>: [{
+    <span class="tok-s">"Sid"</span>:    <span class="tok-s">"PublicRead"</span>,
+    <span class="tok-s">"Effect"</span>: <span class="tok-s">"Allow"</span>,
+    <span class="tok-s">"Principal"</span>: <span class="tok-s">"*"</span>,
+    <span class="tok-s">"Action"</span>: <span class="tok-s">"s3:GetObject"</span>,
+    <span class="tok-s">"Resource"</span>: <span class="tok-s">"arn:aws:s3:::my-public-bucket/*"</span>
+  }]
+}
+
+$ aws s3api <span class="tok-f">put-bucket-policy</span> --bucket my-public-bucket \
+    --<span class="tok-flag">policy</span> file://policy.json
+
+$ aws s3api <span class="tok-f">get-bucket-policy</span> --bucket my-public-bucket
+$ aws s3api <span class="tok-f">delete-bucket-policy</span> --bucket my-public-bucket</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Aplikujte politiku uloženou na disku na bucket.</div>
+    <pre class="exercise">$ aws s3api put-bucket-policy --bucket B --policy <input class="blank" data-answer="file://policy.json" size="22" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>CORS</h2>
+  <pre class="code"><span class="tok-c"># cors.json — povolit GET z originu vašeho front-endu</span>
+{
+  <span class="tok-s">"CORSRules"</span>: [{
+    <span class="tok-s">"AllowedMethods"</span>: [<span class="tok-s">"GET"</span>],
+    <span class="tok-s">"AllowedOrigins"</span>: [<span class="tok-s">"https://app.example.com"</span>],
+    <span class="tok-s">"AllowedHeaders"</span>: [<span class="tok-s">"*"</span>],
+    <span class="tok-s">"ExposeHeaders"</span>: [<span class="tok-s">"ETag"</span>],
+    <span class="tok-s">"MaxAgeSeconds"</span>: <span class="tok-n">3000</span>
+  }]
+}
+
+$ aws s3api <span class="tok-f">put-bucket-cors</span> --bucket my-bucket \
+    --<span class="tok-flag">cors-configuration</span> file://cors.json
+
+$ aws s3api <span class="tok-f">get-bucket-cors</span> --bucket my-bucket</pre>
+
+  <h2>Lifecycle pravidla</h2>
+  <pre class="code"><span class="tok-c"># lc.json — přesun logů na IA po 30d, GLACIER po 90d, expirace po 365d</span>
+{
+  <span class="tok-s">"Rules"</span>: [{
+    <span class="tok-s">"ID"</span>: <span class="tok-s">"logs-tier-down"</span>,
+    <span class="tok-s">"Status"</span>: <span class="tok-s">"Enabled"</span>,
+    <span class="tok-s">"Filter"</span>: { <span class="tok-s">"Prefix"</span>: <span class="tok-s">"logs/"</span> },
+    <span class="tok-s">"Transitions"</span>: [
+      { <span class="tok-s">"Days"</span>: <span class="tok-n">30</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"STANDARD_IA"</span> },
+      { <span class="tok-s">"Days"</span>: <span class="tok-n">90</span>,  <span class="tok-s">"StorageClass"</span>: <span class="tok-s">"GLACIER"</span> }
+    ],
+    <span class="tok-s">"Expiration"</span>: { <span class="tok-s">"Days"</span>: <span class="tok-n">365</span> },
+    <span class="tok-s">"NoncurrentVersionExpiration"</span>: { <span class="tok-s">"NoncurrentDays"</span>: <span class="tok-n">90</span> }
+  }]
+}
+
+$ aws s3api <span class="tok-f">put-bucket-lifecycle-configuration</span> \
+    --bucket my-bucket \
+    --<span class="tok-flag">lifecycle-configuration</span> file://lc.json
+
+$ aws s3api <span class="tok-f">get-bucket-lifecycle-configuration</span> --bucket my-bucket</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Nainstalujte lifecycle konfiguraci z <code class="inline">lc.json</code>.</div>
+    <pre class="exercise">$ aws s3api put-bucket-<input class="blank" data-answer="lifecycle-configuration" size="22" placeholder="?"> \
+    --bucket B --lifecycle-configuration file://lc.json</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Object Lock — write-once-read-many</h2>
+  <pre class="code"><span class="tok-c"># Zapíná se jen při vytváření bucketu — později to už nejde</span>
+$ aws s3api create-bucket --bucket vault \
+    --<span class="tok-flag">object-lock-enabled-for-bucket</span>
+
+<span class="tok-c"># Defaultní retence: 7 let v módu COMPLIANCE (neměnné pro všechny)</span>
+$ aws s3api <span class="tok-f">put-object-lock-configuration</span> \
+    --bucket vault \
+    --<span class="tok-flag">object-lock-configuration</span> \
+    <span class="tok-s">'{"ObjectLockEnabled":"Enabled","Rule":{"DefaultRetention":{"Mode":"COMPLIANCE","Years":7}}}'</span></pre>
+
+  <div class="note teal">
+    <strong>GOVERNANCE vs COMPLIANCE:</strong> GOVERNANCE umožňuje privilegovanému IAM uživateli obejít
+    retenci přes <code class="inline">s3:BypassGovernanceRetention</code>; COMPLIANCE blokuje
+    <em>všechny</em>, včetně root uživatele, dokud retenční doba neskončí.
+  </div>
+</section>
+
+<!-- ========================= ENCRYPTION & STORAGE CLASS ========================= -->
+<section class="tab-section" id="tab-enc">
+  <h1>Šifrování &amp; třídy úložiště <span class="sub">— SSE, KMS, IA, Glacier</span></h1>
+  <p class="lead">
+    Vyberte třídu úložiště podle ceny (a latence načtení) a režim šifrování podle
+    compliance. Obě věci jsou nezávislé — každá třída podporuje každý šifrovací režim.
+  </p>
+
+  <h2>Server-side šifrování (SSE)</h2>
+  <table class="matrix">
+    <thead><tr><th>Režim</th><th>--server-side-encryption</th><th>Klíč spravuje</th><th>Audit / použití KMS</th></tr></thead>
+    <tbody>
+      <tr><td>SSE-S3</td><td><code>AES256</code></td><td>S3</td><td>žádný</td></tr>
+      <tr><td>SSE-KMS</td><td><code>aws:kms</code></td><td>KMS (váš CMK)</td><td>CloudTrail loguje každý Decrypt</td></tr>
+      <tr><td>SSE-KMS DSSE</td><td><code>aws:kms:dsse</code></td><td>KMS, dvojitě šifrované</td><td>regulované workloady</td></tr>
+      <tr><td>SSE-C</td><td><em>klíč dodaný zákazníkem v hlavičkách</em></td><td>vy</td><td>klíč si musíte hlídat sami</td></tr>
+      <tr><td>Žádné</td><td>—</td><td>—</td><td>od 2023 implicitně blokováno (S3 sám aplikuje AES256)</td></tr>
+    </tbody>
+  </table>
+
+  <pre class="code"><span class="tok-c"># SSE-S3 (AES-256, S3 spravuje klíč)</span>
+$ aws s3 cp f.bin <span class="tok-b">s3://b/k</span> --<span class="tok-flag">sse</span> AES256
+
+<span class="tok-c"># SSE-KMS s konkrétním klíčem</span>
+$ aws s3 cp f.bin <span class="tok-b">s3://b/k</span> \
+    --<span class="tok-flag">sse</span> aws:kms \
+    --<span class="tok-flag">sse-kms-key-id</span> alias/data-prod
+
+<span class="tok-c"># Default šifrování bucketu (vše nové dostane KMS, i když to uploader neřekl)</span>
+$ aws s3api <span class="tok-f">put-bucket-encryption</span> --bucket B \
+    --<span class="tok-flag">server-side-encryption-configuration</span> \
+    <span class="tok-s">'{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"aws:kms","KMSMasterKeyID":"alias/data-prod"}}]}'</span></pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Upload se SSE-KMS. Jaká je hodnota <code class="inline">--sse</code>?</div>
+    <pre class="exercise">$ aws s3 cp f.bin s3://b/k --sse <input class="blank" data-answer="aws:kms" size="9" placeholder="?"> --sse-kms-key-id alias/data</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Upload se SSE-S3. Jaká je hodnota <code class="inline">--sse</code>?</div>
+    <pre class="exercise">$ aws s3 cp f.bin s3://b/k --sse <input class="blank" data-answer="AES256" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Třídy úložiště — vyberte (interaktivně)</h2>
+  <p class="lead">
+    Klikněte na třídu a uvidíte modelovanou měsíční cenu za 1 TB uložených dat + občasné načítání.
+    Čísla jsou ilustrativní — ceny se mění. Pro reálné plánování použijte
+    <a href="https://aws.amazon.com/s3/pricing/" style="color: var(--accent);">oficiální kalkulačku</a>.
+  </p>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Estimátor — 1 TB uloženo, X stažení/měsíc</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <label class="toggle-row">stažení:</label>
+        <input type="number" id="retrievals" value="1000" min="0" max="1000000" style="width: 110px;">
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="sc-grid" id="scGrid"></div>
+      <div class="estimate">
+        <div style="color: var(--muted); font-size: 12px;">vybráno: <span id="scPick" style="color: var(--accent); font-weight: 800;">STANDARD</span></div>
+        <div class="big" id="scCost">$23.00 / měs</div>
+        <div style="color: var(--muted); font-size: 12px; margin-top: 6px;" id="scNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Matice vlastností tříd úložiště</h2>
+  <table class="matrix">
+    <thead>
+      <tr><th>Třída</th><th>Min. doba</th><th>Latence načtení</th><th>Vhodné pro</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>STANDARD</td><td>—</td><td>ms</td><td>horká data, default</td></tr>
+      <tr><td>INTELLIGENT_TIERING</td><td>—</td><td>ms (auto-tiered)</td><td>neznámé vzorce přístupu</td></tr>
+      <tr><td>STANDARD_IA</td><td>30 dní</td><td>ms</td><td>vlažná, řídké čtení</td></tr>
+      <tr><td>ONEZONE_IA</td><td>30 dní</td><td>ms</td><td>znovu vytvořitelná IA data</td></tr>
+      <tr><td>GLACIER_IR</td><td>90 dní</td><td>ms (Instant Retrieval)</td><td>archiv, ale rychlý přístup</td></tr>
+      <tr><td>GLACIER (Flexible)</td><td>90 dní</td><td>min–hod</td><td>archiv, dávkový recall</td></tr>
+      <tr><td>DEEP_ARCHIVE</td><td>180 dní</td><td>12 hod</td><td>náhrada za pásky, compliance</td></tr>
+    </tbody>
+  </table>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Upload určený jako náhrada za pásky pro archiv (nejlevnější, nejpomalejší).</div>
+    <pre class="exercise">$ aws s3 cp old.tar s3://b/archive/ --storage-class <input class="blank" data-answer="DEEP_ARCHIVE" size="14" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Obnovte Glacier objekt na 7 dní, expedited. Doplňte sloveso.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="restore-object" size="16" placeholder="?"> \
+    --bucket B --key archive/x.tar \
+    --restore-request 'Days=7,GlacierJobParameters={Tier=Expedited}'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MULTIPART & PRESIGN ========================= -->
+<section class="tab-section" id="tab-multi">
+  <h1>Multipart &amp; pre-signed URL <span class="sub">— pro velké soubory a sdílené odkazy</span></h1>
+  <p class="lead">
+    High-level <code class="inline">aws s3 cp</code> používá multipart automaticky pro soubory
+    větší než ~8 MB. Když řídíte uploady programaticky, tady jsou primitiva s3api.
+  </p>
+
+  <h2>Multipart upload — čtyřkrokový tanec</h2>
+  <pre class="code"><span class="tok-c">## 1. Start — získat UploadId</span>
+$ UID=$(aws s3api <span class="tok-f">create-multipart-upload</span> \
+    --bucket B --key big.bin \
+    --query <span class="tok-s">'UploadId'</span> --output text)
+
+<span class="tok-c">## 2. Nahrát každou část (5 MB minimum, kromě poslední)</span>
+$ ETAG1=$(aws s3api <span class="tok-f">upload-part</span> \
+    --bucket B --key big.bin \
+    --<span class="tok-flag">part-number</span> 1 --<span class="tok-flag">upload-id</span> $UID \
+    --<span class="tok-flag">body</span> part1.bin \
+    --query <span class="tok-s">'ETag'</span> --output text)
+<span class="tok-c">#  …opakovat pro části 2..N…</span>
+
+<span class="tok-c">## 3. Dokončit — předat S3 seznam částí, server je sešije</span>
+$ aws s3api <span class="tok-f">complete-multipart-upload</span> \
+    --bucket B --key big.bin --upload-id $UID \
+    --<span class="tok-flag">multipart-upload</span> <span class="tok-s">'{"Parts":[{"ETag":"...","PartNumber":1},...]}'</span>
+
+<span class="tok-c">## 4 (alt). Zrušit — uvolní úložiště, za které byste jinak platili</span>
+$ aws s3api <span class="tok-f">abort-multipart-upload</span> \
+    --bucket B --key big.bin --upload-id $UID
+
+<span class="tok-c">## Zobrazit sirotčí uploady (ty stojí peníze!)</span>
+$ aws s3api <span class="tok-f">list-multipart-uploads</span> --bucket B</pre>
+
+  <div class="note">
+    <strong>Přidejte lifecycle pravidlo</strong> s
+    <code class="inline">AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 }</code>,
+    aby selhané uploady tiše nezvedaly fakturu.
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Zastavte zaseknutý multipart upload, abyste uvolnili úložiště.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="abort-multipart-upload" size="22" placeholder="?"> \
+    --bucket B --key K --upload-id $UID</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Interaktivně: plánovač částí</h2>
+  <p class="lead">
+    Vyberte velikost souboru a velikost části a my spočítáme, kolik částí byste poslali.
+  </p>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Multipart sizing</div>
+    </div>
+    <div class="card-body">
+      <div class="slider-row">
+        <label>velikost souboru</label>
+        <input type="range" id="fileSize" min="1" max="5000" value="500">
+        <span class="val" id="fileSizeV">500 MB</span>
+      </div>
+      <div class="slider-row">
+        <label>velikost části</label>
+        <input type="range" id="partSize" min="5" max="500" value="16">
+        <span class="val" id="partSizeV">16 MB</span>
+      </div>
+      <div class="parts-bar" id="partsBar"></div>
+      <div class="estimate">
+        <div style="color: var(--muted); font-size: 12px;">části</div>
+        <div class="big" id="partsCount">32</div>
+        <div style="color: var(--muted); font-size: 12px; margin-top: 6px;" id="partsNote"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Pre-signed URL</h2>
+  <pre class="code"><span class="tok-c"># Rychlé sdílení — odkaz platný 1 hodinu</span>
+$ aws s3 <span class="tok-f">presign</span> <span class="tok-b">s3://my-bucket/reports/q1.pdf</span> --<span class="tok-flag">expires-in</span> 3600
+
+<span class="tok-c"># Výstup (vše na jednom řádku):</span>
+https://my-bucket.s3.us-east-1.amazonaws.com/reports/q1.pdf
+  ?X-Amz-Algorithm=AWS4-HMAC-SHA256
+  &amp;X-Amz-Credential=AKIA.../20260520/us-east-1/s3/aws4_request
+  &amp;X-Amz-Date=20260520T120000Z
+  &amp;X-Amz-Expires=3600
+  &amp;X-Amz-SignedHeaders=host
+  &amp;X-Amz-Signature=abcdef...</pre>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Vygenerujte hodinový sdílecí odkaz. Doplňte sekundy.</div>
+    <pre class="exercise">$ aws s3 presign s3://b/k --expires-in <input class="blank" data-answer="3600" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Interaktivně: stavebnice presign URL (mock)</h2>
+  <p class="lead">
+    Zadejte bucket / klíč / expiraci a my ukážeme, jak by výsledné URL vypadalo.
+    Podpis je falešný — slouží pro tvar, ne pro reálné použití!
+  </p>
+  <div class="card">
+    <div class="card-head"><div class="card-title">Postavit falešné presigned URL</div></div>
+    <div class="card-body">
+      <div class="slider-row">
+        <label>bucket</label>
+        <input type="text" id="psBucket" value="my-bucket" style="flex:1">
+      </div>
+      <div class="slider-row">
+        <label>klíč</label>
+        <input type="text" id="psKey" value="reports/q1.pdf" style="flex:1">
+      </div>
+      <div class="slider-row">
+        <label>region</label>
+        <select id="psRegion">
+          <option>us-east-1</option>
+          <option>us-west-2</option>
+          <option>eu-west-1</option>
+          <option>eu-central-1</option>
+          <option>ap-northeast-1</option>
+          <option>ap-southeast-1</option>
+        </select>
+      </div>
+      <div class="slider-row">
+        <label>expires-in</label>
+        <input type="range" id="psExp" min="60" max="604800" value="3600" step="60">
+        <span class="val" id="psExpV">1 h</span>
+      </div>
+      <div class="presign-out" id="psOut"></div>
+      <div style="margin-top:8px; font-size: 12px; color: var(--muted);">
+        Maximum <code class="inline">--expires-in</code> pro sigv4 je <code class="inline">604800</code> (7 dní).
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= PRACTICE ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Procvičovací drilly <span class="sub">— rapid-fire S3 CLI</span></h1>
+  <p class="lead">
+    Více než dvacet drillů pokrývajících nejvíce psané příkazy a flagy. Mix
+    <code class="inline">aws s3</code> a <code class="inline">aws s3api</code>.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Kontrola identity — které volání vrátí ID účtu a ARN?</div>
+    <pre class="exercise">$ aws sts <input class="blank" data-answer="get-caller-identity" size="20" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Použít nedefaultní profil pro jeden příkaz.</div>
+    <pre class="exercise">$ aws s3 ls --<input class="blank" data-answer="profile" size="8" placeholder="?"> myprofile</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Přepsat region pro jeden příkaz.</div>
+    <pre class="exercise">$ aws s3 ls s3://b --<input class="blank" data-answer="region" size="8" placeholder="?"> eu-west-1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Rekurzivně zkopírovat lokální strom do S3.</div>
+    <pre class="exercise">$ aws s3 cp ./site/ s3://my-site/ --<input class="blank" data-answer="recursive" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Sync s mazáním.</div>
+    <pre class="exercise">$ aws s3 sync ./pub/ s3://my-site/ --<input class="blank" data-answer="delete" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Sync, ale vyloučit vše, pak znovu zahrnout jen PNG soubory.</div>
+    <pre class="exercise">$ aws s3 sync ./img/ s3://b/img/ \
+    --exclude "*" \
+    --<input class="blank" data-answer="include" size="8" placeholder="?"> "*.png"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Vygenerovat denní pre-signed URL (v sekundách).</div>
+    <pre class="exercise">$ aws s3 presign s3://b/k --expires-in <input class="blank" data-answer="86400" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> Vytvořit nový bucket. Doplňte high-level sloveso.</div>
+    <pre class="exercise">$ aws s3 <input class="blank" data-answer="mb" size="3" placeholder="?"> s3://photos --region us-east-1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> Odstranit neprázdný bucket.</div>
+    <pre class="exercise">$ aws s3 <input class="blank" data-answer="rb" size="3" placeholder="?"> s3://photos --force</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> Hodnota pro SSE-S3 šifrování.</div>
+    <pre class="exercise">$ aws s3 cp f.txt s3://b/k --sse <input class="blank" data-answer="AES256" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Hodnota pro SSE-KMS šifrování.</div>
+    <pre class="exercise">$ aws s3 cp f.txt s3://b/k --server-side-encryption <input class="blank" data-answer="aws:kms" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Třída úložiště pro Intelligent-Tiering.</div>
+    <pre class="exercise">$ aws s3 cp f.txt s3://b/k --storage-class <input class="blank" data-answer="INTELLIGENT_TIERING" size="20" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> Sloveso s3api, které vrátí jen metadata (žádné tělo).</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="head-object" size="13" placeholder="?"> --bucket B --key K</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Stránkovat až 1000 objektů pod prefixem.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="list-objects-v2" size="16" placeholder="?"> --bucket B --prefix p/ --max-keys 1000</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> Zapnout versioning. Doplňte status.</div>
+    <pre class="exercise">$ aws s3api put-bucket-versioning --bucket B --versioning-configuration Status=<input class="blank" data-answer="Enabled" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> Aplikovat bucket policy z lokálního JSON souboru. Doplňte file:// URI.</div>
+    <pre class="exercise">$ aws s3api put-bucket-policy --bucket B --policy <input class="blank" data-answer="file://policy.json" size="22" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> Zablokovat veškerý veřejný přístup — doplňte sloveso po <code class="inline">put-</code>.</div>
+    <pre class="exercise">$ aws s3api put-<input class="blank" data-answer="public-access-block" size="20" placeholder="?"> --bucket B \
+    --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> JMESPath: promítnout jen pole <code class="inline">Key</code> každého vypsaného objektu.</div>
+    <pre class="exercise">--query 'Contents[].<input class="blank" data-answer="Key" size="6" placeholder="?">'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> Zrušit zaseknutý multipart upload.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="abort" size="6" placeholder="?">-multipart-upload --bucket B --key K --upload-id $UID</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> Server-side zkopírovat klíč z jednoho bucketu do druhého.</div>
+    <pre class="exercise">$ aws s3api copy-object --bucket dest --key newkey --<input class="blank" data-answer="copy-source" size="12" placeholder="?"> srcBucket/srcKey</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> Smazat jednu konkrétní verzi objektu.</div>
+    <pre class="exercise">$ aws s3api delete-object --bucket B --key K --<input class="blank" data-answer="version-id" size="12" placeholder="?"> 3HL4kqtJ</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> Zobrazit každou verzi (a delete-marker) objektu.</div>
+    <pre class="exercise">$ aws s3api <input class="blank" data-answer="list-object-versions" size="22" placeholder="?"> --bucket B --prefix data/blob.bin</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> JMESPath filtr: ponechat objekty striktně větší než 1 MiB.</div>
+    <pre class="exercise">--query 'Contents[?Size <input class="blank" data-answer=">" size="3" placeholder="?"> `1048576`].Key'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> Získat CORS pravidla bucketu ve formátu JSON.</div>
+    <pre class="exercise">$ aws s3api get-bucket-<input class="blank" data-answer="cors" size="6" placeholder="?"> --bucket B</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Zkontrolovat</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= BOSS ========================= -->
+<section class="tab-section" id="tab-boss">
+  <h1>Boss drill — End-to-end S3 pipeline</h1>
+  <p class="lead">
+    Jeden scénář, deset políček. Spouštíte nový bucket pro regulovaný dataset:
+    vytvořte ho, zamkněte, zapněte versioning, šifrovaně nahrajte, vypište, vystavte sdílecí odkaz,
+    nainstalujte lifecycle a vyčistěte staré verze. Každé políčko je skutečný příkaz nebo flag.
+  </p>
+
+  <div class="project-card">
+    <h3>Pipeline: studený archiv výzkumného datasetu</h3>
+    <p style="color: var(--muted); margin: 0 0 12px;">
+      Compliance říká: KMS-šifrováno, žádný veřejný přístup, versionováno, expirace 365 dní,
+      přesun na Glacier po 90 dnech. Pracujete z profilu <code class="inline">research</code>
+      v <code class="inline">eu-west-1</code>.
+    </p>
+
+    <pre class="exercise" id="finalCode"><span class="tok-c"># 1. Vyberte správný profil + region pro celou shell session</span>
+$ <span class="tok-k">export</span> AWS_<input class="blank" data-answer="PROFILE" size="9" placeholder="?">=research
+$ <span class="tok-k">export</span> AWS_REGION=eu-west-1
+
+<span class="tok-c"># 2. Ověřte, že jsme opravdu přihlášeni jako research IAM uživatel</span>
+$ aws sts <input class="blank" data-answer="get-caller-identity" size="20" placeholder="?">
+
+<span class="tok-c"># 3. Vytvořte bucket</span>
+$ aws s3 <input class="blank" data-answer="mb" size="3" placeholder="?"> s3://lab-genomics-2026 --region eu-west-1
+
+<span class="tok-c"># 4. Co nejdřív zamkněte veřejný přístup</span>
+$ aws s3api put-<input class="blank" data-answer="public-access-block" size="20" placeholder="?"> \
+    --bucket lab-genomics-2026 \
+    --public-access-block-configuration \
+        BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+<span class="tok-c"># 5. Zapněte versioning, ať jsou náhodná smazání obnovitelná</span>
+$ aws s3api put-bucket-versioning --bucket lab-genomics-2026 \
+    --versioning-configuration Status=<input class="blank" data-answer="Enabled" size="9" placeholder="?">
+
+<span class="tok-c"># 6. Default-šifrování přes KMS — i upload, který „zapomene" --sse, bude šifrován</span>
+$ aws s3api put-bucket-encryption --bucket lab-genomics-2026 \
+    --server-side-encryption-configuration \
+    '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"<input class="blank" data-answer="aws:kms" size="9" placeholder="?">","KMSMasterKeyID":"alias/lab-data"}}]}'
+
+<span class="tok-c"># 7. Nahrajte první dávku s explicitním šifrováním + IA třídou úložiště</span>
+$ aws s3 cp ./batch-001/ s3://lab-genomics-2026/raw/2026-05/ \
+    --recursive \
+    --sse aws:kms --sse-kms-key-id alias/lab-data \
+    --storage-class <input class="blank" data-answer="STANDARD_IA" size="14" placeholder="?">
+
+<span class="tok-c"># 8. Ověřte — vypsat s velikostmi v MiB</span>
+$ aws s3 ls s3://lab-genomics-2026/raw/ --recursive --<input class="blank" data-answer="human-readable" size="16" placeholder="?"> --summarize
+
+<span class="tok-c"># 9. Vygenerujte 24h sdílecí odkaz, aby si PI mohl jeden soubor stáhnout</span>
+$ aws s3 <input class="blank" data-answer="presign" size="8" placeholder="?"> s3://lab-genomics-2026/raw/2026-05/cohort-A.tsv --expires-in 86400
+
+<span class="tok-c"># 10. Nainstalujte lifecycle: přesun na GLACIER po 90d, expirace po 365d, smazání starých verzí po 30d</span>
+$ aws s3api put-bucket-<input class="blank" data-answer="lifecycle-configuration" size="22" placeholder="?"> \
+    --bucket lab-genomics-2026 \
+    --lifecycle-configuration file://lc.json
+</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">Zkontrolovat pipeline</button>
+      <button class="btn ghost tiny" onclick="hintFinal()">Odhalit vše</button>
+      <button class="btn teal" id="runProjectBtn" onclick="runProject()" disabled>▶ Spustit pipeline</button>
+    </div>
+    <div class="feedback" id="finalFeedback"></div>
+
+    <div id="runStage" style="display:none; margin-top:14px;">
+      <h3 style="margin: 12px 0 6px; color: var(--teal); font-size: 14px;">simulovaný výstup</h3>
+      <pre class="code" id="runOut" style="min-height: 120px;"></pre>
+    </div>
+  </div>
+
+  <div class="note teal">
+    <strong>Coda z reálu:</strong> přidejte do stejné lifecycle konfigurace pravidlo
+    <code class="inline">AbortIncompleteMultipartUpload</code> (např. 7 dní) — jinak selhané uploady
+    tiše hromadí byty, za které platíte, ale v <code class="inline">ls</code> je nevidíte.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Klávesové zkratky</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>skok na další políčko</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>zkontrolovat aktuální drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>tato nápověda</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>přepnout záložku</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>zavřít překryv</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Klikněte kamkoli pro zavření.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Doplněk k <a href="aws.html">aws.html</a></strong> —
+  tato stránka jde do hloubky na <code class="inline">aws s3</code> a <code class="inline">aws s3api</code>;
+  sourozenecká stránka pokrývá IAM, EC2 atd.<br><br>
+  Postaveno pro nácvik psaní. Skutečné S3 příkazy stojí skutečné peníze — nejdřív čtěte, pak spouštějte.
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('[data-drill]').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'částečně — ' + newlySolved + ' správně, pokračujte.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'odpovědi skryty — zkuste je napsat sami';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'vše hotovo.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'všechny odpovědi odhaleny · klikněte znovu pro skrytí';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['paráda.', 'správně!', 'přesně tak.', '✓ přesně.', 'ostře.', 'to je ono.', 'čistě.', 'nasazeno.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['ne docela — zkuste znovu.', 'blízko. mrkněte na hint?', 'skoro. zkontrolujte pravopis.', 'červená. ještě jednou.', 'AccessDenied — opravte syntaxi.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+// Section completion
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('sekce dokončena! 🎉  +' + drills.length + ' vyřešeno');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector('nav.tabs button[data-tab="' + tabName + '"]');
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = 'vše zelené — pipeline připravena. klikněte na ▶ Spustit pipeline.';
+    document.getElementById('runProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' správně. opravte červené.';
+    streak = 0; updateProgress();
+  }
+}
+
+function hintFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  let revealed = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealed++;
+  });
+  if (revealed > 0) {
+    solved += revealed;
+    streak = 0;
+    updateProgress();
+    document.getElementById('runProjectBtn').disabled = false;
+    document.getElementById('finalFeedback').style.color = 'var(--muted)';
+    document.getElementById('finalFeedback').textContent = 'vše odhaleno — vyzkoušejte spuštění.';
+  }
+}
+
+const RUN_LINES = [
+  '+ export AWS_PROFILE=research',
+  '+ export AWS_REGION=eu-west-1',
+  '+ aws sts get-caller-identity',
+  '  Account: 123456789012   Arn: arn:aws:iam::123456789012:user/lab-bot',
+  '+ aws s3 mb s3://lab-genomics-2026 --region eu-west-1',
+  '  make_bucket: lab-genomics-2026',
+  '+ aws s3api put-public-access-block ...',
+  '  aplikováno: BlockPublicAcls + IgnorePublicAcls + BlockPublicPolicy + RestrictPublicBuckets',
+  '+ aws s3api put-bucket-versioning ... Status=Enabled',
+  '  versioning: Enabled',
+  '+ aws s3api put-bucket-encryption ... aws:kms / alias/lab-data',
+  '  výchozí šifrování: aws:kms (alias/lab-data)',
+  '+ aws s3 cp ./batch-001/ s3://lab-genomics-2026/raw/2026-05/ --recursive --storage-class STANDARD_IA --sse aws:kms',
+  '  upload: ./batch-001/cohort-A.tsv  -> s3://...   (1.4 GiB, 3 části)',
+  '  upload: ./batch-001/cohort-B.tsv  -> s3://...   (1.1 GiB, 3 části)',
+  '  upload: ./batch-001/manifest.json -> s3://...   (8.2 KiB)',
+  '+ aws s3 ls s3://lab-genomics-2026/raw/ --recursive --human-readable --summarize',
+  '  2026-05-20  09:42:01   1.4 GiB raw/2026-05/cohort-A.tsv',
+  '  2026-05-20  09:42:14   1.1 GiB raw/2026-05/cohort-B.tsv',
+  '  2026-05-20  09:42:15   8.2 KiB raw/2026-05/manifest.json',
+  '  Total Objects: 3   Total Size: 2.5 GiB',
+  '+ aws s3 presign s3://lab-genomics-2026/raw/2026-05/cohort-A.tsv --expires-in 86400',
+  '  https://lab-genomics-2026.s3.eu-west-1.amazonaws.com/raw/2026-05/cohort-A.tsv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=86400&X-Amz-Signature=fake-7c3a...',
+  '+ aws s3api put-bucket-lifecycle-configuration ...',
+  '  pravidlo nainstalováno: tier-down + 365d expirace + non-current 30d',
+  '',
+  '✓ pipeline dokončena — bucket lab-genomics-2026 připraven.'
+];
+
+function runProject() {
+  const out = document.getElementById('runOut');
+  const stage = document.getElementById('runStage');
+  stage.style.display = 'block';
+  out.innerHTML = '';
+  let i = 0;
+  function step() {
+    if (i >= RUN_LINES.length) {
+      burstConfetti();
+      showToast('pipeline dokončena · 2.5 GiB nahráno · 1 sdílecí odkaz vystaven');
+      return;
+    }
+    const ln = RUN_LINES[i++];
+    const span = document.createElement('div');
+    if (ln.startsWith('+')) span.style.color = 'var(--accent)';
+    else if (ln.startsWith('  ')) span.style.color = 'var(--muted)';
+    else if (ln.startsWith('✓')) { span.style.color = 'var(--good)'; span.style.fontWeight = '700'; }
+    span.textContent = ln;
+    out.appendChild(span);
+    out.scrollTop = out.scrollHeight;
+    setTimeout(step, ln === '' ? 100 : 80 + Math.random() * 120);
+  }
+  step();
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText =
+      'position: fixed;' +
+      'left: ' + (rect.left + rect.width / 2) + 'px;' +
+      'top:  ' + (rect.top + 20) + 'px;' +
+      'width: 6px; height: 6px; border-radius: 50%;' +
+      'background: radial-gradient(circle, #fff, var(--accent));' +
+      'pointer-events: none; z-index: 90;' +
+      'box-shadow: 0 0 10px var(--accent);';
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.2)', opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#ff9900','#ffb547','#14e0c4','#4ade80','#79c0ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'list','3':'cp','4':'s3api',
+    '5':'buckets','6':'enc','7':'multi','8':'drills','9':'boss'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== SYNC SIMULATOR ==============
+let LOCAL = [
+  { name: 'index.html',   size: 4200,  mtime: 100, kind: 'add' },
+  { name: 'app.css',      size: 12800, mtime: 100, kind: 'update' },
+  { name: 'app.js',       size: 88200, mtime: 100, kind: 'same' },
+  { name: 'logo.svg',     size: 1900,  mtime: 100, kind: 'add' },
+  { name: 'about.html',   size: 5300,  mtime: 100, kind: 'update' }
+];
+let REMOTE_OLD = [
+  { name: 'app.css',      size: 11000 },
+  { name: 'app.js',       size: 88200 },
+  { name: 'about.html',   size: 4400 },
+  { name: 'old.html',     size: 2200 },
+  { name: 'tmp/scratch',  size: 999 }
+];
+
+function renderSync() {
+  const useDelete = document.getElementById('syncDelete').checked;
+  const useSizeOnly = document.getElementById('syncSizeOnly').checked;
+  const localUl = document.getElementById('localFiles');
+  const remoteUl = document.getElementById('remoteFiles');
+  localUl.innerHTML = '';
+  remoteUl.innerHTML = '';
+
+  // local view (just what user has)
+  LOCAL.forEach(f => {
+    const li = document.createElement('li');
+    li.className = 'same';
+    li.innerHTML = '<span>' + f.name + '</span><span>' + fmtSize(f.size) + '</span>';
+    localUl.appendChild(li);
+  });
+
+  // compute target
+  const remoteByName = Object.fromEntries(REMOTE_OLD.map(f => [f.name, f]));
+  const localByName  = Object.fromEntries(LOCAL.map(f => [f.name, f]));
+  let nUp = 0, nMod = 0, nDel = 0;
+  // adds + updates
+  LOCAL.forEach(f => {
+    const r = remoteByName[f.name];
+    const li = document.createElement('li');
+    li.innerHTML = '<span>' + f.name + '</span><span>' + fmtSize(f.size) + '</span>';
+    if (!r) { li.className = 'add';   nUp++; }
+    else if (useSizeOnly ? (r.size !== f.size) : (f.kind === 'update'))
+            { li.className = 'update'; nMod++; }
+    else    { li.className = 'same'; }
+    remoteUl.appendChild(li);
+  });
+  // remotes that local doesn't have
+  REMOTE_OLD.forEach(f => {
+    if (localByName[f.name]) return;
+    const li = document.createElement('li');
+    li.innerHTML = '<span>' + f.name + '</span><span>' + fmtSize(f.size) + '</span>';
+    if (useDelete) { li.className = 'del'; nDel++; }
+    else           { li.className = 'same'; }
+    remoteUl.appendChild(li);
+  });
+
+  document.getElementById('syncUp').textContent  = nUp;
+  document.getElementById('syncMod').textContent = nMod;
+  document.getElementById('syncDel').textContent = nDel;
+
+  let cmd = 'aws s3 sync ./local/ s3://demo-bucket/';
+  if (useDelete)   cmd += ' --delete';
+  if (useSizeOnly) cmd += ' --size-only';
+  document.getElementById('syncCmd').textContent = cmd;
+}
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KiB';
+  return (n/1024/1024).toFixed(2) + ' MiB';
+}
+function randomizeSync() {
+  const all = ['index.html','about.html','contact.html','app.css','app.js','logo.svg','favicon.ico','robots.txt','sitemap.xml','styles/main.css','img/hero.jpg','img/banner.png','data/users.json','tmp/scratch','old.html','README.md'];
+  function pick(n) {
+    const c = [...all].sort(() => Math.random() - 0.5);
+    return c.slice(0, n);
+  }
+  LOCAL = pick(5 + Math.floor(Math.random() * 4)).map(name => ({
+    name, size: 500 + Math.floor(Math.random() * 200000),
+    mtime: 100, kind: ['add','update','same'][Math.floor(Math.random() * 3)]
+  }));
+  REMOTE_OLD = pick(4 + Math.floor(Math.random() * 4)).map(name => ({
+    name, size: 500 + Math.floor(Math.random() * 200000)
+  }));
+  // overlap some
+  LOCAL.slice(0, 2).forEach(f => REMOTE_OLD.push({ name: f.name, size: f.size + 200 }));
+  renderSync();
+}
+document.getElementById('syncDelete').addEventListener('change', renderSync);
+document.getElementById('syncSizeOnly').addEventListener('change', renderSync);
+renderSync();
+
+// ============== STORAGE CLASS ESTIMATOR ==============
+const SC_DATA = [
+  { name: 'STANDARD',            store: 0.023, get: 0.0004, retr: 0.000, sub: 'horká data' },
+  { name: 'INTELLIGENT_TIERING', store: 0.022, get: 0.0004, retr: 0.000, sub: 'auto-tier' },
+  { name: 'STANDARD_IA',         store: 0.0125,get: 0.001,  retr: 0.010, sub: 'vlažná' },
+  { name: 'ONEZONE_IA',          store: 0.010, get: 0.001,  retr: 0.010, sub: 'jen 1 AZ' },
+  { name: 'GLACIER_IR',          store: 0.004, get: 0.010,  retr: 0.030, sub: 'okamžité načtení' },
+  { name: 'GLACIER',             store: 0.0036,get: 0.030,  retr: 0.090, sub: 'min–hod restore' },
+  { name: 'DEEP_ARCHIVE',        store: 0.00099,get: 0.05,  retr: 0.020, sub: '12h restore' }
+];
+function renderSC() {
+  const grid = document.getElementById('scGrid');
+  grid.innerHTML = '';
+  const picked = grid.dataset.picked || 'STANDARD';
+  const ret = +document.getElementById('retrievals').value || 0;
+  SC_DATA.forEach(sc => {
+    const monthly = sc.store * 1024 + sc.get * (ret / 1000) + sc.retr * (ret / 1000);
+    const card = document.createElement('div');
+    card.className = 'sc-card' + (sc.name === picked ? ' selected' : '');
+    card.innerHTML =
+      '<div class="name">' + sc.name + '</div>' +
+      '<div class="price">$' + monthly.toFixed(2) + '</div>' +
+      '<div class="sub">' + sc.sub + '</div>';
+    card.addEventListener('click', () => {
+      grid.dataset.picked = sc.name;
+      renderSC();
+    });
+    grid.appendChild(card);
+  });
+  const sel = SC_DATA.find(s => s.name === picked) || SC_DATA[0];
+  const monthly = sel.store * 1024 + sel.get * (ret / 1000) + sel.retr * (ret / 1000);
+  document.getElementById('scPick').textContent = sel.name;
+  document.getElementById('scCost').textContent = '$' + monthly.toFixed(2) + ' / měs';
+  document.getElementById('scNote').textContent =
+    '1 TB uloženo ($' + (sel.store * 1024).toFixed(2) +
+    ') + ' + ret + ' GET ($' + (sel.get * ret / 1000).toFixed(2) +
+    ') + načtení ($' + (sel.retr * ret / 1000).toFixed(2) + ') · jen ilustrativně';
+}
+document.getElementById('retrievals').addEventListener('input', renderSC);
+renderSC();
+
+// ============== MULTIPART PLANNER ==============
+function renderParts() {
+  const fs = +document.getElementById('fileSize').value;
+  const ps = +document.getElementById('partSize').value;
+  document.getElementById('fileSizeV').textContent = fs >= 1024 ? (fs / 1024).toFixed(1) + ' GB' : fs + ' MB';
+  document.getElementById('partSizeV').textContent = ps + ' MB';
+  const parts = Math.max(1, Math.ceil(fs / ps));
+  const bar = document.getElementById('partsBar');
+  bar.innerHTML = '';
+  const visible = Math.min(parts, 64);
+  for (let i = 0; i < visible; i++) {
+    const d = document.createElement('div');
+    d.className = 'part';
+    bar.appendChild(d);
+  }
+  document.getElementById('partsCount').textContent = parts.toLocaleString();
+  let note = '';
+  if (parts > 10000) note = '⚠ přes 10000 částí — maximum S3. Použijte větší --part-size.';
+  else if (ps < 5 && parts > 1) note = '⚠ velikost části < 5 MB je povolena jen pro POSLEDNÍ část.';
+  else if (parts === 1) note = 'vejde se do jednoho PutObject — multipart není potřeba.';
+  else note = 'pruh ukazuje max 64 segmentů; počet je přesný.';
+  document.getElementById('partsNote').textContent = note;
+}
+document.getElementById('fileSize').addEventListener('input', renderParts);
+document.getElementById('partSize').addEventListener('input', renderParts);
+renderParts();
+
+// ============== PRESIGN BUILDER ==============
+function fakeSig() {
+  const chars = 'abcdef0123456789';
+  let s = '';
+  for (let i = 0; i < 64; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+const FAKE_SIG = fakeSig();
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function fakeAmzDate() {
+  const d = new Date();
+  return d.getUTCFullYear() + pad(d.getUTCMonth()+1) + pad(d.getUTCDate())
+       + 'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+}
+function renderPresign() {
+  const bucket = (document.getElementById('psBucket').value || 'my-bucket').replace(/[^a-z0-9.\-]/gi, '');
+  const key = (document.getElementById('psKey').value || 'k').replace(/^\/+/, '');
+  const region = document.getElementById('psRegion').value;
+  const exp = +document.getElementById('psExp').value;
+  const expV = document.getElementById('psExpV');
+  if (exp >= 86400) expV.textContent = (exp / 86400).toFixed(1).replace(/\.0$/, '') + ' d';
+  else if (exp >= 3600) expV.textContent = (exp / 3600).toFixed(1).replace(/\.0$/, '') + ' h';
+  else expV.textContent = exp + ' s';
+
+  const host = bucket + '.s3.' + region + '.amazonaws.com';
+  const path = '/' + key.split('/').map(encodeURIComponent).join('/');
+  const date = fakeAmzDate();
+  const dateOnly = date.substring(0, 8);
+  const out = document.getElementById('psOut');
+  out.innerHTML =
+    'https://<span class="host">' + host + '</span>' +
+    '<span class="path">' + path + '</span><br>' +
+    '  <span class="q">?X-Amz-Algorithm</span>=AWS4-HMAC-SHA256<br>' +
+    '  <span class="q">&amp;X-Amz-Credential</span>=AKIAEXAMPLEKEY/' + dateOnly + '/' + region + '/s3/aws4_request<br>' +
+    '  <span class="q">&amp;X-Amz-Date</span>=' + date + '<br>' +
+    '  <span class="q">&amp;X-Amz-Expires</span>=' + exp + '<br>' +
+    '  <span class="q">&amp;X-Amz-SignedHeaders</span>=host<br>' +
+    '  <span class="q">&amp;X-Amz-Signature</span>=' + FAKE_SIG;
+}
+['psBucket','psKey','psRegion','psExp'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderPresign);
+  document.getElementById(id).addEventListener('change', renderPresign);
+});
+renderPresign();
+
+// ============== INIT ==============
+updateProgress();
+</script>
+
+</body>
+</html>

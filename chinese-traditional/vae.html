@@ -1,0 +1,2174 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAE — 互動練習</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters: [{left:'$$', right:'$$', display:true},{left:'$', right:'$', display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --panel: #131826;
+    --panel-2: #1a2030;
+    --border: #2a3244;
+    --text: #e6edf3;
+    --muted: #8b94a7;
+    --accent: #a78bfa;        /* violet */
+    --accent-2: #c4b5fd;
+    --teal: #2dd4bf;
+    --teal-2: #5eead4;
+    --code-bg: #080c14;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #8b949e;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1a1f2e 0%, #0b0f1a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .glyph {
+    color: var(--accent); font-size: 24px;
+    text-shadow: 0 0 14px rgba(167,139,250,0.55);
+  }
+  .badge {
+    background: linear-gradient(90deg, var(--accent), var(--teal));
+    color: #0b0f1a;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--teal));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 14px rgba(167, 139, 250, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(167, 139, 250, 0.12);
+    border-color: rgba(167, 139, 250, 0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: linear-gradient(180deg, var(--accent), var(--teal));
+    border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--teal);
+    background: linear-gradient(135deg, rgba(45,212,191,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #0b0f1a;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--teal); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25);
+    background: rgba(167, 139, 250, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--teal); color: var(--teal);
+    background: rgba(45, 212, 191, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.12); }
+  .btn:active { transform: scale(0.97); }
+  .btn.teal { background: linear-gradient(135deg, var(--teal), #14b8a6); color: #0b0f1a; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--teal); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(167, 139, 250, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.teal {
+    background: rgba(45, 212, 191, 0.08);
+    border-left-color: var(--teal);
+  }
+  .note.teal strong { color: var(--teal); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 70px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(167, 139, 250, 0.6);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"].teal::-webkit-slider-thumb {
+    background: var(--teal);
+    box-shadow: 0 0 8px rgba(45, 212, 191, 0.6);
+  }
+  .slider-row .val {
+    min-width: 60px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+  .slider-row .val.teal { color: var(--teal); }
+
+  /* VAE architecture diagram */
+  .arch-diagram {
+    display: flex; align-items: center; justify-content: center;
+    gap: 14px; padding: 28px 12px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .arch-block {
+    background: var(--panel-2);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+    min-width: 80px;
+    text-align: center;
+    font-family: ui-monospace, monospace;
+    transition: all 0.4s;
+    position: relative;
+  }
+  .arch-block.encoder {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, rgba(167,139,250,0.16), rgba(167,139,250,0.04));
+  }
+  .arch-block.decoder {
+    border-color: var(--teal);
+    background: linear-gradient(180deg, rgba(45,212,191,0.16), rgba(45,212,191,0.04));
+  }
+  .arch-block.dist {
+    border-style: dashed;
+    border-color: #f0abfc;
+    background: linear-gradient(180deg, rgba(240,171,252,0.12), transparent);
+  }
+  .arch-block .nm { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .arch-block .sym { font-size: 18px; color: var(--text); font-weight: 700; }
+  .arch-arrow {
+    font-size: 22px; color: var(--muted);
+    transition: color 0.4s, transform 0.4s;
+  }
+  .arch-arrow.lit { color: var(--accent); transform: scale(1.25); }
+  .arch-arrow.lit.teal { color: var(--teal); }
+  .arch-stack { display: flex; flex-direction: column; gap: 6px; }
+
+  /* sample swatches */
+  .eps-row {
+    display: flex; gap: 4px; flex-wrap: wrap; margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+  }
+  .eps-row .chip {
+    padding: 3px 7px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+  }
+  .eps-row .chip.fresh { color: var(--teal); border-color: var(--teal); }
+
+  /* recon vs kl bars */
+  .bar-row {
+    display: flex; align-items: center; gap: 8px;
+    margin: 6px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+  .bar-row .bar-label { min-width: 110px; color: var(--muted); }
+  .bar-row .bar-track {
+    flex: 1; height: 14px;
+    background: var(--code-bg);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .bar-row .bar-fill {
+    height: 100%;
+    transition: width 0.25s ease;
+  }
+  .bar-row .bar-fill.recon { background: linear-gradient(90deg, var(--accent), #c4b5fd); }
+  .bar-row .bar-fill.kl    { background: linear-gradient(90deg, var(--teal), var(--teal-2)); }
+  .bar-row .bar-fill.total { background: linear-gradient(90deg, #fbbf24, #f97316); }
+  .bar-row .bar-val { min-width: 70px; text-align: right; color: var(--text); font-weight: 700; }
+
+  /* Mini project / latent walk */
+  .project-card {
+    background: linear-gradient(135deg, rgba(167,139,250,0.08), rgba(45,212,191,0.04));
+    border: 1px solid rgba(167, 139, 250, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(167, 139, 250, 0.35);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .pill {
+    display: inline-block;
+    background: rgba(167, 139, 250, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.teal  { background: rgba(45,212,191,0.15); color: var(--teal); }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.amber { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--teal); border-color: var(--teal); }
+
+  .formula-box {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    font-size: 14px;
+    text-align: center;
+    overflow-x: auto;
+  }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="glyph">∮</span> VAE <span class="badge">打字學習</span>
+    </div>
+    <div class="progress-bar-outer" title="整體進度">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="完成的練習">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">已解</span>
+    </div>
+    <div class="streak" title="連勝">
+      <span class="flame-mini">⚡</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 歡迎</button>
+    <button data-tab="arch">2. 架構</button>
+    <button data-tab="reparam">3. 重參數化</button>
+    <button data-tab="loss">4. 損失 / ELBO</button>
+    <button data-tab="walk">5. 潛在空間漫步</button>
+    <button data-tab="drills">6. 程式練習</button>
+    <button data-tab="project">7. 迷你專案</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>變分自編碼器 — 帶有滲漏瓶頸的生成式建模</h1>
+  <p class="lead">
+    <strong>VAE</strong> 是潛在編碼為 <em>機率分布</em> 而非單一點的自編碼器。編碼器輸出
+    $(\mu, \log\sigma^2)$,我們透過 <strong>重參數化技巧 (reparameterization trick)</strong>
+    抽樣 $z \sim \mathcal{N}(\mu, \sigma^2)$,解碼器重建 $\hat{x}$。以重建損失 +
+    KL(到單位高斯)訓練。訓練完成後,丟棄編碼器並從 $z \sim \mathcal{N}(0, I)$ 抽樣
+    來 <strong>生成新資料</strong>。
+  </p>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><div class="card-title">vs. 自編碼器</div></div>
+      <div class="card-body">
+        一般的 AE 把 $x \to z \to \hat{x}$ 做為確定性函數壓縮。潛在空間有空洞 — 隨機抽
+        $z$ 會得到垃圾。VAE 強迫潛在分布看起來像 $\mathcal{N}(0, I)$,這樣每個 $z$ 解碼後
+        都是合理的東西。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">為什麼要機率化?</div></div>
+      <div class="card-body">
+        我們想要 <em>生成</em>:可以抽出新樣本的方法。VAE 學習
+        $p_\theta(x) = \int p_\theta(x|z)\,p(z)\,dz$,其中 $p(z) = \mathcal{N}(0, I)$。
+        最大化 $\log p(x)$ 的下界 — <strong>ELBO</strong>。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">那個技巧</div></div>
+      <div class="card-body">
+        抽樣不可微分。重參數化:
+        $z = \mu + \sigma \odot \varepsilon$, $\varepsilon \sim \mathcal{N}(0, I)$。
+        現在梯度可以流過 $\mu$ 與 $\sigma$,彷彿 $z$ 只是它們的函數。
+      </div>
+    </div>
+  </div>
+
+  <h2>ELBO 一行寫完</h2>
+  <div class="formula-box">
+    $\mathcal{L}_{\text{VAE}} = \underbrace{\mathbb{E}_{q(z|x)}[-\log p(x|z)]}_{\text{reconstruction}}
+     \; + \; \beta \cdot \underbrace{\mathrm{KL}(q(z|x)\,\|\,p(z))}_{\text{regularizer}}$
+  </div>
+
+  <p class="lead">
+    第一項:解碼器從抽樣的 $z$ 重建 $x$ 的好壞。第二項:編碼器的
+    $q(z|x) = \mathcal{N}(\mu, \sigma^2)$ 偏離先驗 $p(z) = \mathcal{N}(0, I)$ 多遠。
+    編碼器必須在編碼的 <em>同時</em> 也保持貼近先驗。
+  </p>
+
+  <div class="note">
+    <strong>怎麼使用本頁:</strong> 讀完每一節後,在 <span class="pill">空格</span> 中輸入答案。
+    <kbd style="background: var(--code-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px;">Tab</kbd>
+    跳到下一個空格,
+    <kbd style="background: var(--code-bg); border: 1px solid var(--border); padding: 1px 6px; border-radius: 4px; color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px;">Enter</kbd>
+    檢查。Hint 按鈕顯示所有空格的答案;再次點擊隱藏。
+  </div>
+
+  <h2>心智模型</h2>
+  <pre class="code"><code><span class="tok-c"># VAE 前向傳播</span>
+mu, logvar = encoder(x)                 <span class="tok-c"># 兩個輸出頭</span>
+std        = (<span class="tok-n">0.5</span> * logvar).exp()       <span class="tok-c"># σ = exp(½·logσ²)</span>
+eps        = torch.randn_like(std)      <span class="tok-c"># ε ∼ N(0, I)</span>
+z          = mu + std * eps             <span class="tok-c"># 重參數化</span>
+x_hat      = decoder(z)
+loss       = recon(x_hat, x) + beta * kl(mu, logvar)</code></pre>
+</section>
+
+<!-- ========================= ARCHITECTURE ========================= -->
+<section class="tab-section" id="tab-arch">
+  <h1>架構 — 編碼器、抽樣器、解碼器</h1>
+  <p class="lead">
+    VAE 有三個組件。編碼器是有兩個輸出頭的確定性神經網路。抽樣器注入雜訊。
+    解碼器是普通的神經網路。
+  </p>
+
+  <div class="canvas-card">
+    <h3>VAE 前向計算圖</h3>
+    <div class="arch-diagram">
+      <div class="arch-block">
+        <span class="nm">輸入</span>
+        <div class="sym">x</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-block encoder">
+        <span class="nm">編碼器 qφ</span>
+        <div class="sym">f<sub>enc</sub></div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-stack">
+        <div class="arch-block dist">
+          <span class="nm">平均</span>
+          <div class="sym">μ</div>
+        </div>
+        <div class="arch-block dist">
+          <span class="nm">log 變異數</span>
+          <div class="sym">log σ²</div>
+        </div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-block dist">
+        <span class="nm">抽樣器</span>
+        <div class="sym">z = μ + σ·ε</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-block decoder">
+        <span class="nm">解碼器 pθ</span>
+        <div class="sym">f<sub>dec</sub></div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-block">
+        <span class="nm">輸出</span>
+        <div class="sym">x̂</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>編碼器產生兩個向量</h2>
+  <p class="lead">
+    與只產生一個潛在向量的普通 AE 不同,VAE 編碼器有 <strong>兩個輸出頭</strong>:
+    一個輸出平均 $\mu$,一個輸出 $\log \sigma^2$(對數變異數 — 預測對數變異數而不是 $\sigma$
+    讓網路輸出無限制,而 $\sigma$ 經過 $\exp$ 後仍保持為正)。
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">PyTorch 編碼器</div>
+      <button class="copy-btn" onclick="copyCode(this)">複製</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+
+<span class="tok-k">class</span> <span class="tok-f">Encoder</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, in_dim=<span class="tok-n">784</span>, hidden=<span class="tok-n">400</span>, latent=<span class="tok-n">20</span>):
+        <span class="tok-f">super</span>().__init__()
+        self.fc1     = nn.Linear(in_dim, hidden)
+        self.fc_mu   = nn.Linear(hidden, latent)   <span class="tok-c"># mean head</span>
+        self.fc_lv   = nn.Linear(hidden, latent)   <span class="tok-c"># log-var head</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+        h = torch.relu(self.fc1(x))
+        <span class="tok-k">return</span> self.fc_mu(h), self.fc_lv(h)        <span class="tok-c"># (μ, log σ²)</span></code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">解碼器 — 反向之旅</div>
+      <button class="copy-btn" onclick="copyCode(this)">複製</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">Decoder</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, latent=<span class="tok-n">20</span>, hidden=<span class="tok-n">400</span>, out_dim=<span class="tok-n">784</span>):
+        <span class="tok-f">super</span>().__init__()
+        self.fc1 = nn.Linear(latent, hidden)
+        self.fc2 = nn.Linear(hidden, out_dim)
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, z):
+        h = torch.relu(self.fc1(z))
+        <span class="tok-k">return</span> torch.sigmoid(self.fc2(h))    <span class="tok-c"># pixels in [0, 1]</span></code></pre>
+  </div>
+
+  <h2>把編碼器 + 解碼器打出來</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 編碼器需要 <em>兩個</em> 線性輸出頭來表示潛在分布。填入它們的名稱。</div>
+    <pre class="exercise">self.fc_mu = nn.Linear(hidden, <input class="blank" data-answer="latent|latent_dim|z_dim" size="10" placeholder="?">)
+self.fc_lv = nn.Linear(hidden, latent)   <span class="tok-c"># log-variance</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 編碼器的 <code style="color: var(--tag)">forward</code> 回傳一個 tuple — 兩個輸出頭都要:</div>
+    <pre class="exercise">def forward(self, x):
+    h = torch.relu(self.fc1(x))
+    return self.fc_mu(h), self.<input class="blank" data-answer="fc_lv|fc_logvar" size="10" placeholder="?">(h)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 解碼器的輸出通過一個壓縮函數,讓像素值落在 <code style="color: var(--tag)">[0, 1]</code>:</div>
+    <pre class="exercise">return torch.<input class="blank" data-answer="sigmoid" size="9" placeholder="?">(self.fc2(h))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= REPARAMETERIZATION ========================= -->
+<section class="tab-section" id="tab-reparam">
+  <h1>重參數化 — 讓一切變得可微分的技巧</h1>
+  <p class="lead">
+    我們需要對一個 <em>樣本</em> $z \sim \mathcal{N}(\mu, \sigma^2)$ 做反向傳播。純隨機抽樣
+    沒有梯度 — 「從一個分布抽樣」沒有鏈鎖法則的路徑。
+    解法:<strong>把隨機性移到網路外面</strong>。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">天真做法 (不行)</div></div>
+      <div class="card-body">
+        <pre class="code" style="margin: 0;"><code>z = torch.normal(mu, std)
+<span class="tok-c"># ⚠ 沒有梯度路徑</span>
+<span class="tok-c"># 回到 mu / std</span></code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">重參數化 (可以)</div></div>
+      <div class="card-body">
+        <pre class="code" style="margin: 0;"><code>eps = torch.randn_like(std)
+z   = mu + std * eps
+<span class="tok-c"># ε 對 μ、σ 來說是常數</span>
+<span class="tok-c"># ∂z/∂μ = 1, ∂z/∂σ = ε</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="formula-box">
+    $\sigma = \exp(\tfrac{1}{2}\log\sigma^2), \quad
+     \varepsilon \sim \mathcal{N}(0, I), \quad
+     z = \mu + \sigma \odot \varepsilon$
+  </div>
+
+  <div class="canvas-card">
+    <h3>玩玩抽樣器 — 滑動 μ 和 log σ²、抽 ε</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      移動滑桿設定分布。點擊 <em>抽樣 200 個 ε</em> 抽出新的
+      $\varepsilon \sim \mathcal{N}(0,1)$,然後看 $z = \mu + \sigma \cdot \varepsilon$
+      落在哪裡形成的直方圖。
+    </p>
+    <div class="grid-2">
+      <div>
+        <canvas id="reparamCanvas" width="540" height="280"></canvas>
+      </div>
+      <div>
+        <div class="slider-row">
+          <label>μ</label>
+          <input type="range" id="muSlider" min="-3" max="3" step="0.05" value="0.7">
+          <span class="val" id="muVal">0.70</span>
+        </div>
+        <div class="slider-row">
+          <label>log σ²</label>
+          <input type="range" id="lvSlider" class="teal" min="-4" max="2" step="0.05" value="0.0">
+          <span class="val teal" id="lvVal">0.00</span>
+        </div>
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin: 10px 0;">
+          σ = <span id="sigDisplay" style="color: var(--teal); font-weight: 700;">1.00</span><br>
+          已抽樣本數: <span id="sampleCount" style="color: var(--accent); font-weight: 700;">0</span>
+        </div>
+        <button class="btn teal" onclick="drawSamples()">抽樣 200 個 ε</button>
+        <button class="btn ghost tiny" onclick="resetSamples()">清除</button>
+        <div class="eps-row" id="epsRow"></div>
+        <div class="note teal" style="margin-top: 12px;">
+          <strong>關鍵:</strong> 雜訊住在 <em>ε</em> 裡,不在網路裡。梯度可以乾淨地流過
+          <em>μ</em> 與 <em>σ</em>。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>把技巧打出來</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> 把對數變異數轉換為標準差。<code style="color: var(--tag)">σ = exp(½·log σ²)</code>:</div>
+    <pre class="exercise">std = (0.5 * logvar).<input class="blank" data-answer="exp" size="5" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 抽出與 <code style="color: var(--tag)">std</code> 同形狀的新 ε:</div>
+    <pre class="exercise">eps = torch.<input class="blank" data-answer="randn|randn_like" size="11" placeholder="?">(std.shape)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 組合成樣本。整個重參數化技巧一行寫完:</div>
+    <pre class="exercise">z = mu + <input class="blank" data-answer="std|sigma|std_dev" size="6" placeholder="?"> * eps</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>為什麼可行:</strong> $z = \mu + \sigma \cdot \varepsilon$ 與
+    $\mathcal{N}(\mu, \sigma^2)$ 有相同分布,但現在 $z$ 是 $\mu$ 與 $\sigma$ 的
+    <em>可微分函數</em>。隨機性坐落在計算圖之外。
+  </div>
+</section>
+
+<!-- ========================= LOSS / ELBO ========================= -->
+<section class="tab-section" id="tab-loss">
+  <h1>損失 — 重建 + KL = ELBO</h1>
+  <p class="lead">
+    最大化 ELBO 等同於最小化兩項:解碼器重建 $x$ 的差距,以及編碼器分布偏離
+    $\mathcal{N}(0, I)$ 的程度。
+  </p>
+
+  <div class="formula-box">
+    $\mathcal{L} = \underbrace{\mathrm{BCE}(\hat{x}, x)}_{\text{reconstruction}}
+      \; + \; \beta \cdot \underbrace{-\tfrac{1}{2}\sum_{j}\bigl(1 + \log\sigma_j^2 - \mu_j^2 - \sigma_j^2\bigr)}_{\mathrm{KL}(\,\mathcal{N}(\mu,\sigma^2)\,\|\,\mathcal{N}(0,I)\,)}$
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">重建項</div></div>
+      <div class="card-body">
+        逐像素的 <code style="color: var(--tag)">F.binary_cross_entropy</code> 用於二元 /
+        Bernoulli 像素 (MNIST),或 <code style="color: var(--tag)">F.mse_loss</code> 用於
+        高斯像素。使用 <code style="color: var(--tag)">reduction='sum'</code> 以對齊
+        ELBO 的解析推導,然後再除以批次大小。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">KL 項 — 封閉形式</div></div>
+      <div class="card-body">
+        兩個高斯之間的 KL 有乾淨的解析形式,不需要抽樣:
+        <pre class="code" style="margin: 8px 0 0;"><code>kl = -<span class="tok-n">0.5</span> * torch.sum(
+    <span class="tok-n">1</span> + logvar - mu.pow(<span class="tok-n">2</span>) - logvar.exp()
+)</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-card">
+    <h3>β-VAE — 滑動 β 感受權衡</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      <span class="pill">β = 1</span> 標準 VAE。
+      <span class="pill teal">β &gt; 1</span> 先驗壓力更強 → 潛在空間更平滑但重建更模糊。
+      <span class="pill amber">β → 0</span> 退化成普通自編碼器。
+    </p>
+    <div class="grid-2">
+      <div>
+        <div class="slider-row">
+          <label>β</label>
+          <input type="range" id="betaSlider" min="0" max="6" step="0.05" value="1.0">
+          <span class="val" id="betaVal">1.00</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">recon (BCE)</span>
+          <div class="bar-track"><div class="bar-fill recon" id="reconBar"></div></div>
+          <span class="bar-val" id="reconVal">—</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">β · KL</span>
+          <div class="bar-track"><div class="bar-fill kl" id="klBar"></div></div>
+          <span class="bar-val" id="klVal">—</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">總損失</span>
+          <div class="bar-track"><div class="bar-fill total" id="totalBar"></div></div>
+          <span class="bar-val" id="totalVal">—</span>
+        </div>
+        <div class="note" style="margin-top: 14px;" id="betaNote">
+          <strong>β = 1</strong>:標準 VAE。重建與正規化平衡。
+        </div>
+      </div>
+      <div>
+        <canvas id="betaCanvas" width="500" height="280"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <h2>把損失打出來</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> $\mathcal{N}(\mu,\sigma^2)$ 與 $\mathcal{N}(0,I)$ 之間的 KL。最後那一塊把 <code style="color: var(--tag)">logvar</code> 轉換回 <code style="color: var(--tag)">σ²</code>:</div>
+    <pre class="exercise">kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.<input class="blank" data-answer="exp" size="5" placeholder="?">())</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 二元 MNIST 的逐像素重建損失。我們要對所有像素 <em>加總</em>,而不是平均:</div>
+    <pre class="exercise">recon_loss = F.binary_cross_entropy(x_hat, x, reduction=<input class="blank" data-answer="'sum'|sum|&quot;sum&quot;" size="8" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 把兩項組合起來。標準 VAE 用 β = 1;β-VAE 使用可調整的權重:</div>
+    <pre class="exercise">elbo = recon + <input class="blank" data-answer="beta|1" size="6" placeholder="?"> * kl</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note teal">
+    <strong>符號技巧:</strong> 我們 <em>最大化</em> 的 ELBO 是 $\mathbb{E}[\log p(x|z)] - \mathrm{KL}$。
+    我們 <em>最小化</em> 的損失是它的負值 — 一個正的重建項加上一個正的 KL 項。
+    同樣的東西、相反的符號。
+  </div>
+</section>
+
+<!-- ========================= LATENT WALK ========================= -->
+<section class="tab-section" id="tab-walk">
+  <h1>潛在空間漫步 — z[0]、z[1] 是什麼意思?</h1>
+  <p class="lead">
+    訓練之後,在潛在空間中滑動會讓解碼輸出連續變形。當 $\beta &gt; 0$ 時,潛在空間會被組織起來:
+    鄰近的 $z$ 解碼為相似的東西,而個別軸常常會學到可解釋的變動因子。
+  </p>
+
+  <div class="canvas-card">
+    <h3>2 維潛在 → 解碼形狀(模擬)</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      真正的 VAE 解碼器把 <em>z</em> 變成圖片。下方,一個風格化的解碼器把
+      <em>(z₀, z₁)</em> 變成連續變形的形狀 — 推動滑桿觀察平滑變形,
+      因為潛在空間是連續的。
+    </p>
+    <div class="grid-2">
+      <div>
+        <canvas id="walkCanvas" width="500" height="320"></canvas>
+      </div>
+      <div>
+        <div class="slider-row">
+          <label>z[0]</label>
+          <input type="range" id="z0Slider" min="-3" max="3" step="0.02" value="0">
+          <span class="val" id="z0Val">0.00</span>
+        </div>
+        <div class="slider-row">
+          <label>z[1]</label>
+          <input type="range" id="z1Slider" class="teal" min="-3" max="3" step="0.02" value="0">
+          <span class="val teal" id="z1Val">0.00</span>
+        </div>
+        <button class="btn teal" onclick="randomZ()">隨機 z ∼ 𝒩(0, I)</button>
+        <button class="btn ghost tiny" onclick="walkPath()">自動漫步</button>
+        <div class="note" style="margin-top: 12px;">
+          <strong>生成食譜:</strong>
+          <pre class="code" style="margin: 6px 0 0;"><code>z      = torch.randn(<span class="tok-n">1</span>, latent_dim)
+sample = decoder(z)</code></pre>
+          就這樣。捨棄編碼器;只剩解碼器 + 先驗存活。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>生成 — 抽樣再解碼</h2>
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 為了抽出全新的圖像,從先驗 $\mathcal{N}(0, I)$ 抽 $z$:</div>
+    <pre class="exercise">z = torch.<input class="blank" data-answer="randn" size="6" placeholder="?">(1, latent_dim)
+new_x = decoder(z)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 生成時把模型切到 eval 模式並關閉 autograd:</div>
+    <pre class="exercise">model.eval()
+with torch.<input class="blank" data-answer="no_grad" size="9" placeholder="?">():
+    samples = decoder(torch.randn(64, latent_dim))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CODE DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>程式練習 — 組裝完整 VAE</h1>
+  <p class="lead">
+    現在打出把所有東西黏起來的部分:<code style="color: var(--tag)">reparameterize</code>、
+    完整前向傳播、損失函數,以及單一訓練步驟。
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">標準的 VAE forward + loss(完整版)</div>
+      <button class="copy-btn" onclick="copyCode(this)">複製</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
+
+<span class="tok-k">class</span> <span class="tok-f">VAE</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, in_dim=<span class="tok-n">784</span>, hidden=<span class="tok-n">400</span>, latent=<span class="tok-n">20</span>):
+        <span class="tok-f">super</span>().__init__()
+        self.fc1     = nn.Linear(in_dim, hidden)
+        self.fc_mu   = nn.Linear(hidden, latent)
+        self.fc_lv   = nn.Linear(hidden, latent)
+        self.fc3     = nn.Linear(latent, hidden)
+        self.fc4     = nn.Linear(hidden, in_dim)
+
+    <span class="tok-k">def</span> <span class="tok-f">encode</span>(self, x):
+        h = torch.relu(self.fc1(x))
+        <span class="tok-k">return</span> self.fc_mu(h), self.fc_lv(h)
+
+    <span class="tok-k">def</span> <span class="tok-f">reparameterize</span>(self, mu, logvar):
+        std = (<span class="tok-n">0.5</span> * logvar).exp()
+        eps = torch.randn_like(std)
+        <span class="tok-k">return</span> mu + std * eps
+
+    <span class="tok-k">def</span> <span class="tok-f">decode</span>(self, z):
+        h = torch.relu(self.fc3(z))
+        <span class="tok-k">return</span> torch.sigmoid(self.fc4(h))
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+        mu, logvar = self.encode(x.view(-<span class="tok-n">1</span>, <span class="tok-n">784</span>))
+        z          = self.reparameterize(mu, logvar)
+        <span class="tok-k">return</span> self.decode(z), mu, logvar
+
+<span class="tok-k">def</span> <span class="tok-f">vae_loss</span>(x_hat, x, mu, logvar, beta=<span class="tok-n">1.0</span>):
+    recon = F.binary_cross_entropy(x_hat, x.view(-<span class="tok-n">1</span>, <span class="tok-n">784</span>), reduction=<span class="tok-s">'sum'</span>)
+    kl    = -<span class="tok-n">0.5</span> * torch.sum(<span class="tok-n">1</span> + logvar - mu.pow(<span class="tok-n">2</span>) - logvar.exp())
+    <span class="tok-k">return</span> recon + beta * kl</code></pre>
+  </div>
+
+  <h2>填入缺漏的部分</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 在 <code style="color: var(--tag)">reparameterize</code> 內 — 先從對數變異數計算 σ:</div>
+    <pre class="exercise">def reparameterize(self, mu, logvar):
+    std = (0.5 * <input class="blank" data-answer="logvar" size="9" placeholder="?">).exp()
+    eps = torch.randn_like(std)
+    return mu + std * eps</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> Forward 回傳 <em>三個</em> 東西 — loss 三個都需要:</div>
+    <pre class="exercise">def forward(self, x):
+    mu, logvar = self.encode(x.view(-1, 784))
+    z          = self.reparameterize(mu, logvar)
+    return self.decode(z), <input class="blank" data-answer="mu" size="5" placeholder="?">, <input class="blank" data-answer="logvar" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> KL 項 — 兩個高斯的封閉形式。注意前面的 <code style="color: var(--tag)">−0.5</code>:</div>
+    <pre class="exercise">kl = <input class="blank" data-answer="-0.5|−0.5" size="6" placeholder="?"> * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 一個訓練步驟。標準 5 行,但 VAE forward 回傳三個東西:</div>
+    <pre class="exercise">x_hat, mu, logvar = model(x)
+loss = vae_loss(x_hat, x, mu, logvar)
+optimizer.<input class="blank" data-answer="zero_grad" size="11" placeholder="?">()
+loss.<input class="blank" data-answer="backward" size="9" placeholder="?">()
+optimizer.<input class="blank" data-answer="step" size="6" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> 純先驗抽樣 — 用於 <em>生成</em>,不需要編碼器:</div>
+    <pre class="exercise">z = torch.randn(64, latent_dim)
+samples = model.<input class="blank" data-answer="decode" size="8" placeholder="?">(z)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">檢查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>迷你專案 — 在 MNIST 上訓練 VAE(最終程式碼)</h1>
+  <p class="lead">
+    最後 8 個空格。填好後按 <em>訓練</em>,看模擬的重建 + KL 曲線往該去的地方走:
+    重建下降、KL 維持在預算附近穩定、樣本逐漸銳利。
+  </p>
+
+  <div class="project-card">
+    <h3>完成程式</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      還剩 8 個空格。按 <em>全部檢查</em>,全綠後按 <em>訓練模型</em>。
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
+
+<span class="tok-k">class</span> <span class="tok-f">VAE</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self):
+        <span class="tok-f">super</span>().__init__()
+        self.fc1     = nn.Linear(<span class="tok-n">784</span>, <span class="tok-n">400</span>)
+        self.fc_mu   = nn.Linear(<span class="tok-n">400</span>, <span class="tok-n">20</span>)
+        self.fc_lv   = nn.Linear(<span class="tok-n">400</span>, <span class="tok-n">20</span>)
+        self.fc3     = nn.Linear(<span class="tok-n">20</span>, <span class="tok-n">400</span>)
+        self.fc4     = nn.Linear(<span class="tok-n">400</span>, <span class="tok-n">784</span>)
+
+    <span class="tok-k">def</span> <span class="tok-f">reparameterize</span>(self, mu, logvar):
+        std = (0.5 * logvar).<input class="blank" data-answer="exp" size="5" placeholder="?">()
+        eps = torch.<input class="blank" data-answer="randn_like|randn" size="11" placeholder="?">(std)
+        <span class="tok-k">return</span> mu + std * <input class="blank" data-answer="eps" size="5" placeholder="?">
+
+    <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+        h          = torch.relu(self.fc1(x.view(-1, 784)))
+        mu, logvar = self.fc_mu(h), self.fc_lv(h)
+        z          = self.reparameterize(mu, logvar)
+        h2         = torch.relu(self.fc3(z))
+        x_hat      = torch.sigmoid(self.fc4(h2))
+        <span class="tok-k">return</span> x_hat, mu, logvar
+
+<span class="tok-k">def</span> <span class="tok-f">vae_loss</span>(x_hat, x, mu, logvar, beta=1.0):
+    recon = F.binary_cross_entropy(x_hat, x.view(-1, 784), reduction=<input class="blank" data-answer="'sum'|sum|&quot;sum&quot;" size="8" placeholder="?">)
+    kl    = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.<input class="blank" data-answer="exp" size="5" placeholder="?">())
+    <span class="tok-k">return</span> recon + <input class="blank" data-answer="beta|1" size="6" placeholder="?"> * kl
+
+model     = VAE()
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+<span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(20):
+    <span class="tok-k">for</span> x, _ <span class="tok-k">in</span> dataloader:
+        x_hat, mu, logvar = model(x)
+        loss = vae_loss(x_hat, x, mu, logvar)
+        optimizer.zero_grad()
+        loss.<input class="blank" data-answer="backward" size="9" placeholder="?">()
+        optimizer.<input class="blank" data-answer="step" size="6" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">Check All</button>
+      <button class="btn teal" id="trainProjectBtn" onclick="trainProject()" disabled>▶ Train VAE</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="scene-row">
+    <div class="canvas-card">
+      <h3>training curves — recon & KL</h3>
+      <canvas id="projLossCanvas" width="500" height="240"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        epoch <span id="projEpoch" style="color: var(--accent); font-weight: 700;">—</span> ·
+        recon <span id="projRecon" style="color: var(--accent); font-weight: 700;">—</span> ·
+        kl <span id="projKL" style="color: var(--teal); font-weight: 700;">—</span>
+      </div>
+    </div>
+    <div class="canvas-card">
+      <h3>generated samples (z ∼ N(0, I))</h3>
+      <canvas id="projSamplesCanvas" width="500" height="240"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        sharpening as the decoder learns to map the prior to plausible digits
+      </div>
+    </div>
+  </div>
+
+  <div class="note teal" id="projDone" style="display:none;">
+    <strong>Trained!</strong> Your VAE compressed MNIST into a 20-dim continuous latent and
+    learned to generate new digits from $\mathcal{N}(0, I)$. Same code in PyTorch (with a real
+    DataLoader on
+    <code style="color: var(--tag)">torchvision.datasets.MNIST</code>) gives you genuine samples
+    in ~5 minutes on a CPU.
+  </div>
+
+  <h2>What's next?</h2>
+  <p class="lead">
+    Bigger models: <strong>convolutional VAE</strong> for sharp images, <strong>VQ-VAE</strong>
+    for discrete latents (the trick behind DALL·E / audio codecs), <strong>conditional VAE</strong>
+    for class-conditioned generation. Same ELBO; richer encoder / decoder / prior.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Click anywhere to dismiss.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Browser simulates the training</strong> — the curves
+  here are honest-looking math, not real PyTorch. Run the same code in Python with
+  <code style="color: var(--accent);">pip install torch torchvision</code> to actually train a VAE
+  on MNIST.<br><br>
+  ∮ encode · sample · decode · ELBO down
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('[data-drill]').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', 'that\'s the one.', 'clean.', 'ELBO++', 'reparameterized!', 'gradient flowing.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'red. try once more.', 'KL spike. retry.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+// Section completion
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--teal)';
+    fb.textContent = 'all green! click Train VAE.';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' correct. fix the red ones.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#a78bfa','#c4b5fd','#2dd4bf','#5eead4','#79c0ff','#f0abfc','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== REPARAMETERIZATION SAMPLER ==============
+const reparamCanvas = document.getElementById('reparamCanvas');
+let zSamples = []; // accumulated z values
+let lastEps  = []; // last batch of ε
+
+function drawReparam() {
+  if (!reparamCanvas) return;
+  const ctx = reparamCanvas.getContext('2d');
+  const W = reparamCanvas.width, H = reparamCanvas.height;
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, W, H);
+
+  const mu     = +document.getElementById('muSlider').value;
+  const logvar = +document.getElementById('lvSlider').value;
+  const sigma  = Math.exp(0.5 * logvar);
+  document.getElementById('muVal').textContent  = mu.toFixed(2);
+  document.getElementById('lvVal').textContent  = logvar.toFixed(2);
+  document.getElementById('sigDisplay').textContent = sigma.toFixed(2);
+  document.getElementById('sampleCount').textContent = zSamples.length;
+
+  // axis bounds: -6..6
+  const xMin = -6, xMax = 6;
+  function toPx(x) { return (x - xMin) / (xMax - xMin) * W; }
+
+  // grid
+  ctx.strokeStyle = 'rgba(139, 148, 158, 0.15)';
+  ctx.lineWidth = 1;
+  for (let x = xMin; x <= xMax; x++) {
+    const px = toPx(x);
+    ctx.beginPath();
+    ctx.moveTo(px, 0); ctx.lineTo(px, H);
+    ctx.stroke();
+  }
+  // axis
+  ctx.strokeStyle = 'rgba(139, 148, 158, 0.4)';
+  ctx.beginPath();
+  ctx.moveTo(0, H - 30); ctx.lineTo(W, H - 30);
+  ctx.stroke();
+
+  // pdf curve N(mu, sigma^2)
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#a78bfa';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  const baseY = H - 30;
+  const pdfMaxH = 180;
+  for (let i = 0; i <= 240; i++) {
+    const x = xMin + (xMax - xMin) * i / 240;
+    const p = Math.exp(-0.5 * ((x - mu) / sigma) ** 2) / (sigma * Math.sqrt(2 * Math.PI));
+    const py = baseY - Math.min(p, 1.5) * pdfMaxH;
+    if (i === 0) ctx.moveTo(toPx(x), py);
+    else ctx.lineTo(toPx(x), py);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // unit prior N(0, 1) for reference
+  ctx.strokeStyle = 'rgba(45, 212, 191, 0.5)';
+  ctx.lineWidth = 1.4;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  for (let i = 0; i <= 240; i++) {
+    const x = xMin + (xMax - xMin) * i / 240;
+    const p = Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+    const py = baseY - Math.min(p, 1.5) * pdfMaxH;
+    if (i === 0) ctx.moveTo(toPx(x), py);
+    else ctx.lineTo(toPx(x), py);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // histogram of z samples
+  if (zSamples.length > 0) {
+    const bins = 40;
+    const hist = new Array(bins).fill(0);
+    zSamples.forEach(z => {
+      const b = Math.floor((z - xMin) / (xMax - xMin) * bins);
+      if (b >= 0 && b < bins) hist[b]++;
+    });
+    const maxH = Math.max(...hist);
+    const binW = W / bins;
+    hist.forEach((c, i) => {
+      const h = c / Math.max(maxH, 1) * 130;
+      ctx.fillStyle = 'rgba(45, 212, 191, 0.55)';
+      ctx.fillRect(i * binW + 1, baseY - h, binW - 2, h);
+    });
+  }
+
+  // mu marker
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(toPx(mu), 4); ctx.lineTo(toPx(mu), baseY);
+  ctx.stroke();
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '12px ui-monospace, monospace';
+  ctx.fillText('μ', toPx(mu) + 4, 16);
+
+  // legend
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillText('— q(z|x) = N(μ, σ²)', 8, H - 12);
+  ctx.fillStyle = '#2dd4bf';
+  ctx.fillText('-- prior N(0, I)', 200, H - 12);
+}
+
+function drawSamples() {
+  const mu     = +document.getElementById('muSlider').value;
+  const logvar = +document.getElementById('lvSlider').value;
+  const sigma  = Math.exp(0.5 * logvar);
+  lastEps = [];
+  for (let i = 0; i < 200; i++) {
+    const eps = randn();
+    lastEps.push(eps);
+    zSamples.push(mu + sigma * eps);
+  }
+  // show first 8 ε's as chips
+  const epsRow = document.getElementById('epsRow');
+  epsRow.innerHTML = '';
+  lastEps.slice(0, 8).forEach(e => {
+    const chip = document.createElement('span');
+    chip.className = 'chip fresh';
+    chip.textContent = 'ε=' + e.toFixed(2);
+    epsRow.appendChild(chip);
+  });
+  drawReparam();
+}
+
+function resetSamples() {
+  zSamples = [];
+  lastEps = [];
+  document.getElementById('epsRow').innerHTML = '';
+  drawReparam();
+}
+
+// Box-Muller
+function randn() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+if (reparamCanvas) {
+  ['muSlider','lvSlider'].forEach(id => {
+    document.getElementById(id).addEventListener('input', drawReparam);
+  });
+  drawReparam();
+}
+
+// ============== BETA / LOSS BAR DEMO ==============
+const betaCanvas = document.getElementById('betaCanvas');
+function drawBeta() {
+  if (!betaCanvas) return;
+  const ctx = betaCanvas.getContext('2d');
+  const W = betaCanvas.width, H = betaCanvas.height;
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, W, H);
+
+  const beta = +document.getElementById('betaSlider').value;
+  document.getElementById('betaVal').textContent = beta.toFixed(2);
+
+  // simulated loss curves vs epoch for given beta
+  // recon at convergence: bigger β → bigger recon (model can't reconstruct as well)
+  // KL at convergence: bigger β → smaller KL (more compressed)
+  const reconConverged = 80 + beta * 40;            // BCE sum / batch
+  const klConverged    = 30 / (1 + 0.4 * beta);     // bits
+
+  const reconStart = 540;
+  const klStart    = 6;
+
+  ctx.strokeStyle = 'rgba(139, 148, 158, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath();
+    ctx.moveTo(40, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('loss', 6, 14);
+  ctx.fillText('epoch →', W - 60, H - 6);
+
+  const N = 80;
+  // recon curve
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 5;
+  ctx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const r = reconStart * Math.exp(-t * 3) + reconConverged;
+    const x = 40 + (W - 40) * t;
+    const y = (H - 18) * (1 - Math.min(r, 600) / 600);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // KL curve (β·KL)
+  ctx.strokeStyle = '#2dd4bf';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#2dd4bf'; ctx.shadowBlur = 5;
+  ctx.beginPath();
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    // KL grows from ~0 then settles at klConverged * beta scaling shown as β·KL
+    const kl = klStart + (klConverged - klStart) * (1 - Math.exp(-t * 2.5));
+    const beta_kl = beta * kl;
+    const x = 40 + (W - 40) * t;
+    const y = (H - 18) * (1 - Math.min(beta_kl, 200) / 200);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // legend
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillText('— recon (BCE/batch)', 50, 22);
+  ctx.fillStyle = '#2dd4bf';
+  ctx.fillText('— β · KL', 50, 38);
+
+  // Update bars
+  const reconBar = document.getElementById('reconBar');
+  const klBar    = document.getElementById('klBar');
+  const totalBar = document.getElementById('totalBar');
+  const reconV   = reconConverged;
+  const klV      = klConverged * beta;
+  const total    = reconV + klV;
+  const maxScale = 250;
+  reconBar.style.width = Math.min(100, reconV / maxScale * 100) + '%';
+  klBar.style.width    = Math.min(100, klV    / maxScale * 100) + '%';
+  totalBar.style.width = Math.min(100, total  / maxScale * 100) + '%';
+  document.getElementById('reconVal').textContent = reconV.toFixed(1);
+  document.getElementById('klVal').textContent    = klV.toFixed(1);
+  document.getElementById('totalVal').textContent = total.toFixed(1);
+
+  // beta note
+  const note = document.getElementById('betaNote');
+  if (beta < 0.3) {
+    note.innerHTML = '<strong>β ≈ 0:</strong> degenerates to a plain autoencoder. Latent ignores the prior — generation breaks.';
+  } else if (beta < 1.5) {
+    note.innerHTML = '<strong>β ≈ 1:</strong> standard VAE. Reconstruction and regularization balanced.';
+  } else if (beta < 3.5) {
+    note.innerHTML = '<strong>β &gt; 1:</strong> stronger prior pressure → smoother / more disentangled latent, blurrier samples.';
+  } else {
+    note.innerHTML = '<strong>β &gg; 1:</strong> posterior collapse risk — encoder ignores x, just outputs μ ≈ 0, σ ≈ 1.';
+  }
+}
+if (betaCanvas) {
+  document.getElementById('betaSlider').addEventListener('input', drawBeta);
+  drawBeta();
+}
+
+// ============== LATENT WALK ==============
+const walkCanvas = document.getElementById('walkCanvas');
+let walkAnim = null;
+
+function decoderMock(z0, z1, x, y) {
+  // produce a value in [0, 1] given latent (z0, z1) and pixel (x, y) in [-1, 1]
+  // Mix of gaussians whose centers depend on z
+  const c1x = 0.4 * Math.cos(z0 * 0.8) + 0.2 * z1;
+  const c1y = 0.4 * Math.sin(z0 * 0.8) + 0.2 * z1;
+  const c2x = -0.4 * Math.cos(z0 * 0.8) - 0.15 * z1;
+  const c2y = -0.4 * Math.sin(z0 * 0.8) + 0.15 * z1;
+  const r1 = 0.4 + 0.15 * Math.tanh(z1);
+  const r2 = 0.3 + 0.12 * Math.tanh(-z0);
+  const d1 = ((x - c1x) ** 2 + (y - c1y) ** 2) / (r1 * r1);
+  const d2 = ((x - c2x) ** 2 + (y - c2y) ** 2) / (r2 * r2);
+  return Math.max(0, Math.min(1,
+    Math.exp(-d1 * 4) + 0.85 * Math.exp(-d2 * 4)
+  ));
+}
+
+function drawWalk() {
+  if (!walkCanvas) return;
+  const ctx = walkCanvas.getContext('2d');
+  const W = walkCanvas.width, H = walkCanvas.height;
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, W, H);
+
+  const z0 = +document.getElementById('z0Slider').value;
+  const z1 = +document.getElementById('z1Slider').value;
+  document.getElementById('z0Val').textContent = z0.toFixed(2);
+  document.getElementById('z1Val').textContent = z1.toFixed(2);
+
+  // left half = "image" of decoded shape
+  const imgW = Math.min(W * 0.55, 280);
+  const imgX = 12, imgY = 18;
+  const px = 4;
+  for (let py2 = 0; py2 < imgW; py2 += px) {
+    for (let px2 = 0; px2 < imgW; px2 += px) {
+      const x = (px2 / imgW) * 2 - 1;
+      const y = (py2 / imgW) * 2 - 1;
+      const v = decoderMock(z0, z1, x, y);
+      // tint between violet and teal based on v
+      const r = Math.round(167 * v + 11 * (1 - v));
+      const g = Math.round(139 * v + 14 * (1 - v));
+      const b = Math.round(250 * v + 26 * (1 - v));
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.fillRect(imgX + px2, imgY + py2, px, px);
+    }
+  }
+  // frame
+  ctx.strokeStyle = 'rgba(167, 139, 250, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(imgX, imgY, imgW, imgW);
+  ctx.fillStyle = '#a78bfa';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('decoder(z) ≈ x̂', imgX, imgY - 4);
+
+  // right side = latent map showing where (z0, z1) sits
+  const mapX = imgX + imgW + 24;
+  const mapY = imgY;
+  const mapW = W - mapX - 12;
+  const mapH = imgW;
+  if (mapW > 60) {
+    // gradient backdrop showing prior density
+    for (let py2 = 0; py2 < mapH; py2 += 5) {
+      for (let px2 = 0; px2 < mapW; px2 += 5) {
+        const zx = (px2 / mapW) * 6 - 3;
+        const zy = (py2 / mapH) * 6 - 3;
+        const p = Math.exp(-0.5 * (zx * zx + zy * zy));
+        ctx.fillStyle = `rgba(45, 212, 191, ${0.05 + p * 0.45})`;
+        ctx.fillRect(mapX + px2, mapY + py2, 5, 5);
+      }
+    }
+    ctx.strokeStyle = 'rgba(45, 212, 191, 0.5)';
+    ctx.strokeRect(mapX, mapY, mapW, mapH);
+    // axes
+    ctx.strokeStyle = 'rgba(139, 148, 158, 0.4)';
+    ctx.beginPath();
+    ctx.moveTo(mapX + mapW / 2, mapY); ctx.lineTo(mapX + mapW / 2, mapY + mapH);
+    ctx.moveTo(mapX, mapY + mapH / 2); ctx.lineTo(mapX + mapW, mapY + mapH / 2);
+    ctx.stroke();
+    // marker for current z
+    const cx = mapX + (z0 + 3) / 6 * mapW;
+    const cy = mapY + (z1 + 3) / 6 * mapH;
+    ctx.fillStyle = '#fbbf24';
+    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#2dd4bf';
+    ctx.fillText('latent prior z ∼ N(0, I)', mapX, mapY - 4);
+  }
+}
+
+function randomZ() {
+  document.getElementById('z0Slider').value = (randn() * 1.4).toFixed(2);
+  document.getElementById('z1Slider').value = (randn() * 1.4).toFixed(2);
+  drawWalk();
+}
+
+function walkPath() {
+  if (walkAnim) { clearInterval(walkAnim); walkAnim = null; return; }
+  let t = 0;
+  walkAnim = setInterval(() => {
+    t += 0.04;
+    document.getElementById('z0Slider').value = (2 * Math.cos(t)).toFixed(2);
+    document.getElementById('z1Slider').value = (2 * Math.sin(t * 1.3)).toFixed(2);
+    drawWalk();
+    if (t > Math.PI * 4) { clearInterval(walkAnim); walkAnim = null; }
+  }, 50);
+}
+
+if (walkCanvas) {
+  ['z0Slider','z1Slider'].forEach(id => {
+    document.getElementById(id).addEventListener('input', drawWalk);
+  });
+  drawWalk();
+}
+
+// ============== PROJECT TRAINING ==============
+const projLossCanvas = document.getElementById('projLossCanvas');
+const projSamplesCanvas = document.getElementById('projSamplesCanvas');
+let projReconHistory = [], projKLHistory = [], projEpoch = 0, projTimer = null;
+
+function drawProjLoss() {
+  if (!projLossCanvas) return;
+  const ctx = projLossCanvas.getContext('2d');
+  const W = projLossCanvas.width, H = projLossCanvas.height;
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(139, 148, 158, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('loss', 6, 14);
+  ctx.fillText('epoch', W - 40, H - 4);
+
+  if (projReconHistory.length < 2) return;
+
+  const maxRecon = 600;
+  // recon
+  ctx.strokeStyle = '#a78bfa';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 5;
+  ctx.beginPath();
+  projReconHistory.forEach((l, i) => {
+    const x = 40 + (W - 40) * i / 200;
+    const y = (H - 18) * (1 - Math.min(l, maxRecon) / maxRecon);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  // KL — separate scale, render on same plot, scaled by 6x for visibility
+  ctx.strokeStyle = '#2dd4bf';
+  ctx.shadowColor = '#2dd4bf';
+  ctx.beginPath();
+  projKLHistory.forEach((k, i) => {
+    const x = 40 + (W - 40) * i / 200;
+    const y = (H - 18) * (1 - Math.min(k * 6, maxRecon) / maxRecon);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#a78bfa';
+  ctx.fillText('— recon BCE', 50, 22);
+  ctx.fillStyle = '#2dd4bf';
+  ctx.fillText('— KL (×6)', 150, 22);
+}
+
+function drawProjSamples(progress) {
+  if (!projSamplesCanvas) return;
+  const ctx = projSamplesCanvas.getContext('2d');
+  const W = projSamplesCanvas.width, H = projSamplesCanvas.height;
+  ctx.fillStyle = '#080c14';
+  ctx.fillRect(0, 0, W, H);
+
+  // draw an 8x4 grid of "MNIST-ish" samples that sharpen with progress
+  const cols = 8, rows = 4;
+  const cellW = (W - 16) / cols;
+  const cellH = (H - 16) / rows;
+  const cell  = Math.min(cellW, cellH);
+  const offX = (W - cell * cols) / 2;
+  const offY = (H - cell * rows) / 2;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const seed = r * cols + c;
+      drawDigit(ctx, offX + c * cell, offY + r * cell, cell - 4, seed, progress);
+    }
+  }
+}
+
+function drawDigit(ctx, x0, y0, sz, seed, progress) {
+  // background
+  ctx.fillStyle = '#0f1421';
+  ctx.fillRect(x0, y0, sz, sz);
+  // pseudo-random parameters from seed
+  const rand = (k) => {
+    const v = Math.sin(seed * 9.31 + k * 27.7) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const cx = x0 + sz / 2;
+  const cy = y0 + sz / 2;
+  const radius = sz * (0.18 + 0.04 * rand(1));
+  // draw a "digit" — random arc + line
+  ctx.strokeStyle = `rgba(255, 255, 255, ${0.25 + 0.65 * progress})`;
+  ctx.lineWidth = sz * (0.08 + 0.05 * progress);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  const a0 = rand(2) * Math.PI * 2;
+  const a1 = a0 + Math.PI * (1.0 + rand(3) * 0.8);
+  ctx.arc(cx, cy, radius * (0.9 + 0.2 * progress), a0, a1);
+  ctx.stroke();
+  // optional stroke
+  if (rand(4) > 0.4) {
+    ctx.beginPath();
+    const sx = cx + Math.cos(a1) * radius;
+    const sy = cy + Math.sin(a1) * radius;
+    const ex = sx + (rand(5) - 0.5) * sz * 0.5 * progress;
+    const ey = sy + (rand(6) - 0.2) * sz * 0.5 * progress;
+    ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+  }
+  // early-training noise overlay
+  const noise = 1 - progress;
+  if (noise > 0.05) {
+    for (let i = 0; i < sz * 1.2; i++) {
+      const nx = x0 + Math.random() * sz;
+      const ny = y0 + Math.random() * sz;
+      ctx.fillStyle = `rgba(255, 255, 255, ${noise * 0.35 * Math.random()})`;
+      ctx.fillRect(nx, ny, 1.2, 1.2);
+    }
+  }
+  // frame
+  ctx.strokeStyle = 'rgba(167, 139, 250, 0.18)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0, y0, sz, sz);
+}
+
+function trainProject() {
+  if (projTimer) return;
+  projReconHistory = []; projKLHistory = []; projEpoch = 0;
+  document.getElementById('projDone').style.display = 'none';
+  const totalEpochs = 200;
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = 'training...';
+  projTimer = setInterval(() => {
+    const t = projEpoch / totalEpochs;
+    const recon = 540 * Math.exp(-projEpoch / 35) + 95 + (Math.random() - 0.4) * 6;
+    // KL ramps up from 0 to ~25-30 (the latent budget)
+    const kl    = 28 * (1 - Math.exp(-projEpoch / 25)) + (Math.random() - 0.5) * 1.4;
+    projReconHistory.push(recon);
+    projKLHistory.push(Math.max(0.5, kl));
+    projEpoch++;
+    const progress = Math.min(1, projEpoch / 100);
+    document.getElementById('projEpoch').textContent = projEpoch;
+    document.getElementById('projRecon').textContent = recon.toFixed(1);
+    document.getElementById('projKL').textContent    = kl.toFixed(1);
+    drawProjLoss();
+    if (projEpoch % 4 === 0) drawProjSamples(progress);
+    if (projEpoch >= totalEpochs) {
+      clearInterval(projTimer); projTimer = null;
+      document.getElementById('projDone').style.display = '';
+      document.getElementById('trainProjectBtn').textContent = '✓ trained';
+      drawProjSamples(1);
+      burstConfetti();
+      showToast('VAE trained · ELBO converged 🎉');
+    }
+  }, 30);
+}
+
+if (projLossCanvas) drawProjLoss();
+if (projSamplesCanvas) drawProjSamples(0);
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'arch','3':'reparam','4':'loss','5':'walk','6':'drills','7':'project' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

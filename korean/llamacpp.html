@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>llama.cpp — 인터랙티브 드릴</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2229;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #d97706;       /* copper / amber */
+    --accent-2: #f59e0b;     /* warm amber */
+    --accent-3: #b45309;     /* deep bronze */
+    --code-bg: #0a0f15;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #f0b272;
+    --comment: #8b949e;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1f1810 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .flame { color: var(--accent); font-size: 24px; }
+  .badge {
+    background: var(--accent); color: #fff;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent-3), var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(217, 119, 6, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(217, 119, 6, 0.14);
+    border-color: rgba(217, 119, 6, 0.45);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+  }
+  h3 { font-size: 15px; margin: 18px 0 8px; color: var(--accent-2); }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25);
+    background: rgba(217, 119, 6, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(217, 119, 6, 0.09);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 600px) {
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  table.gguf {
+    width: 100%; border-collapse: collapse; margin: 12px 0;
+    font-family: ui-monospace, monospace; font-size: 13px;
+  }
+  table.gguf th, table.gguf td {
+    border: 1px solid var(--border);
+    padding: 8px 10px; text-align: left;
+  }
+  table.gguf th {
+    background: var(--panel-2);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  table.gguf tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  table.gguf tr.highlight td {
+    background: rgba(217, 119, 6, 0.12) !important;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  table.gguf tr.sweet td:first-child::after {
+    content: " ★"; color: var(--accent-2);
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 110px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(217, 119, 6, 0.55);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border: 0;
+    border-radius: 50%; background: var(--accent);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 80px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+  select.dark, input[type="number"].dark {
+    background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  /* Quant bars */
+  .qbars { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+  .qbar-row {
+    display: grid;
+    grid-template-columns: 90px 1fr 80px;
+    gap: 10px; align-items: center;
+    font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  .qbar-row .label { color: var(--muted); }
+  .qbar-row .label.active { color: var(--accent); font-weight: 700; }
+  .qbar-row .bar {
+    position: relative; height: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .qbar-row .bar .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: linear-gradient(90deg, var(--accent-3), var(--accent), var(--accent-2));
+    transition: width 0.4s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 8px rgba(217, 119, 6, 0.4);
+  }
+  .qbar-row .bar.ppl .fill {
+    background: linear-gradient(90deg, var(--good), #fbbf24, var(--bad));
+  }
+  .qbar-row .num { text-align: right; color: var(--accent); font-weight: 700; }
+
+  /* Pipeline ladder */
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+  .ladder .step {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    transition: all 0.3s;
+  }
+  .ladder .step .icon { font-size: 20px; display: block; margin-bottom: 4px; }
+  .ladder .step .name { color: var(--text); font-weight: 700; font-family: ui-monospace, monospace; font-size: 13px; }
+  .ladder .step .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  /* Mini project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(217,119,6,0.07), rgba(245,158,11,0.02));
+    border: 1px solid rgba(217, 119, 6, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(217, 119, 6, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(217, 119, 6, 0.16);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.blue { background: rgba(121, 192, 255, 0.15); color: var(--tag); }
+
+  .budget-readout {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    margin-top: 14px;
+  }
+  .budget-card {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .budget-card .lbl {
+    font-size: 11px; text-transform: uppercase;
+    color: var(--muted); letter-spacing: 0.5px;
+  }
+  .budget-card .num {
+    font-size: 26px; font-weight: 800;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    margin-top: 4px;
+  }
+  .budget-card .sub {
+    font-size: 11px; color: var(--muted);
+    font-family: ui-monospace, monospace;
+    margin-top: 2px;
+  }
+  .budget-card.ok { border-color: rgba(74,222,128,0.5); }
+  .budget-card.ok .num { color: var(--good); }
+  .budget-card.warn { border-color: rgba(248,113,113,0.5); }
+  .budget-card.warn .num { color: var(--bad); }
+
+  /* Backend pills */
+  .backend-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .backend-grid { grid-template-columns: repeat(2, 1fr); } }
+  .backend-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px; text-align: center;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+  .backend-card.active {
+    border-color: var(--accent);
+    background: rgba(217, 119, 6, 0.12);
+    box-shadow: 0 0 14px rgba(217, 119, 6, 0.3);
+    transform: translateY(-2px);
+  }
+  .backend-card .ico { font-size: 22px; display: block; margin-bottom: 4px; }
+  .backend-card .name { font-weight: 700; color: var(--text); font-family: ui-monospace, monospace; }
+  .backend-card .plat { color: var(--muted); font-size: 10.5px; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="flame">🦙</span> llama.cpp <span class="badge">타이핑으로 배우기</span>
+    </div>
+    <div class="progress-bar-outer" title="전체 진행도">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="완료한 연습 문제">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="연속 정답">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 환영</button>
+    <button data-tab="install">2. 설치 / 빌드</button>
+    <button data-tab="gguf">3. GGUF & 양자화</button>
+    <button data-tab="cli">4. llama-cli</button>
+    <button data-tab="server">5. llama-server</button>
+    <button data-tab="budget">6. 메모리 예산</button>
+    <button data-tab="sampling">7. 샘플링</button>
+    <button data-tab="drills">8. 드릴</button>
+    <button data-tab="project">9. 미니 프로젝트</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>llama.cpp — LLM을 로컬에서, C/C++로 실행</h1>
+  <p class="lead">
+    <strong>llama.cpp</strong>는 LLaMA 계열 모델(Llama 1/2/3, Mistral, Qwen, Gemma, Phi, DeepSeek 등)을
+    위한 고성능 추론 엔진으로, 순수 C/C++로 작성되었고 런타임에 Python 의존성이 전혀 없습니다.
+    CPU, Apple Silicon (Metal), NVIDIA (CUDA), AMD (ROCm), Vulkan을 지원하는 모든 GPU에서
+    실행됩니다. 모델은 단일 <code style="color: var(--tag)">.gguf</code> 파일로 존재합니다.
+    이 페이지를 끝낼 때쯤이면 빌드, 양자화, 실행, 서빙 명령어를 직접 <strong>타이핑</strong>해
+    본 상태가 됩니다.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">왜 llama.cpp인가?</div></div>
+      <div class="card-body">
+        의존성 제로의 C++. 1초 안에 부팅. 양자화된 모델(Q4_K_M)은 7B 모델을 약 14 GB(fp16)에서
+        약 4 GB로 줄여줍니다. 노트북, 라즈베리 파이, M 시리즈 맥, 24 GB GPU에서 모두
+        같은 코드 경로로 동작합니다. 모두가 따라 만드는 표준 구현체입니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">GGUF가 뭔가?</div></div>
+      <div class="card-body">
+        <strong>GGUF</strong> (GPT-Generated Unified Format)는 가중치 + 토크나이저 + 채팅 템플릿 +
+        메타데이터를 묶은 단일 파일 바이너리입니다. 메모리 매핑 가능, 버전 관리되며, 로컬 LLM의
+        사실상 표준 교환 포맷입니다. 이전의 GGML 포맷을 대체합니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">툴셋</div></div>
+      <div class="card-body">
+        <div><span class="pill">cli</span> <code style="color: var(--tag)">llama-cli</code> — 인터랙티브 채팅 / 일회성 생성</div>
+        <div style="margin-top:6px"><span class="pill">server</span> <code style="color: var(--tag)">llama-server</code> — OpenAI 호환 HTTP API</div>
+        <div style="margin-top:6px"><span class="pill">bench</span> <code style="color: var(--tag)">llama-bench</code> — 토큰/초 벤치마크</div>
+        <div style="margin-top:6px"><span class="pill">quant</span> <code style="color: var(--tag)">llama-quantize</code> — fp16 → Q4_K_M 등</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">백엔드</div></div>
+      <div class="card-body">
+        <div class="backend-grid">
+          <div class="backend-card"><span class="ico">🖥️</span><div class="name">CPU</div><div class="plat">AVX2 / NEON</div></div>
+          <div class="backend-card"><span class="ico">🍎</span><div class="name">Metal</div><div class="plat">Apple M 시리즈</div></div>
+          <div class="backend-card"><span class="ico">🟩</span><div class="name">CUDA</div><div class="plat">NVIDIA</div></div>
+          <div class="backend-card"><span class="ico">🔴</span><div class="name">ROCm</div><div class="plat">AMD GPU</div></div>
+          <div class="backend-card"><span class="ico">🌋</span><div class="name">Vulkan</div><div class="plat">크로스 벤더</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>큰 그림 (외워두세요)</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <pre class="code"><code><span class="tok-c"># 1. 클론 및 빌드 (Metal이 있는 Mac)</span>
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp &amp;&amp; cmake -B build -DGGML_METAL=ON &amp;&amp; cmake --build build -j
+
+<span class="tok-c"># 2. 양자화된 모델 받기 (HuggingFace)</span>
+huggingface-cli download bartowski/Meta-Llama-3.1-8B-Instruct-GGUF \
+    Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf --local-dir .
+
+<span class="tok-c"># 3. 실행</span>
+./build/bin/llama-cli -m Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+    -p <span class="tok-s">"Why is the sky blue?"</span> -n 256 -ngl 99
+
+<span class="tok-c"># 4. 8080 포트로 서빙 (OpenAI 호환)</span>
+./build/bin/llama-server -m Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+    --host 0.0.0.0 --port 8080 -ngl 99</code></pre>
+  </div>
+
+  <div class="ladder" style="margin-top:18px">
+    <div class="step"><span class="icon">📦</span><div class="name">build</div><div class="desc">cmake / make</div></div>
+    <div class="step"><span class="icon">⬇️</span><div class="name">download</div><div class="desc">.gguf 파일</div></div>
+    <div class="step"><span class="icon">🗜️</span><div class="name">quantize</div><div class="desc">Q4_K_M</div></div>
+    <div class="step"><span class="icon">🦙</span><div class="name">run</div><div class="desc">llama-cli</div></div>
+    <div class="step"><span class="icon">🌐</span><div class="name">serve</div><div class="desc">llama-server</div></div>
+  </div>
+
+  <div class="note">
+    <strong>이 페이지 사용법:</strong> 각 섹션을 읽고 <span class="pill">빈칸</span>에 직접 타이핑하세요
+    (Tab으로 다음 칸 이동, Enter로 확인). 연속 정답을 노리세요. 섹션 완료 시 종이 폭죽이 터집니다.
+    힌트 버튼은 <em>토글</em>입니다 — 첫 클릭은 공개, 다음 클릭은 숨김.
+  </div>
+</section>
+
+<!-- ========================= INSTALL ========================= -->
+<section class="tab-section" id="tab-install">
+  <h1>설치 및 빌드</h1>
+  <p class="lead">
+    설치 경로 셋: 미리 빌드된 바이너리, 패키지 매니저, 또는 소스. 소스가 가장 유연하며,
+    백엔드를 선택할 수 있는 유일한 방법입니다.
+  </p>
+
+  <div class="grid-3">
+    <div class="card"><div class="card-head"><div class="card-title">brew (mac)</div></div>
+      <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        brew install llama.cpp
+      </div></div>
+    <div class="card"><div class="card-head"><div class="card-title">winget (windows)</div></div>
+      <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        winget install llama.cpp
+      </div></div>
+    <div class="card"><div class="card-head"><div class="card-title">docker</div></div>
+      <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        ghcr.io/ggml-org/llama.cpp:server
+      </div></div>
+  </div>
+
+  <h2>소스에서 빌드 — 정석 경로</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">소스에서 빌드</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 클론</span>
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+
+<span class="tok-c"># CPU 전용 (모든 플랫폼)</span>
+cmake -B build
+cmake --build build --config Release -j
+
+<span class="tok-c"># Apple Silicon — Metal</span>
+cmake -B build -DGGML_METAL=ON
+cmake --build build --config Release -j
+
+<span class="tok-c"># NVIDIA — CUDA (CUDA 툴킷 설치 필요)</span>
+cmake -B build -DGGML_CUDA=ON
+cmake --build build --config Release -j
+
+<span class="tok-c"># AMD — HIP/ROCm</span>
+cmake -B build -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1100
+
+<span class="tok-c"># Vulkan — 크로스 벤더 GPU</span>
+cmake -B build -DGGML_VULKAN=ON</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>고전적인 <code style="color: var(--tag)">make</code> 경로</strong>도 여전히 동작하지만
+    deprecated입니다. cmake를 쓰세요. 바이너리는
+    <code style="color: var(--tag)">build/bin/</code>에 생성됩니다.
+  </div>
+
+  <h3>실습 — 알맞은 빌드 플래그 고르기</h3>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Apple Silicon GPU 가속으로 llama.cpp 빌드. 백엔드 이름을 채우세요:</div>
+    <pre class="exercise">cmake -B build -DGGML_<input class="blank" data-answer="METAL|metal" size="7" placeholder="?">=ON</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> NVIDIA GPU 지원으로 빌드:</div>
+    <pre class="exercise">cmake -B build -DGGML_<input class="blank" data-answer="CUDA|cuda" size="6" placeholder="?">=ON</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 프로젝트 빌드 — <code style="color: var(--tag)">build/</code>에 모두 컴파일하는 cmake 명령:</div>
+    <pre class="exercise">cmake --<input class="blank" data-answer="build" size="7" placeholder="?"> build --config Release -j</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= GGUF / QUANTS ========================= -->
+<section class="tab-section" id="tab-gguf">
+  <h1>GGUF 및 양자화</h1>
+  <p class="lead">
+    양자화는 가중치를 더 적은 비트로 저장해 모델을 줄입니다. 가중치당 정밀도는 떨어지지만,
+    더 똑똑한 블록 단위 방식(<code style="color: var(--tag)">_K_M</code> 계열)이 품질을
+    놀라울 만큼 잘 유지합니다. 아래 슬라이더로 크기/품질 트레이드오프를 직접 느껴 보세요.
+  </p>
+
+  <h2>양자화 동물원</h2>
+  <table class="gguf">
+    <thead>
+      <tr><th>이름</th><th>비트/wt</th><th>7B 크기</th><th>품질</th><th>언제 쓰나</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>F32</td><td>32.0</td><td>~28 GB</td><td>레퍼런스</td><td>학습 전용</td></tr>
+      <tr><td>F16 / BF16</td><td>16.0</td><td>~14 GB</td><td>무손실 추론</td><td>베이스라인 / 변환 단계</td></tr>
+      <tr><td>Q8_0</td><td>8.5</td><td>~7.2 GB</td><td>≈ fp16</td><td>품질 우선</td></tr>
+      <tr><td>Q6_K</td><td>6.6</td><td>~5.5 GB</td><td>훌륭함</td><td>품질 &gt; 크기</td></tr>
+      <tr><td>Q5_K_M</td><td>5.7</td><td>~4.8 GB</td><td>매우 좋음</td><td>안전한 선택</td></tr>
+      <tr class="sweet highlight"><td>Q4_K_M</td><td>4.85</td><td>~4.1 GB</td><td>좋음 — 스위트 스팟</td><td><strong>대부분 기본값</strong></td></tr>
+      <tr><td>Q4_0</td><td>4.5</td><td>~3.8 GB</td><td>괜찮음</td><td>레거시 / 매우 적은 RAM</td></tr>
+      <tr><td>Q3_K_M</td><td>3.9</td><td>~3.3 GB</td><td>눈에 띄는 손실</td><td>RAM이 빠듯할 때</td></tr>
+      <tr><td>Q3_K_S</td><td>3.5</td><td>~2.9 GB</td><td>더 나쁨</td><td>최후의 수단</td></tr>
+      <tr><td>Q2_K</td><td>2.6</td><td>~2.4 GB</td><td>나쁨 — 열화됨</td><td>다른 게 안 들어갈 때만</td></tr>
+    </tbody>
+  </table>
+
+  <div class="canvas-card">
+    <h3>인터랙티브 양자화 탐색기 (7B 기준)</h3>
+    <div class="grid-2" style="align-items:start">
+      <div>
+        <div class="slider-row">
+          <label>양자화 레벨</label>
+          <input type="range" id="quantSlider" min="0" max="9" step="1" value="5">
+          <span class="val" id="quantSliderVal">Q4_K_M</span>
+        </div>
+        <p style="color: var(--muted); font-size: 12px; margin: 4px 0 12px;">
+          슬라이더로 양자화별 디스크 크기와 perplexity (낮을수록 좋음)를 비교하세요.
+        </p>
+        <div class="qbars" id="qbars"></div>
+      </div>
+      <div>
+        <div class="card" style="margin:0">
+          <div class="card-head"><div class="card-title">선택: <span id="quantPick" style="color: var(--accent);">Q4_K_M</span></div></div>
+          <div class="card-body" style="font-size: 13px;">
+            <div><span class="pill">크기</span><span id="quantSize" style="color: var(--accent); font-family: ui-monospace, monospace;">4.1 GB</span></div>
+            <div style="margin-top:6px"><span class="pill">비트/가중치</span><span id="quantBits" style="color: var(--accent); font-family: ui-monospace, monospace;">4.85</span></div>
+            <div style="margin-top:6px"><span class="pill">perplexity Δ</span><span id="quantPpl" style="color: var(--accent); font-family: ui-monospace, monospace;">+0.04</span></div>
+            <div id="quantNote" class="note" style="margin-top: 12px; font-size: 12.5px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>본인 모델 변환 및 양자화</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">HuggingFace → fp16 GGUF → Q4_K_M</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. HF safetensors → fp16 gguf 변환</span>
+python convert_hf_to_gguf.py /path/to/Meta-Llama-3-8B \
+    --outfile llama3-8b-f16.gguf --outtype f16
+
+<span class="tok-c"># 2. fp16 → Q4_K_M 양자화</span>
+./build/bin/llama-quantize llama3-8b-f16.gguf llama3-8b-q4km.gguf Q4_K_M
+
+<span class="tok-c"># 3. perplexity 평가 (낮을수록 좋음)</span>
+./build/bin/llama-perplexity -m llama3-8b-q4km.gguf -f wiki.test.raw</code></pre>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> fp16 GGUF를 스위트 스팟 양자화로 줄이기:</div>
+    <pre class="exercise">llama-quantize input.f16.gguf output.q4.gguf <input class="blank" data-answer="Q4_K_M|q4_k_m" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 변환 스크립트(HF safetensors → GGUF)는 레포 루트에 있습니다:</div>
+    <pre class="exercise">python <input class="blank" data-answer="convert_hf_to_gguf.py|convert_hf_to_gguf" size="22" placeholder="?"> /path/to/model --outfile out.gguf</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CLI ========================= -->
+<section class="tab-section" id="tab-cli">
+  <h1>llama-cli — 일회성 및 채팅</h1>
+  <p class="lead">
+    직접 생성을 위한 프론트엔드. 프롬프트를 넣으면 토큰을 받습니다. 대화 모드는
+    <code style="color: var(--tag)">-cnv</code>를 추가하거나, stdin으로 파이프하세요.
+    아래 모든 플래그는 <code style="color: var(--tag)">llama-server</code>에서도 동일하게 동작합니다.
+  </p>
+
+  <h2>가장 많이 쓰는 플래그</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">플래그 치트시트</div></div>
+    <div class="card-body">
+      <div class="grid-2" style="font-family: ui-monospace, monospace; font-size: 13px;">
+        <div>
+          <div><span class="pill">-m</span> <code>.gguf</code> 모델 경로</div>
+          <div><span class="pill">-p</span> 프롬프트 문자열</div>
+          <div><span class="pill">-f</span> 파일에서 프롬프트 읽기</div>
+          <div><span class="pill">-n</span> n_predict — 최대 새 토큰 수 (-1 = ∞)</div>
+          <div><span class="pill">-c</span> 컨텍스트 크기 (예: 4096, 8192)</div>
+          <div><span class="pill">-b</span> 프롬프트 배치 크기 (기본 2048)</div>
+          <div><span class="pill">-cnv</span> 대화 / 채팅 모드</div>
+          <div><span class="pill">-sys</span> 시스템 프롬프트</div>
+        </div>
+        <div>
+          <div><span class="pill">-ngl</span> GPU에 오프로드할 레이어 수 (99 = 전부)</div>
+          <div><span class="pill">-t</span> CPU 스레드</div>
+          <div><span class="pill">--temp</span> 샘플링 온도</div>
+          <div><span class="pill">--top-k</span> top-k 샘플링</div>
+          <div><span class="pill">--top-p</span> nucleus 샘플링</div>
+          <div><span class="pill">--repeat-penalty</span> 반복 방지</div>
+          <div><span class="pill">--mlock</span> 가중치를 RAM에 락</div>
+          <div><span class="pill">--seed</span> RNG 시드 (-1 = 랜덤)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">정석 생성</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>llama-cli \
+    -m models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+    -p <span class="tok-s">"Explain backprop in 2 sentences."</span> \
+    -n 256 \
+    -c 4096 \
+    -ngl 99 \
+    --temp 0.7 --top-p 0.9</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">인터랙티브 채팅 (Llama-3 채팅 템플릿 자동 인식)</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>llama-cli -m model.gguf -cnv \
+    -sys <span class="tok-s">"You are a terse assistant."</span> \
+    -ngl 99 -c 8192</code></pre>
+  </div>
+
+  <h2>드릴</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 4096 토큰 컨텍스트, 모든 레이어 GPU 오프로드로 256 토큰 생성:</div>
+    <pre class="exercise">llama-cli -m model.gguf -p <span class="tok-s">"hi"</span> -n <input class="blank" data-answer="256|128" size="5" placeholder="?"> -c 4096 -ngl <input class="blank" data-answer="99" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> "GPU에 오프로드할 레이어 수" 플래그 — 짧고, 대시 하나:</div>
+    <pre class="exercise">llama-cli -m model.gguf -p <span class="tok-s">"hi"</span> -<input class="blank" data-answer="ngl" size="4" placeholder="?"> 32</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> llama-cli를 채팅 / 대화 모드로 전환 (짧은 플래그):</div>
+    <pre class="exercise">llama-cli -m model.gguf -<input class="blank" data-answer="cnv" size="4" placeholder="?"> -sys <span class="tok-s">"helpful"</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 컨텍스트 윈도우 크기 플래그:</div>
+    <pre class="exercise">llama-cli -m model.gguf -<input class="blank" data-answer="c" size="3" placeholder="?"> 8192</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= SERVER ========================= -->
+<section class="tab-section" id="tab-server">
+  <h1>llama-server — OpenAI 호환 HTTP</h1>
+  <p class="lead">
+    <code style="color: var(--tag)">llama-server</code>는 같은 모델을 HTTP로 노출하며,
+    OpenAI API의 일부를 따릅니다. 많은 SDK에서 드롭인 교체 가능.
+    <code style="color: var(--tag)">/</code>에 내장 WebUI 포함.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">서버 시작</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>llama-server \
+    -m models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+    --host 0.0.0.0 --port 8080 \
+    -c 8192 -ngl 99 \
+    --chat-template llama3 \
+    --api-key sk-local <span class="tok-c"># 선택적 인증</span></code></pre>
+  </div>
+
+  <h2>엔드포인트 (OpenAI 호환)</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">chat — /v1/chat/completions</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">{ messages: [...] }</code>를 받습니다. 서버는 GGUF에 박힌
+        채팅 템플릿을 자동 적용합니다. <code style="color: var(--tag)">"stream": true</code>로
+        스트리밍 지원.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">completion — /v1/completions</div></div>
+      <div class="card-body">
+        원시 텍스트 보완. <code style="color: var(--tag)">{ prompt: "..." }</code>. 채팅 템플릿을
+        완전히 건너뜁니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">embeddings — /v1/embeddings</div></div>
+      <div class="card-body">
+        임베딩 모델용 — <code style="color: var(--tag)">--embedding</code>으로 시작하세요.
+        OpenAI 클라이언트와 호환되는 벡터를 반환합니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">네이티브 — /completion, /tokenize, /health</div></div>
+      <div class="card-body">
+        llama.cpp 네이티브 엔드포인트, 추가 기능 포함: 그래마, JSON 스키마, 슬롯 관리.
+        WebUI는 <code style="color: var(--tag)">http://localhost:8080</code>에서 확인.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">curl 예시 — 채팅 보완</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>curl http://localhost:8080/v1/chat/completions \
+    -H <span class="tok-s">"Content-Type: application/json"</span> \
+    -d <span class="tok-s">'{
+        "messages": [
+            {"role": "system", "content": "You are concise."},
+            {"role": "user",   "content": "What is GGUF?"}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 200
+    }'</span></code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">python (openai SDK)</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">openai</span> <span class="tok-k">import</span> OpenAI
+
+client = OpenAI(
+    base_url=<span class="tok-s">"http://localhost:8080/v1"</span>,
+    api_key=<span class="tok-s">"sk-local"</span>,        <span class="tok-c"># --api-key가 없으면 아무거나 동작</span>
+)
+
+resp = client.chat.completions.create(
+    model=<span class="tok-s">"local"</span>,             <span class="tok-c"># 무시됨, 모델은 하나만 로드됨</span>
+    messages=[
+        {<span class="tok-s">"role"</span>: <span class="tok-s">"system"</span>, <span class="tok-s">"content"</span>: <span class="tok-s">"You are terse."</span>},
+        {<span class="tok-s">"role"</span>: <span class="tok-s">"user"</span>,   <span class="tok-s">"content"</span>: <span class="tok-s">"Why is the sky blue?"</span>},
+    ],
+    stream=<span class="tok-k">True</span>,
+)
+<span class="tok-k">for</span> chunk <span class="tok-k">in</span> resp:
+    <span class="tok-k">print</span>(chunk.choices[<span class="tok-n">0</span>].delta.content <span class="tok-k">or</span> <span class="tok-s">""</span>, end=<span class="tok-s">""</span>, flush=<span class="tok-k">True</span>)</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">python — llama-cpp-python (인프로세스)</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># pip install llama-cpp-python</span>
+<span class="tok-k">from</span> <span class="tok-t">llama_cpp</span> <span class="tok-k">import</span> Llama
+
+llm = Llama(
+    model_path=<span class="tok-s">"model-q4_k_m.gguf"</span>,
+    n_ctx=<span class="tok-n">8192</span>,
+    n_gpu_layers=<span class="tok-n">99</span>,         <span class="tok-c"># 전부 오프로드</span>
+)
+out = llm(<span class="tok-s">"Q: largest planet?\nA:"</span>, max_tokens=<span class="tok-n">32</span>, temperature=<span class="tok-n">0.0</span>)
+<span class="tok-k">print</span>(out[<span class="tok-s">"choices"</span>][<span class="tok-n">0</span>][<span class="tok-s">"text"</span>])</code></pre>
+  </div>
+
+  <h2>드릴</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> <strong>모든 인터페이스</strong>에서 기본 포트로 서버 시작:</div>
+    <pre class="exercise">llama-server -m model.gguf --host 0.0.0.0 --port <input class="blank" data-answer="8080" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> OpenAI 호환 채팅 엔드포인트 경로:</div>
+    <pre class="exercise">POST /v1/chat/<input class="blank" data-answer="completions" size="13" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 임베딩 모델 엔드포인트:</div>
+    <pre class="exercise">POST /v1/<input class="blank" data-answer="embeddings|embedding" size="12" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MEMORY BUDGET ========================= -->
+<section class="tab-section" id="tab-budget">
+  <h1>메모리 예산 계산기</h1>
+  <p class="lead">
+    모델이 들어갈까? 두 가지 비용이 있습니다 — <strong>가중치</strong>(로드 시 고정)와
+    <strong>KV 캐시</strong>(컨텍스트 길이에 따라 증가). 파라미터 + 양자화로 가중치 RAM을,
+    컨텍스트 + KV 캐시 타입으로 런타임 RAM을 확인하세요.
+  </p>
+
+  <div class="canvas-card">
+    <h3>가중치 메모리</h3>
+    <div class="grid-2" style="align-items:start">
+      <div>
+        <div class="slider-row">
+          <label>파라미터 (B)</label>
+          <input type="range" id="paramSlider" min="0.5" max="405" step="0.5" value="8">
+          <span class="val" id="paramVal">8.0 B</span>
+        </div>
+        <div class="slider-row">
+          <label>양자화</label>
+          <input type="range" id="bQuantSlider" min="0" max="9" step="1" value="5">
+          <span class="val" id="bQuantVal">Q4_K_M</span>
+        </div>
+        <p style="color: var(--muted); font-size: 12px;">
+          어림짐작: <strong>Q4_K_M ≈ 0.6 × 파라미터 GB</strong>; F16 ≈ 2 × 파라미터 GB.
+        </p>
+      </div>
+      <div class="budget-readout">
+        <div class="budget-card" id="weightCard">
+          <div class="lbl">가중치 RAM</div>
+          <div class="num" id="weightRam">4.8 GB</div>
+          <div class="sub" id="weightSub">8 B × 4.85 bits</div>
+        </div>
+        <div class="budget-card">
+          <div class="lbl">디스크 파일 크기</div>
+          <div class="num" id="diskSize">4.6 GB</div>
+          <div class="sub">≈ 가중치 RAM과 같음 (mmap)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="canvas-card">
+    <h3>KV 캐시 메모리 (컨텍스트 의존)</h3>
+    <div class="grid-2" style="align-items:start">
+      <div>
+        <div class="slider-row">
+          <label>컨텍스트 (토큰)</label>
+          <input type="range" id="ctxSlider" min="512" max="131072" step="512" value="8192">
+          <span class="val" id="ctxVal">8192</span>
+        </div>
+        <div class="slider-row">
+          <label>kv 타입</label>
+          <input type="range" id="kvSlider" min="0" max="2" step="1" value="0">
+          <span class="val" id="kvVal">f16</span>
+        </div>
+        <div class="slider-row">
+          <label>n_layers (모델)</label>
+          <input type="range" id="layerSlider" min="16" max="126" step="1" value="32">
+          <span class="val" id="layerVal">32</span>
+        </div>
+        <div class="slider-row">
+          <label>d_model</label>
+          <input type="range" id="dimSlider" min="1024" max="16384" step="128" value="4096">
+          <span class="val" id="dimVal">4096</span>
+        </div>
+        <p style="color: var(--muted); font-size: 12px;">
+          KV 캐시 ≈ <code style="color: var(--accent)">2 × n_layers × d_model × ctx × bytes_per_elem</code>.
+          <code style="color: var(--accent)">--cache-type-k q8_0 --cache-type-v q8_0</code>로 KV 양자화.
+        </p>
+      </div>
+      <div class="budget-readout">
+        <div class="budget-card">
+          <div class="lbl">KV 캐시</div>
+          <div class="num" id="kvRam">2.1 GB</div>
+          <div class="sub" id="kvSub">8192 ctx · 32 layers</div>
+        </div>
+        <div class="budget-card" id="totalCard">
+          <div class="lbl">전체 RAM/VRAM</div>
+          <div class="num" id="totalRam">6.9 GB</div>
+          <div class="sub" id="totalSub">가중치 + KV 캐시</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>팁:</strong> 모델이 VRAM을 살짝 넘긴다면, <code style="color: var(--accent)">-ngl</code>을
+    몇 레이어 줄이거나(CPU/GPU 분리), KV 캐시를
+    <code style="color: var(--accent)">q8_0</code>로 바꿔서 캐시 비용을 절반으로 줄이거나,
+    <code style="color: var(--accent)">-c</code>를 줄이세요.
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> K 캐시를 8비트로 양자화해 KV 캐시 메모리를 절반으로:</div>
+    <pre class="exercise">llama-server -m m.gguf --cache-type-k <input class="blank" data-answer="q8_0|q4_0" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= SAMPLING ========================= -->
+<section class="tab-section" id="tab-sampling">
+  <h1>샘플링 파라미터</h1>
+  <p class="lead">
+    모델이 로짓을 만든 뒤, 샘플러가 그것을 단일 토큰으로 좁힙니다. 기본값은 합리적이며, 아래
+    노브들이 튜닝의 99%를 커버합니다.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">temperature — <code>--temp</code></div></div>
+      <div class="card-body">
+        로짓을 T로 나눕니다. <code style="color: var(--tag)">0</code> = greedy / 결정적;
+        <code style="color: var(--tag)">0.7</code> ≈ 창의적 채팅;
+        <code style="color: var(--tag)">1.0+</code> = 거칠어짐. 코드 생성: 0.0–0.3. 스토리: 0.7–1.0.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">top-k — <code>--top-k</code></div></div>
+      <div class="card-body">
+        확률 상위 K개만 유지. <code style="color: var(--tag)">40</code>이 클래식 기본값,
+        <code style="color: var(--tag)">0</code>은 비활성.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">top-p (nucleus) — <code>--top-p</code></div></div>
+      <div class="card-body">
+        누적 확률이 p 이상이 되는 가장 작은 토큰 집합을 유지. 최신 기본값:
+        <code style="color: var(--tag)">0.9</code>–<code style="color: var(--tag)">0.95</code>.
+        <code style="color: var(--tag)">1.0</code>으로 비활성.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">repeat-penalty — <code>--repeat-penalty</code></div></div>
+      <div class="card-body">
+        이미 본 토큰에 패널티. <code style="color: var(--tag)">1.0</code> = 끔.
+        <code style="color: var(--tag)">1.1</code>–<code style="color: var(--tag)">1.2</code>가
+        대부분의 루프를 해결합니다. 너무 높으면 부자연스러움.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">min-p — <code>--min-p</code></div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">min_p × max_prob</code> 미만의 토큰을 제거.
+        top-p보다 새로운 방식, 선호하는 사람들이 있습니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">seed — <code>--seed</code></div></div>
+      <div class="card-body">
+        RNG 시드. <code style="color: var(--tag)">-1</code> = 랜덤. 시드 고정으로 재현 가능한
+        실행을 만드세요.
+      </div>
+    </div>
+  </div>
+
+  <h2>고급 — 그래마 및 추측 디코딩</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">구조화된 출력 강제 (GBNF 그래마)</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 출력을 유효한 JSON으로 제한</span>
+llama-cli -m model.gguf -p <span class="tok-s">"return JSON: {name, age}"</span> \
+    --grammar-file grammars/json.gbnf
+
+<span class="tok-c"># 또는 인라인 그래마</span>
+llama-cli -m model.gguf -p <span class="tok-s">"yes or no?"</span> \
+    --grammar <span class="tok-s">'root ::= "yes" | "no"'</span></code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">추측 디코딩 (작은 드래프트 + 큰 검증자)</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>llama-cli -m big-70b.gguf \
+    --draft-model small-3b.gguf \
+    --draft 5 \
+    -p <span class="tok-s">"explain quicksort"</span> -n 512</code></pre>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 그래마 파일을 통해 출력을 유효한 JSON으로 제한:</div>
+    <pre class="exercise">llama-cli -m m.gguf --grammar-file grammars/<input class="blank" data-answer="json|json.gbnf" size="10" placeholder="?">.gbnf</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 작은 드래프트 모델을 넘겨서 추측 디코딩 활성화:</div>
+    <pre class="exercise">llama-cli -m big.gguf --<input class="blank" data-answer="draft" size="7" placeholder="?">-model small.gguf --draft 5</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> Greedy / 결정적 디코딩 (랜덤 없음) — 온도 값:</div>
+    <pre class="exercise">llama-cli -m m.gguf -p <span class="tok-s">"hi"</span> --temp <input class="blank" data-answer="0|0.0" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>번개 드릴 — 모두 조립하기</h1>
+  <p class="lead">
+    한 번에 빠르게 푸는 통합 라운드. 빠진 부분을 타이핑하세요. 연속 정답 카운트.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> 프롬프트 및 생성 처리량 벤치마크:</div>
+    <pre class="exercise"><input class="blank" data-answer="llama-bench" size="13" placeholder="?"> -m model.gguf -ngl 99 -p 512 -n 128</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> held-out 텍스트로 품질 측정 (낮을수록 좋음):</div>
+    <pre class="exercise"><input class="blank" data-answer="llama-perplexity|perplexity" size="16" placeholder="?"> -m model.gguf -f wiki.test.raw</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> OS가 가중치를 스왑하지 않도록 RAM에 락:</div>
+    <pre class="exercise">llama-server -m m.gguf --<input class="blank" data-answer="mlock" size="7" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> CPU 스레드 수 (짧은 플래그):</div>
+    <pre class="exercise">llama-cli -m m.gguf -p <span class="tok-s">"hi"</span> -<input class="blank" data-answer="t" size="3" placeholder="?"> 8</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> 가중치 + 토크나이저 + 메타데이터를 묶은 단일 파일 포맷:</div>
+    <pre class="exercise">model.<input class="blank" data-answer="gguf" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> 스위트 스팟 양자화 레벨 (4비트 K-양자화, 혼합):</div>
+    <pre class="exercise">최적 균형 ≈ <input class="blank" data-answer="Q4_K_M|q4_k_m" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> top-p (nucleus) 값 0.9 설정:</div>
+    <pre class="exercise">llama-cli -m m.gguf -p <span class="tok-s">"hi"</span> --<input class="blank" data-answer="top-p|top_p" size="6" placeholder="?"> 0.9</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> 반복 토큰에 패널티 (루프 해결) — 플래그 이름:</div>
+    <pre class="exercise">--<input class="blank" data-answer="repeat-penalty|repeat_penalty" size="16" placeholder="?"> 1.1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> 크로스 벤더 GPU 백엔드 (AMD, Intel, NVIDIA, Apple, ... 모두 동작):</div>
+    <pre class="exercise">cmake -B build -DGGML_<input class="blank" data-answer="VULKAN|vulkan" size="8" placeholder="?">=ON</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>미니 프로젝트 — 다운로드 → 서빙 → 채팅</h1>
+  <p class="lead">
+    전체 라이프사이클: 양자화된 Llama 3.1 8B를 받고, llama-server를 빌드해 시작한 뒤,
+    HTTP로 채팅. 빠진 부분을 채우고 <em>실행</em>을 클릭해 시뮬레이션된 엔드투엔드 데모를 보세요.
+  </p>
+
+  <div class="project-card">
+    <h3>프로그램 완성하기</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      9개 빈칸. 모두 초록이 되면 <em>엔드투엔드 실행</em>을 누르세요.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-c"># 1. Apple Silicon GPU로 llama.cpp 빌드</span>
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+cmake -B build -DGGML_<input class="blank" data-answer="METAL|metal" size="7" placeholder="?">=ON
+cmake --build build --config Release -j
+
+<span class="tok-c"># 2. Llama 3.1 8B Instruct의 Q4_K_M 양자화 다운로드</span>
+huggingface-cli download bartowski/Meta-Llama-3.1-8B-Instruct-GGUF \
+    Meta-Llama-3.1-8B-Instruct-<input class="blank" data-answer="Q4_K_M|q4_k_m" size="8" placeholder="?">.gguf \
+    --local-dir models/
+
+<span class="tok-c"># 3. OpenAI 호환 서버 시작</span>
+./build/bin/llama-<input class="blank" data-answer="server" size="8" placeholder="?"> \
+    -m models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf \
+    --host 0.0.0.0 --port <input class="blank" data-answer="8080" size="6" placeholder="?"> \
+    -c 8192 -<input class="blank" data-answer="ngl" size="4" placeholder="?"> 99
+
+<span class="tok-c"># 4. 다른 터미널에서 채팅 (curl)</span>
+curl http://localhost:8080/v1/chat/<input class="blank" data-answer="completions" size="13" placeholder="?"> \
+    -H <span class="tok-s">"Content-Type: application/json"</span> \
+    -d <span class="tok-s">'{"messages":[{"role":"user","content":"Hi!"}]}'</span>
+
+<span class="tok-c"># 5. 또는 Python에서 (인프로세스, 서버 없이)</span>
+<span class="tok-k">from</span> <span class="tok-t">llama_cpp</span> <span class="tok-k">import</span> <input class="blank" data-answer="Llama" size="6" placeholder="?">
+llm = Llama(model_path=<span class="tok-s">"models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf"</span>,
+            n_ctx=<span class="tok-n">8192</span>, n_gpu_layers=<input class="blank" data-answer="99" size="4" placeholder="?">)
+out = llm(<span class="tok-s">"Q: largest planet?\nA:"</span>, max_tokens=<input class="blank" data-answer="32" size="4" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">전체 확인</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="runProject()" disabled>▶ 엔드투엔드 실행</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="canvas-card">
+    <h3>시뮬레이션 실행 로그</h3>
+    <pre id="runLog" style="margin: 0; padding: 12px; background: var(--code-bg); border-radius: 8px; font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--muted); min-height: 220px; white-space: pre-wrap; line-height: 1.5;">$ 모든 빈칸이 초록이면 "엔드투엔드 실행"을 클릭하세요</pre>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">출시!</strong>
+    방금 로컬 LLM 라이프사이클을 모두 거쳤습니다 — 빌드 → 다운로드 → 서빙 → 쿼리. 같은 명령을
+    실제 머신에서 실행하면 진짜 챗봇이 됩니다 — API 키도, rate limit도, 노트북을 떠나는 데이터도 없습니다.
+  </div>
+
+  <h2>다음은?</h2>
+  <p class="lead">
+    좋아하는 OpenAI SDK(Python, JS, Rust)를 <code style="color: var(--tag)">http://localhost:8080/v1</code>에
+    연결하면 드롭인 교체가 됩니다. 긴 생성 시 2–3배 빨라지려면
+    <code style="color: var(--tag)">--draft-model</code>을 추가하세요.
+    <code style="color: var(--tag)">llama-bench</code>를 본인 하드웨어에서 돌려서 20 tok/s
+    이상으로 동작하는 가장 큰 모델을 찾아보세요.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>키보드 단축키</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로 이동</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 드릴 확인</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>오버레이 닫기</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      아무 곳이나 클릭하면 닫힙니다.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">실제 모델은 로드되지 않습니다</strong> — 여기 크기,
+  perplexity, 실행 로그는 그럴듯한 수학 시뮬레이션입니다. llama.cpp를 소스에서 빌드하고 같은
+  명령을 실행하면 실제로 돌릴 수 있습니다.<br><br>
+  back2future 치트시트 컬렉션의 동반 페이지 · 🦙 build, quantize, serve
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('[data-drill]').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속 가세요.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '답이 숨겨졌어요 — 직접 입력해 보세요';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '모두 풀었어요.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '모든 답 공개됨 · 다시 클릭하면 숨겨집니다';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답!', '정확합니다.', '✓ 그거예요.', '예리해요.', '바로 그거.', '깔끔!', '컴파일됨.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아쉬워요 — 다시 시도하세요.', '거의요. 힌트를 볼까요?', '거의 맞았어요. 철자를 확인하세요.', '빨강. 한 번 더.', '플래그를 다시 확인하세요.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('섹션 완료! 🎉  +' + drills.length + '개 풀었어요');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '모두 초록! 엔드투엔드 실행을 클릭하세요.';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + '개 정답. 빨간 부분을 고치세요.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#d97706','#f59e0b','#fbbf24','#b45309','#4ade80','#79c0ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '복사됨!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '복사'; }, 1300);
+  });
+}
+
+// ============== QUANT EXPLORER ==============
+// quants ordered low-bit → high-bit (for the slider)
+const QUANTS = [
+  { name: 'Q2_K',     bits: 2.6,  size7B: 2.4,  pplDelta: 0.55, note: '공격적 — 품질이 눈에 띄게 떨어집니다.' },
+  { name: 'Q3_K_S',   bits: 3.5,  size7B: 2.9,  pplDelta: 0.21, note: '작지만 거침; RAM이 정말 빠듯할 때만.' },
+  { name: 'Q3_K_M',   bits: 3.9,  size7B: 3.3,  pplDelta: 0.13, note: 'RAM이 빠듯할 때 — 사용 가능.' },
+  { name: 'Q4_0',     bits: 4.5,  size7B: 3.8,  pplDelta: 0.10, note: '레거시 4비트; K 양자화가 더 낫습니다.' },
+  { name: 'Q4_K_S',   bits: 4.6,  size7B: 3.9,  pplDelta: 0.06, note: '작은 Q4 K 양자화 — 견고함.' },
+  { name: 'Q4_K_M',   bits: 4.85, size7B: 4.1,  pplDelta: 0.04, note: '★ 스위트 스팟 — 권장 기본값.' },
+  { name: 'Q5_K_M',   bits: 5.7,  size7B: 4.8,  pplDelta: 0.02, note: '아주 안전 — fp16과 거의 구분 불가.' },
+  { name: 'Q6_K',     bits: 6.6,  size7B: 5.5,  pplDelta: 0.01, note: '실질적으로 무손실. RAM이 있다면 이걸로.' },
+  { name: 'Q8_0',     bits: 8.5,  size7B: 7.2,  pplDelta: 0.005, note: '레퍼런스 8비트; ≈ fp16 품질.' },
+  { name: 'F16',      bits: 16.0, size7B: 13.5, pplDelta: 0.0,  note: '베이스라인 — 풀 정밀도, 16 GB GPU에 들어감.' },
+];
+
+const qbarsEl = document.getElementById('qbars');
+function buildQbars() {
+  if (!qbarsEl) return;
+  qbarsEl.innerHTML = '';
+  const maxSize = 13.5;
+  QUANTS.forEach((q, i) => {
+    const row = document.createElement('div');
+    row.className = 'qbar-row';
+    row.dataset.idx = i;
+    row.innerHTML = `
+      <div class="label">${q.name}</div>
+      <div class="bar"><div class="fill" style="width:${q.size7B / maxSize * 100}%"></div></div>
+      <div class="num">${q.size7B.toFixed(1)} GB</div>
+    `;
+    qbarsEl.appendChild(row);
+  });
+}
+buildQbars();
+
+const qSlider = document.getElementById('quantSlider');
+function updateQuant() {
+  if (!qSlider) return;
+  const i = +qSlider.value;
+  const q = QUANTS[i];
+  document.getElementById('quantSliderVal').textContent = q.name;
+  document.getElementById('quantPick').textContent = q.name;
+  document.getElementById('quantSize').textContent = q.size7B.toFixed(1) + ' GB';
+  document.getElementById('quantBits').textContent = q.bits.toFixed(2);
+  document.getElementById('quantPpl').textContent = '+' + q.pplDelta.toFixed(3);
+  document.getElementById('quantNote').innerHTML = '<strong>' + q.name + '</strong> — ' + q.note;
+  document.querySelectorAll('#qbars .qbar-row').forEach((row, idx) => {
+    row.querySelector('.label').classList.toggle('active', idx === i);
+  });
+}
+if (qSlider) {
+  qSlider.addEventListener('input', updateQuant);
+  updateQuant();
+}
+
+// ============== MEMORY BUDGET ==============
+const KV_TYPES = [
+  { name: 'f16',  bytes: 2 },
+  { name: 'q8_0', bytes: 1 },
+  { name: 'q4_0', bytes: 0.5 },
+];
+
+function fmtGB(gb) {
+  if (gb >= 1) return gb.toFixed(2) + ' GB';
+  return (gb * 1024).toFixed(0) + ' MB';
+}
+
+function updateBudget() {
+  const params = +document.getElementById('paramSlider').value;
+  const qIdx   = +document.getElementById('bQuantSlider').value;
+  const ctx    = +document.getElementById('ctxSlider').value;
+  const kvIdx  = +document.getElementById('kvSlider').value;
+  const layers = +document.getElementById('layerSlider').value;
+  const dim    = +document.getElementById('dimSlider').value;
+
+  const q  = QUANTS[qIdx];
+  const kv = KV_TYPES[kvIdx];
+
+  document.getElementById('paramVal').textContent = params.toFixed(1) + ' B';
+  document.getElementById('bQuantVal').textContent = q.name;
+  document.getElementById('ctxVal').textContent = ctx.toLocaleString();
+  document.getElementById('kvVal').textContent = kv.name;
+  document.getElementById('layerVal').textContent = layers;
+  document.getElementById('dimVal').textContent = dim;
+
+  // weight RAM ≈ params * bits / 8 (in GB, with 1B params = 1 billion)
+  const weightGB = params * q.bits / 8;
+  document.getElementById('weightRam').textContent = fmtGB(weightGB);
+  document.getElementById('weightSub').textContent = `${params}B × ${q.bits.toFixed(2)} bits`;
+  document.getElementById('diskSize').textContent = fmtGB(weightGB * 1.04);
+
+  // KV cache ≈ 2 * n_layers * d_model * ctx * bytes / 1e9 GB
+  const kvBytes = 2 * layers * dim * ctx * kv.bytes;
+  const kvGB = kvBytes / 1e9;
+  document.getElementById('kvRam').textContent = fmtGB(kvGB);
+  document.getElementById('kvSub').textContent = `${ctx.toLocaleString()} ctx · ${layers} layers`;
+
+  const total = weightGB + kvGB;
+  document.getElementById('totalRam').textContent = fmtGB(total);
+  document.getElementById('totalSub').textContent = `${fmtGB(weightGB)} weights + ${fmtGB(kvGB)} KV`;
+
+  // color
+  const totalCard = document.getElementById('totalCard');
+  totalCard.classList.remove('ok', 'warn');
+  if (total < 24) totalCard.classList.add('ok');
+  else if (total > 80) totalCard.classList.add('warn');
+}
+['paramSlider','bQuantSlider','ctxSlider','kvSlider','layerSlider','dimSlider'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateBudget);
+});
+updateBudget();
+
+// ============== PROJECT RUN ==============
+function runProject() {
+  const btn = document.getElementById('trainProjectBtn');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '실행 중...';
+  const log = document.getElementById('runLog');
+  log.style.color = 'var(--text)';
+  log.textContent = '';
+
+  const lines = [
+    { t: 0,    s: '$ git clone https://github.com/ggml-org/llama.cpp', c: 'var(--muted)' },
+    { t: 350,  s: 'Cloning into \'llama.cpp\'... done.', c: 'var(--muted)' },
+    { t: 600,  s: '$ cmake -B build -DGGML_METAL=ON', c: 'var(--muted)' },
+    { t: 950,  s: '-- Found Metal: /System/Library/Frameworks/Metal.framework', c: 'var(--good)' },
+    { t: 1200, s: '-- Generating done', c: 'var(--good)' },
+    { t: 1450, s: '$ cmake --build build --config Release -j', c: 'var(--muted)' },
+    { t: 2400, s: '[100%] Built target llama-server', c: 'var(--good)' },
+    { t: 2700, s: '$ huggingface-cli download bartowski/Meta-Llama-3.1-8B-Instruct-GGUF Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf', c: 'var(--muted)' },
+    { t: 3500, s: 'Downloading [================================] 4.92 GB', c: 'var(--accent)' },
+    { t: 4400, s: '✓ Saved to ./Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf', c: 'var(--good)' },
+    { t: 4700, s: '$ ./build/bin/llama-server -m models/Meta-Llama-3.1-8B-Instruct-Q4_K_M.gguf --host 0.0.0.0 --port 8080 -c 8192 -ngl 99', c: 'var(--muted)' },
+    { t: 5200, s: 'llama_model_loader: loaded meta data with 33 key-value pairs', c: 'var(--text)' },
+    { t: 5400, s: 'llm_load_tensors: offloaded 33/33 layers to GPU', c: 'var(--accent)' },
+    { t: 5600, s: 'llm_load_tensors:   Metal buffer size  = 4685.30 MiB', c: 'var(--text)' },
+    { t: 5800, s: 'llama_kv_cache_init: KV cache size  = 1024.00 MiB', c: 'var(--text)' },
+    { t: 6000, s: 'main: HTTP server listening on http://0.0.0.0:8080', c: 'var(--good)' },
+    { t: 6300, s: '$ curl http://localhost:8080/v1/chat/completions -H "Content-Type: application/json" -d \'{"messages":[{"role":"user","content":"Hi!"}]}\'', c: 'var(--muted)' },
+    { t: 7000, s: '{"choices":[{"message":{"role":"assistant","content":"Hi! How can I help today?"}}],', c: 'var(--text)' },
+    { t: 7050, s: ' "usage":{"prompt_tokens":12,"completion_tokens":9,"total_tokens":21}}', c: 'var(--text)' },
+    { t: 7400, s: 'eval rate: 47.3 tok/s · prompt rate: 612 tok/s', c: 'var(--accent)' },
+    { t: 7700, s: '✓ 엔드투엔드 실행 완료', c: 'var(--good)' },
+  ];
+
+  lines.forEach(({ t, s, c }) => {
+    setTimeout(() => {
+      const span = document.createElement('span');
+      span.style.color = c;
+      span.textContent = s + '\n';
+      log.appendChild(span);
+      log.scrollTop = log.scrollHeight;
+    }, t);
+  });
+
+  setTimeout(() => {
+    document.getElementById('projDone').style.display = '';
+    btn.textContent = '✓ 출시됨';
+    burstConfetti();
+    showToast('엔드투엔드 LLM 스택이 로컬에서 실행 중 🦙');
+  }, 8000);
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'install','3':'gguf','4':'cli','5':'server',
+    '6':'budget','7':'sampling','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

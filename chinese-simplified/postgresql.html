@@ -1,0 +1,2174 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PostgreSQL 命令行 — 交互式练习</title>
+<style>
+  :root {
+    --bg: #0a1628;
+    --panel: #11203a;
+    --panel-2: #172a48;
+    --border: #29456e;
+    --text: #e6edf3;
+    --muted: #8ba0bd;
+    --accent: #336791;       /* PostgreSQL elephant blue */
+    --accent-2: #4a8bc2;
+    --accent-deep: #1e4870;
+    --code-bg: #060f1f;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7b8fa8;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #142a48 0%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .elephant { color: var(--accent-2); font-size: 24px; }
+  .badge {
+    background: var(--accent); color: #fff;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent-2); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(74, 139, 194, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent-2);
+    background: rgba(74, 139, 194, 0.14);
+    border-color: rgba(74, 139, 194, 0.5);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent-2); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent-2); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent-2);
+    border-radius: 4px;
+    color: var(--accent-2);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(74, 139, 194, 0.28);
+    background: rgba(74, 139, 194, 0.06);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(74, 139, 194, 0.08);
+    border-left: 3px solid var(--accent-2);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent-2); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Meta-command reference table */
+  table.meta {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.meta th, table.meta td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.meta th {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    font-weight: 700; text-transform: uppercase;
+    font-size: 11px; letter-spacing: 0.5px;
+  }
+  table.meta td:first-child {
+    font-family: ui-monospace, monospace;
+    color: var(--accent-2); font-weight: 700;
+    white-space: nowrap;
+  }
+  table.meta td:last-child { color: var(--muted); }
+  table.meta tr:last-child td { border-bottom: none; }
+  table.meta tr:hover td { background: rgba(74, 139, 194, 0.04); }
+
+  /* Faux psql terminal simulator */
+  .terminal {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .terminal-head {
+    background: linear-gradient(180deg, #1a3052, #142540);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .terminal-head .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+  .terminal-head .title {
+    color: var(--muted); font-size: 12px; margin-left: 8px;
+  }
+  .terminal-body {
+    padding: 14px;
+    min-height: 240px;
+    max-height: 480px;
+    overflow-y: auto;
+    line-height: 1.65;
+    color: #d3deeb;
+  }
+  .term-prompt { color: var(--accent-2); font-weight: 700; }
+  .term-user-input { color: var(--good); }
+  .term-output { color: #c5d2e2; white-space: pre; display: block; margin: 4px 0 8px; }
+  .term-comment { color: var(--muted); font-style: italic; }
+
+  .query-buttons {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 10px;
+  }
+  .query-buttons button {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .query-buttons button:hover {
+    background: rgba(74, 139, 194, 0.14);
+    border-color: var(--accent-2);
+  }
+  .query-buttons button.recent {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* Mini project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(74,139,194,0.07), rgba(51,103,145,0.02));
+    border: 1px solid rgba(74, 139, 194, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent-2); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Pipeline ladder for mini project */
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+  .ladder .step {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    transition: all 0.3s;
+  }
+  .ladder .step.active {
+    border-color: var(--accent-2);
+    background: rgba(74, 139, 194, 0.14);
+    box-shadow: 0 0 14px rgba(74, 139, 194, 0.3);
+    transform: translateY(-2px);
+  }
+  .ladder .step .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .ladder .step .name { color: var(--text); font-weight: 700; font-family: ui-monospace, monospace; }
+  .ladder .step .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(74, 139, 194, 0.18);
+    color: var(--accent-2);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.warn { background: rgba(248,113,113,0.13); color: var(--bad); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent-2); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent-2);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent-2);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(74, 139, 194, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent-2); text-decoration: none; }
+  footer code { color: var(--accent-2); }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="elephant">🐘</span> PostgreSQL 命令行 <span class="badge">边敲边学</span>
+    </div>
+    <div class="progress-bar-outer" title="总体进度">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="已完成练习数">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">已解决</span>
+    </div>
+    <div class="streak" title="连击">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent-2); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 欢迎</button>
+    <button data-tab="connect">2. 连接</button>
+    <button data-tab="meta">3. 元命令</button>
+    <button data-tab="inspect">4. 检查</button>
+    <button data-tab="simulator">5. 模拟器</button>
+    <button data-tab="queries">6. 实用查询</button>
+    <button data-tab="backup">7. 备份 / 恢复</button>
+    <button data-tab="drills">8. 综合练习</button>
+    <button data-tab="project">9. 小项目</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>PostgreSQL 命令行 — 反复操练 <code style="color: var(--tag); font-size: 22px;">psql</code> 直到形成肌肉记忆</h1>
+  <p class="lead">
+    <code style="color: var(--tag)">psql</code> 是 PostgreSQL 的官方终端客户端。它随每个服务器一起发布，
+    可脚本化、速度极快，并且配备了一整套反斜杠 <em>元命令</em>，胜过任何图形界面。
+    读完本页，你将亲手 <strong>敲过</strong> 连接参数、元命令、SQL、导出/恢复、维护一行命令，
+    以及一个完整的小项目。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">什么是 psql？</div></div>
+      <div class="card-body">
+        一个使用 PostgreSQL 通信协议的终端程序。它能执行 SQL，也能运行
+        <em>反斜杠命令</em>，例如 <code style="color: var(--tag)">\dt</code>（列出表）和
+        <code style="color: var(--tag)">\d users</code>（描述表）。支持 Tab 自动补全、历史记录、
+        通过 <code style="color: var(--tag)">-c / -f</code> 编写脚本，以及通过
+        <code style="color: var(--tag)">\copy</code> 批量导入。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">为什么不用图形界面？</div></div>
+      <div class="card-body">
+        因为图形界面隐藏了真正的命令、无法脚本化、不能在远程机器上通过 SSH 运行，
+        而且面对大结果集就会卡死。一旦 <code style="color: var(--tag)">\d</code>、
+        <code style="color: var(--tag)">\dt+</code>、<code style="color: var(--tag)">\watch</code>
+        刻进了你的手指，你就会比地球上任何 UI 都更快。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">psql 的好搭档</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">pg_dump</code> / <code style="color: var(--tag)">pg_restore</code>
+        负责备份，<code style="color: var(--tag)">pg_isready</code> 用于健康检查，
+        <code style="color: var(--tag)">createdb</code> / <code style="color: var(--tag)">dropdb</code>
+        是轻量包装器，还有 <code style="color: var(--tag)">vacuumdb</code>、
+        <code style="color: var(--tag)">reindexdb</code>。它们使用同一套连接参数。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">约定</div></div>
+      <div class="card-body">
+        默认端口 <span class="pill">5432</span>，默认数据库和用户通常与你的操作系统用户同名。
+        在 <code style="color: var(--tag)">psql</code> 里：
+        <code style="color: var(--tag)">\?</code> 列出元命令，
+        <code style="color: var(--tag)">\h SELECT</code> 显示 SQL 语法，
+        <code style="color: var(--tag)">\q</code> 退出。
+      </div>
+    </div>
+  </div>
+
+  <h2>你将熟记的 psql 速查卡</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">必备命令</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 连接</span>
+psql -h db.example.com -p 5432 -U app -d shop
+
+<span class="tok-c"># 进入 psql 之后</span>
+\l            <span class="tok-c"># 列出所有数据库</span>
+\c shop       <span class="tok-c"># 连接到 "shop" 数据库</span>
+\dt           <span class="tok-c"># 列出所有表</span>
+\d users      <span class="tok-c"># 描述表 "users"</span>
+\df           <span class="tok-c"># 列出函数</span>
+\du           <span class="tok-c"># 列出角色</span>
+\timing on    <span class="tok-c"># 显示每次查询耗时</span>
+\watch 2      <span class="tok-c"># 每 2 秒重跑上一条查询</span>
+\copy users TO 'users.csv' CSV HEADER
+\q            <span class="tok-c"># 退出</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>如何使用本页：</strong>逐个标签页切换，往
+    <span class="pill">空格</span> 里输入答案（按 Enter 检查，按 Tab 跳转），冲击连击数。
+    撒下五彩纸屑就表示你完成了一节。
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    准备好了吗？点击顶部的 <strong>2. 连接</strong>。我们将从每次会话都会做的事情开始：登录进去。
+  </p>
+</section>
+
+<!-- ========================= CONNECT ========================= -->
+<section class="tab-section" id="tab-connect">
+  <h1>连接 — 进入 psql</h1>
+  <p class="lead">
+    六种连接方式。挑一种适合你当前情况的。
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">所有连接方式</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. 默认值 — 使用 $PGUSER / $PGDATABASE / unix socket</span>
+psql
+
+<span class="tok-c"># 2. 显式参数</span>
+psql -h db.example.com -p 5432 -U alice -d shop
+
+<span class="tok-c"># 3. URI 形式（适用于环境变量 / CI）</span>
+psql postgresql://alice:secret@db.example.com:5432/shop
+
+<span class="tok-c"># 4. 一次性查询，不进入交互式 shell</span>
+psql -h host -U alice -d shop -c "SELECT now();"
+
+<span class="tok-c"># 5. 运行一个 .sql 脚本</span>
+psql -h host -U alice -d shop -f migrate.sql
+
+<span class="tok-c"># 6. 通过环境变量</span>
+PGHOST=db PGUSER=alice PGDATABASE=shop psql</code></pre>
+  </div>
+
+  <h2>免去每次输入密码的认证方式</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">~/.pgpass</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># ~/.pgpass — 每行一条 (host, port, db, user, password)</span>
+<span class="tok-c"># 任意字段都可使用通配符</span>
+db.example.com:5432:shop:alice:s3cret
+*:*:*:postgres:rootpw
+
+<span class="tok-c"># 必须 chmod 600，否则 psql 会忽略它</span>
+chmod 600 ~/.pgpass</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>在 psql 内安全地修改自己的密码</strong> 用
+    <code style="color: var(--tag)">\password</code>。它在客户端进行哈希，明文不会离开终端 ——
+    比 <code style="color: var(--tag)">ALTER USER ... PASSWORD '...'</code> 安全得多，
+    后者会把密码写入服务器日志。
+  </div>
+
+  <h2>敲一遍连接参数</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 以用户 <code style="color: var(--tag)">alice</code> 连接到主机 <code style="color: var(--tag)">db.example.com</code> 端口 5432 上的数据库 <code style="color: var(--tag)">shop</code>。填入主机参数。</div>
+    <pre class="exercise">psql <input class="blank" data-answer="-h" size="3" placeholder="?"> db.example.com -p 5432 -U alice -d shop</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 同样的连接，填入用户参数。</div>
+    <pre class="exercise">psql -h db.example.com -p 5432 <input class="blank" data-answer="-U" size="3" placeholder="?"> alice -d shop</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> URI 形式 — 输入 Postgres 默认端口号。</div>
+    <pre class="exercise">psql postgresql://user:pass@host:<input class="blank" data-answer="5432" size="6" placeholder="?">/dbname</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> 退出 psql。</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="q" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 在 psql 内安全地修改自己的密码。</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="password" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> <code style="color: var(--tag)">~/.pgpass</code> 必须设置为什么权限，psql 才会读取它？（八进制）</div>
+    <pre class="exercise">chmod <input class="blank" data-answer="600" size="5" placeholder="?"> ~/.pgpass</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> 显示某个 SQL 语句的内置语法帮助。</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="h" size="3" placeholder="?"> SELECT</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>继续敲：</strong> <code style="color: var(--tag)">\?</code> 列出所有元命令，
+    <code style="color: var(--tag)">\h</code> 列出所有 SQL 语句。它们是你最好的两个朋友。
+  </div>
+</section>
+
+<!-- ========================= META ========================= -->
+<section class="tab-section" id="tab-meta">
+  <h1>元命令速查卡</h1>
+  <p class="lead">
+    反斜杠元命令很特别 —— 它们不会发送给服务器，而是由 psql 本地解释。加上
+    <code style="color: var(--tag)">+</code> 表示详细信息，前缀 <code style="color: var(--tag)">\d</code>
+    表示描述。
+  </p>
+
+  <h2>列出对象</h2>
+  <table class="meta">
+    <tr><th>命令</th><th>说明</th></tr>
+    <tr><td>\l</td><td>列出所有数据库（大小、所有者、编码）</td></tr>
+    <tr><td>\c <em>dbname</em></td><td>连接到另一个数据库</td></tr>
+    <tr><td>\dt</td><td>列出当前模式中的表</td></tr>
+    <tr><td>\dt+</td><td>同上，再加上大小和说明</td></tr>
+    <tr><td>\dt *.*</td><td>列出 <em>所有</em> 模式中的表</td></tr>
+    <tr><td>\dn</td><td>列出模式</td></tr>
+    <tr><td>\dv</td><td>列出视图</td></tr>
+    <tr><td>\di</td><td>列出索引</td></tr>
+    <tr><td>\df</td><td>列出函数</td></tr>
+    <tr><td>\du</td><td>列出角色 / 用户</td></tr>
+    <tr><td>\dx</td><td>列出已安装的扩展</td></tr>
+  </table>
+
+  <h2>描述对象</h2>
+  <table class="meta">
+    <tr><th>命令</th><th>说明</th></tr>
+    <tr><td>\d <em>table</em></td><td>列、类型、索引、约束、外键</td></tr>
+    <tr><td>\d+ <em>table</em></td><td>所有信息再加上存储与统计目标</td></tr>
+    <tr><td>\d <em>view</em></td><td>显示底层 SELECT 语句</td></tr>
+    <tr><td>\d <em>idx</em></td><td>显示索引列和定义</td></tr>
+    <tr><td>\sf <em>func</em></td><td>显示函数完整源代码</td></tr>
+  </table>
+
+  <h2>编辑与运行</h2>
+  <table class="meta">
+    <tr><th>命令</th><th>说明</th></tr>
+    <tr><td>\e</td><td>在 $EDITOR 中打开上一条查询</td></tr>
+    <tr><td>\i <em>file.sql</em></td><td>运行脚本文件</td></tr>
+    <tr><td>\copy <em>tbl</em> FROM 'f.csv' CSV HEADER</td><td>客户端批量导入（无需服务器文件访问）</td></tr>
+    <tr><td>\watch <em>n</em></td><td>每 <em>n</em> 秒重跑上一条查询</td></tr>
+    <tr><td>\timing on</td><td>每条查询后打印执行时间</td></tr>
+    <tr><td>\x</td><td>切换扩展显示（行竖向堆叠）</td></tr>
+    <tr><td>\set</td><td>显示 / 设置 psql 变量</td></tr>
+    <tr><td>\password [<em>user</em>]</td><td>安全地修改密码</td></tr>
+    <tr><td>\?</td><td>完整元命令帮助</td></tr>
+    <tr><td>\h <em>STMT</em></td><td>SQL 语法帮助</td></tr>
+    <tr><td>\q</td><td>退出 psql</td></tr>
+  </table>
+
+  <h2>练习</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 列出所有数据库。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="l|list" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 列出当前模式中的所有表。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="dt" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 描述名为 <code style="color: var(--tag)">orders</code> 的单张表。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="d" size="3" placeholder="?"> orders</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 切换到另一个名为 <code style="color: var(--tag)">mydb</code> 的数据库。</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="c|connect" size="6" placeholder="?"> mydb</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 开启每条查询的耗时显示。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="timing" size="8" placeholder="?"> on</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 每 1 秒重跑上一条查询（实时监控）。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="watch" size="7" placeholder="?"> 1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 列出已安装的扩展。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="dx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= INSPECT ========================= -->
+<section class="tab-section" id="tab-inspect">
+  <h1>检查 — 模式、类型、索引、执行计划</h1>
+  <p class="lead">
+    连接成功后，第一件事就是四处看看。下面是了解数据库内容的方法。
+  </p>
+
+  <h2>SQL DDL — 你会真正用到的类型</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">CREATE TABLE — 丰富的类型</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">CREATE TABLE</span> users (
+    id          <span class="tok-t">UUID</span>        <span class="tok-k">PRIMARY KEY</span> <span class="tok-k">DEFAULT</span> gen_random_uuid(),
+    email       <span class="tok-t">TEXT</span>        <span class="tok-k">NOT NULL UNIQUE</span>,
+    age         <span class="tok-t">INT</span>         <span class="tok-k">CHECK</span> (age &gt;= <span class="tok-n">0</span>),
+    tags        <span class="tok-t">TEXT</span>[],                                <span class="tok-c">-- 数组</span>
+    profile     <span class="tok-t">JSONB</span>       <span class="tok-k">NOT NULL</span> <span class="tok-k">DEFAULT</span> <span class="tok-s">'{}'</span>,    <span class="tok-c">-- JSONB</span>
+    created_at  <span class="tok-t">TIMESTAMPTZ</span> <span class="tok-k">NOT NULL</span> <span class="tok-k">DEFAULT</span> now()
+);
+
+<span class="tok-c">-- 外键</span>
+<span class="tok-k">CREATE TABLE</span> orders (
+    id       <span class="tok-t">BIGSERIAL</span> <span class="tok-k">PRIMARY KEY</span>,
+    user_id  <span class="tok-t">UUID</span> <span class="tok-k">NOT NULL REFERENCES</span> users(id) <span class="tok-k">ON DELETE CASCADE</span>,
+    total    <span class="tok-t">NUMERIC</span>(<span class="tok-n">10</span>,<span class="tok-n">2</span>) <span class="tok-k">NOT NULL</span>
+);</code></pre>
+  </div>
+
+  <h2>索引 — 三种风味覆盖大多数场景</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">索引模式</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c">-- 1. 普通 B-tree（默认）</span>
+<span class="tok-k">CREATE INDEX</span> idx_orders_user <span class="tok-k">ON</span> orders(user_id);
+
+<span class="tok-c">-- 2. 通过索引实现唯一约束</span>
+<span class="tok-k">CREATE UNIQUE INDEX</span> idx_users_email <span class="tok-k">ON</span> users(lower(email));
+
+<span class="tok-c">-- 3. 部分索引 — 只对 "活动" 行建索引</span>
+<span class="tok-k">CREATE INDEX</span> idx_open_orders <span class="tok-k">ON</span> orders(user_id)
+    <span class="tok-k">WHERE</span> status = <span class="tok-s">'open'</span>;
+
+<span class="tok-c">-- 4. GIN 用于 JSONB / 数组 / 全文</span>
+<span class="tok-k">CREATE INDEX</span> idx_users_profile <span class="tok-k">ON</span> users <span class="tok-k">USING GIN</span> (profile);
+<span class="tok-k">CREATE INDEX</span> idx_users_tags    <span class="tok-k">ON</span> users <span class="tok-k">USING GIN</span> (tags);</code></pre>
+  </div>
+
+  <h2>EXPLAIN — 解读你的查询计划</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">explain analyze</div></div>
+    <pre class="code"><code><span class="tok-k">EXPLAIN</span> (ANALYZE, BUFFERS) <span class="tok-k">SELECT</span> * <span class="tok-k">FROM</span> orders <span class="tok-k">WHERE</span> user_id = <span class="tok-s">'...'</span>;
+<span class="tok-c">--  Index Scan using idx_orders_user on orders  (cost=0.42..8.44 rows=1 width=...)</span>
+<span class="tok-c">--    Index Cond: (user_id = '...'::uuid)</span>
+<span class="tok-c">--  Planning Time: 0.12 ms</span>
+<span class="tok-c">--  Execution Time: 0.04 ms</span></code></pre>
+  </div>
+  <div class="note">
+    <strong>读 EXPLAIN：</strong>执行从顶向下，开销从底向上。在你期望走 <em>Index Scan</em>
+    的大表上看到 <em>Seq Scan</em>，意味着索引缺失或未被使用。使用
+    <code style="color: var(--tag)">BUFFERS</code> 选项可以查看磁盘读取与缓存命中。
+  </div>
+
+  <h2>UPSERT、CTE、窗口函数 — 真正的好东西</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">upsert (INSERT … ON CONFLICT)</div></div>
+    <pre class="code"><code><span class="tok-k">INSERT INTO</span> users (id, email)
+<span class="tok-k">VALUES</span> (<span class="tok-s">'a-uuid'</span>, <span class="tok-s">'a@x'</span>)
+<span class="tok-k">ON CONFLICT</span> (id) <span class="tok-k">DO UPDATE SET</span> email = <span class="tok-k">EXCLUDED</span>.email;</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">CTE + 窗口函数</div></div>
+    <pre class="code"><code><span class="tok-k">WITH</span> ranked <span class="tok-k">AS</span> (
+    <span class="tok-k">SELECT</span> user_id, total,
+           ROW_NUMBER() <span class="tok-k">OVER</span> (<span class="tok-k">PARTITION BY</span> user_id <span class="tok-k">ORDER BY</span> total <span class="tok-k">DESC</span>) <span class="tok-k">AS</span> rn
+    <span class="tok-k">FROM</span> orders
+)
+<span class="tok-k">SELECT</span> * <span class="tok-k">FROM</span> ranked <span class="tok-k">WHERE</span> rn = <span class="tok-n">1</span>;   <span class="tok-c">-- 每个用户最大订单</span></code></pre>
+  </div>
+
+  <h2>练习</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 把 <code style="color: var(--tag)">orders.user_id</code> 关联到 <code style="color: var(--tag)">users(id)</code> 的外键写完。</div>
+    <pre class="exercise">FOREIGN KEY (user_id) <input class="blank" data-answer="REFERENCES|references" size="11" placeholder="?"> users(id)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> UPSERT —— <code style="color: var(--tag)">ON</code> 后面是什么？</div>
+    <pre class="exercise">INSERT INTO users (id, email) VALUES (...)
+ON <input class="blank" data-answer="CONFLICT|conflict" size="9" placeholder="?"> (id) DO UPDATE SET email = EXCLUDED.email;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> 窗口函数 —— 填入引出窗口的关键字。</div>
+    <pre class="exercise">SELECT user_id,
+       ROW_NUMBER() <input class="blank" data-answer="OVER|over" size="6" placeholder="?"> (PARTITION BY user_id ORDER BY total DESC) AS rn
+FROM orders;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> 为 JSONB 包含查询建立优化的索引。</div>
+    <pre class="exercise">CREATE INDEX idx_profile ON users USING <input class="blank" data-answer="GIN|gin" size="5" placeholder="?"> (profile);</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> 查看某条查询的实际运行时间和缓冲区情况。</div>
+    <pre class="exercise"><input class="blank" data-answer="EXPLAIN|explain" size="9" placeholder="?"> (ANALYZE, BUFFERS) SELECT * FROM orders WHERE user_id = '...';</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= SIMULATOR ========================= -->
+<section class="tab-section" id="tab-simulator">
+  <h1>交互式 psql 模拟器</h1>
+  <p class="lead">
+    点击任意预设查询，查看预先准备好的输出，体验跟真实
+    <code style="color: var(--tag)">psql</code> 会话一模一样。无需数据库。
+  </p>
+
+  <div class="terminal">
+    <div class="terminal-head">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title">alice@db.example.com — psql (16.2)</span>
+    </div>
+    <div class="terminal-body" id="termBody">
+<div><span class="term-prompt">$</span> <span class="term-user-input">psql -h db.example.com -U alice -d shop</span></div>
+<span class="term-output">psql (16.2)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384)
+Type "help" for help.
+
+shop=&gt;</span>
+    </div>
+  </div>
+
+  <p style="margin-top: 14px; color: var(--muted); font-size: 13px;">点击查询，在模拟器里运行：</p>
+  <div class="query-buttons" id="queryButtons">
+    <button data-q="\l">\l</button>
+    <button data-q="\dt">\dt</button>
+    <button data-q="\d users">\d users</button>
+    <button data-q="\du">\du</button>
+    <button data-q="\dx">\dx</button>
+    <button data-q="\timing on">\timing on</button>
+    <button data-q="select-now">SELECT now();</button>
+    <button data-q="select-version">SELECT version();</button>
+    <button data-q="count-users">SELECT count(*) FROM users;</button>
+    <button data-q="big-tables">最大的 5 张表</button>
+    <button data-q="active">活动查询 (pg_stat_activity)</button>
+    <button data-q="size">数据库大小</button>
+    <button data-q="explain">EXPLAIN ANALYZE</button>
+    <button data-q="clear">清屏</button>
+  </div>
+
+  <div class="note" style="margin-top: 18px;">
+    <strong>这里哪些是真的：</strong>提示符格式、列布局、元命令打印方式以及计时。
+    实际行是固定数据 —— 把任意 SQL 复制到真实的 psql 会话中都能直接跑通。
+  </div>
+</section>
+
+<!-- ========================= QUERIES ========================= -->
+<section class="tab-section" id="tab-queries">
+  <h1>实用一行命令</h1>
+  <p class="lead">
+    生产环境 DBA 凌晨三点真正会粘贴的查询。请收藏。
+  </p>
+
+  <h2>最大的 5 张表</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">体积侦探</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">SELECT</span>
+    schemaname || <span class="tok-s">'.'</span> || relname           <span class="tok-k">AS</span> table,
+    pg_size_pretty(pg_total_relation_size(relid))  <span class="tok-k">AS</span> total_size,
+    pg_size_pretty(pg_relation_size(relid))        <span class="tok-k">AS</span> data_size,
+    pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) <span class="tok-k">AS</span> idx_size
+<span class="tok-k">FROM</span> pg_catalog.pg_statio_user_tables
+<span class="tok-k">ORDER BY</span> pg_total_relation_size(relid) <span class="tok-k">DESC</span>
+<span class="tok-k">LIMIT</span> <span class="tok-n">5</span>;</code></pre>
+  </div>
+
+  <h2>活动查询 — 此刻谁在做什么</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">pg_stat_activity</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">SELECT</span> pid, usename, application_name, state,
+       now() - query_start <span class="tok-k">AS</span> runtime,
+       <span class="tok-f">left</span>(query, <span class="tok-n">100</span>) <span class="tok-k">AS</span> q
+<span class="tok-k">FROM</span> pg_stat_activity
+<span class="tok-k">WHERE</span> state &lt;&gt; <span class="tok-s">'idle'</span>
+<span class="tok-k">ORDER BY</span> runtime <span class="tok-k">DESC</span>;</code></pre>
+  </div>
+
+  <h2>取消 / 杀死失控的查询</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">cancel 与 terminate</div></div>
+    <pre class="code"><code><span class="tok-c">-- 文明：请求查询停止（连接保持）</span>
+<span class="tok-k">SELECT</span> pg_cancel_backend(<span class="tok-n">12345</span>);
+
+<span class="tok-c">-- 核弹：直接断开整条连接</span>
+<span class="tok-k">SELECT</span> pg_terminate_backend(<span class="tok-n">12345</span>);</code></pre>
+  </div>
+
+  <h2>角色与 GRANT</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">创建只读用户</div></div>
+    <pre class="code"><code><span class="tok-k">CREATE ROLE</span> readonly <span class="tok-k">LOGIN PASSWORD</span> <span class="tok-s">'change-me'</span>;
+<span class="tok-k">GRANT CONNECT</span> <span class="tok-k">ON DATABASE</span> shop <span class="tok-k">TO</span> readonly;
+<span class="tok-k">GRANT USAGE</span> <span class="tok-k">ON SCHEMA</span> public <span class="tok-k">TO</span> readonly;
+<span class="tok-k">GRANT SELECT</span> <span class="tok-k">ON ALL TABLES</span> <span class="tok-k">IN SCHEMA</span> public <span class="tok-k">TO</span> readonly;
+<span class="tok-k">ALTER DEFAULT PRIVILEGES</span> <span class="tok-k">IN SCHEMA</span> public
+    <span class="tok-k">GRANT SELECT</span> <span class="tok-k">ON TABLES</span> <span class="tok-k">TO</span> readonly;</code></pre>
+  </div>
+
+  <h2>值得了解的扩展</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">pg_stat_statements</div></div>
+      <div class="card-body">
+        跟踪每条查询的运行时间和计划统计。<em>真正的</em> DBA 第一件要装的扩展。
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pg_stat_statements;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pgcrypto</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">gen_random_uuid()</code>、<code style="color: var(--tag)">crypt()</code>，
+        bcrypt 密码哈希。
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pgcrypto;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">uuid-ossp</div></div>
+      <div class="card-body">
+        老一辈 UUID 生成器（v1、v3、v4、v5）。在新版 PG 上更推荐 <em>pgcrypto</em> 的
+        <code style="color: var(--tag)">gen_random_uuid()</code>。
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> <span class="tok-s">"uuid-ossp"</span>;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pg_trgm</div></div>
+      <div class="card-body">
+        模糊 / 相似度文本搜索。配合 GIN 索引可以让
+        <code style="color: var(--tag)">LIKE '%foo%'</code> 飞起来。
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pg_trgm;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pgvector</div></div>
+      <div class="card-body">
+        存储向量嵌入；<code style="color: var(--tag)">&lt;-&gt;</code> 是 L2，
+        <code style="color: var(--tag)">&lt;=&gt;</code> 是余弦。原生支持 AI/RAG。
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> vector;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h2>练习</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> 活动查询视图 —— 输入关系名。</div>
+    <pre class="exercise">SELECT pid, query FROM pg_stat_<input class="blank" data-answer="activity" size="10" placeholder="?"> WHERE state &lt;&gt; 'idle';</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> 文明地取消 PID 12345 上正在运行的查询。</div>
+    <pre class="exercise">SELECT pg_cancel_<input class="blank" data-answer="backend" size="9" placeholder="?">(12345);</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> 按名称安装一个扩展（任选标准扩展之一 — pgcrypto、pg_trgm、vector）。</div>
+    <pre class="exercise">CREATE EXTENSION IF NOT EXISTS <input class="blank" data-answer="pgcrypto|pg_trgm|pgvector|vector|pg_stat_statements|uuid-ossp" size="14" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> 把模式 <code style="color: var(--tag)">public</code> 中所有表的 SELECT 权限授予 <code style="color: var(--tag)">readonly</code>。</div>
+    <pre class="exercise">GRANT <input class="blank" data-answer="SELECT|select" size="8" placeholder="?"> ON ALL TABLES IN SCHEMA public TO readonly;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= BACKUP ========================= -->
+<section class="tab-section" id="tab-backup">
+  <h1>备份与恢复 — pg_dump / pg_restore</h1>
+  <p class="lead">
+    两个二进制程序、四个参数。掌握它们，你的数据就安全了。
+  </p>
+
+  <h2>四种格式</h2>
+  <table class="meta">
+    <tr><th>参数</th><th>格式</th><th>使用场景</th></tr>
+    <tr><td>-Fp</td><td>纯 SQL</td><td>小型数据库，可读，使用 <code>psql -f</code> 重放</td></tr>
+    <tr><td>-Fc</td><td>自定义（二进制）</td><td><strong>运维默认选择</strong> —— 压缩、并行恢复、表过滤</td></tr>
+    <tr><td>-Ft</td><td>tar</td><td>未压缩目录 tarball — 较少用</td></tr>
+    <tr><td>-Fd</td><td>目录</td><td>使用 <code>-j N</code> 进行并行 <strong>导出</strong></td></tr>
+  </table>
+
+  <h2>实用配方</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">备份</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 单个数据库，自定义格式（推荐）</span>
+pg_dump -h host -U alice -Fc shop &gt; shop.dump
+
+<span class="tok-c"># 压缩的纯 SQL</span>
+pg_dump -h host -U alice shop | gzip &gt; shop.sql.gz
+
+<span class="tok-c"># 仅模式 / 仅数据</span>
+pg_dump -Fc --schema-only shop &gt; shop_schema.dump
+pg_dump -Fc --data-only   shop &gt; shop_data.dump
+
+<span class="tok-c"># 并行目录导出（4 个工作线程）</span>
+pg_dump -Fd -j 4 -f shop_dir shop
+
+<span class="tok-c"># 集群上每个数据库（含角色）</span>
+pg_dumpall -U postgres &gt; cluster.sql</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">恢复</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 自定义格式 → 用 pg_restore</span>
+createdb shop_new
+pg_restore -h host -U alice -d shop_new -j 4 shop.dump
+
+<span class="tok-c"># 纯 SQL → 用 psql -f</span>
+psql -h host -U alice -d shop_new -f shop.sql
+
+<span class="tok-c"># 列出自定义转储的内容（不实际恢复）</span>
+pg_restore -l shop.dump | head
+
+<span class="tok-c"># 只恢复一张表</span>
+pg_restore -d shop_new -t users shop.dump</code></pre>
+  </div>
+
+  <h2>维护 — 让 PG 保持健康</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">vacuum / analyze / reindex</div></div>
+    <pre class="code"><code><span class="tok-c">-- 回收死行 + 刷新规划器统计</span>
+<span class="tok-k">VACUUM ANALYZE</span>;
+<span class="tok-k">VACUUM ANALYZE</span> orders;            <span class="tok-c">-- 单张表</span>
+
+<span class="tok-c">-- 激进：锁表并重写（很少需要）</span>
+<span class="tok-k">VACUUM FULL</span> orders;
+
+<span class="tok-c">-- 重建膨胀的索引</span>
+<span class="tok-k">REINDEX TABLE CONCURRENTLY</span> orders;
+<span class="tok-k">REINDEX INDEX</span> idx_orders_user;</code></pre>
+  </div>
+
+  <h2>练习</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> 把数据库 <code style="color: var(--tag)">mydb</code> 导出为自定义格式文件。输入文件扩展名。</div>
+    <pre class="exercise">pg_dump -Fc mydb &gt; out.<input class="blank" data-answer="dump" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> 选择推荐的运维格式参数（二进制、压缩、支持 <code style="color: var(--tag)">-j</code>）。</div>
+    <pre class="exercise">pg_dump <input class="blank" data-answer="-Fc|-fc" size="5" placeholder="?"> mydb &gt; out.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> 用 4 个并行工作线程恢复自定义格式文件。</div>
+    <pre class="exercise">pg_restore -d mydb_new -<input class="blank" data-answer="j" size="3" placeholder="?"> 4 out.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">27</span> 一条语句同时回收死元组并刷新规划器统计。</div>
+    <pre class="exercise"><input class="blank" data-answer="VACUUM|vacuum" size="9" placeholder="?"> ANALYZE orders;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>恢复的黄金法则：</strong>始终恢复到一个 <em>全新</em> 的空数据库
+    （<code style="color: var(--tag)">createdb shop_new</code>），验证无误，然后再改名或重新指向你的应用。
+    永远不要在线上数据库之上直接恢复。
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>综合练习</h1>
+  <p class="lead">
+    前面所有章节的内容打散重排。如果你能在不看提示的情况下做完，就能在睡梦里都驾驭 psql。
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">28</span> 切换扩展显示（每行一屏，列竖向堆叠）。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="x" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">29</span> 在 psql 内运行 SQL 脚本 <code style="color: var(--tag)">migrate.sql</code>。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="i" size="3" placeholder="?"> migrate.sql</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">30</span> 把本地的 <code style="color: var(--tag)">users.csv</code> 批量导入 <code style="color: var(--tag)">users</code> 表（客户端，无需服务器文件访问）。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="copy" size="6" placeholder="?"> users FROM 'users.csv' CSV HEADER</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">31</span> 开启一个事务。</div>
+    <pre class="exercise">shop=# <input class="blank" data-answer="BEGIN|begin" size="7" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">32</span> 回滚事务。</div>
+    <pre class="exercise">shop=# <input class="blank" data-answer="ROLLBACK|rollback" size="9" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">33</span> 在 $EDITOR 中打开上一条查询。</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="e" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">34</span> 通用唯一标识符 —— 输入用于 <code style="color: var(--tag)">gen_random_uuid()</code> 生成主键的列类型。</div>
+    <pre class="exercise">id <input class="blank" data-answer="UUID|uuid" size="6" placeholder="?"> PRIMARY KEY DEFAULT gen_random_uuid()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">35</span> 可索引的 JSON 列类型（二进制、可查询）。</div>
+    <pre class="exercise">profile <input class="blank" data-answer="JSONB|jsonb" size="6" placeholder="?"> NOT NULL DEFAULT '{}'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>小项目 — 端到端搭一个迷你商店</h1>
+  <p class="lead">
+    五个步骤：建库、定义表结构、插入数据、查询、备份。每个步骤有一两个空。
+    所有空都变绿后，点击 <em>运行流水线</em>，欣赏模拟的 psql 会话执行整个流程。
+  </p>
+
+  <div class="ladder" id="projLadder">
+    <div class="step" data-step="0">
+      <span class="icon">🏗️</span>
+      <div class="name">createdb</div>
+      <div class="desc">建库</div>
+    </div>
+    <div class="step" data-step="1">
+      <span class="icon">📐</span>
+      <div class="name">schema</div>
+      <div class="desc">CREATE TABLE</div>
+    </div>
+    <div class="step" data-step="2">
+      <span class="icon">📥</span>
+      <div class="name">insert</div>
+      <div class="desc">载入数据</div>
+    </div>
+    <div class="step" data-step="3">
+      <span class="icon">🔍</span>
+      <div class="name">query</div>
+      <div class="desc">SELECT</div>
+    </div>
+    <div class="step" data-step="4">
+      <span class="icon">💾</span>
+      <div class="name">pg_dump</div>
+      <div class="desc">备份</div>
+    </div>
+  </div>
+
+  <div class="project-card">
+    <h3>填空</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      还有 9 个空。点击 <em>全部检查</em>，再点 <em>运行流水线</em>。
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-c"># 1. 创建数据库（在你的 shell 里）</span>
+<span class="tok-k">createdb</span> -U alice shop
+
+<span class="tok-c"># 2. 连接</span>
+psql -U alice -d shop
+
+<span class="tok-c"># 3. 表结构</span>
+shop=&gt; CREATE EXTENSION IF NOT EXISTS <input class="blank" data-answer="pgcrypto" size="10" placeholder="?">;
+
+shop=&gt; CREATE TABLE users (
+    id    <input class="blank" data-answer="UUID|uuid" size="6" placeholder="?"> PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
+    profile <input class="blank" data-answer="JSONB|jsonb" size="6" placeholder="?"> NOT NULL DEFAULT '{}'
+);
+
+shop=&gt; CREATE TABLE orders (
+    id      BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL <input class="blank" data-answer="REFERENCES|references" size="11" placeholder="?"> users(id) ON DELETE CASCADE,
+    total   NUMERIC(10,2) NOT NULL
+);
+
+<span class="tok-c"># 4. 插入（通过 UPSERT 实现幂等）</span>
+shop=&gt; INSERT INTO users (email) VALUES ('a@x'), ('b@x')
+       ON <input class="blank" data-answer="CONFLICT|conflict" size="9" placeholder="?"> (email) DO NOTHING;
+
+<span class="tok-c"># 5. 查询：每个用户的最大订单</span>
+shop=&gt; SELECT user_id, total,
+              ROW_NUMBER() <input class="blank" data-answer="OVER|over" size="6" placeholder="?"> (PARTITION BY user_id ORDER BY total DESC) AS rn
+       FROM orders;
+
+<span class="tok-c"># 6. 检查</span>
+shop=&gt; \<input class="blank" data-answer="dt" size="4" placeholder="?">
+
+<span class="tok-c"># 7. 备份（回到 shell）</span>
+shop=&gt; \<input class="blank" data-answer="q" size="3" placeholder="?">
+$ pg_dump -<input class="blank" data-answer="Fc|fc" size="4" placeholder="?"> shop &gt; shop.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">全部检查</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="runPipeline()" disabled>▶ 运行流水线</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="terminal" style="margin-top: 18px;">
+    <div class="terminal-head">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title">流水线输出</span>
+    </div>
+    <div class="terminal-body" id="pipelineBody" style="min-height: 280px;">
+<span class="term-comment">— 所有空格变绿后，点击"运行流水线" —</span>
+    </div>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">流水线完成！</strong>
+    你完成了连接、用 UUID 和 JSONB 设计了表结构、用 UPSERT 加载了数据、跑了一条窗口函数查询，
+    并产出了一份可移植的备份。这就是任何新 Postgres 数据库实打实的第一天。
+  </div>
+
+  <h2>接下来呢？</h2>
+  <p class="lead">
+    安装 <code style="color: var(--tag)">postgresql-client</code>，把本页里每条命令都在真实数据库上敲一遍。
+    用 <code style="color: var(--tag)">docker run -e POSTGRES_PASSWORD=pw -p 5432:5432 postgres:16</code>
+    可以 30 秒拉起一个 Postgres，再用 <code style="color: var(--tag)">psql -h localhost -U postgres</code>
+    连上去。
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>键盘快捷键</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>跳到下一个空</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>检查当前练习</td></tr>
+      <tr><td><kbd>?</kbd></td><td>显示此帮助</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>切换标签页</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>关闭蒙层</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      点击任意位置即可关闭。
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent-2);">模拟器输出是固定数据</strong> —— 把任意 SQL 复制到真实的
+  <code>psql</code> 会话里都能直接跑。用
+  <code>docker run -e POSTGRES_PASSWORD=pw -p 5432:5432 postgres:16</code> 在本地拉起 Postgres。<br><br>
+  伴侣页：<a href="basicai.html">basicai.html</a> · 🐘 连接、查询、转储
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('[data-drill]').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正确 — 答对 ' + newlySolved + ' 个，继续。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答案已隐藏 —— 试着自己输入';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '已全部完成。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '已显示全部答案 · 再点一次可隐藏';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['漂亮。', '正确！', '正中靶心。', '✓ 完全对。', '犀利。', '就是这个。', '干净利落。', 'psql 级。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['不太对 — 再试一次。', '差一点。看看提示？', '差不多了。检查拼写。', '错。再来一次。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('本节完成！🐘  +' + drills.length + ' 已解决');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT CHECK ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '全部正确！点击 运行流水线。';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' 正确。修正红色项。';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent-2));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent-2);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#336791','#4a8bc2','#79c0ff','#4ade80','#a5d6ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '已复制！';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '复制'; }, 1300);
+  });
+}
+
+// ============== SIMULATOR ==============
+const fixtures = {
+  '\\l': `                                List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges
+-----------+----------+----------+------------+------------+-----------------------
+ postgres  | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 |
+ shop      | alice    | UTF8     | en_US.UTF8 | en_US.UTF8 |
+ template0 | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+ template1 | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+(4 rows)`,
+  '\\dt': `         List of relations
+ Schema |  Name    | Type  | Owner
+--------+----------+-------+-------
+ public | users    | table | alice
+ public | orders   | table | alice
+ public | products | table | alice
+ public | reviews  | table | alice
+(4 rows)`,
+  '\\d users': `                                       Table "public.users"
+   Column   |           Type           | Collation | Nullable |          Default
+------------+--------------------------+-----------+----------+----------------------------
+ id         | uuid                     |           | not null | gen_random_uuid()
+ email      | text                     |           | not null |
+ age        | integer                  |           |          |
+ tags       | text[]                   |           |          |
+ profile    | jsonb                    |           | not null | '{}'::jsonb
+ created_at | timestamp with time zone |           | not null | now()
+Indexes:
+    "users_pkey" PRIMARY KEY, btree (id)
+    "users_email_key" UNIQUE CONSTRAINT, btree (email)
+    "idx_users_profile" gin (profile)
+Referenced by:
+    TABLE "orders" CONSTRAINT "orders_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
+  '\\du': `                              List of roles
+ Role name |                         Attributes                         | Member of
+-----------+------------------------------------------------------------+-----------
+ alice     | Create DB                                                  | {}
+ postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
+ readonly  |                                                            | {}`,
+  '\\dx': `                       List of installed extensions
+        Name        | Version |   Schema   |              Description
+--------------------+---------+------------+----------------------------------------
+ pgcrypto           | 1.3     | public     | cryptographic functions
+ pg_stat_statements | 1.10    | public     | track planning and execution statistics
+ pg_trgm            | 1.6     | public     | trigram-based similarity matching
+ plpgsql            | 1.0     | pg_catalog | PL/pgSQL procedural language
+(4 rows)`,
+  '\\timing on': `Timing is on.`,
+  'select-now': {
+    sql: 'SELECT now();',
+    out: `              now
+-------------------------------
+ 2026-05-20 14:32:09.471293+00
+(1 row)
+
+Time: 1.124 ms`
+  },
+  'select-version': {
+    sql: 'SELECT version();',
+    out: `                                                version
+---------------------------------------------------------------------------------------------------------
+ PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc 11.4.0, 64-bit
+(1 row)`
+  },
+  'count-users': {
+    sql: 'SELECT count(*) FROM users;',
+    out: ` count
+-------
+  4287
+(1 row)
+
+Time: 3.812 ms`
+  },
+  'big-tables': {
+    sql: `SELECT schemaname || '.' || relname AS table,
+       pg_size_pretty(pg_total_relation_size(relid)) AS size
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC LIMIT 5;`,
+    out: `      table       |   size
+------------------+----------
+ public.events    | 4128 MB
+ public.orders    |  812 MB
+ public.users     |   94 MB
+ public.products  |   12 MB
+ public.reviews   | 6312 kB
+(5 rows)
+
+Time: 8.402 ms`
+  },
+  'active': {
+    sql: `SELECT pid, usename, state, now() - query_start AS runtime, left(query,60) AS q
+FROM pg_stat_activity WHERE state <> 'idle';`,
+    out: `  pid  | usename | state  |     runtime     |                              q
+-------+---------+--------+-----------------+--------------------------------------------------------------
+ 31204 | alice   | active | 00:00:00.418722 | SELECT * FROM orders WHERE created_at > now() - interval '1
+ 31318 | alice   | active | 00:00:12.041000 | UPDATE users SET profile = profile || '{"plan":"pro"}' WHE
+ 31521 | bob     | active | 00:00:00.002013 | SELECT pid, usename, state, now() - query_start AS runtime
+(3 rows)
+
+Time: 2.114 ms`
+  },
+  'size': {
+    sql: "SELECT pg_size_pretty(pg_database_size('shop')) AS size;",
+    out: `   size
+----------
+ 5234 MB
+(1 row)
+
+Time: 1.221 ms`
+  },
+  'explain': {
+    sql: `EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = '7c2e1a96-...';`,
+    out: `                                                    QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_orders_user on orders  (cost=0.42..8.44 rows=1 width=42) (actual time=0.018..0.020 rows=3 loops=1)
+   Index Cond: (user_id = '7c2e1a96-...'::uuid)
+ Planning Time: 0.124 ms
+ Execution Time: 0.041 ms
+(4 rows)
+
+Time: 0.612 ms`
+  }
+};
+
+const termBody = document.getElementById('termBody');
+const queryButtons = document.getElementById('queryButtons');
+
+queryButtons.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  const q = e.target.dataset.q;
+  // mark recent
+  queryButtons.querySelectorAll('button').forEach(b => b.classList.remove('recent'));
+  e.target.classList.add('recent');
+  if (q === 'clear') {
+    termBody.innerHTML = '<div><span class="term-prompt">shop=&gt;</span> <span class="term-comment">终端已清屏</span></div>';
+    return;
+  }
+  appendTerm(q);
+});
+
+function appendTerm(q) {
+  const fx = fixtures[q];
+  const line = document.createElement('div');
+  let inputText, outputText;
+  if (typeof fx === 'string') {
+    inputText = q;
+    outputText = fx;
+  } else if (fx && typeof fx === 'object') {
+    inputText = fx.sql;
+    outputText = fx.out;
+  } else {
+    inputText = q;
+    outputText = `ERROR: command "${q}" not implemented in simulator`;
+  }
+  line.innerHTML =
+    '<span class="term-prompt">shop=&gt;</span> <span class="term-user-input">' + escapeHtml(inputText) + '</span>';
+  termBody.appendChild(line);
+  const out = document.createElement('span');
+  out.className = 'term-output';
+  out.textContent = outputText + '\n';
+  termBody.appendChild(out);
+  // scroll to bottom
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// ============== PIPELINE (mini project) ==============
+const pipelineSteps = [
+  {
+    cmd: '$ createdb -U alice shop',
+    out: 'CREATE DATABASE'
+  },
+  {
+    cmd: '$ psql -U alice -d shop',
+    out: `psql (16.2)
+Type "help" for help.
+
+shop=>`
+  },
+  {
+    cmd: 'shop=> CREATE EXTENSION IF NOT EXISTS pgcrypto;',
+    out: 'CREATE EXTENSION'
+  },
+  {
+    cmd: 'shop=> CREATE TABLE users ( id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT NOT NULL UNIQUE, profile JSONB NOT NULL DEFAULT \'{}\' );',
+    out: 'CREATE TABLE'
+  },
+  {
+    cmd: 'shop=> CREATE TABLE orders ( id BIGSERIAL PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, total NUMERIC(10,2) NOT NULL );',
+    out: 'CREATE TABLE'
+  },
+  {
+    cmd: "shop=> INSERT INTO users (email) VALUES ('a@x'),('b@x') ON CONFLICT (email) DO NOTHING;",
+    out: 'INSERT 0 2'
+  },
+  {
+    cmd: "shop=> INSERT INTO orders (user_id, total) SELECT id, (random()*200)::numeric(10,2) FROM users, generate_series(1,3);",
+    out: 'INSERT 0 6'
+  },
+  {
+    cmd: 'shop=> SELECT user_id, total, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY total DESC) AS rn FROM orders LIMIT 4;',
+    out: `              user_id               | total  | rn
+--------------------------------------+--------+----
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a | 187.41 |  1
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a |  92.18 |  2
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a |  14.05 |  3
+ b1f7d2e8-3a9b-4c2d-8e1a-7c4b0f5a9e2d | 198.72 |  1
+(4 rows)`
+  },
+  {
+    cmd: 'shop=> \\dt',
+    out: `        List of relations
+ Schema |  Name  | Type  | Owner
+--------+--------+-------+-------
+ public | orders | table | alice
+ public | users  | table | alice
+(2 rows)`
+  },
+  {
+    cmd: 'shop=> \\q',
+    out: ''
+  },
+  {
+    cmd: '$ pg_dump -Fc shop > shop.dump',
+    out: '$ ls -lh shop.dump\n-rw-r--r--  1 alice  staff  43K May 20 14:32 shop.dump'
+  }
+];
+
+const ladderTotalSteps = 5;
+const stepGroups = [
+  [0, 1],            // createdb + connect
+  [2, 3, 4],         // schema
+  [5, 6],            // insert
+  [7, 8],            // query / inspect
+  [9, 10]            // backup
+];
+
+let pipelineRunning = false;
+function runPipeline() {
+  if (pipelineRunning) return;
+  pipelineRunning = true;
+  const body = document.getElementById('pipelineBody');
+  body.innerHTML = '';
+  document.getElementById('projDone').style.display = 'none';
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = '运行中...';
+
+  let i = 0;
+  let groupIdx = 0;
+  function nextStep() {
+    if (i >= pipelineSteps.length) {
+      pipelineRunning = false;
+      document.getElementById('trainProjectBtn').textContent = '✓ 完成';
+      document.getElementById('projDone').style.display = '';
+      document.querySelectorAll('#projLadder .step').forEach(s => s.classList.remove('active'));
+      burstConfetti();
+      showToast('流水线完成 · 备份就绪 🐘');
+      return;
+    }
+    const step = pipelineSteps[i];
+    // figure out which group this index belongs to
+    while (groupIdx < stepGroups.length && !stepGroups[groupIdx].includes(i)) groupIdx++;
+    document.querySelectorAll('#projLadder .step').forEach((s, idx) => {
+      s.classList.toggle('active', idx === groupIdx);
+    });
+
+    const line = document.createElement('div');
+    const isShell = step.cmd.startsWith('$');
+    line.innerHTML = '<span class="term-prompt">' + (isShell ? '$' : 'shop=&gt;') + '</span> '
+      + '<span class="term-user-input">' + escapeHtml(step.cmd.replace(/^\$ |^shop=&gt;\s|^shop=>\s/, '')) + '</span>';
+    body.appendChild(line);
+    if (step.out) {
+      const out = document.createElement('span');
+      out.className = 'term-output';
+      out.textContent = step.out + '\n';
+      body.appendChild(out);
+    }
+    body.scrollTop = body.scrollHeight;
+    i++;
+    setTimeout(nextStep, 520);
+  }
+  nextStep();
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'connect','3':'meta','4':'inspect',
+    '5':'simulator','6':'queries','7':'backup','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

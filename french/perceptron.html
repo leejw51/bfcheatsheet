@@ -1,0 +1,2098 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Perceptron — Exercice interactif</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #22d3ee;        /* cyan / electric blue */
+    --accent-2: #38bdf8;
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(34,211,238,0.08), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15203a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .badge {
+    background: var(--accent); color: #001018;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(34,211,238,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(34,211,238,0.12);
+    border-color: rgba(34,211,238,0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #001018;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(34,211,238,0.25);
+    background: rgba(34,211,238,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #001018;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(34,211,238,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(34,211,238,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 70px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(34,211,238,0.6);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(34,211,238,0.6);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 64px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .neuron-svg {
+    width: 100%; height: auto; max-height: 280px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* dataset toggle */
+  .dataset-toggle {
+    display: inline-flex; gap: 4px; margin-bottom: 10px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px;
+  }
+  .dataset-toggle button {
+    background: transparent; color: var(--muted);
+    border: none; padding: 6px 14px;
+    border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    transition: all 0.15s;
+  }
+  .dataset-toggle button.active {
+    background: var(--accent); color: #001018;
+    box-shadow: 0 0 10px rgba(34,211,238,0.3);
+  }
+
+  .truth-table {
+    width: 100%; border-collapse: collapse;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .truth-table th, .truth-table td {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .truth-table th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700;
+  }
+  .truth-table td.zero { color: var(--bad); }
+  .truth-table td.one { color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(34,211,238,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red  { background: rgba(248,113,113,0.15); color: var(--bad); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(34,211,238,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+
+  .stat-line {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    font-family: ui-monospace, monospace; font-size: 12.5px;
+    color: var(--muted); margin-top: 6px;
+  }
+  .stat-line span b { color: var(--accent); }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--accent); color: #001018;
+    border-radius: 50%; text-align: center; line-height: 22px;
+    font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  .activation-formula {
+    text-align: center; padding: 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    font-size: 16px;
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">⚡</span> Perceptron <span class="badge">Tapez pour apprendre</span>
+    </div>
+    <div class="progress-bar-outer" title="progression globale">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercices terminés">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">résolus</span>
+    </div>
+    <div class="streak" title="série">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. C'est quoi ?</button>
+    <button data-tab="forward">2. Passe avant</button>
+    <button data-tab="rule">3. Règle d'apprentissage</button>
+    <button data-tab="train">4. Entraînement live</button>
+    <button data-tab="inference">5. Inférence</button>
+    <button data-tab="xor">6. Limite XOR</button>
+    <button data-tab="drills">7. Pratique</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>Le Perceptron — un neurone, deux idées</h1>
+  <p class="lead">
+    Le perceptron est le réseau de neurones le plus simple : un seul neurone qui prend une somme
+    pondérée des entrées, ajoute un biais, et émet <strong>0 ou 1</strong> selon le signe. Frank
+    Rosenblatt l'a introduit en 1958, et tout réseau profond moderne est un empilement de variantes
+    de cette unique idée.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">le neurone</div></div>
+      <div class="card-body">
+        Les entrées $x_1, x_2, \dots, x_n$ sont multipliées par des poids $w_1, w_2, \dots, w_n$,
+        sommées et décalées par un biais $b$. Une fonction d'<em>activation</em> (ici : un échelon)
+        transforme le résultat en prédiction.
+        <div class="activation-formula">
+          $\hat{y} = \mathrm{step}(w_1 x_1 + w_2 x_2 + \cdots + w_n x_n + b)$
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">l'activation échelon</div></div>
+      <div class="card-body">
+        $\mathrm{step}(z) = \begin{cases} 1 & z \ge 0 \\ 0 & z &lt; 0 \end{cases}$
+        <p style="margin: 10px 0 0;">
+          Aussi appelée fonction de <em>Heaviside</em> ou <em>signe</em>. C'est l'interrupteur
+          on/off qui fait « émettre » le neurone. Les réseaux modernes la remplacent par
+          ReLU/sigmoïde car la dérivée de l'échelon vaut 0 presque partout — fatal pour la descente
+          de gradient.
+        </p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">entraînement</div></div>
+      <div class="card-body">
+        Présentez un exemple étiqueté à la fois. Calculez la prédiction. Si elle est fausse,
+        ajustez les poids pour que la prochaine fois soit un peu moins fausse :
+        <div class="activation-formula" style="font-size: 14px;">
+          $w_i \leftarrow w_i + \eta\,(y - \hat{y})\,x_i$<br>
+          $b \leftarrow b + \eta\,(y - \hat{y})$
+        </div>
+        $\eta$ (eta) est le <em>taux d'apprentissage</em>. Répétez jusqu'à ce qu'aucun exemple ne
+        soit mal classé.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">inférence</div></div>
+      <div class="card-body">
+        Une fois les poids fixés, la prédiction est un simple produit scalaire suivi d'une fonction
+        échelon. Pas de gradients, pas de boucles — juste
+        $\hat{y} = \mathrm{step}(\mathbf{w}\cdot\mathbf{x} + b)$. C'est tout ce qu'est un appel
+        d'inférence.
+      </div>
+    </div>
+  </div>
+
+  <h2>Le neurone, dessiné</h2>
+  <div class="canvas-card">
+    <svg viewBox="0 0 600 240" class="neuron-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="neuronGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.15"/>
+        </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- inputs -->
+      <g font-family="ui-monospace, monospace" font-size="14" fill="#e6f1ff">
+        <circle cx="60" cy="60" r="22" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="65" text-anchor="middle">x₁</text>
+        <circle cx="60" cy="120" r="22" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="125" text-anchor="middle">x₂</text>
+        <circle cx="60" cy="180" r="22" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="185" text-anchor="middle">1</text>
+      </g>
+
+      <!-- edges with weight labels -->
+      <g stroke="#22d3ee" stroke-width="2" fill="none" opacity="0.85">
+        <line x1="82" y1="60"  x2="280" y2="120"/>
+        <line x1="82" y1="120" x2="280" y2="120"/>
+        <line x1="82" y1="180" x2="280" y2="120"/>
+      </g>
+      <g font-family="ui-monospace, monospace" font-size="13" fill="#22d3ee">
+        <text x="170" y="80">w₁</text>
+        <text x="170" y="113">w₂</text>
+        <text x="180" y="170">b</text>
+      </g>
+
+      <!-- summing node -->
+      <circle cx="305" cy="120" r="36" fill="url(#neuronGrad)"
+              stroke="#22d3ee" stroke-width="2" filter="url(#glow)"/>
+      <text x="305" y="118" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="14" fill="#001018" font-weight="800">Σ</text>
+      <text x="305" y="135" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="10" fill="#001018">w·x+b</text>
+
+      <!-- arrow to activation -->
+      <line x1="341" y1="120" x2="395" y2="120" stroke="#22d3ee" stroke-width="2"/>
+      <polygon points="395,115 405,120 395,125" fill="#22d3ee"/>
+
+      <!-- activation node (step graph) -->
+      <rect x="410" y="80" width="90" height="80" rx="8"
+            fill="#182338" stroke="#22d3ee" stroke-width="2"/>
+      <polyline points="418,150 452,150 452,90 492,90"
+                stroke="#4ade80" stroke-width="2.5" fill="none"/>
+      <text x="455" y="170" text-anchor="middle"
+            font-family="ui-monospace, monospace" font-size="10" fill="#8aa1bd">step</text>
+
+      <!-- output -->
+      <line x1="500" y1="120" x2="545" y2="120" stroke="#22d3ee" stroke-width="2"/>
+      <polygon points="545,115 555,120 545,125" fill="#22d3ee"/>
+      <text x="575" y="125" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="14" fill="#e6f1ff">ŷ</text>
+    </svg>
+  </div>
+
+  <h2>L'équation de la passe avant, en code</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">Python pur — sans bibliothèques</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">step</span>(z):
+    <span class="tok-k">return</span> <span class="tok-n">1</span> <span class="tok-k">if</span> z &gt;= <span class="tok-n">0</span> <span class="tok-k">else</span> <span class="tok-n">0</span>
+
+<span class="tok-k">def</span> <span class="tok-f">predict</span>(w, b, x):
+    z = <span class="tok-f">sum</span>(wi * xi <span class="tok-k">for</span> wi, xi <span class="tok-k">in</span> <span class="tok-f">zip</span>(w, x)) + b
+    <span class="tok-k">return</span> step(z)
+
+<span class="tok-c"># exemple : porte AND après entraînement</span>
+w = [<span class="tok-n">1.0</span>, <span class="tok-n">1.0</span>]
+b = -<span class="tok-n">1.5</span>
+<span class="tok-k">for</span> x <span class="tok-k">in</span> [(<span class="tok-n">0</span>,<span class="tok-n">0</span>), (<span class="tok-n">0</span>,<span class="tok-n">1</span>), (<span class="tok-n">1</span>,<span class="tok-n">0</span>), (<span class="tok-n">1</span>,<span class="tok-n">1</span>)]:
+    <span class="tok-f">print</span>(x, predict(w, b, x))   <span class="tok-c"># 0, 0, 0, 1</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Comment utiliser cette page :</strong> parcourez les onglets dans l'ordre. L'onglet 4
+    entraîne un vrai perceptron dans votre navigateur. L'onglet 7 contient tous les exercices —
+    tapez dans les <span class="pill">cases</span>, cliquez sur <em>Vérifier</em>. Appuyez sur
+    <kbd>?</kbd> pour les raccourcis.
+  </div>
+</section>
+
+<!-- ========================= FORWARD PASS ========================= -->
+<section class="tab-section" id="tab-forward">
+  <h1>Passe avant — tirez sur les poids</h1>
+  <p class="lead">
+    Un perceptron à 2 entrées a trois molettes : $w_1, w_2, b$. Ensemble, elles définissent une
+    <em>droite</em> dans l'espace 2D — les points d'un côté émettent 1, ceux de l'autre émettent 0.
+    Bougez les curseurs et observez la frontière pivoter et glisser.
+  </p>
+
+  <div class="canvas-card">
+    <h3>terrain de jeu perceptron</h3>
+    <div class="grid-2">
+      <div>
+        <canvas id="forwardCanvas" width="420" height="340"></canvas>
+        <div class="stat-line">
+          <span>z = w₁·x₁ + w₂·x₂ + b = <b id="zVal">0.00</b></span>
+          <span>ŷ = step(z) = <b id="yhat">0</b></span>
+        </div>
+      </div>
+      <div>
+        <div class="slider-row">
+          <label>w₁</label>
+          <input type="range" id="w1" min="-2" max="2" step="0.05" value="1.0">
+          <span class="val" id="w1v">1.00</span>
+        </div>
+        <div class="slider-row">
+          <label>w₂</label>
+          <input type="range" id="w2" min="-2" max="2" step="0.05" value="1.0">
+          <span class="val" id="w2v">1.00</span>
+        </div>
+        <div class="slider-row">
+          <label>b (biais)</label>
+          <input type="range" id="bv" min="-3" max="3" step="0.05" value="-1.5">
+          <span class="val" id="bvv">-1.50</span>
+        </div>
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 14px 0;">
+        <div class="slider-row">
+          <label>x₁ (sonde)</label>
+          <input type="range" id="px1" min="-2" max="2" step="0.05" value="0.5">
+          <span class="val" id="px1v">0.50</span>
+        </div>
+        <div class="slider-row">
+          <label>x₂ (sonde)</label>
+          <input type="range" id="px2" min="-2" max="2" step="0.05" value="0.5">
+          <span class="val" id="px2v">0.50</span>
+        </div>
+        <div class="note" style="margin-top: 14px;">
+          <strong>Essayez :</strong> avec $w_1=1, w_2=1, b=-1.5$ c'est la porte <strong>AND</strong>.
+          Bougez la sonde blanche — seul le coin $(1,1)$ émet.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Deux tables de vérité qu'un perceptron sait apprendre</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">AND  ·  $w=[1,1], b=-1.5$</div></div>
+      <div class="card-body">
+        <table class="truth-table">
+          <tr><th>x₁</th><th>x₂</th><th>z = x₁+x₂−1.5</th><th>ŷ</th></tr>
+          <tr><td>0</td><td>0</td><td>−1.5</td><td class="zero">0</td></tr>
+          <tr><td>0</td><td>1</td><td>−0.5</td><td class="zero">0</td></tr>
+          <tr><td>1</td><td>0</td><td>−0.5</td><td class="zero">0</td></tr>
+          <tr><td>1</td><td>1</td><td> 0.5</td><td class="one">1</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">OR  ·  $w=[1,1], b=-0.5$</div></div>
+      <div class="card-body">
+        <table class="truth-table">
+          <tr><th>x₁</th><th>x₂</th><th>z = x₁+x₂−0.5</th><th>ŷ</th></tr>
+          <tr><td>0</td><td>0</td><td>−0.5</td><td class="zero">0</td></tr>
+          <tr><td>0</td><td>1</td><td> 0.5</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>0</td><td> 0.5</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>1</td><td> 1.5</td><td class="one">1</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>Les maths, écrites</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <p style="margin: 0 0 8px;">Pour un perceptron à 2 entrées :</p>
+    <div class="activation-formula">
+      $z = w_1 x_1 + w_2 x_2 + b \quad\Longrightarrow\quad \hat{y} = \mathrm{step}(z)$
+    </div>
+    <p style="margin: 8px 0 0; color: var(--muted); font-size: 13px;">
+      La droite frontière $w_1 x_1 + w_2 x_2 + b = 0$ sépare le plan en deux demi-espaces. Tout
+      point de $z$ positif appartient à la classe 1 ; tout point négatif à la classe 0.
+    </p>
+  </div>
+</section>
+
+<!-- ========================= LEARNING RULE ========================= -->
+<section class="tab-section" id="tab-rule">
+  <h1>La règle d'apprentissage du perceptron</h1>
+  <p class="lead">
+    L'algorithme de Rosenblatt est délicieusement simple : si vous mal-classez un point, poussez
+    légèrement le vecteur des poids vers lui (ou loin de lui). Faites-le pour chaque exemple, en
+    boucle, et — si les données sont linéairement séparables — vous convergerez.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">la mise à jour — pour un exemple $(x, y)$</div></div>
+    <div class="card-body">
+      <div class="activation-formula">
+        $\hat{y} = \mathrm{step}(\mathbf{w}\cdot\mathbf{x} + b)$<br>
+        $\mathbf{w} \leftarrow \mathbf{w} + \eta\,(y - \hat{y})\,\mathbf{x}$<br>
+        $b \leftarrow b + \eta\,(y - \hat{y})$
+      </div>
+      <p style="margin: 6px 0 0;">
+        Trois cas :
+      </p>
+      <ul style="margin: 4px 0; color: var(--muted);">
+        <li><span class="pill green">correct</span>$y - \hat{y} = 0$ — pas de mise à jour.</li>
+        <li><span class="pill warn">1 manqué</span>$y - \hat{y} = +1$ — pousser $\mathbf{w}$ vers $\mathbf{x}$.</li>
+        <li><span class="pill red">fausse alerte</span>$y - \hat{y} = -1$ — pousser $\mathbf{w}$ loin de $\mathbf{x}$.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Pas à pas — les cinq étapes</h2>
+  <div class="grid-3" style="margin: 14px 0;">
+    <div class="step-card">
+      <h4><span class="step-num">1</span>choisir l'exemple</h4>
+      <p>Prendre un point étiqueté $(x, y)$ du jeu de données.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">2</span>prédire</h4>
+      <p><code>z = w·x + b</code><br><code>ŷ = step(z)</code></p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">3</span>calculer l'erreur</h4>
+      <p><code>err = y − ŷ</code><br>(parmi −1, 0, +1)</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">4</span>mettre à jour les poids</h4>
+      <p><code>w += η · err · x</code><br><code>b += η · err</code></p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">5</span>répéter</h4>
+      <p>Boucler sur tous les exemples pendant plusieurs époques jusqu'à ce qu'il n'y ait plus d'erreurs.</p>
+    </div>
+  </div>
+
+  <h2>Implémentation de référence</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">entraînement perceptron — NumPy pur</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">numpy</span> <span class="tok-k">as</span> <span class="tok-t">np</span>
+
+<span class="tok-k">def</span> <span class="tok-f">step</span>(z):
+    <span class="tok-k">return</span> np.where(z &gt;= <span class="tok-n">0</span>, <span class="tok-n">1</span>, <span class="tok-n">0</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">train_perceptron</span>(X, y, lr=<span class="tok-n">0.1</span>, epochs=<span class="tok-n">20</span>):
+    n, d = X.shape
+    w = np.zeros(d)
+    b = <span class="tok-n">0.0</span>
+    <span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(epochs):
+        <span class="tok-k">for</span> i <span class="tok-k">in</span> <span class="tok-f">range</span>(n):
+            z    = np.dot(w, X[i]) + b
+            yhat = step(z)
+            err  = y[i] - yhat
+            w   += lr * err * X[i]   <span class="tok-c"># mise à jour des poids</span>
+            b   += lr * err          <span class="tok-c"># mise à jour du biais</span>
+    <span class="tok-k">return</span> w, b
+
+<span class="tok-c"># jeu de données AND</span>
+X = np.array([[<span class="tok-n">0</span>,<span class="tok-n">0</span>],[<span class="tok-n">0</span>,<span class="tok-n">1</span>],[<span class="tok-n">1</span>,<span class="tok-n">0</span>],[<span class="tok-n">1</span>,<span class="tok-n">1</span>]])
+y = np.array([ <span class="tok-n">0</span>,         <span class="tok-n">0</span>,         <span class="tok-n">0</span>,         <span class="tok-n">1</span>      ])
+
+w, b = train_perceptron(X, y)
+<span class="tok-f">print</span>(w, b)   <span class="tok-c"># quelque chose comme [0.2, 0.1] -0.2</span></code></pre>
+  </div>
+
+  <div class="note warn">
+    <strong>Convergence :</strong> la règle d'apprentissage du perceptron est <em>garantie</em>
+    de trouver un hyperplan séparateur en un nombre fini d'étapes — mais seulement s'il en existe
+    un. Si les classes se chevauchent ou ressemblent à un XOR, elle oscillera indéfiniment. On
+    verra pourquoi à l'onglet 6.
+  </div>
+</section>
+
+<!-- ========================= LIVE TRAINING ========================= -->
+<section class="tab-section" id="tab-train">
+  <h1>Entraînement live — regardez la droite bouger</h1>
+  <p class="lead">
+    Choisissez un jeu de données, cliquez sur <em>Entraîner</em>, et regardez un vrai perceptron
+    apprendre. Chaque pas montre un exemple traité : le vecteur des poids tourne, le biais glisse,
+    et la droite de décision se met en place.
+  </p>
+
+  <div class="canvas-card">
+    <h3>arène d'entraînement</h3>
+    <div class="dataset-toggle" id="datasetToggle">
+      <button class="active" data-ds="and">AND</button>
+      <button data-ds="or">OR</button>
+      <button data-ds="blobs">Blobs</button>
+      <button data-ds="xor">XOR ✗</button>
+    </div>
+    <div class="grid-2">
+      <div>
+        <canvas id="trainCanvas" width="440" height="400"></canvas>
+      </div>
+      <div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+          <button class="btn" id="trainBtn" onclick="toggleTrain()">▶ entraîner</button>
+          <button class="btn ghost" onclick="stepOnce()">pas</button>
+          <button class="btn ghost" onclick="resetTrain()">reset</button>
+        </div>
+        <div class="slider-row">
+          <label>taux d'apprentissage η</label>
+          <input type="range" id="lr" min="0.01" max="0.5" step="0.01" value="0.1">
+          <span class="val" id="lrv">0.10</span>
+        </div>
+        <div class="slider-row">
+          <label>vitesse</label>
+          <input type="range" id="spd" min="1" max="20" step="1" value="6">
+          <span class="val" id="spdv">6</span>
+        </div>
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 12px; font-family: ui-monospace, monospace; font-size: 12.5px;">
+          <div>époque <b style="color:var(--accent)" id="trEpoch">0</b> · échantillon <b style="color:var(--accent)" id="trSample">0</b></div>
+          <div>w₁ = <b style="color:var(--accent)" id="trW1">0.00</b></div>
+          <div>w₂ = <b style="color:var(--accent)" id="trW2">0.00</b></div>
+          <div>b  = <b style="color:var(--accent)" id="trB">0.00</b></div>
+          <div>erreurs cette époque · <b style="color:var(--bad)" id="trErr">—</b></div>
+          <div>précision · <b style="color:var(--good)" id="trAcc">—</b></div>
+        </div>
+        <div class="note" style="margin-top: 12px; font-size: 12.5px;">
+          <strong>Observez :</strong> le point orange est l'exemple en cours de traitement. S'il est
+          mal prédit, la droite de frontière saute ; s'il est correct, elle reste en place.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Algorithme d'entraînement — tapé une fois de plus</h2>
+  <pre class="code"><code><span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(num_epochs):
+    <span class="tok-k">for</span> x, y <span class="tok-k">in</span> dataset:
+        z    = <span class="tok-f">dot</span>(w, x) + b
+        yhat = step(z)
+        err  = y - yhat
+        w   += lr * err * x
+        b   += lr * err</code></pre>
+</section>
+
+<!-- ========================= INFERENCE ========================= -->
+<section class="tab-section" id="tab-inference">
+  <h1>Inférence — utiliser le perceptron entraîné</h1>
+  <p class="lead">
+    Une fois les poids gelés, la prédiction est <em>une seule ligne de maths</em> : produit
+    scalaire, plus biais, plus échelon. Pas de boucles, pas de gradients, pas d'état. C'est
+    l'« inférence neuronale » la plus simple qui existe.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">forme scalaire</div></div>
+      <div class="card-body">
+        <div class="activation-formula">
+          $\hat{y} = \mathrm{step}\!\left(\sum_{i=1}^{n} w_i x_i + b\right)$
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">forme vectorielle</div></div>
+      <div class="card-body">
+        <div class="activation-formula">
+          $\hat{y} = \mathrm{step}(\mathbf{w}^{\!\top}\mathbf{x} + b)$
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">inférence, vectorisée pour un batch entier</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">numpy</span> <span class="tok-k">as</span> <span class="tok-t">np</span>
+
+<span class="tok-c"># poids entraînés (par exemple pour AND)</span>
+w = np.array([<span class="tok-n">1.0</span>, <span class="tok-n">1.0</span>])
+b = -<span class="tok-n">1.5</span>
+
+<span class="tok-c"># un batch d'entrées, shape (N, 2)</span>
+X_new = np.array([[<span class="tok-n">0</span>,<span class="tok-n">0</span>], [<span class="tok-n">0</span>,<span class="tok-n">1</span>], [<span class="tok-n">1</span>,<span class="tok-n">0</span>], [<span class="tok-n">1</span>,<span class="tok-n">1</span>]])
+
+logits = X_new @ w + b           <span class="tok-c"># shape (N,)</span>
+preds  = np.where(logits &gt;= <span class="tok-n">0</span>, <span class="tok-n">1</span>, <span class="tok-n">0</span>)
+
+<span class="tok-f">print</span>(preds)                     <span class="tok-c"># [0 0 0 1]</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Pourquoi c'est si rapide :</strong> l'inférence est un produit matrice-vecteur par
+    couche. Un vrai LLM n'est qu'un empilement de milliards de perceptrons — mais l'inférence de
+    chaque neurone est identique à celle-ci.
+  </div>
+
+  <h2>Essayez</h2>
+  <div class="canvas-card">
+    <h3>perceptron gelé — tapez x et obtenez ŷ</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      Porte AND entraînée · $w_1 = 1.0$, $w_2 = 1.0$, $b = -1.5$.
+    </p>
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <label style="font-size: 12px; color: var(--muted);">x₁:</label>
+      <input id="infX1" type="number" value="1" step="1" style="width: 70px; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 13px;">
+      <label style="font-size: 12px; color: var(--muted);">x₂:</label>
+      <input id="infX2" type="number" value="1" step="1" style="width: 70px; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 13px;">
+      <button class="btn" onclick="runInference()">prédire →</button>
+      <span id="infResult" style="font-family: ui-monospace, monospace; font-size: 14px; color: var(--accent); margin-left: 8px;"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= XOR ========================= -->
+<section class="tab-section" id="tab-xor">
+  <h1>Le problème XOR — pourquoi un seul neurone ne suffit pas</h1>
+  <p class="lead">
+    Un seul perceptron ne peut tracer qu'une <strong>droite</strong>. AND et OR sont linéairement
+    séparables — une droite sépare les 1 des 0. <strong>XOR ne l'est pas.</strong> Essayez de
+    tracer une droite séparant $(0,1)$ et $(1,0)$ de $(0,0)$ et $(1,1)$. C'est impossible.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">table de vérité XOR</div></div>
+      <div class="card-body">
+        <table class="truth-table">
+          <tr><th>x₁</th><th>x₂</th><th>y</th></tr>
+          <tr><td>0</td><td>0</td><td class="zero">0</td></tr>
+          <tr><td>0</td><td>1</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>0</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>1</td><td class="zero">0</td></tr>
+        </table>
+        <p style="margin: 10px 0 0; color: var(--muted); font-size: 13px;">
+          Les 1 sont sur les coins diagonaux — aucune droite traversant le carré unité ne les
+          sépare des 0.
+        </p>
+      </div>
+    </div>
+    <div class="canvas-card" style="margin: 0;">
+      <h3>XOR — incoupable par une droite</h3>
+      <canvas id="xorCanvas" width="380" height="260"></canvas>
+      <p style="color: var(--muted); font-size: 12px; margin-top: 6px;">
+        Deux moins, deux plus, aucune droite ne les sépare.
+      </p>
+    </div>
+  </div>
+
+  <h2>La solution : empiler les perceptrons → MLP</h2>
+  <p class="lead">
+    Ajoutez une couche cachée de perceptrons et vous pouvez construire n'importe quelle fonction
+    booléenne. XOR = (A OR B) AND NOT (A AND B), soit deux neurones alimentant un troisième.
+  </p>
+
+  <div class="canvas-card">
+    <svg viewBox="0 0 560 220" class="neuron-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="hidGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.1"/>
+        </radialGradient>
+      </defs>
+      <!-- input layer -->
+      <g font-family="ui-monospace, monospace" font-size="13" fill="#e6f1ff">
+        <circle cx="60" cy="80" r="20" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="85" text-anchor="middle">x₁</text>
+        <circle cx="60" cy="160" r="20" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="165" text-anchor="middle">x₂</text>
+      </g>
+      <!-- hidden layer -->
+      <g>
+        <circle cx="260" cy="80" r="24" fill="url(#hidGrad)" stroke="#22d3ee" stroke-width="2"/>
+        <text x="260" y="85" text-anchor="middle" font-family="ui-monospace, monospace"
+              font-size="11" fill="#001018" font-weight="800">OR</text>
+        <circle cx="260" cy="160" r="24" fill="url(#hidGrad)" stroke="#22d3ee" stroke-width="2"/>
+        <text x="260" y="160" text-anchor="middle" font-family="ui-monospace, monospace"
+              font-size="10" fill="#001018" font-weight="800">¬AND</text>
+      </g>
+      <!-- output layer -->
+      <circle cx="460" cy="120" r="26" fill="url(#hidGrad)" stroke="#22d3ee" stroke-width="2"/>
+      <text x="460" y="125" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="11" fill="#001018" font-weight="800">AND</text>
+      <text x="510" y="125" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="14" fill="#e6f1ff">ŷ</text>
+
+      <!-- edges -->
+      <g stroke="#22d3ee" stroke-width="1.5" opacity="0.6" fill="none">
+        <line x1="80" y1="80"  x2="236" y2="80"/>
+        <line x1="80" y1="80"  x2="236" y2="160"/>
+        <line x1="80" y1="160" x2="236" y2="80"/>
+        <line x1="80" y1="160" x2="236" y2="160"/>
+        <line x1="284" y1="80"  x2="436" y2="120"/>
+        <line x1="284" y1="160" x2="436" y2="120"/>
+        <line x1="486" y1="120" x2="510" y2="120"/>
+      </g>
+      <text x="320" y="40" text-anchor="middle" fill="#8aa1bd"
+            font-family="ui-monospace, monospace" font-size="11">couche cachée (2 neurones)</text>
+    </svg>
+  </div>
+
+  <div class="note warn">
+    <strong>Note historique :</strong> le livre <em>Perceptrons</em> de Minsky &amp; Papert (1969)
+    a montré que XOR ne peut être résolu par une seule couche. L'« hiver de l'IA » a suivi. La
+    solution — la rétropropagation à travers une couche cachée — n'a été largement adoptée que
+    dans les années 1980. Ce perceptron multicouche (MLP) est l'ancêtre direct de tout réseau
+    profond moderne.
+  </div>
+
+  <p class="lead" style="margin-top: 18px;">
+    Curieux ? Ouvrez <a href="basicai.html" style="color: var(--accent);">basicai.html</a> et
+    entraînez un MLP à 2 couches sur XOR — même jeu de données, mais avec une couche cachée il
+    résout proprement.
+  </p>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Pratique — tapez le perceptron</h1>
+  <p class="lead">
+    Douze exercices couvrant chaque morceau du perceptron : passe avant, règle d'apprentissage et
+    code. Tab pour passer entre les cases · Entrée vérifie · Indice révèle toutes les cases non
+    résolues (basculement).
+  </p>
+
+  <h2>Les maths</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Complétez l'équation de la passe avant pour un perceptron.</div>
+    <pre class="exercise">ŷ = <input class="blank" data-answer="step|sign|heaviside" size="9" placeholder="?">(w · x + b)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Activation échelon / Heaviside — remplissez le seuil.</div>
+    <pre class="exercise">step(z) = 1   if z &gt;= <input class="blank" data-answer="0" size="3" placeholder="?">
+          0   otherwise</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Règle de mise à jour des poids — la lettre grecque du taux d'apprentissage.</div>
+    <pre class="exercise">w = w + <input class="blank" data-answer="lr|eta|η" size="6" placeholder="?"> * (target - pred) * x</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Règle de mise à jour du biais — même forme, sans x.</div>
+    <pre class="exercise">b = b + lr * (target - <input class="blank" data-answer="pred|yhat|ŷ" size="7" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Porte AND — remplissez le biais qui ne fait émettre qu'à $(1,1)$ avec $w_1=w_2=1$.</div>
+    <pre class="exercise"># poids et biais pour AND
+w = [1.0, 1.0]
+b = <input class="blank" data-answer="-1.5" size="6" placeholder="?">    # toute valeur dans (-2, -1) marche, mais -1.5 est le choix canonique</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Passe avant en Python pur</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Calculez la somme pondérée + biais.</div>
+    <pre class="exercise">def predict(w, b, x):
+    z = sum(wi * xi for wi, xi in zip(w, x)) + <input class="blank" data-answer="b|bias" size="5" placeholder="?">
+    return step(z)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Fonction échelon en une expression — qu'est-ce qui suit le <code>1 if</code> ?</div>
+    <pre class="exercise">def step(z):
+    return 1 if z &gt;= 0 <input class="blank" data-answer="else" size="6" placeholder="?"> 0</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>NumPy</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> Échelon vectorisé avec <code>np.where</code>. Le premier argument est la condition.</div>
+    <pre class="exercise">def step(z):
+    return np.<input class="blank" data-answer="where" size="7" placeholder="?">(z &gt;= 0, 1, 0)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> Produit scalaire par batch avec l'opérateur matmul.</div>
+    <pre class="exercise"># X shape (N, d), w shape (d,)
+logits = X <input class="blank" data-answer="@" size="3" placeholder="?"> w + b   # shape (N,)
+preds  = np.where(logits &gt;= 0, 1, 0)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> Initialisez le vecteur de poids à zéro (longueur d).</div>
+    <pre class="exercise">w = np.<input class="blank" data-answer="zeros" size="6" placeholder="?">(d)
+b = 0.0</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>La boucle d'entraînement complète</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Remplissez les trois mises à jour dans la boucle interne.</div>
+    <pre class="exercise">for epoch in range(epochs):
+    for i in range(n):
+        z    = np.dot(w, X[i]) + b
+        yhat = step(z)
+        err  = y[i] - <input class="blank" data-answer="yhat|pred" size="6" placeholder="?">
+        w   += lr * err * <input class="blank" data-answer="X[i]|x[i]" size="6" placeholder="?">
+        b   += <input class="blank" data-answer="lr*err|lr * err" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Quel problème un seul perceptron <strong>ne peut-il pas</strong> résoudre ?
+      (réponse en 3 lettres.)</div>
+    <pre class="exercise">single_layer_fails_on = "<input class="blank" data-answer="xor|XOR" size="5" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>Tous les douze terminés ?</strong> Vous savez maintenant tout ce qu'un seul perceptron
+    peut faire. L'étape suivante — les empiler avec la rétropropagation — se trouve dans
+    <a href="basicai.html" style="color: var(--accent);">basicai.html</a>.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Raccourcis clavier</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>passer à la case suivante</td></tr>
+      <tr><td><kbd>Entrée</kbd></td><td>vérifier l'exercice courant</td></tr>
+      <tr><td><kbd>?</kbd></td><td>cette aide</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>changer d'onglet</td></tr>
+      <tr><td><kbd>Échap</kbd></td><td>fermer la superposition</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Cliquez n'importe où pour fermer.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Simulation côté navigateur</strong> — l'entraînement live
+  de l'onglet 4 exécute la véritable règle d'apprentissage du perceptron sur des tableaux
+  JavaScript. Pas de serveur, pas de Python.
+  Compagnon de <a href="basicai.html">basicai.html</a> · ⚡ un neurone, deux idées
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partiel — ' + newlySolved + ' correct(s), continuez.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'réponses masquées — essayez de les taper vous-même';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'tout est terminé.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'toutes les réponses révélées · cliquez encore pour masquer';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['joli.', 'correct !', 'pile poil.', '✓ exactement.', 'pointu.', 'c\'est bien ça.', 'propre.', 'le perceptron approuve.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['pas tout à fait — réessayez.', 'proche. un indice ?', 'presque. vérifiez l\'orthographe.', 'rouge. encore un essai.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complète ! 🎉  +' + drills.length + ' résolus');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#22d3ee','#38bdf8','#a5f3fc','#4ade80','#fbbf24','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copié !';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copier'; }, 1300);
+  });
+}
+
+// ============== FORWARD-PASS PLAYGROUND ==============
+const fwdCanvas = document.getElementById('forwardCanvas');
+function drawForward() {
+  if (!fwdCanvas) return;
+  const ctx = fwdCanvas.getContext('2d');
+  const W = fwdCanvas.width, H = fwdCanvas.height;
+  const w1 = +document.getElementById('w1').value;
+  const w2 = +document.getElementById('w2').value;
+  const b  = +document.getElementById('bv').value;
+  const px1 = +document.getElementById('px1').value;
+  const px2 = +document.getElementById('px2').value;
+
+  document.getElementById('w1v').textContent = w1.toFixed(2);
+  document.getElementById('w2v').textContent = w2.toFixed(2);
+  document.getElementById('bvv').textContent = b.toFixed(2);
+  document.getElementById('px1v').textContent = px1.toFixed(2);
+  document.getElementById('px2v').textContent = px2.toFixed(2);
+
+  const z = w1 * px1 + w2 * px2 + b;
+  document.getElementById('zVal').textContent = z.toFixed(2);
+  document.getElementById('yhat').textContent = z >= 0 ? '1' : '0';
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  function toPx(x, y) { return [(x + 2) / 4 * W, H - (y + 2) / 4 * H]; }
+
+  // shaded regions
+  const step = 10;
+  for (let py = 0; py < H; py += step) {
+    for (let px = 0; px < W; px += step) {
+      const x = px / W * 4 - 2;
+      const y = (H - py) / H * 4 - 2;
+      const zz = w1 * x + w2 * y + b;
+      const a = 1 / (1 + Math.exp(-zz * 3));
+      ctx.fillStyle = a > 0.5
+        ? `rgba(74, 222, 128, ${(a - 0.5) * 0.55})`
+        : `rgba(248, 113, 113, ${(0.5 - a) * 0.55})`;
+      ctx.fillRect(px, py, step, step);
+    }
+  }
+
+  // axis lines
+  ctx.strokeStyle = 'rgba(138,161,189,0.25)';
+  ctx.lineWidth = 1;
+  for (let i = -2; i <= 2; i++) {
+    const [gx] = toPx(i, 0);
+    const [, gy] = toPx(0, i);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+  // origin axes
+  ctx.strokeStyle = 'rgba(138,161,189,0.5)';
+  ctx.lineWidth = 1.5;
+  const [ox, oy] = toPx(0, 0);
+  ctx.beginPath(); ctx.moveTo(ox, 0); ctx.lineTo(ox, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.stroke();
+
+  // boundary line w1*x + w2*y + b = 0
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 12;
+  if (Math.abs(w2) > 0.01) {
+    const x0 = -2, y0 = -(w1 * x0 + b) / w2;
+    const x1 = 2,  y1 = -(w1 * x1 + b) / w2;
+    const [pxa, pya] = toPx(x0, y0);
+    const [pxb, pyb] = toPx(x1, y1);
+    ctx.beginPath();
+    ctx.moveTo(pxa, pya); ctx.lineTo(pxb, pyb);
+    ctx.stroke();
+  } else if (Math.abs(w1) > 0.01) {
+    // vertical line
+    const x = -b / w1;
+    const [pxa] = toPx(x, 0);
+    ctx.beginPath();
+    ctx.moveTo(pxa, 0); ctx.lineTo(pxa, H);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // probe point
+  const [ppx, ppy] = toPx(px1, px2);
+  ctx.beginPath();
+  ctx.arc(ppx, ppy, 9, 0, Math.PI * 2);
+  ctx.fillStyle = z >= 0 ? '#4ade80' : '#f87171';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // weight vector arrow from origin
+  const wlen = Math.sqrt(w1 * w1 + w2 * w2);
+  if (wlen > 0.05) {
+    const ax = w1 / wlen * 1.0;
+    const ay = w2 / wlen * 1.0;
+    const [aex, aey] = toPx(ax, ay);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy); ctx.lineTo(aex, aey);
+    ctx.stroke();
+    // arrowhead
+    const ang = Math.atan2(aey - oy, aex - ox);
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(aex, aey);
+    ctx.lineTo(aex - 8 * Math.cos(ang - 0.4), aey - 8 * Math.sin(ang - 0.4));
+    ctx.lineTo(aex - 8 * Math.cos(ang + 0.4), aey - 8 * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.fillText('w', aex + 6, aey - 4);
+  }
+
+  // labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('x₁', W - 16, oy - 4);
+  ctx.fillText('x₂', ox + 4, 12);
+}
+['w1','w2','bv','px1','px2'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawForward);
+});
+drawForward();
+
+// ============== LIVE TRAINING ==============
+const trainCanvas = document.getElementById('trainCanvas');
+let trState = null;
+
+function makeDataset(name) {
+  if (name === 'and') {
+    return [
+      { x: [0, 0], y: 0 },
+      { x: [0, 1], y: 0 },
+      { x: [1, 0], y: 0 },
+      { x: [1, 1], y: 1 }
+    ];
+  }
+  if (name === 'or') {
+    return [
+      { x: [0, 0], y: 0 },
+      { x: [0, 1], y: 1 },
+      { x: [1, 0], y: 1 },
+      { x: [1, 1], y: 1 }
+    ];
+  }
+  if (name === 'xor') {
+    return [
+      { x: [0, 0], y: 0 },
+      { x: [0, 1], y: 1 },
+      { x: [1, 0], y: 1 },
+      { x: [1, 1], y: 0 }
+    ];
+  }
+  if (name === 'blobs') {
+    const arr = [];
+    // classe 0 autour de (0.2, 0.2), classe 1 autour de (0.8, 0.8)
+    for (let i = 0; i < 20; i++) {
+      arr.push({ x: [0.2 + (Math.random() - 0.5) * 0.3, 0.2 + (Math.random() - 0.5) * 0.3], y: 0 });
+      arr.push({ x: [0.8 + (Math.random() - 0.5) * 0.3, 0.8 + (Math.random() - 0.5) * 0.3], y: 1 });
+    }
+    return arr;
+  }
+  return [];
+}
+
+function resetTrain(skipDraw) {
+  if (trState && trState.timer) {
+    clearInterval(trState.timer);
+  }
+  const ds = trState ? trState.dsName : 'and';
+  trState = {
+    dsName: ds,
+    data: makeDataset(ds),
+    w: [0, 0],
+    b: 0,
+    epoch: 0,
+    sample: 0,
+    errs: 0,
+    epochErrs: 0,
+    lastErrs: 0,
+    timer: null,
+    highlight: -1,
+    running: false
+  };
+  document.getElementById('trainBtn').textContent = '▶ entraîner';
+  if (!skipDraw) drawTrain();
+  updateTrainStats();
+}
+
+function updateTrainStats() {
+  if (!trState) return;
+  document.getElementById('trEpoch').textContent = trState.epoch;
+  document.getElementById('trSample').textContent = trState.sample;
+  document.getElementById('trW1').textContent = trState.w[0].toFixed(3);
+  document.getElementById('trW2').textContent = trState.w[1].toFixed(3);
+  document.getElementById('trB').textContent  = trState.b.toFixed(3);
+  document.getElementById('trErr').textContent = trState.lastErrs >= 0 ? trState.lastErrs : '—';
+  // précision sur le jeu de données complet
+  let correct = 0;
+  trState.data.forEach(p => {
+    const z = trState.w[0] * p.x[0] + trState.w[1] * p.x[1] + trState.b;
+    const yh = z >= 0 ? 1 : 0;
+    if (yh === p.y) correct++;
+  });
+  const acc = (correct / trState.data.length * 100).toFixed(0);
+  document.getElementById('trAcc').textContent = acc + '%';
+}
+
+function drawTrain() {
+  if (!trainCanvas || !trState) return;
+  const ctx = trainCanvas.getContext('2d');
+  const W = trainCanvas.width, H = trainCanvas.height;
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  // l'axe dépend du jeu de données
+  const isBlobs = trState.dsName === 'blobs';
+  const xmin = isBlobs ? -0.2 : -0.3, xmax = isBlobs ? 1.2 : 1.3;
+  function toPx(x, y) {
+    return [(x - xmin) / (xmax - xmin) * W, H - (y - xmin) / (xmax - xmin) * H];
+  }
+
+  // shaded decision regions
+  const step = 10;
+  for (let py = 0; py < H; py += step) {
+    for (let px = 0; px < W; px += step) {
+      const x = px / W * (xmax - xmin) + xmin;
+      const y = (H - py) / H * (xmax - xmin) + xmin;
+      const z = trState.w[0] * x + trState.w[1] * y + trState.b;
+      const a = 1 / (1 + Math.exp(-z * 6));
+      ctx.fillStyle = a > 0.5
+        ? `rgba(74, 222, 128, ${(a - 0.5) * 0.6})`
+        : `rgba(248, 113, 113, ${(0.5 - a) * 0.6})`;
+      ctx.fillRect(px, py, step, step);
+    }
+  }
+
+  // grid
+  ctx.strokeStyle = 'rgba(138,161,189,0.18)';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 1; g += 0.5) {
+    const [gx] = toPx(g, 0);
+    const [, gy] = toPx(0, g);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+
+  // boundary
+  if (Math.abs(trState.w[0]) + Math.abs(trState.w[1]) > 0.001) {
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 10;
+    if (Math.abs(trState.w[1]) > 0.01) {
+      const x0 = xmin, y0 = -(trState.w[0] * x0 + trState.b) / trState.w[1];
+      const x1 = xmax, y1 = -(trState.w[0] * x1 + trState.b) / trState.w[1];
+      const [pxa, pya] = toPx(x0, y0);
+      const [pxb, pyb] = toPx(x1, y1);
+      ctx.beginPath(); ctx.moveTo(pxa, pya); ctx.lineTo(pxb, pyb); ctx.stroke();
+    } else if (Math.abs(trState.w[0]) > 0.01) {
+      const x = -trState.b / trState.w[0];
+      const [pxa] = toPx(x, 0);
+      ctx.beginPath(); ctx.moveTo(pxa, 0); ctx.lineTo(pxa, H); ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  // points
+  trState.data.forEach((p, i) => {
+    const [px, py] = toPx(p.x[0], p.x[1]);
+    const z = trState.w[0] * p.x[0] + trState.w[1] * p.x[1] + trState.b;
+    const yh = z >= 0 ? 1 : 0;
+    const wrong = yh !== p.y;
+    const isHi = i === trState.highlight;
+
+    ctx.beginPath();
+    ctx.arc(px, py, isHi ? 9 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = p.y === 1 ? '#4ade80' : '#f87171';
+    ctx.fill();
+    ctx.strokeStyle = isHi ? '#fbbf24' : (wrong ? '#fbbf24' : '#fff');
+    ctx.lineWidth = isHi ? 3 : 1.5;
+    ctx.stroke();
+    if (isHi) {
+      ctx.strokeStyle = '#fbbf24';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(px, py, 13, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  });
+}
+
+function trainStep() {
+  if (!trState) return;
+  const lr = +document.getElementById('lr').value;
+  const data = trState.data;
+  const i = trState.sample % data.length;
+
+  // début d'époque ?
+  if (trState.sample === 0) trState.epochErrs = 0;
+
+  const p = data[i];
+  trState.highlight = i;
+  const z = trState.w[0] * p.x[0] + trState.w[1] * p.x[1] + trState.b;
+  const yh = z >= 0 ? 1 : 0;
+  const err = p.y - yh;
+  if (err !== 0) {
+    trState.w[0] += lr * err * p.x[0];
+    trState.w[1] += lr * err * p.x[1];
+    trState.b    += lr * err;
+    trState.epochErrs++;
+  }
+
+  trState.sample++;
+  if (trState.sample >= data.length) {
+    trState.epoch++;
+    trState.sample = 0;
+    trState.lastErrs = trState.epochErrs;
+    if (trState.epochErrs === 0 && trState.dsName !== 'xor') {
+      // convergé
+      stopTrain();
+      showToast('convergé en ' + trState.epoch + ' époques · 100% de précision 🎉');
+      burstConfetti();
+      trState.highlight = -1;
+    }
+    if (trState.epoch >= 60) {
+      stopTrain();
+      if (trState.dsName === 'xor') {
+        showToast('XOR — le perceptron ne peut pas converger. Voir l\'onglet 6.');
+      }
+    }
+  }
+  drawTrain();
+  updateTrainStats();
+}
+
+function stepOnce() { if (trState) trainStep(); }
+
+function startTrain() {
+  if (!trState) return;
+  const spd = +document.getElementById('spd').value;
+  const interval = Math.max(20, 200 / spd);
+  trState.timer = setInterval(trainStep, interval);
+  trState.running = true;
+  document.getElementById('trainBtn').textContent = '⏸ pause';
+}
+
+function stopTrain() {
+  if (!trState) return;
+  if (trState.timer) clearInterval(trState.timer);
+  trState.timer = null;
+  trState.running = false;
+  document.getElementById('trainBtn').textContent = '▶ entraîner';
+}
+
+function toggleTrain() {
+  if (!trState) return;
+  if (trState.running) stopTrain();
+  else startTrain();
+}
+
+// dataset toggle buttons
+document.querySelectorAll('#datasetToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#datasetToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (trState) trState.dsName = btn.dataset.ds;
+    resetTrain();
+  });
+});
+
+const lrEl = document.getElementById('lr');
+const spdEl = document.getElementById('spd');
+if (lrEl) lrEl.addEventListener('input', () => {
+  document.getElementById('lrv').textContent = (+lrEl.value).toFixed(2);
+});
+if (spdEl) spdEl.addEventListener('input', () => {
+  document.getElementById('spdv').textContent = spdEl.value;
+  if (trState && trState.running) { stopTrain(); startTrain(); }
+});
+
+// initialize
+trState = { dsName: 'and' };
+resetTrain();
+
+// ============== INFERENCE ==============
+function runInference() {
+  const x1 = +document.getElementById('infX1').value;
+  const x2 = +document.getElementById('infX2').value;
+  const w = [1.0, 1.0], b = -1.5;
+  const z = w[0] * x1 + w[1] * x2 + b;
+  const yh = z >= 0 ? 1 : 0;
+  const el = document.getElementById('infResult');
+  el.innerHTML = `z = ${z.toFixed(2)} · ŷ = <span style="color:${yh ? 'var(--good)' : 'var(--bad)'}; font-weight:800;">${yh}</span>`;
+}
+
+// ============== XOR DEMONSTRATION ==============
+const xorCanvas = document.getElementById('xorCanvas');
+function drawXor() {
+  if (!xorCanvas) return;
+  const ctx = xorCanvas.getContext('2d');
+  const W = xorCanvas.width, H = xorCanvas.height;
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const xmin = -0.4, xmax = 1.4;
+  function toPx(x, y) {
+    return [(x - xmin) / (xmax - xmin) * W, H - (y - xmin) / (xmax - xmin) * H];
+  }
+
+  // grid
+  ctx.strokeStyle = 'rgba(138,161,189,0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 1; i++) {
+    const [gx] = toPx(i, 0);
+    const [, gy] = toPx(0, i);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+
+  // animated line attempting to separate XOR — rotates forever
+  const t = (Date.now() % 4000) / 4000 * Math.PI * 2;
+  const dx = Math.cos(t), dy = Math.sin(t);
+  // line passes through (0.5, 0.5)
+  const cx = 0.5, cy = 0.5;
+  // p1, p2 across the canvas
+  const r = 1.5;
+  const x0 = cx - dx * r, y0 = cy - dy * r;
+  const x1 = cx + dx * r, y1 = cy + dy * r;
+  const [pxa, pya] = toPx(x0, y0);
+  const [pxb, pyb] = toPx(x1, y1);
+  ctx.strokeStyle = 'rgba(248,113,113,0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath(); ctx.moveTo(pxa, pya); ctx.lineTo(pxb, pyb); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // XOR points
+  const pts = [
+    { x: 0, y: 0, c: 0 },
+    { x: 0, y: 1, c: 1 },
+    { x: 1, y: 0, c: 1 },
+    { x: 1, y: 1, c: 0 }
+  ];
+  pts.forEach(p => {
+    const [px, py] = toPx(p.x, p.y);
+    ctx.beginPath();
+    ctx.arc(px, py, 11, 0, Math.PI * 2);
+    ctx.fillStyle = p.c === 1 ? '#4ade80' : '#f87171';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#001018';
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.c, px, py);
+  });
+
+  // hint label
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('toute droite mal-classe ≥ 1 point', 8, H - 8);
+}
+let xorRaf = null;
+function loopXor() {
+  drawXor();
+  xorRaf = requestAnimationFrame(loopXor);
+}
+if (xorCanvas) loopXor();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'forward','3':'rule','4':'train','5':'inference','6':'xor','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

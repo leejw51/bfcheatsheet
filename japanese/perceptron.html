@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パーセプトロン — インタラクティブ・ドリル</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #22d3ee;        /* cyan / electric blue */
+    --accent-2: #38bdf8;
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(34,211,238,0.08), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15203a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .badge {
+    background: var(--accent); color: #001018;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(34,211,238,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(34,211,238,0.12);
+    border-color: rgba(34,211,238,0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #001018;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(34,211,238,0.25);
+    background: rgba(34,211,238,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #001018;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(34,211,238,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(34,211,238,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 70px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(34,211,238,0.6);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(34,211,238,0.6);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 64px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .neuron-svg {
+    width: 100%; height: auto; max-height: 280px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* dataset toggle */
+  .dataset-toggle {
+    display: inline-flex; gap: 4px; margin-bottom: 10px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px;
+  }
+  .dataset-toggle button {
+    background: transparent; color: var(--muted);
+    border: none; padding: 6px 14px;
+    border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    transition: all 0.15s;
+  }
+  .dataset-toggle button.active {
+    background: var(--accent); color: #001018;
+    box-shadow: 0 0 10px rgba(34,211,238,0.3);
+  }
+
+  .truth-table {
+    width: 100%; border-collapse: collapse;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .truth-table th, .truth-table td {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .truth-table th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700;
+  }
+  .truth-table td.zero { color: var(--bad); }
+  .truth-table td.one { color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(34,211,238,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red  { background: rgba(248,113,113,0.15); color: var(--bad); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(34,211,238,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+
+  .stat-line {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    font-family: ui-monospace, monospace; font-size: 12.5px;
+    color: var(--muted); margin-top: 6px;
+  }
+  .stat-line span b { color: var(--accent); }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--accent); color: #001018;
+    border-radius: 50%; text-align: center; line-height: 22px;
+    font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  .activation-formula {
+    text-align: center; padding: 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    font-size: 16px;
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">⚡</span> パーセプトロン <span class="badge">Type to Learn</span>
+    </div>
+    <div class="progress-bar-outer" title="全体の進捗">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="完了したエクササイズ">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">解決</span>
+    </div>
+    <div class="streak" title="連続正解">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. これは何?</button>
+    <button data-tab="forward">2. 順伝播</button>
+    <button data-tab="rule">3. 学習則</button>
+    <button data-tab="train">4. ライブ学習</button>
+    <button data-tab="inference">5. 推論</button>
+    <button data-tab="xor">6. XOR の壁</button>
+    <button data-tab="drills">7. 練習</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>パーセプトロン — 1個のニューロン、2つのアイデア</h1>
+  <p class="lead">
+    パーセプトロンは最もシンプルなニューラルネットワーク: 入力の重み付き和をとり、バイアスを加え、
+    符号に応じて <strong>0 か 1</strong> を発火させる単一ニューロンです。Frank Rosenblatt が
+    1958 年に提案し、現代のあらゆる深層ネットはこの 1 つのアイデアの変種を積み重ねたものです。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">ニューロン</div></div>
+      <div class="card-body">
+        入力 $x_1, x_2, \dots, x_n$ に重み $w_1, w_2, \dots, w_n$ を掛けて合計し、
+        バイアス $b$ でオフセットします。<em>活性化 (activation)</em> 関数 (ここではステップ関数)
+        が結果を予測値に変換します。
+        <div class="activation-formula">
+          $\hat{y} = \mathrm{step}(w_1 x_1 + w_2 x_2 + \cdots + w_n x_n + b)$
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ステップ活性化</div></div>
+      <div class="card-body">
+        $\mathrm{step}(z) = \begin{cases} 1 & z \ge 0 \\ 0 & z &lt; 0 \end{cases}$
+        <p style="margin: 10px 0 0;">
+          <em>Heaviside</em> 関数または <em>sign</em> 関数とも呼ばれます。ニューロンを
+          「発火」させる ON/OFF スイッチです。現代のネットでは ReLU や sigmoid に置き換えられます。
+          ステップ関数の微分はほぼどこでも 0 で、勾配降下と相性が悪いからです。
+        </p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">学習</div></div>
+      <div class="card-body">
+        ラベル付きの例を 1 つずつ見せ、予測を計算します。間違っていたら、次回少しだけ間違いが
+        小さくなるように重みを調整します:
+        <div class="activation-formula" style="font-size: 14px;">
+          $w_i \leftarrow w_i + \eta\,(y - \hat{y})\,x_i$<br>
+          $b \leftarrow b + \eta\,(y - \hat{y})$
+        </div>
+        $\eta$ (eta) は <em>学習率 (learning rate)</em>。誤分類がなくなるまで繰り返します。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">推論</div></div>
+      <div class="card-body">
+        重みが固定されたら、予測は内積 1 回 + ステップ関数だけ。勾配もループも不要 —
+        $\hat{y} = \mathrm{step}(\mathbf{w}\cdot\mathbf{x} + b)$ で終わりです。
+        推論呼び出しの正体はこれだけ。
+      </div>
+    </div>
+  </div>
+
+  <h2>図で見るニューロン</h2>
+  <div class="canvas-card">
+    <svg viewBox="0 0 600 240" class="neuron-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="neuronGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.9"/>
+          <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.15"/>
+        </radialGradient>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- inputs -->
+      <g font-family="ui-monospace, monospace" font-size="14" fill="#e6f1ff">
+        <circle cx="60" cy="60" r="22" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="65" text-anchor="middle">x₁</text>
+        <circle cx="60" cy="120" r="22" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="125" text-anchor="middle">x₂</text>
+        <circle cx="60" cy="180" r="22" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="185" text-anchor="middle">1</text>
+      </g>
+
+      <!-- edges with weight labels -->
+      <g stroke="#22d3ee" stroke-width="2" fill="none" opacity="0.85">
+        <line x1="82" y1="60"  x2="280" y2="120"/>
+        <line x1="82" y1="120" x2="280" y2="120"/>
+        <line x1="82" y1="180" x2="280" y2="120"/>
+      </g>
+      <g font-family="ui-monospace, monospace" font-size="13" fill="#22d3ee">
+        <text x="170" y="80">w₁</text>
+        <text x="170" y="113">w₂</text>
+        <text x="180" y="170">b</text>
+      </g>
+
+      <!-- summing node -->
+      <circle cx="305" cy="120" r="36" fill="url(#neuronGrad)"
+              stroke="#22d3ee" stroke-width="2" filter="url(#glow)"/>
+      <text x="305" y="118" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="14" fill="#001018" font-weight="800">Σ</text>
+      <text x="305" y="135" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="10" fill="#001018">w·x+b</text>
+
+      <!-- arrow to activation -->
+      <line x1="341" y1="120" x2="395" y2="120" stroke="#22d3ee" stroke-width="2"/>
+      <polygon points="395,115 405,120 395,125" fill="#22d3ee"/>
+
+      <!-- activation node (step graph) -->
+      <rect x="410" y="80" width="90" height="80" rx="8"
+            fill="#182338" stroke="#22d3ee" stroke-width="2"/>
+      <polyline points="418,150 452,150 452,90 492,90"
+                stroke="#4ade80" stroke-width="2.5" fill="none"/>
+      <text x="455" y="170" text-anchor="middle"
+            font-family="ui-monospace, monospace" font-size="10" fill="#8aa1bd">step</text>
+
+      <!-- output -->
+      <line x1="500" y1="120" x2="545" y2="120" stroke="#22d3ee" stroke-width="2"/>
+      <polygon points="545,115 555,120 545,125" fill="#22d3ee"/>
+      <text x="575" y="125" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="14" fill="#e6f1ff">ŷ</text>
+    </svg>
+  </div>
+
+  <h2>順伝播の式 — コードで</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">純粋 Python — ライブラリなし</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">step</span>(z):
+    <span class="tok-k">return</span> <span class="tok-n">1</span> <span class="tok-k">if</span> z &gt;= <span class="tok-n">0</span> <span class="tok-k">else</span> <span class="tok-n">0</span>
+
+<span class="tok-k">def</span> <span class="tok-f">predict</span>(w, b, x):
+    z = <span class="tok-f">sum</span>(wi * xi <span class="tok-k">for</span> wi, xi <span class="tok-k">in</span> <span class="tok-f">zip</span>(w, x)) + b
+    <span class="tok-k">return</span> step(z)
+
+<span class="tok-c"># 例: 学習後の AND ゲート</span>
+w = [<span class="tok-n">1.0</span>, <span class="tok-n">1.0</span>]
+b = -<span class="tok-n">1.5</span>
+<span class="tok-k">for</span> x <span class="tok-k">in</span> [(<span class="tok-n">0</span>,<span class="tok-n">0</span>), (<span class="tok-n">0</span>,<span class="tok-n">1</span>), (<span class="tok-n">1</span>,<span class="tok-n">0</span>), (<span class="tok-n">1</span>,<span class="tok-n">1</span>)]:
+    <span class="tok-f">print</span>(x, predict(w, b, x))   <span class="tok-c"># 0, 0, 0, 1</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>このページの使い方:</strong> タブを順番に進めましょう。タブ 4 ではブラウザ内で本物の
+    パーセプトロンを学習させます。タブ 7 にすべてのドリルがあります —
+    <span class="pill">空欄</span> に入力して <em>Check</em>。<kbd>?</kbd> でショートカット表示。
+  </div>
+</section>
+
+<!-- ========================= FORWARD PASS ========================= -->
+<section class="tab-section" id="tab-forward">
+  <h1>順伝播 — 重みを動かしてみる</h1>
+  <p class="lead">
+    2 入力のパーセプトロンには 3 つのつまみがあります: $w_1, w_2, b$。これらは 2D 空間の <em>直線</em>
+    を定義し、片側の点は 1、もう片側は 0 を発火します。スライダーを動かして境界線が回転・平行移動する
+    様子を見ましょう。
+  </p>
+
+  <div class="canvas-card">
+    <h3>パーセプトロン遊び場</h3>
+    <div class="grid-2">
+      <div>
+        <canvas id="forwardCanvas" width="420" height="340"></canvas>
+        <div class="stat-line">
+          <span>z = w₁·x₁ + w₂·x₂ + b = <b id="zVal">0.00</b></span>
+          <span>ŷ = step(z) = <b id="yhat">0</b></span>
+        </div>
+      </div>
+      <div>
+        <div class="slider-row">
+          <label>w₁</label>
+          <input type="range" id="w1" min="-2" max="2" step="0.05" value="1.0">
+          <span class="val" id="w1v">1.00</span>
+        </div>
+        <div class="slider-row">
+          <label>w₂</label>
+          <input type="range" id="w2" min="-2" max="2" step="0.05" value="1.0">
+          <span class="val" id="w2v">1.00</span>
+        </div>
+        <div class="slider-row">
+          <label>b (バイアス)</label>
+          <input type="range" id="bv" min="-3" max="3" step="0.05" value="-1.5">
+          <span class="val" id="bvv">-1.50</span>
+        </div>
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 14px 0;">
+        <div class="slider-row">
+          <label>x₁ (探針)</label>
+          <input type="range" id="px1" min="-2" max="2" step="0.05" value="0.5">
+          <span class="val" id="px1v">0.50</span>
+        </div>
+        <div class="slider-row">
+          <label>x₂ (探針)</label>
+          <input type="range" id="px2" min="-2" max="2" step="0.05" value="0.5">
+          <span class="val" id="px2v">0.50</span>
+        </div>
+        <div class="note" style="margin-top: 14px;">
+          <strong>試してみよう:</strong> $w_1=1, w_2=1, b=-1.5$ にすると <strong>AND</strong> ゲート
+          になります。白い探針を動かすと、$(1,1)$ の角だけが発火します。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>パーセプトロンが学習できる 2 つの真理値表</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">AND  ·  $w=[1,1], b=-1.5$</div></div>
+      <div class="card-body">
+        <table class="truth-table">
+          <tr><th>x₁</th><th>x₂</th><th>z = x₁+x₂−1.5</th><th>ŷ</th></tr>
+          <tr><td>0</td><td>0</td><td>−1.5</td><td class="zero">0</td></tr>
+          <tr><td>0</td><td>1</td><td>−0.5</td><td class="zero">0</td></tr>
+          <tr><td>1</td><td>0</td><td>−0.5</td><td class="zero">0</td></tr>
+          <tr><td>1</td><td>1</td><td> 0.5</td><td class="one">1</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">OR  ·  $w=[1,1], b=-0.5$</div></div>
+      <div class="card-body">
+        <table class="truth-table">
+          <tr><th>x₁</th><th>x₂</th><th>z = x₁+x₂−0.5</th><th>ŷ</th></tr>
+          <tr><td>0</td><td>0</td><td>−0.5</td><td class="zero">0</td></tr>
+          <tr><td>0</td><td>1</td><td> 0.5</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>0</td><td> 0.5</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>1</td><td> 1.5</td><td class="one">1</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <h2>数式で書き出すと</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <p style="margin: 0 0 8px;">2 入力のパーセプトロンの場合:</p>
+    <div class="activation-formula">
+      $z = w_1 x_1 + w_2 x_2 + b \quad\Longrightarrow\quad \hat{y} = \mathrm{step}(z)$
+    </div>
+    <p style="margin: 8px 0 0; color: var(--muted); font-size: 13px;">
+      境界線 $w_1 x_1 + w_2 x_2 + b = 0$ は平面を 2 つの半空間に分けます。
+      $z$ が正の点はクラス 1、負の点はクラス 0 です。
+    </p>
+  </div>
+</section>
+
+<!-- ========================= LEARNING RULE ========================= -->
+<section class="tab-section" id="tab-rule">
+  <h1>パーセプトロン学習則</h1>
+  <p class="lead">
+    Rosenblatt のアルゴリズムは驚くほどシンプル: 点を誤分類したら、重みベクトルをその点に向けて
+    (または逆向きに) 少しだけ動かすだけ。すべての例について繰り返せば — 線形分離可能なデータなら —
+    必ず収束します。
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">更新式 — 1 例 $(x, y)$ について</div></div>
+    <div class="card-body">
+      <div class="activation-formula">
+        $\hat{y} = \mathrm{step}(\mathbf{w}\cdot\mathbf{x} + b)$<br>
+        $\mathbf{w} \leftarrow \mathbf{w} + \eta\,(y - \hat{y})\,\mathbf{x}$<br>
+        $b \leftarrow b + \eta\,(y - \hat{y})$
+      </div>
+      <p style="margin: 6px 0 0;">
+        3 通りのケース:
+      </p>
+      <ul style="margin: 4px 0; color: var(--muted);">
+        <li><span class="pill green">正解</span>$y - \hat{y} = 0$ — 更新なし。</li>
+        <li><span class="pill warn">1 を見逃し</span>$y - \hat{y} = +1$ — $\mathbf{w}$ を $\mathbf{x}$ の方向へ。</li>
+        <li><span class="pill red">誤発火</span>$y - \hat{y} = -1$ — $\mathbf{w}$ を $\mathbf{x}$ から離す。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>ウォークスルー — 5 ステップ</h2>
+  <div class="grid-3" style="margin: 14px 0;">
+    <div class="step-card">
+      <h4><span class="step-num">1</span>例を選ぶ</h4>
+      <p>データセットからラベル付きの点 $(x, y)$ を 1 つ取ります。</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">2</span>予測する</h4>
+      <p><code>z = w·x + b</code><br><code>ŷ = step(z)</code></p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">3</span>誤差を計算</h4>
+      <p><code>err = y − ŷ</code><br>(−1, 0, +1 のいずれか)</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">4</span>重みを更新</h4>
+      <p><code>w += η · err · x</code><br><code>b += η · err</code></p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">5</span>繰り返す</h4>
+      <p>誤差がなくなるまで、全例を数エポック回します。</p>
+    </div>
+  </div>
+
+  <h2>リファレンス実装</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">パーセプトロン学習 — 純粋 NumPy</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">numpy</span> <span class="tok-k">as</span> <span class="tok-t">np</span>
+
+<span class="tok-k">def</span> <span class="tok-f">step</span>(z):
+    <span class="tok-k">return</span> np.where(z &gt;= <span class="tok-n">0</span>, <span class="tok-n">1</span>, <span class="tok-n">0</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">train_perceptron</span>(X, y, lr=<span class="tok-n">0.1</span>, epochs=<span class="tok-n">20</span>):
+    n, d = X.shape
+    w = np.zeros(d)
+    b = <span class="tok-n">0.0</span>
+    <span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(epochs):
+        <span class="tok-k">for</span> i <span class="tok-k">in</span> <span class="tok-f">range</span>(n):
+            z    = np.dot(w, X[i]) + b
+            yhat = step(z)
+            err  = y[i] - yhat
+            w   += lr * err * X[i]   <span class="tok-c"># 重み更新</span>
+            b   += lr * err          <span class="tok-c"># バイアス更新</span>
+    <span class="tok-k">return</span> w, b
+
+<span class="tok-c"># AND データセット</span>
+X = np.array([[<span class="tok-n">0</span>,<span class="tok-n">0</span>],[<span class="tok-n">0</span>,<span class="tok-n">1</span>],[<span class="tok-n">1</span>,<span class="tok-n">0</span>],[<span class="tok-n">1</span>,<span class="tok-n">1</span>]])
+y = np.array([ <span class="tok-n">0</span>,         <span class="tok-n">0</span>,         <span class="tok-n">0</span>,         <span class="tok-n">1</span>      ])
+
+w, b = train_perceptron(X, y)
+<span class="tok-f">print</span>(w, b)   <span class="tok-c"># [0.2, 0.1] -0.2 のようなもの</span></code></pre>
+  </div>
+
+  <div class="note warn">
+    <strong>収束:</strong> パーセプトロン学習則は、分離超平面が存在するなら有限ステップで
+    <em>必ず</em> それを見つけられます — ただし存在する場合に限ります。クラスが重なっていたり
+    XOR 状だと、永遠に振動します。理由はタブ 6 で。
+  </div>
+</section>
+
+<!-- ========================= LIVE TRAINING ========================= -->
+<section class="tab-section" id="tab-train">
+  <h1>ライブ学習 — 境界線が動く様子を見る</h1>
+  <p class="lead">
+    データセットを選び <em>train</em> を押せば、本物のパーセプトロンが学習する様子が見られます。
+    各ステップで 1 つの例が処理され、重みベクトルが回転し、バイアスがスライドし、決定境界が
+    収まるべき場所へカチッとはまります。
+  </p>
+
+  <div class="canvas-card">
+    <h3>学習アリーナ</h3>
+    <div class="dataset-toggle" id="datasetToggle">
+      <button class="active" data-ds="and">AND</button>
+      <button data-ds="or">OR</button>
+      <button data-ds="blobs">Blobs</button>
+      <button data-ds="xor">XOR ✗</button>
+    </div>
+    <div class="grid-2">
+      <div>
+        <canvas id="trainCanvas" width="440" height="400"></canvas>
+      </div>
+      <div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+          <button class="btn" id="trainBtn" onclick="toggleTrain()">▶ train</button>
+          <button class="btn ghost" onclick="stepOnce()">step</button>
+          <button class="btn ghost" onclick="resetTrain()">reset</button>
+        </div>
+        <div class="slider-row">
+          <label>学習率 η</label>
+          <input type="range" id="lr" min="0.01" max="0.5" step="0.01" value="0.1">
+          <span class="val" id="lrv">0.10</span>
+        </div>
+        <div class="slider-row">
+          <label>速度</label>
+          <input type="range" id="spd" min="1" max="20" step="1" value="6">
+          <span class="val" id="spdv">6</span>
+        </div>
+        <div style="background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-top: 12px; font-family: ui-monospace, monospace; font-size: 12.5px;">
+          <div>エポック <b style="color:var(--accent)" id="trEpoch">0</b> · サンプル <b style="color:var(--accent)" id="trSample">0</b></div>
+          <div>w₁ = <b style="color:var(--accent)" id="trW1">0.00</b></div>
+          <div>w₂ = <b style="color:var(--accent)" id="trW2">0.00</b></div>
+          <div>b  = <b style="color:var(--accent)" id="trB">0.00</b></div>
+          <div>このエポックの誤り · <b style="color:var(--bad)" id="trErr">—</b></div>
+          <div>正答率 · <b style="color:var(--good)" id="trAcc">—</b></div>
+        </div>
+        <div class="note" style="margin-top: 12px; font-size: 12.5px;">
+          <strong>注目:</strong> オレンジの点が現在処理中の例です。誤予測なら境界線がジャンプし、
+          正解ならその場にとどまります。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>学習アルゴリズム — もう一度書き出す</h2>
+  <pre class="code"><code><span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(num_epochs):
+    <span class="tok-k">for</span> x, y <span class="tok-k">in</span> dataset:
+        z    = <span class="tok-f">dot</span>(w, x) + b
+        yhat = step(z)
+        err  = y - yhat
+        w   += lr * err * x
+        b   += lr * err</code></pre>
+</section>
+
+<!-- ========================= INFERENCE ========================= -->
+<section class="tab-section" id="tab-inference">
+  <h1>推論 — 学習済みパーセプトロンを使う</h1>
+  <p class="lead">
+    重みが固定されると、予測は <em>たった 1 行の計算</em> です: 内積 + バイアス + ステップ関数。
+    ループも勾配も状態もなし。これが世界で一番シンプルな「ニューラル推論」。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">スカラー形式</div></div>
+      <div class="card-body">
+        <div class="activation-formula">
+          $\hat{y} = \mathrm{step}\!\left(\sum_{i=1}^{n} w_i x_i + b\right)$
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">ベクトル形式</div></div>
+      <div class="card-body">
+        <div class="activation-formula">
+          $\hat{y} = \mathrm{step}(\mathbf{w}^{\!\top}\mathbf{x} + b)$
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">推論 — バッチ向けにベクトル化</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">numpy</span> <span class="tok-k">as</span> <span class="tok-t">np</span>
+
+<span class="tok-c"># 学習済み重み (例: AND 用)</span>
+w = np.array([<span class="tok-n">1.0</span>, <span class="tok-n">1.0</span>])
+b = -<span class="tok-n">1.5</span>
+
+<span class="tok-c"># 入力のバッチ、形 (N, 2)</span>
+X_new = np.array([[<span class="tok-n">0</span>,<span class="tok-n">0</span>], [<span class="tok-n">0</span>,<span class="tok-n">1</span>], [<span class="tok-n">1</span>,<span class="tok-n">0</span>], [<span class="tok-n">1</span>,<span class="tok-n">1</span>]])
+
+logits = X_new @ w + b           <span class="tok-c"># 形 (N,)</span>
+preds  = np.where(logits &gt;= <span class="tok-n">0</span>, <span class="tok-n">1</span>, <span class="tok-n">0</span>)
+
+<span class="tok-f">print</span>(preds)                     <span class="tok-c"># [0 0 0 1]</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>なぜこんなに速いか:</strong> 推論は層あたり 1 回の行列・ベクトル積。
+    本物の LLM はパーセプトロンが何十億個も積み重なっただけ — 個々のニューロンの推論は
+    これと同じです。
+  </div>
+
+  <h2>試してみよう</h2>
+  <div class="canvas-card">
+    <h3>固定パーセプトロン — x を入力して ŷ を得る</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      学習済み AND ゲート · $w_1 = 1.0$, $w_2 = 1.0$, $b = -1.5$.
+    </p>
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <label style="font-size: 12px; color: var(--muted);">x₁:</label>
+      <input id="infX1" type="number" value="1" step="1" style="width: 70px; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 13px;">
+      <label style="font-size: 12px; color: var(--muted);">x₂:</label>
+      <input id="infX2" type="number" value="1" step="1" style="width: 70px; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 13px;">
+      <button class="btn" onclick="runInference()">予測 →</button>
+      <span id="infResult" style="font-family: ui-monospace, monospace; font-size: 14px; color: var(--accent); margin-left: 8px;"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= XOR ========================= -->
+<section class="tab-section" id="tab-xor">
+  <h1>XOR 問題 — 1 個のニューロンでは足りない理由</h1>
+  <p class="lead">
+    単一パーセプトロンは <strong>直線</strong> しか引けません。AND と OR は線形分離可能 —
+    1 本の線で 1 と 0 を分けられます。<strong>XOR はそうではない。</strong>
+    $(0,1)$ と $(1,0)$ を、$(0,0)$ と $(1,1)$ から 1 本の線で分けてみてください。引けないはず。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">XOR 真理値表</div></div>
+      <div class="card-body">
+        <table class="truth-table">
+          <tr><th>x₁</th><th>x₂</th><th>y</th></tr>
+          <tr><td>0</td><td>0</td><td class="zero">0</td></tr>
+          <tr><td>0</td><td>1</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>0</td><td class="one">1</td></tr>
+          <tr><td>1</td><td>1</td><td class="zero">0</td></tr>
+        </table>
+        <p style="margin: 10px 0 0; color: var(--muted); font-size: 13px;">
+          1 は対角の角にあります — 単位正方形の中をどう線で切っても 0 と分離できません。
+        </p>
+      </div>
+    </div>
+    <div class="canvas-card" style="margin: 0;">
+      <h3>XOR — 直線では切れない</h3>
+      <canvas id="xorCanvas" width="380" height="260"></canvas>
+      <p style="color: var(--muted); font-size: 12px; margin-top: 6px;">
+        マイナス 2 つ、プラス 2 つ — どんな直線でも分離できません。
+      </p>
+    </div>
+  </div>
+
+  <h2>解決策: パーセプトロンを積み重ねる → MLP</h2>
+  <p class="lead">
+    隠れ層 (hidden layer) を 1 つ加えるだけで、任意の論理関数を組み立てられます。XOR =
+    (A OR B) AND NOT (A AND B) — 2 個のニューロンが 3 個目に繋がる構造です。
+  </p>
+
+  <div class="canvas-card">
+    <svg viewBox="0 0 560 220" class="neuron-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="hidGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="#22d3ee" stop-opacity="0.1"/>
+        </radialGradient>
+      </defs>
+      <!-- input layer -->
+      <g font-family="ui-monospace, monospace" font-size="13" fill="#e6f1ff">
+        <circle cx="60" cy="80" r="20" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="85" text-anchor="middle">x₁</text>
+        <circle cx="60" cy="160" r="20" fill="#182338" stroke="#283449" stroke-width="2"/>
+        <text x="60" y="165" text-anchor="middle">x₂</text>
+      </g>
+      <!-- hidden layer -->
+      <g>
+        <circle cx="260" cy="80" r="24" fill="url(#hidGrad)" stroke="#22d3ee" stroke-width="2"/>
+        <text x="260" y="85" text-anchor="middle" font-family="ui-monospace, monospace"
+              font-size="11" fill="#001018" font-weight="800">OR</text>
+        <circle cx="260" cy="160" r="24" fill="url(#hidGrad)" stroke="#22d3ee" stroke-width="2"/>
+        <text x="260" y="160" text-anchor="middle" font-family="ui-monospace, monospace"
+              font-size="10" fill="#001018" font-weight="800">¬AND</text>
+      </g>
+      <!-- output layer -->
+      <circle cx="460" cy="120" r="26" fill="url(#hidGrad)" stroke="#22d3ee" stroke-width="2"/>
+      <text x="460" y="125" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="11" fill="#001018" font-weight="800">AND</text>
+      <text x="510" y="125" text-anchor="middle" font-family="ui-monospace, monospace"
+            font-size="14" fill="#e6f1ff">ŷ</text>
+
+      <!-- edges -->
+      <g stroke="#22d3ee" stroke-width="1.5" opacity="0.6" fill="none">
+        <line x1="80" y1="80"  x2="236" y2="80"/>
+        <line x1="80" y1="80"  x2="236" y2="160"/>
+        <line x1="80" y1="160" x2="236" y2="80"/>
+        <line x1="80" y1="160" x2="236" y2="160"/>
+        <line x1="284" y1="80"  x2="436" y2="120"/>
+        <line x1="284" y1="160" x2="436" y2="120"/>
+        <line x1="486" y1="120" x2="510" y2="120"/>
+      </g>
+      <text x="320" y="40" text-anchor="middle" fill="#8aa1bd"
+            font-family="ui-monospace, monospace" font-size="11">隠れ層 (ニューロン 2 個)</text>
+    </svg>
+  </div>
+
+  <div class="note warn">
+    <strong>歴史メモ:</strong> Minsky と Papert の 1969 年の本 <em>Perceptrons</em> が、単層では
+    XOR を解けないことを示し、「AI の冬」が訪れました。隠れ層を介した誤差逆伝播 (backpropagation)
+    という解決策が広まったのは 1980 年代。その多層パーセプトロン (MLP) こそ、現代のあらゆる深層
+    ネットワークの直接の祖先です。
+  </div>
+
+  <p class="lead" style="margin-top: 18px;">
+    気になる? <a href="basicai.html" style="color: var(--accent);">basicai.html</a> を開いて、
+    XOR を 2 層 MLP で学習してみましょう — 同じデータでも、隠れ層があればきれいに解けます。
+  </p>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>練習 — パーセプトロンを打ち込む</h1>
+  <p class="lead">
+    順伝播・学習則・コードの全要素をカバーする 12 問のドリル。Tab で空欄を移動 · Enter でチェック ·
+    Hint で残りの空欄を一括表示 (トグル)。
+  </p>
+
+  <h2>数式</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 単一パーセプトロンの順伝播の式を完成させましょう。</div>
+    <pre class="exercise">ŷ = <input class="blank" data-answer="step|sign|heaviside" size="9" placeholder="?">(w · x + b)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> ステップ / Heaviside 活性化 — しきい値を埋めて。</div>
+    <pre class="exercise">step(z) = 1   if z &gt;= <input class="blank" data-answer="0" size="3" placeholder="?">
+          0   otherwise</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 重み更新則 — 学習率のギリシャ文字。</div>
+    <pre class="exercise">w = w + <input class="blank" data-answer="lr|eta|η" size="6" placeholder="?"> * (target - pred) * x</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> バイアス更新則 — 形は同じ、x なし。</div>
+    <pre class="exercise">b = b + lr * (target - <input class="blank" data-answer="pred|yhat|ŷ" size="7" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> AND ゲート — $w_1=w_2=1$ のとき $(1,1)$ だけで発火するバイアスを埋めて。</div>
+    <pre class="exercise"># AND の重みとバイアス
+w = [1.0, 1.0]
+b = <input class="blank" data-answer="-1.5" size="6" placeholder="?">    # (-2, -1) のどの値でも動くが -1.5 が定番</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>純粋 Python の順伝播</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 重み付き和 + バイアスを計算。</div>
+    <pre class="exercise">def predict(w, b, x):
+    z = sum(wi * xi for wi, xi in zip(w, x)) + <input class="blank" data-answer="b|bias" size="5" placeholder="?">
+    return step(z)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> 1 行のステップ関数 — <code>1 if</code> の後に来るのは?</div>
+    <pre class="exercise">def step(z):
+    return 1 if z &gt;= 0 <input class="blank" data-answer="else" size="6" placeholder="?"> 0</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>NumPy</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> <code>np.where</code> を使ったベクトル化ステップ関数。第 1 引数は条件。</div>
+    <pre class="exercise">def step(z):
+    return np.<input class="blank" data-answer="where" size="7" placeholder="?">(z &gt;= 0, 1, 0)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> matmul 演算子でバッチ内積。</div>
+    <pre class="exercise"># X 形 (N, d), w 形 (d,)
+logits = X <input class="blank" data-answer="@" size="3" placeholder="?"> w + b   # 形 (N,)
+preds  = np.where(logits &gt;= 0, 1, 0)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 重みベクトルをゼロ初期化 (長さ d)。</div>
+    <pre class="exercise">w = np.<input class="blank" data-answer="zeros" size="6" placeholder="?">(d)
+b = 0.0</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>学習ループ全体</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 内側ループの 3 つの更新を埋めて。</div>
+    <pre class="exercise">for epoch in range(epochs):
+    for i in range(n):
+        z    = np.dot(w, X[i]) + b
+        yhat = step(z)
+        err  = y[i] - <input class="blank" data-answer="yhat|pred" size="6" placeholder="?">
+        w   += lr * err * <input class="blank" data-answer="X[i]|x[i]" size="6" placeholder="?">
+        b   += <input class="blank" data-answer="lr*err|lr * err" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 単一パーセプトロンが <strong>解けない</strong> 問題は?
+      (3 文字)</div>
+    <pre class="exercise">single_layer_fails_on = "<input class="blank" data-answer="xor|XOR" size="5" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>12 問全部できた?</strong> これで単一パーセプトロンにできることはすべてマスター。
+    次のステップ — backprop で積み重ねる方法 — は
+    <a href="basicai.html" style="color: var(--accent);">basicai.html</a> にあります。
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>キーボードショートカット</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>次の空欄へジャンプ</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>現在のドリルをチェック</td></tr>
+      <tr><td><kbd>?</kbd></td><td>このヘルプ</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>タブ切替</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>オーバーレイを閉じる</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      どこかをクリックで閉じます。
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">ブラウザ内シミュレーション</strong> — タブ 4 のライブ学習は
+  本物のパーセプトロン学習則を JavaScript の配列で動かしています。サーバーも Python も不要。
+  <a href="basicai.html">basicai.html</a> の姉妹ページ · ⚡ 1 個のニューロン、2 つのアイデア
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // 新しく解けたものを数える
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正解 — ' + newlySolved + ' 個正解、続けよう。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // 隠す: ヒントで表示した空欄をクリア (ユーザーが解いたものはそのまま)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答えを隠しました — 自分で打ち込んでみよう';
+    updateProgress();
+    return;
+  }
+
+  // 表示: 未解決の空欄すべてに正解を入れる
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '全部完了済み。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '答えをすべて表示 · もう一度押すと隠れます';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['ナイス。', '正解!', 'バッチリ。', '✓ その通り。', '冴えてる。', 'それです。', 'クリーン。', 'パーセプトロンも納得。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['惜しい — もう一度。', '近い。ヒント見る?', 'ほぼ。スペル確認。', '不正解。もう一度。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// セクション完了 = 現在のセクションのドリルがすべて解決
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('セクション完了! 🎉  +' + drills.length + ' 解決');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#22d3ee','#38bdf8','#a5f3fc','#4ade80','#fbbf24','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'コピー済み!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'コピー'; }, 1300);
+  });
+}
+
+// ============== FORWARD-PASS PLAYGROUND ==============
+const fwdCanvas = document.getElementById('forwardCanvas');
+function drawForward() {
+  if (!fwdCanvas) return;
+  const ctx = fwdCanvas.getContext('2d');
+  const W = fwdCanvas.width, H = fwdCanvas.height;
+  const w1 = +document.getElementById('w1').value;
+  const w2 = +document.getElementById('w2').value;
+  const b  = +document.getElementById('bv').value;
+  const px1 = +document.getElementById('px1').value;
+  const px2 = +document.getElementById('px2').value;
+
+  document.getElementById('w1v').textContent = w1.toFixed(2);
+  document.getElementById('w2v').textContent = w2.toFixed(2);
+  document.getElementById('bvv').textContent = b.toFixed(2);
+  document.getElementById('px1v').textContent = px1.toFixed(2);
+  document.getElementById('px2v').textContent = px2.toFixed(2);
+
+  const z = w1 * px1 + w2 * px2 + b;
+  document.getElementById('zVal').textContent = z.toFixed(2);
+  document.getElementById('yhat').textContent = z >= 0 ? '1' : '0';
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  function toPx(x, y) { return [(x + 2) / 4 * W, H - (y + 2) / 4 * H]; }
+
+  // 領域シェーディング
+  const step = 10;
+  for (let py = 0; py < H; py += step) {
+    for (let px = 0; px < W; px += step) {
+      const x = px / W * 4 - 2;
+      const y = (H - py) / H * 4 - 2;
+      const zz = w1 * x + w2 * y + b;
+      const a = 1 / (1 + Math.exp(-zz * 3));
+      ctx.fillStyle = a > 0.5
+        ? `rgba(74, 222, 128, ${(a - 0.5) * 0.55})`
+        : `rgba(248, 113, 113, ${(0.5 - a) * 0.55})`;
+      ctx.fillRect(px, py, step, step);
+    }
+  }
+
+  // 軸線
+  ctx.strokeStyle = 'rgba(138,161,189,0.25)';
+  ctx.lineWidth = 1;
+  for (let i = -2; i <= 2; i++) {
+    const [gx] = toPx(i, 0);
+    const [, gy] = toPx(0, i);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+  // 原点軸
+  ctx.strokeStyle = 'rgba(138,161,189,0.5)';
+  ctx.lineWidth = 1.5;
+  const [ox, oy] = toPx(0, 0);
+  ctx.beginPath(); ctx.moveTo(ox, 0); ctx.lineTo(ox, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.stroke();
+
+  // 境界線 w1*x + w2*y + b = 0
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 12;
+  if (Math.abs(w2) > 0.01) {
+    const x0 = -2, y0 = -(w1 * x0 + b) / w2;
+    const x1 = 2,  y1 = -(w1 * x1 + b) / w2;
+    const [pxa, pya] = toPx(x0, y0);
+    const [pxb, pyb] = toPx(x1, y1);
+    ctx.beginPath();
+    ctx.moveTo(pxa, pya); ctx.lineTo(pxb, pyb);
+    ctx.stroke();
+  } else if (Math.abs(w1) > 0.01) {
+    // 垂直線
+    const x = -b / w1;
+    const [pxa] = toPx(x, 0);
+    ctx.beginPath();
+    ctx.moveTo(pxa, 0); ctx.lineTo(pxa, H);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // 探針の点
+  const [ppx, ppy] = toPx(px1, px2);
+  ctx.beginPath();
+  ctx.arc(ppx, ppy, 9, 0, Math.PI * 2);
+  ctx.fillStyle = z >= 0 ? '#4ade80' : '#f87171';
+  ctx.fill();
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 原点からの重みベクトル矢印
+  const wlen = Math.sqrt(w1 * w1 + w2 * w2);
+  if (wlen > 0.05) {
+    const ax = w1 / wlen * 1.0;
+    const ay = w2 / wlen * 1.0;
+    const [aex, aey] = toPx(ax, ay);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy); ctx.lineTo(aex, aey);
+    ctx.stroke();
+    // 矢印
+    const ang = Math.atan2(aey - oy, aex - ox);
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(aex, aey);
+    ctx.lineTo(aex - 8 * Math.cos(ang - 0.4), aey - 8 * Math.sin(ang - 0.4));
+    ctx.lineTo(aex - 8 * Math.cos(ang + 0.4), aey - 8 * Math.sin(ang + 0.4));
+    ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.fillText('w', aex + 6, aey - 4);
+  }
+
+  // ラベル
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('x₁', W - 16, oy - 4);
+  ctx.fillText('x₂', ox + 4, 12);
+}
+['w1','w2','bv','px1','px2'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawForward);
+});
+drawForward();
+
+// ============== LIVE TRAINING ==============
+const trainCanvas = document.getElementById('trainCanvas');
+let trState = null;
+
+function makeDataset(name) {
+  if (name === 'and') {
+    return [
+      { x: [0, 0], y: 0 },
+      { x: [0, 1], y: 0 },
+      { x: [1, 0], y: 0 },
+      { x: [1, 1], y: 1 }
+    ];
+  }
+  if (name === 'or') {
+    return [
+      { x: [0, 0], y: 0 },
+      { x: [0, 1], y: 1 },
+      { x: [1, 0], y: 1 },
+      { x: [1, 1], y: 1 }
+    ];
+  }
+  if (name === 'xor') {
+    return [
+      { x: [0, 0], y: 0 },
+      { x: [0, 1], y: 1 },
+      { x: [1, 0], y: 1 },
+      { x: [1, 1], y: 0 }
+    ];
+  }
+  if (name === 'blobs') {
+    const arr = [];
+    // クラス 0 は (0.2, 0.2) 周辺、クラス 1 は (0.8, 0.8) 周辺
+    for (let i = 0; i < 20; i++) {
+      arr.push({ x: [0.2 + (Math.random() - 0.5) * 0.3, 0.2 + (Math.random() - 0.5) * 0.3], y: 0 });
+      arr.push({ x: [0.8 + (Math.random() - 0.5) * 0.3, 0.8 + (Math.random() - 0.5) * 0.3], y: 1 });
+    }
+    return arr;
+  }
+  return [];
+}
+
+function resetTrain(skipDraw) {
+  if (trState && trState.timer) {
+    clearInterval(trState.timer);
+  }
+  const ds = trState ? trState.dsName : 'and';
+  trState = {
+    dsName: ds,
+    data: makeDataset(ds),
+    w: [0, 0],
+    b: 0,
+    epoch: 0,
+    sample: 0,
+    errs: 0,
+    epochErrs: 0,
+    lastErrs: 0,
+    timer: null,
+    highlight: -1,
+    running: false
+  };
+  document.getElementById('trainBtn').textContent = '▶ train';
+  if (!skipDraw) drawTrain();
+  updateTrainStats();
+}
+
+function updateTrainStats() {
+  if (!trState) return;
+  document.getElementById('trEpoch').textContent = trState.epoch;
+  document.getElementById('trSample').textContent = trState.sample;
+  document.getElementById('trW1').textContent = trState.w[0].toFixed(3);
+  document.getElementById('trW2').textContent = trState.w[1].toFixed(3);
+  document.getElementById('trB').textContent  = trState.b.toFixed(3);
+  document.getElementById('trErr').textContent = trState.lastErrs >= 0 ? trState.lastErrs : '—';
+  // データセット全体での正答率
+  let correct = 0;
+  trState.data.forEach(p => {
+    const z = trState.w[0] * p.x[0] + trState.w[1] * p.x[1] + trState.b;
+    const yh = z >= 0 ? 1 : 0;
+    if (yh === p.y) correct++;
+  });
+  const acc = (correct / trState.data.length * 100).toFixed(0);
+  document.getElementById('trAcc').textContent = acc + '%';
+}
+
+function drawTrain() {
+  if (!trainCanvas || !trState) return;
+  const ctx = trainCanvas.getContext('2d');
+  const W = trainCanvas.width, H = trainCanvas.height;
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  // 軸範囲はデータセット依存
+  const isBlobs = trState.dsName === 'blobs';
+  const xmin = isBlobs ? -0.2 : -0.3, xmax = isBlobs ? 1.2 : 1.3;
+  function toPx(x, y) {
+    return [(x - xmin) / (xmax - xmin) * W, H - (y - xmin) / (xmax - xmin) * H];
+  }
+
+  // 決定領域の塗り分け
+  const step = 10;
+  for (let py = 0; py < H; py += step) {
+    for (let px = 0; px < W; px += step) {
+      const x = px / W * (xmax - xmin) + xmin;
+      const y = (H - py) / H * (xmax - xmin) + xmin;
+      const z = trState.w[0] * x + trState.w[1] * y + trState.b;
+      const a = 1 / (1 + Math.exp(-z * 6));
+      ctx.fillStyle = a > 0.5
+        ? `rgba(74, 222, 128, ${(a - 0.5) * 0.6})`
+        : `rgba(248, 113, 113, ${(0.5 - a) * 0.6})`;
+      ctx.fillRect(px, py, step, step);
+    }
+  }
+
+  // グリッド
+  ctx.strokeStyle = 'rgba(138,161,189,0.18)';
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 1; g += 0.5) {
+    const [gx] = toPx(g, 0);
+    const [, gy] = toPx(0, g);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+
+  // 境界
+  if (Math.abs(trState.w[0]) + Math.abs(trState.w[1]) > 0.001) {
+    ctx.strokeStyle = '#22d3ee';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = 10;
+    if (Math.abs(trState.w[1]) > 0.01) {
+      const x0 = xmin, y0 = -(trState.w[0] * x0 + trState.b) / trState.w[1];
+      const x1 = xmax, y1 = -(trState.w[0] * x1 + trState.b) / trState.w[1];
+      const [pxa, pya] = toPx(x0, y0);
+      const [pxb, pyb] = toPx(x1, y1);
+      ctx.beginPath(); ctx.moveTo(pxa, pya); ctx.lineTo(pxb, pyb); ctx.stroke();
+    } else if (Math.abs(trState.w[0]) > 0.01) {
+      const x = -trState.b / trState.w[0];
+      const [pxa] = toPx(x, 0);
+      ctx.beginPath(); ctx.moveTo(pxa, 0); ctx.lineTo(pxa, H); ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+
+  // 点
+  trState.data.forEach((p, i) => {
+    const [px, py] = toPx(p.x[0], p.x[1]);
+    const z = trState.w[0] * p.x[0] + trState.w[1] * p.x[1] + trState.b;
+    const yh = z >= 0 ? 1 : 0;
+    const wrong = yh !== p.y;
+    const isHi = i === trState.highlight;
+
+    ctx.beginPath();
+    ctx.arc(px, py, isHi ? 9 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = p.y === 1 ? '#4ade80' : '#f87171';
+    ctx.fill();
+    ctx.strokeStyle = isHi ? '#fbbf24' : (wrong ? '#fbbf24' : '#fff');
+    ctx.lineWidth = isHi ? 3 : 1.5;
+    ctx.stroke();
+    if (isHi) {
+      ctx.strokeStyle = '#fbbf24';
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(px, py, 13, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  });
+}
+
+function trainStep() {
+  if (!trState) return;
+  const lr = +document.getElementById('lr').value;
+  const data = trState.data;
+  const i = trState.sample % data.length;
+
+  // エポックの開始?
+  if (trState.sample === 0) trState.epochErrs = 0;
+
+  const p = data[i];
+  trState.highlight = i;
+  const z = trState.w[0] * p.x[0] + trState.w[1] * p.x[1] + trState.b;
+  const yh = z >= 0 ? 1 : 0;
+  const err = p.y - yh;
+  if (err !== 0) {
+    trState.w[0] += lr * err * p.x[0];
+    trState.w[1] += lr * err * p.x[1];
+    trState.b    += lr * err;
+    trState.epochErrs++;
+  }
+
+  trState.sample++;
+  if (trState.sample >= data.length) {
+    trState.epoch++;
+    trState.sample = 0;
+    trState.lastErrs = trState.epochErrs;
+    if (trState.epochErrs === 0 && trState.dsName !== 'xor') {
+      // 収束
+      stopTrain();
+      showToast('収束: ' + trState.epoch + ' エポック · 正答率 100% 🎉');
+      burstConfetti();
+      trState.highlight = -1;
+    }
+    if (trState.epoch >= 60) {
+      stopTrain();
+      if (trState.dsName === 'xor') {
+        showToast('XOR — パーセプトロンは収束しません。タブ 6 を参照。');
+      }
+    }
+  }
+  drawTrain();
+  updateTrainStats();
+}
+
+function stepOnce() { if (trState) trainStep(); }
+
+function startTrain() {
+  if (!trState) return;
+  const spd = +document.getElementById('spd').value;
+  const interval = Math.max(20, 200 / spd);
+  trState.timer = setInterval(trainStep, interval);
+  trState.running = true;
+  document.getElementById('trainBtn').textContent = '⏸ pause';
+}
+
+function stopTrain() {
+  if (!trState) return;
+  if (trState.timer) clearInterval(trState.timer);
+  trState.timer = null;
+  trState.running = false;
+  document.getElementById('trainBtn').textContent = '▶ train';
+}
+
+function toggleTrain() {
+  if (!trState) return;
+  if (trState.running) stopTrain();
+  else startTrain();
+}
+
+// データセット切替ボタン
+document.querySelectorAll('#datasetToggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#datasetToggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (trState) trState.dsName = btn.dataset.ds;
+    resetTrain();
+  });
+});
+
+const lrEl = document.getElementById('lr');
+const spdEl = document.getElementById('spd');
+if (lrEl) lrEl.addEventListener('input', () => {
+  document.getElementById('lrv').textContent = (+lrEl.value).toFixed(2);
+});
+if (spdEl) spdEl.addEventListener('input', () => {
+  document.getElementById('spdv').textContent = spdEl.value;
+  if (trState && trState.running) { stopTrain(); startTrain(); }
+});
+
+// 初期化
+trState = { dsName: 'and' };
+resetTrain();
+
+// ============== INFERENCE ==============
+function runInference() {
+  const x1 = +document.getElementById('infX1').value;
+  const x2 = +document.getElementById('infX2').value;
+  const w = [1.0, 1.0], b = -1.5;
+  const z = w[0] * x1 + w[1] * x2 + b;
+  const yh = z >= 0 ? 1 : 0;
+  const el = document.getElementById('infResult');
+  el.innerHTML = `z = ${z.toFixed(2)} · ŷ = <span style="color:${yh ? 'var(--good)' : 'var(--bad)'}; font-weight:800;">${yh}</span>`;
+}
+
+// ============== XOR DEMONSTRATION ==============
+const xorCanvas = document.getElementById('xorCanvas');
+function drawXor() {
+  if (!xorCanvas) return;
+  const ctx = xorCanvas.getContext('2d');
+  const W = xorCanvas.width, H = xorCanvas.height;
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const xmin = -0.4, xmax = 1.4;
+  function toPx(x, y) {
+    return [(x - xmin) / (xmax - xmin) * W, H - (y - xmin) / (xmax - xmin) * H];
+  }
+
+  // グリッド
+  ctx.strokeStyle = 'rgba(138,161,189,0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 1; i++) {
+    const [gx] = toPx(i, 0);
+    const [, gy] = toPx(0, i);
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+  }
+
+  // XOR を分離しようとする線が永遠に回転する
+  const t = (Date.now() % 4000) / 4000 * Math.PI * 2;
+  const dx = Math.cos(t), dy = Math.sin(t);
+  // 線は (0.5, 0.5) を通る
+  const cx = 0.5, cy = 0.5;
+  // p1, p2 をキャンバス全体に
+  const r = 1.5;
+  const x0 = cx - dx * r, y0 = cy - dy * r;
+  const x1 = cx + dx * r, y1 = cy + dy * r;
+  const [pxa, pya] = toPx(x0, y0);
+  const [pxb, pyb] = toPx(x1, y1);
+  ctx.strokeStyle = 'rgba(248,113,113,0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath(); ctx.moveTo(pxa, pya); ctx.lineTo(pxb, pyb); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // XOR 点
+  const pts = [
+    { x: 0, y: 0, c: 0 },
+    { x: 0, y: 1, c: 1 },
+    { x: 1, y: 0, c: 1 },
+    { x: 1, y: 1, c: 0 }
+  ];
+  pts.forEach(p => {
+    const [px, py] = toPx(p.x, p.y);
+    ctx.beginPath();
+    ctx.arc(px, py, 11, 0, Math.PI * 2);
+    ctx.fillStyle = p.c === 1 ? '#4ade80' : '#f87171';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#001018';
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.c, px, py);
+  });
+
+  // ヒントラベル
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText('どんな線でも 1 点以上を誤分類', 8, H - 8);
+}
+let xorRaf = null;
+function loopXor() {
+  drawXor();
+  xorRaf = requestAnimationFrame(loopXor);
+}
+if (xorCanvas) loopXor();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'forward','3':'rule','4':'train','5':'inference','6':'xor','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

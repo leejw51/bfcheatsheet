@@ -1,0 +1,2097 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ComfyUI — Exercice interactif</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2229;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #14b8a6;
+    --accent-2: #22c55e;
+    --code-bg: #0a0f15;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #8b949e;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --wire-model: #f97316;
+    --wire-clip: #fbbf24;
+    --wire-vae: #ec4899;
+    --wire-latent: #a78bfa;
+    --wire-image: #60a5fa;
+    --wire-cond: #22d3ee;
+    --wire-mask: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1a1f26 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .flame { color: var(--accent); font-size: 24px; }
+  .badge {
+    background: var(--accent); color: #0a0f15;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(20, 184, 166, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(20, 184, 166, 0.12);
+    border-color: rgba(20, 184, 166, 0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #0a0f15;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #0a0f15; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.25);
+    background: rgba(20, 184, 166, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #0a0f15;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(20, 184, 166, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 84px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(20, 184, 166, 0.6);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 70px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .workflow-stage {
+    background: var(--code-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    padding: 8px;
+    overflow-x: auto;
+  }
+  .workflow-stage svg {
+    display: block;
+    min-width: 880px;
+    width: 100%;
+    height: auto;
+  }
+  .node-rect {
+    fill: var(--panel-2);
+    stroke: var(--border);
+    stroke-width: 1.5;
+    transition: stroke 0.4s, filter 0.4s;
+  }
+  .node-rect.active {
+    stroke: var(--accent);
+    stroke-width: 2.5;
+    filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.6));
+  }
+  .node-title {
+    fill: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    pointer-events: none;
+  }
+  .node-sub {
+    fill: var(--muted);
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    pointer-events: none;
+  }
+  .slot-label {
+    fill: var(--muted);
+    font-family: ui-monospace, monospace;
+    font-size: 9.5px;
+    pointer-events: none;
+  }
+  .slot-dot {
+    stroke: #fff;
+    stroke-width: 1;
+  }
+  .wire { fill: none; stroke-width: 2.5; opacity: 0.85; transition: opacity 0.4s, stroke-width 0.4s; }
+  .wire.flow { stroke-dasharray: 6 6; animation: dash 0.8s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -24; } }
+
+  .anatomy-svg { display: block; max-width: 100%; }
+
+  .outcome {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+  .outcome .row { display: flex; justify-content: space-between; }
+  .outcome .row b { color: var(--text); }
+  .outcome .verdict {
+    margin-top: 12px; padding-top: 12px;
+    border-top: 1px dashed var(--border);
+    color: var(--accent); font-weight: 700;
+    font-size: 14px;
+  }
+
+  .project-card {
+    background: linear-gradient(135deg, rgba(20,184,166,0.07), rgba(34,197,94,0.02));
+    border: 1px solid rgba(20, 184, 166, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(20, 184, 166, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(20, 184, 166, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(167,139,250,0.18); color: #a78bfa; }
+  .pill.orange { background: rgba(249,115,22,0.18); color: #f97316; }
+  .pill.blue { background: rgba(96,165,250,0.18); color: #60a5fa; }
+  .pill.yellow { background: rgba(251,191,36,0.18); color: #fbbf24; }
+  .pill.pink { background: rgba(236,72,153,0.18); color: #ec4899; }
+  .pill.cyan { background: rgba(34,211,238,0.18); color: #22d3ee; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin: 10px 0 14px;
+  }
+  .legend .item {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+  }
+  .legend .swatch {
+    width: 18px; height: 4px; border-radius: 2px;
+  }
+
+  .node-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .node-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(20,184,166,0.12);
+  }
+  .node-card .pkg {
+    color: var(--accent); font-family: ui-monospace, monospace;
+    font-weight: 700; font-size: 13.5px; margin-bottom: 4px;
+  }
+  .node-card .desc {
+    color: var(--muted); font-size: 12.5px;
+  }
+
+  table.params {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  table.params th, table.params td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.params th { color: var(--accent); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  table.params td .pill { margin-right: 0; }
+  table.params tr:last-child td { border-bottom: none; }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="flame">&#x2B22;</span> ComfyUI <span class="badge">Mode exercice</span>
+    </div>
+    <div class="progress-bar-outer" title="progression globale">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercices terminés">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">résolus</span>
+    </div>
+    <div class="streak" title="série">
+      <span class="flame-mini">&#x1F525;</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. Bienvenue</button>
+    <button data-tab="anatomy">2. Anatomie</button>
+    <button data-tab="wires">3. Connexions</button>
+    <button data-tab="txt2img">4. Construire txt2img</button>
+    <button data-tab="ksampler">5. KSampler</button>
+    <button data-tab="custom">6. Nœuds personnalisés</button>
+    <button data-tab="api">7. Mode API</button>
+    <button data-tab="drills">8. Exercices</button>
+    <button data-tab="project">9. Mini-projet</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>ComfyUI &mdash; Stable Diffusion à base de nœuds</h1>
+  <p class="lead">
+    ComfyUI est un éditeur de graphe de nœuds pour Stable Diffusion. Au lieu d'une interface
+    figée à curseurs (comme Automatic1111), vous câblez des boîtes qui font chacune une chose :
+    charger un checkpoint, encoder un prompt, débruiter des latents, décoder en image.
+    Le graphe <em>est</em> le programme. À la fin de cette page, vous aurez câblé un véritable
+    workflow txt2img, réglé un KSampler et appelé l'API HTTP.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pourquoi des nœuds ?</div></div>
+      <div class="card-body">
+        Chaque étape de la diffusion (charger le modèle, encoder le prompt, échantillonner, décoder)
+        devient un <strong>nœud</strong>. Les fils transportent des données typées entre eux. Vous voyez
+        tout le pipeline d'un coup d'œil &mdash; et vous pouvez le réorganiser à votre guise.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Reproductible</div></div>
+      <div class="card-body">
+        ComfyUI intègre tout le JSON du workflow dans les <code style="color: var(--tag)">métadonnées PNG</code>
+        de chaque sortie. Glissez l'image sur la zone de travail &mdash; le graphe est restauré.
+        Même seed &rarr; mêmes pixels.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Modulable</div></div>
+      <div class="card-body">
+        Besoin de ControlNet, IP-Adapter, AnimateDiff, d'une pile de LoRA ? Ajoutez un nœud, branchez
+        un fil. Le graphe de base reste identique. Les nœuds personnalisés se livrent en dossiers dans
+        <code style="color: var(--tag)">custom_nodes/</code>.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">vs Automatic1111</div></div>
+      <div class="card-body">
+        A1111 est un assistant : démarrage facile, extension difficile. ComfyUI est de la plomberie :
+        courbe d'apprentissage au début, flexibilité infinie ensuite. Les utilisateurs avancés, les
+        runs en lot et tout pipeline non-trivial vivent ici.
+      </div>
+    </div>
+  </div>
+
+  <h2>Vue d'ensemble (à mémoriser)</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <pre class="code"><code><span class="tok-c"># le graphe txt2img en français courant</span>
+Load Checkpoint  &mdash;&mdash;MODEL&mdash;&mdash;&gt;  KSampler
+                 &mdash;&mdash;CLIP&mdash;&mdash;&gt;   CLIP Text Encode (positif)   &mdash;&mdash;COND&mdash;&mdash;&gt; KSampler
+                 &mdash;&mdash;CLIP&mdash;&mdash;&gt;   CLIP Text Encode (négatif)   &mdash;&mdash;COND&mdash;&mdash;&gt; KSampler
+                 &mdash;&mdash;VAE&mdash;&mdash;&gt;    VAE Decode
+
+Empty Latent Image  &mdash;LATENT&mdash;&gt; KSampler  &mdash;LATENT&mdash;&gt; VAE Decode  &mdash;IMAGE&mdash;&gt; Save Image</code></pre>
+  </div>
+
+  <h2>Installation</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">installation (linux/mac)</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># cloner, installer les dépendances, déposer un checkpoint dans models/checkpoints, lancer</span>
+git clone https://github.com/comfyanonymous/ComfyUI
+<span class="tok-k">cd</span> ComfyUI
+pip install -r requirements.txt
+python main.py
+<span class="tok-c"># serveur en route sur http://127.0.0.1:8188</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Comment utiliser cette page :</strong> lisez chaque section, tapez dans les
+    <span class="pill">cases</span> (Tab passe à la suivante, Entrée vérifie). La série retombe
+    sur une mauvaise réponse ou une révélation d'indice. Terminez tous les exercices d'une section pour les confettis.
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    Prêt ? Cliquez sur <strong>2. Anatomie</strong> en haut &mdash; on dissèque d'abord un seul nœud.
+  </p>
+</section>
+
+<!-- ========================= ANATOMY ========================= -->
+<section class="tab-section" id="tab-anatomy">
+  <h1>Anatomie d'un nœud</h1>
+  <p class="lead">
+    Chaque nœud ComfyUI a la même forme : une boîte titrée avec des <strong>slots d'entrée à gauche</strong>,
+    des <strong>slots de sortie à droite</strong>, et des <strong>widgets dans le corps</strong>
+    (nombres, texte, listes déroulantes). Les fils se branchent dans les slots ; les valeurs des widgets sont stockées sur le nœud lui-même.
+  </p>
+
+  <div class="canvas-card">
+    <h3>disséquer un nœud KSampler</h3>
+    <div class="workflow-stage" style="overflow:visible">
+      <svg class="anatomy-svg" viewBox="0 0 720 380" xmlns="http://www.w3.org/2000/svg">
+        <rect x="180" y="40" width="360" height="300" rx="10" ry="10"
+              fill="#1c2229" stroke="#14b8a6" stroke-width="2"/>
+        <rect x="180" y="40" width="360" height="34" rx="10" ry="10"
+              fill="#0f5b53" stroke="none"/>
+        <rect x="180" y="62" width="360" height="12" fill="#0f5b53" stroke="none"/>
+        <text x="200" y="62" class="node-title" style="font-size:14px;">KSampler</text>
+
+        <!-- Input slots (left) -->
+        <circle cx="180" cy="100" r="6" fill="#f97316" class="slot-dot"/>
+        <text x="195" y="104" class="slot-label" style="font-size:11px;">model</text>
+        <circle cx="180" cy="130" r="6" fill="#22d3ee" class="slot-dot"/>
+        <text x="195" y="134" class="slot-label" style="font-size:11px;">positive</text>
+        <circle cx="180" cy="160" r="6" fill="#22d3ee" class="slot-dot"/>
+        <text x="195" y="164" class="slot-label" style="font-size:11px;">negative</text>
+        <circle cx="180" cy="190" r="6" fill="#a78bfa" class="slot-dot"/>
+        <text x="195" y="194" class="slot-label" style="font-size:11px;">latent_image</text>
+
+        <!-- Output slot (right) -->
+        <circle cx="540" cy="100" r="6" fill="#a78bfa" class="slot-dot"/>
+        <text x="525" y="104" class="slot-label" style="font-size:11px; text-anchor:end;">LATENT</text>
+
+        <!-- Widgets in body -->
+        <g font-family="ui-monospace, monospace" font-size="11" fill="#e6edf3">
+          <rect x="200" y="220" width="320" height="22" rx="4" fill="#0a0f15" stroke="#30363d"/>
+          <text x="210" y="235">seed: <tspan fill="#14b8a6">156680208700286</tspan></text>
+          <rect x="200" y="248" width="320" height="22" rx="4" fill="#0a0f15" stroke="#30363d"/>
+          <text x="210" y="263">control_after_generate: <tspan fill="#14b8a6">randomize</tspan></text>
+          <rect x="200" y="276" width="320" height="22" rx="4" fill="#0a0f15" stroke="#30363d"/>
+          <text x="210" y="291">steps: <tspan fill="#14b8a6">20</tspan>   cfg: <tspan fill="#14b8a6">8.0</tspan></text>
+          <rect x="200" y="304" width="320" height="22" rx="4" fill="#0a0f15" stroke="#30363d"/>
+          <text x="210" y="319">sampler_name: <tspan fill="#14b8a6">euler</tspan>   denoise: <tspan fill="#14b8a6">1.00</tspan></text>
+        </g>
+
+        <!-- Annotation arrows -->
+        <g stroke="#8b949e" stroke-width="1" fill="#8b949e">
+          <line x1="100" y1="100" x2="172" y2="100" stroke-dasharray="3 3"/>
+          <text x="20" y="104" font-family="ui-monospace, monospace" font-size="11">input slots</text>
+          <line x1="620" y1="100" x2="548" y2="100" stroke-dasharray="3 3"/>
+          <text x="630" y="104" font-family="ui-monospace, monospace" font-size="11" text-anchor="start">output slot</text>
+          <line x1="80" y1="58" x2="172" y2="58" stroke-dasharray="3 3"/>
+          <text x="20" y="62" font-family="ui-monospace, monospace" font-size="11">title bar</text>
+          <line x1="100" y1="280" x2="195" y2="280" stroke-dasharray="3 3"/>
+          <text x="20" y="284" font-family="ui-monospace, monospace" font-size="11">widgets</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card"><div class="card-head"><div class="card-title">slots d'entrée</div></div>
+      <div class="card-body">
+        Bord gauche. Chaque slot a un <strong>type</strong> &mdash; seuls les fils correspondants peuvent s'y brancher.
+        Essayez de déposer un fil CLIP dans un slot MODEL et ComfyUI refuse.
+      </div></div>
+    <div class="card"><div class="card-head"><div class="card-title">slots de sortie</div></div>
+      <div class="card-body">
+        Bord droit. Une sortie peut alimenter plusieurs entrées (un-vers-plusieurs). La même sortie MODEL
+        de Load Checkpoint va couramment vers KSampler <em>et</em> un loader de LoRA.
+      </div></div>
+    <div class="card"><div class="card-head"><div class="card-title">widgets</div></div>
+      <div class="card-body">
+        Corps du nœud. Nombres, curseurs, listes, zones de texte. Ils stockent des valeurs constantes
+        sur le nœud &mdash; pas besoin de fil. Clic-droit sur un widget pour
+        le convertir en slot d'entrée si vous voulez qu'il soit piloté par un autre nœud.
+      </div></div>
+  </div>
+
+  <div class="note">
+    <strong>Astuce :</strong> double-cliquez sur le canevas vide pour ouvrir la palette de recherche de nœuds.
+    Clic-droit sur un slot pour <em>convertir en widget</em> ou <em>convertir en entrée</em>.
+  </div>
+
+  <h2>Exercice rapide</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Sur un nœud, où se trouvent les slots <em>d'entrée</em> ?</div>
+    <pre class="exercise">les slots d'entrée sont sur le bord <input class="blank" data-answer="left" size="6" placeholder="?">,
+les slots de sortie sont sur le bord <input class="blank" data-answer="right" size="7" placeholder="?">.</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Une valeur constante intégrée au corps d'un nœud (un nombre, une liste, du texte) s'appelle un :</div>
+    <pre class="exercise">c'est un <input class="blank" data-answer="widget" size="9" placeholder="?">.</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= WIRES ========================= -->
+<section class="tab-section" id="tab-wires">
+  <h1>Fils &amp; types</h1>
+  <p class="lead">
+    Les fils sont typés. Chaque type a sa propre couleur pour qu'on voie d'un coup d'œil
+    ce qui circule où. ComfyUI refuse de connecter des types incompatibles.
+  </p>
+
+  <div class="legend">
+    <div class="item"><span class="swatch" style="background: var(--wire-model);"></span>MODEL</div>
+    <div class="item"><span class="swatch" style="background: var(--wire-clip);"></span>CLIP</div>
+    <div class="item"><span class="swatch" style="background: var(--wire-vae);"></span>VAE</div>
+    <div class="item"><span class="swatch" style="background: var(--wire-latent);"></span>LATENT</div>
+    <div class="item"><span class="swatch" style="background: var(--wire-image);"></span>IMAGE</div>
+    <div class="item"><span class="swatch" style="background: var(--wire-cond);"></span>CONDITIONING</div>
+    <div class="item"><span class="swatch" style="background: var(--wire-mask);"></span>MASK</div>
+  </div>
+
+  <table class="params">
+    <thead><tr><th>type</th><th>ce que c'est vraiment</th><th>source typique</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill orange">MODEL</span></td><td>poids du dénoiseur U-Net / DiT</td><td>Load Checkpoint</td></tr>
+      <tr><td><span class="pill yellow">CLIP</span></td><td>encodeur de texte (transforme les prompts en vecteurs)</td><td>Load Checkpoint, CLIPLoader</td></tr>
+      <tr><td><span class="pill pink">VAE</span></td><td>encodeur/décodeur entre pixels &amp; latents</td><td>Load Checkpoint, VAELoader</td></tr>
+      <tr><td><span class="pill purple">LATENT</span></td><td>tenseur d'image compressé (typiquement 8&times; plus petit)</td><td>Empty Latent Image, VAE Encode, KSampler</td></tr>
+      <tr><td><span class="pill blue">IMAGE</span></td><td>tenseur de pixels RGB (l'image réelle)</td><td>VAE Decode, Load Image</td></tr>
+      <tr><td><span class="pill cyan">CONDITIONING</span></td><td>prompt encodé + indices de contrôle</td><td>CLIP Text Encode, ControlNet Apply</td></tr>
+      <tr><td><span class="pill" style="background: rgba(148,163,184,0.18); color:#94a3b8;">MASK</span></td><td>masque en niveaux de gris pour inpainting / éditions de zones</td><td>Load Image (alpha), Mask Editor</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Règle :</strong> un fil ne connecte que des types identiques. <em>CONDITIONING en sortie</em> ne va
+    que vers <em>CONDITIONING en entrée</em>. Les couleurs sont un contrat visuel.
+  </div>
+
+  <h2>Exercices sur les types</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Le type prompt-encodé qui sort de <code style="color: var(--tag)">CLIP Text Encode</code> :</div>
+    <pre class="exercise">type &rarr; <input class="blank" data-answer="CONDITIONING|conditioning" size="14" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Le tenseur d'image compressé que le KSampler débruite réellement :</div>
+    <pre class="exercise">type &rarr; <input class="blank" data-answer="LATENT|latent" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Le fil des poids U-Net / dénoiseur &mdash; quel est son nom de type ?</div>
+    <pre class="exercise">type &rarr; <input class="blank" data-answer="MODEL|model" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Un sélecteur de zone en niveaux de gris pour l'inpainting :</div>
+    <pre class="exercise">type &rarr; <input class="blank" data-answer="MASK|mask" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= TXT2IMG GRAPH ========================= -->
+<section class="tab-section" id="tab-txt2img">
+  <h1>Construire un graphe txt2img basique</h1>
+  <p class="lead">
+    Six nœuds, huit fils. Cliquez sur <em>&#9654; lancer</em> ci-dessous et regardez les données circuler de gauche à droite
+    à travers le graphe, dans l'ordre où ComfyUI l'évalue.
+  </p>
+
+  <div class="canvas-card">
+    <h3>workflow txt2img</h3>
+    <div class="workflow-stage">
+      <svg id="txtSvg" viewBox="0 0 1100 460" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow-orange" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#f97316"/>
+          </marker>
+          <marker id="arrow-yellow" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#fbbf24"/>
+          </marker>
+          <marker id="arrow-pink" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#ec4899"/>
+          </marker>
+          <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+          </marker>
+          <marker id="arrow-cyan" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+          </marker>
+          <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5"
+                  markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/>
+          </marker>
+        </defs>
+
+        <!-- MODEL -->
+        <path class="wire" id="w-model"
+              d="M 200,80 C 280,80 280,140 540,140"
+              stroke="#f97316" marker-end="url(#arrow-orange)"/>
+        <!-- CLIP -->
+        <path class="wire" id="w-clip-pos"
+              d="M 200,110 C 240,110 240,90 320,90"
+              stroke="#fbbf24" marker-end="url(#arrow-yellow)"/>
+        <path class="wire" id="w-clip-neg"
+              d="M 200,140 C 240,140 240,190 320,190"
+              stroke="#fbbf24" marker-end="url(#arrow-yellow)"/>
+        <!-- VAE -->
+        <path class="wire" id="w-vae"
+              d="M 200,170 C 420,170 420,360 780,310"
+              stroke="#ec4899" marker-end="url(#arrow-pink)"/>
+        <!-- COND -->
+        <path class="wire" id="w-pos"
+              d="M 480,90 C 510,90 510,170 540,170"
+              stroke="#22d3ee" marker-end="url(#arrow-cyan)"/>
+        <path class="wire" id="w-neg"
+              d="M 480,190 C 510,190 510,200 540,200"
+              stroke="#22d3ee" marker-end="url(#arrow-cyan)"/>
+        <!-- LATENT -->
+        <path class="wire" id="w-elatent"
+              d="M 200,330 C 360,330 360,230 540,230"
+              stroke="#a78bfa" marker-end="url(#arrow-purple)"/>
+        <path class="wire" id="w-klatent"
+              d="M 700,180 C 740,180 740,290 780,290"
+              stroke="#a78bfa" marker-end="url(#arrow-purple)"/>
+        <!-- IMAGE -->
+        <path class="wire" id="w-image"
+              d="M 920,300 C 950,300 950,300 980,300"
+              stroke="#60a5fa" marker-end="url(#arrow-blue)"/>
+
+        <!-- n0 Load Checkpoint -->
+        <g data-node="n0">
+          <rect class="node-rect" x="40" y="60" width="160" height="130" rx="8"/>
+          <rect x="40" y="60" width="160" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="40" y="74" width="160" height="8" fill="#0f5b53"/>
+          <text x="50" y="76" class="node-title">Load Checkpoint</text>
+          <text x="50" y="100" class="node-sub">ckpt_name:</text>
+          <text x="50" y="114" class="node-sub" style="fill:#14b8a6;">v1-5-pruned.safetensors</text>
+          <circle cx="200" cy="80" r="5" fill="#f97316" class="slot-dot"/>
+          <text x="194" y="84" class="slot-label" style="text-anchor:end;">MODEL</text>
+          <circle cx="200" cy="110" r="5" fill="#fbbf24" class="slot-dot"/>
+          <text x="194" y="114" class="slot-label" style="text-anchor:end;">CLIP</text>
+          <circle cx="200" cy="140" r="5" fill="#ec4899" class="slot-dot"/>
+          <text x="194" y="144" class="slot-label" style="text-anchor:end;">VAE</text>
+          <circle cx="200" cy="170" r="5" fill="#ec4899" class="slot-dot"/>
+          <text x="194" y="174" class="slot-label" style="text-anchor:end;">VAE</text>
+        </g>
+
+        <!-- n1 CLIP Text Encode positive -->
+        <g data-node="n1">
+          <rect class="node-rect" x="320" y="50" width="160" height="80" rx="8"/>
+          <rect x="320" y="50" width="160" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="320" y="64" width="160" height="8" fill="#0f5b53"/>
+          <text x="330" y="66" class="node-title">CLIP Text Encode</text>
+          <text x="330" y="100" class="node-sub" style="fill:#14b8a6;">a cat astronaut on mars</text>
+          <text x="330" y="114" class="node-sub">[positive]</text>
+          <circle cx="320" cy="90" r="5" fill="#fbbf24" class="slot-dot"/>
+          <text x="326" y="94" class="slot-label">clip</text>
+          <circle cx="480" cy="90" r="5" fill="#22d3ee" class="slot-dot"/>
+          <text x="474" y="94" class="slot-label" style="text-anchor:end;">COND</text>
+        </g>
+
+        <!-- n2 CLIP Text Encode negative -->
+        <g data-node="n2">
+          <rect class="node-rect" x="320" y="150" width="160" height="80" rx="8"/>
+          <rect x="320" y="150" width="160" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="320" y="164" width="160" height="8" fill="#0f5b53"/>
+          <text x="330" y="166" class="node-title">CLIP Text Encode</text>
+          <text x="330" y="200" class="node-sub" style="fill:#14b8a6;">blurry, low-quality, text</text>
+          <text x="330" y="214" class="node-sub">[negative]</text>
+          <circle cx="320" cy="190" r="5" fill="#fbbf24" class="slot-dot"/>
+          <text x="326" y="194" class="slot-label">clip</text>
+          <circle cx="480" cy="190" r="5" fill="#22d3ee" class="slot-dot"/>
+          <text x="474" y="194" class="slot-label" style="text-anchor:end;">COND</text>
+        </g>
+
+        <!-- n3 Empty Latent Image -->
+        <g data-node="n3">
+          <rect class="node-rect" x="40" y="280" width="160" height="100" rx="8"/>
+          <rect x="40" y="280" width="160" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="40" y="294" width="160" height="8" fill="#0f5b53"/>
+          <text x="50" y="296" class="node-title">Empty Latent Image</text>
+          <text x="50" y="324" class="node-sub">width:  <tspan fill="#14b8a6">512</tspan></text>
+          <text x="50" y="340" class="node-sub">height: <tspan fill="#14b8a6">512</tspan></text>
+          <text x="50" y="356" class="node-sub">batch:  <tspan fill="#14b8a6">1</tspan></text>
+          <circle cx="200" cy="330" r="5" fill="#a78bfa" class="slot-dot"/>
+          <text x="194" y="334" class="slot-label" style="text-anchor:end;">LATENT</text>
+        </g>
+
+        <!-- n4 KSampler -->
+        <g data-node="n4">
+          <rect class="node-rect" x="540" y="110" width="160" height="160" rx="8"/>
+          <rect x="540" y="110" width="160" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="540" y="124" width="160" height="8" fill="#0f5b53"/>
+          <text x="550" y="126" class="node-title">KSampler</text>
+          <text x="550" y="190" class="node-sub">seed: <tspan fill="#14b8a6">42</tspan></text>
+          <text x="550" y="206" class="node-sub">steps: <tspan fill="#14b8a6">20</tspan>  cfg: <tspan fill="#14b8a6">7</tspan></text>
+          <text x="550" y="222" class="node-sub">sampler: <tspan fill="#14b8a6">euler</tspan></text>
+          <text x="550" y="238" class="node-sub">scheduler: <tspan fill="#14b8a6">normal</tspan></text>
+          <text x="550" y="254" class="node-sub">denoise: <tspan fill="#14b8a6">1.00</tspan></text>
+          <circle cx="540" cy="140" r="5" fill="#f97316" class="slot-dot"/>
+          <text x="546" y="144" class="slot-label">model</text>
+          <circle cx="540" cy="170" r="5" fill="#22d3ee" class="slot-dot"/>
+          <text x="546" y="174" class="slot-label">positive</text>
+          <circle cx="540" cy="200" r="5" fill="#22d3ee" class="slot-dot"/>
+          <text x="546" y="204" class="slot-label">negative</text>
+          <circle cx="540" cy="230" r="5" fill="#a78bfa" class="slot-dot"/>
+          <text x="546" y="234" class="slot-label">latent_image</text>
+          <circle cx="700" cy="180" r="5" fill="#a78bfa" class="slot-dot"/>
+          <text x="694" y="184" class="slot-label" style="text-anchor:end;">LATENT</text>
+        </g>
+
+        <!-- n5 VAE Decode -->
+        <g data-node="n5">
+          <rect class="node-rect" x="780" y="270" width="140" height="80" rx="8"/>
+          <rect x="780" y="270" width="140" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="780" y="284" width="140" height="8" fill="#0f5b53"/>
+          <text x="790" y="286" class="node-title">VAE Decode</text>
+          <text x="790" y="328" class="node-sub">latent &rarr; pixels</text>
+          <circle cx="780" cy="290" r="5" fill="#a78bfa" class="slot-dot"/>
+          <text x="786" y="294" class="slot-label">samples</text>
+          <circle cx="780" cy="310" r="5" fill="#ec4899" class="slot-dot"/>
+          <text x="786" y="314" class="slot-label">vae</text>
+          <circle cx="920" cy="300" r="5" fill="#60a5fa" class="slot-dot"/>
+          <text x="914" y="304" class="slot-label" style="text-anchor:end;">IMAGE</text>
+        </g>
+
+        <!-- n6 Save Image -->
+        <g data-node="n6">
+          <rect class="node-rect" x="980" y="270" width="100" height="80" rx="8"/>
+          <rect x="980" y="270" width="100" height="22" rx="8" fill="#0f5b53"/>
+          <rect x="980" y="284" width="100" height="8" fill="#0f5b53"/>
+          <text x="990" y="286" class="node-title">Save Image</text>
+          <text x="990" y="328" class="node-sub">prefix: ComfyUI</text>
+          <circle cx="980" cy="300" r="5" fill="#60a5fa" class="slot-dot"/>
+          <text x="986" y="304" class="slot-label">images</text>
+        </g>
+      </svg>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;">
+      <button class="btn" onclick="runWorkflow()">&#9654; lancer</button>
+      <button class="btn ghost" onclick="resetWorkflow()">réinitialiser</button>
+      <span id="runStatus" style="font-family: ui-monospace, monospace; font-size: 12.5px; color: var(--muted);">inactif.</span>
+    </div>
+  </div>
+
+  <h2>Tapez le workflow</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> La sortie MODEL de <code style="color: var(--tag)">Load Checkpoint</code> se branche sur quelle entrée du KSampler ?</div>
+    <pre class="exercise">entrée KSampler &rarr; <input class="blank" data-answer="model" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> Un nœud <code style="color: var(--tag)">CLIPTextEncode</code> a un seul slot d'entrée &mdash; quel type attend-il ?</div>
+    <pre class="exercise">entrée CLIPTextEncode &rarr; <input class="blank" data-answer="clip" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> Le tenseur de bruit initial pour txt2img provient de quel nœud ?</div>
+    <pre class="exercise"><input class="blank" data-answer="Empty Latent Image|empty latent image|EmptyLatentImage" size="22" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> Une fois le KSampler terminé, quel nœud reconvertit le LATENT en pixels ?</div>
+    <pre class="exercise"><input class="blank" data-answer="VAE Decode|vae decode|VAEDecode" size="14" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= KSAMPLER ========================= -->
+<section class="tab-section" id="tab-ksampler">
+  <h1>KSampler &mdash; le cœur du graphe</h1>
+  <p class="lead">
+    KSampler est l'endroit où la diffusion se produit vraiment : il débruite itérativement un LATENT,
+    guidé par votre CONDITIONING positif/négatif. Six widgets font tout le travail.
+    Bougez les curseurs ci-dessous &mdash; la boîte de verdict vous dit à quoi ressemblera la sortie.
+  </p>
+
+  <div class="grid-2">
+    <div class="canvas-card">
+      <h3>régler l'échantillonneur</h3>
+      <div class="slider-row">
+        <label>steps</label>
+        <input type="range" id="ks-steps" min="1" max="60" step="1" value="20">
+        <span class="val" id="ks-steps-v">20</span>
+      </div>
+      <div class="slider-row">
+        <label>cfg</label>
+        <input type="range" id="ks-cfg" min="1" max="20" step="0.5" value="8">
+        <span class="val" id="ks-cfg-v">8.0</span>
+      </div>
+      <div class="slider-row">
+        <label>denoise</label>
+        <input type="range" id="ks-denoise" min="0" max="1" step="0.05" value="1.00">
+        <span class="val" id="ks-denoise-v">1.00</span>
+      </div>
+      <div class="slider-row">
+        <label>sampler</label>
+        <select id="ks-sampler" style="flex:1; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 12.5px;">
+          <option>euler</option>
+          <option>euler_ancestral</option>
+          <option selected>dpmpp_2m</option>
+          <option>dpmpp_2m_sde</option>
+          <option>uni_pc</option>
+          <option>ddim</option>
+        </select>
+        <span class="val" style="min-width: 0;"></span>
+      </div>
+      <div class="slider-row">
+        <label>scheduler</label>
+        <select id="ks-sched" style="flex:1; background: var(--code-bg); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 12.5px;">
+          <option selected>normal</option>
+          <option>karras</option>
+          <option>exponential</option>
+          <option>simple</option>
+          <option>sgm_uniform</option>
+        </select>
+        <span class="val" style="min-width: 0;"></span>
+      </div>
+    </div>
+    <div class="canvas-card">
+      <h3>résultat prédit</h3>
+      <div class="outcome" id="ks-outcome">
+        <div class="row"><span>qualité</span><b id="o-quality">&mdash;</b></div>
+        <div class="row"><span>fidélité au prompt</span><b id="o-adherence">&mdash;</b></div>
+        <div class="row"><span>diversité</span><b id="o-div">&mdash;</b></div>
+        <div class="row"><span>temps de rendu</span><b id="o-time">&mdash;</b></div>
+        <div class="row"><span>mode de débruitage</span><b id="o-mode">&mdash;</b></div>
+        <div class="verdict" id="o-verdict">bougez quelque chose pour commencer.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Référence des paramètres</h2>
+  <table class="params">
+    <thead><tr><th>widget</th><th>ce qu'il fait</th><th>bonne valeur par défaut</th></tr></thead>
+    <tbody>
+      <tr><td>seed</td><td>Seed RNG pour le bruit initial. Même seed + même graphe &rarr; même image.</td><td>n'importe quel int</td></tr>
+      <tr><td>steps</td><td>Nombre d'itérations de débruitage. Plus = plus propre mais plus lent ; gains diminuants &gt; 30.</td><td>20&ndash;30</td></tr>
+      <tr><td>cfg</td><td>Échelle de classifier-free guidance. Plus haut = plus fidèle au prompt mais aspect cramé.</td><td>5&ndash;8</td></tr>
+      <tr><td>sampler_name</td><td>Solveur numérique. <code>euler</code>, <code>dpmpp_2m</code>, <code>uni_pc</code> sont les bêtes de somme.</td><td>dpmpp_2m</td></tr>
+      <tr><td>scheduler</td><td>Plan de bruit pour les sigmas. <code>karras</code> est le favori de tous pour moins de pas.</td><td>karras</td></tr>
+      <tr><td>denoise</td><td>Force : <code>1.0</code> = générer depuis du bruit pur (txt2img). <code>&lt;1.0</code> = préserver l'entrée (img2img).</td><td>1.0 / 0.5</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Exercices KSampler</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Choisissez un nom de sampler populaire (parmi <code>euler</code>, <code>euler_a</code>, <code>dpmpp_2m</code>) :</div>
+    <pre class="exercise">"sampler_name": "<input class="blank" data-answer="euler|euler_a|euler_ancestral|dpmpp_2m|dpmpp_2m_sde|uni_pc|ddim" size="14" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Un <code>denoise</code> de <code>1.0</code> signifie qu'on génère l'image :</div>
+    <pre class="exercise">depuis du <input class="blank" data-answer="full|noise|pure noise|from noise|generate from noise" size="14" placeholder="?"> &mdash; c.-à-d. txt2img.</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> Le widget qui contrôle la force avec laquelle le prompt prend le pas sur les tendances naturelles du modèle :</div>
+    <pre class="exercise"><input class="blank" data-answer="cfg|CFG" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Même image à chaque exécution ? Verrouillez le :</div>
+    <pre class="exercise"><input class="blank" data-answer="seed" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> Pour img2img, vous encodez l'image source avec VAE <em>____</em> et baissez denoise (par ex. 0.5).</div>
+    <pre class="exercise">VAE <input class="blank" data-answer="Encode|encode" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CUSTOM NODES ========================= -->
+<section class="tab-section" id="tab-custom">
+  <h1>Nœuds personnalisés &mdash; étendre le graphe</h1>
+  <p class="lead">
+    ComfyUI de base livre ~50 nœuds. La communauté en propose des milliers. Ils s'installent en
+    dossiers sous <code style="color: var(--tag)">custom_nodes/</code> et enregistrent
+    de nouvelles classes de nœuds au démarrage du serveur.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">chemin d'installation</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. installer ComfyUI-Manager (le gestionnaire de paquets pour les nœuds)</span>
+<span class="tok-k">cd</span> ComfyUI/custom_nodes
+git clone https://github.com/ltdrdata/ComfyUI-Manager
+
+<span class="tok-c"># 2. redémarrer le serveur. utilisez ensuite l'UI Manager pour installer le reste.</span>
+python main.py</code></pre>
+  </div>
+
+  <h2>Packs incontournables</h2>
+  <div class="grid-3">
+    <div class="node-card">
+      <div class="pkg">ComfyUI-Manager</div>
+      <div class="desc">Le gestionnaire de paquets. Installe / met à jour / désactive les autres nœuds personnalisés depuis l'UI. Toujours le premier à ajouter.</div>
+    </div>
+    <div class="node-card">
+      <div class="pkg">ComfyUI ControlNet Aux</div>
+      <div class="desc">Préprocesseurs (Canny, Depth, OpenPose, Lineart) + le nœud <code>ControlNetApply</code>. Pilotez la composition avec des images de référence.</div>
+    </div>
+    <div class="node-card">
+      <div class="pkg">ComfyUI_IPAdapter_plus</div>
+      <div class="desc">Image-vers-conditioning. Traitez une photo de référence comme un prompt &mdash; transfert de style, préservation d'identité.</div>
+    </div>
+    <div class="node-card">
+      <div class="pkg">ComfyUI-AnimateDiff-Evolved</div>
+      <div class="desc">Branchez un module de mouvement &rarr; KSampler produit maintenant de la vidéo. Même graphe, dimension batch = images.</div>
+    </div>
+    <div class="node-card">
+      <div class="pkg">Impact Pack</div>
+      <div class="desc">Combos détection / segmentation / detailer. <code>FaceDetailer</code> est célèbre pour réparer les visages en un seul nœud.</div>
+    </div>
+    <div class="node-card">
+      <div class="pkg">rgthree-comfy</div>
+      <div class="desc">Nœuds de confort : muting de groupes, bypass rapide, gestion des seeds, barres de progression sur tout.</div>
+    </div>
+  </div>
+
+  <h2>Loaders LoRA</h2>
+  <p class="lead">
+    Un LoRA est un petit adaptateur (10&ndash;200 Mo) qui pousse MODEL et CLIP vers un style ou un personnage.
+    Insérez <code style="color: var(--tag)">LoraLoader</code> entre Load Checkpoint et le reste :
+  </p>
+  <div class="card">
+    <div class="card-head"><div class="card-title">un LoRA dans la chaîne</div></div>
+    <div class="card-body">
+      <pre class="code"><code>Load Checkpoint &mdash;&mdash;MODEL&mdash;&mdash;&gt; <span class="tok-f">LoraLoader</span> &mdash;&mdash;MODEL'&mdash;&mdash;&gt; KSampler
+                &mdash;&mdash;CLIP&mdash;&mdash;&gt;  <span class="tok-f">LoraLoader</span> &mdash;&mdash;CLIP'&mdash;&mdash;&gt;  CLIP Text Encode
+<span class="tok-c"># widgets : lora_name, strength_model (0-2), strength_clip (0-2)</span></code></pre>
+    </div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> Le pack communautaire que tout le monde installe en premier pour gérer les autres nœuds personnalisés :</div>
+    <pre class="exercise">ComfyUI-<input class="blank" data-answer="Manager|manager" size="9" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> Les nœuds personnalisés sont déposés (en dossiers) dans quel répertoire ?</div>
+    <pre class="exercise">ComfyUI/<input class="blank" data-answer="custom_nodes" size="14" placeholder="?">/</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> Pour le conditioning pose / depth / canny, installez le pack nommé :</div>
+    <pre class="exercise"><input class="blank" data-answer="ControlNet|controlnet" size="11" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= API MODE ========================= -->
+<section class="tab-section" id="tab-api">
+  <h1>Mode API &mdash; piloter ComfyUI depuis le code</h1>
+  <p class="lead">
+    Tout workflow peut être enregistré en <em>JSON API</em> (engrenage &rarr; « Save (API Format) ») et
+    soumis en HTTP. L'UI devient alors optionnelle &mdash; vous pouvez exécuter le graphe depuis un script,
+    un backend, un bot Discord, n'importe quoi.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">soumettre un job</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">json</span>, <span class="tok-t">requests</span>, <span class="tok-t">uuid</span>
+
+<span class="tok-c"># charger le JSON du workflow exporté via engrenage -> Save (API Format)</span>
+<span class="tok-k">with</span> <span class="tok-f">open</span>(<span class="tok-s">"workflow_api.json"</span>) <span class="tok-k">as</span> f:
+    workflow = json.load(f)
+
+<span class="tok-c"># patcher le prompt pour cette exécution</span>
+workflow[<span class="tok-s">"6"</span>][<span class="tok-s">"inputs"</span>][<span class="tok-s">"text"</span>] = <span class="tok-s">"a corgi in a spacesuit"</span>
+workflow[<span class="tok-s">"3"</span>][<span class="tok-s">"inputs"</span>][<span class="tok-s">"seed"</span>] = <span class="tok-n">12345</span>
+
+payload = {<span class="tok-s">"prompt"</span>: workflow, <span class="tok-s">"client_id"</span>: <span class="tok-f">str</span>(uuid.uuid4())}
+r = requests.post(<span class="tok-s">"http://localhost:8188/prompt"</span>, json=payload)
+prompt_id = r.json()[<span class="tok-s">"prompt_id"</span>]
+<span class="tok-f">print</span>(<span class="tok-s">"queued:"</span>, prompt_id)</code></pre>
+  </div>
+
+  <h2>Endpoints utiles</h2>
+  <table class="params">
+    <thead><tr><th>méthode</th><th>chemin</th><th>ce qu'il fait</th></tr></thead>
+    <tbody>
+      <tr><td><span class="pill green">POST</span></td><td><code>/prompt</code></td><td>Met un workflow en file pour exécution ; retourne <code>prompt_id</code>.</td></tr>
+      <tr><td><span class="pill">GET</span></td><td><code>/history/&lt;prompt_id&gt;</code></td><td>Récupère les sorties (noms d'images, résultats de nœuds) une fois terminé.</td></tr>
+      <tr><td><span class="pill">GET</span></td><td><code>/queue</code></td><td>Liste les jobs en cours + en attente.</td></tr>
+      <tr><td><span class="pill">GET</span></td><td><code>/view</code></td><td>Télécharge une image de sortie : <code>?filename=...&amp;type=output</code>.</td></tr>
+      <tr><td><span class="pill purple">WS</span></td><td><code>/ws?clientId=...</code></td><td>WebSocket pour la progression en direct + previews nœud par nœud.</td></tr>
+      <tr><td><span class="pill green">POST</span></td><td><code>/upload/image</code></td><td>Téléverse une image (pour les entrées img2img / inpaint).</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Exercices API</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> L'endpoint qui met un workflow en file :</div>
+    <pre class="exercise">POST http://localhost:8188/<input class="blank" data-answer="prompt" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> Port par défaut sur lequel le serveur ComfyUI écoute :</div>
+    <pre class="exercise">http://localhost:<input class="blank" data-answer="8188" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> Le graphe complet (nœuds + fils + valeurs des widgets) est intégré dans chaque PNG de sortie, dans ses :</div>
+    <pre class="exercise"><input class="blank" data-answer="metadata" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> La progression en temps réel (previews par étape, événements de file) circule sur le :</div>
+    <pre class="exercise"><input class="blank" data-answer="websocket|web socket|ws" size="11" placeholder="?"> sur /ws</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>Astuce :</strong> appelez <code style="color: var(--tag)">/object_info</code>
+    pour dumper le schéma de chaque nœud chargé &mdash; ses entrées, sorties et options de widgets. C'est ainsi que les
+    front-ends auto-génèrent leurs formulaires.
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Mode exercice &mdash; cases à remplir en rafale</h1>
+  <p class="lead">
+    Un mélange rapide qui couvre tout ce que vous avez vu. Pas de diagrammes, juste taper.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> L'inpainting a besoin d'une zone : quel type la transporte ?</div>
+    <pre class="exercise">type &rarr; <input class="blank" data-answer="MASK|mask" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> Sortie plus grande ? Câblez <code>VAE Decode</code> &rarr; <code>____ Image</code> &rarr; ré-encodez pour une seconde passe.</div>
+    <pre class="exercise"><input class="blank" data-answer="Upscale|upscale|UpscaleImage" size="10" placeholder="?"> Image</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> Un CLIPTextEncode passe de texte &rarr; CONDITIONING. Le type requis pour son slot d'entrée est :</div>
+    <pre class="exercise"><input class="blank" data-answer="CLIP|clip" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> KSampler accepte deux fils CONDITIONING &mdash; nommez-les (séparés par une virgule) :</div>
+    <pre class="exercise"><input class="blank" data-answer="positive,negative|positive, negative" size="22" placeholder="positive,negative"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">27</span> Entrées d'un workflow d'inpainting : une image de base plus un :</div>
+    <pre class="exercise"><input class="blank" data-answer="mask|MASK" size="8" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">28</span> Style-par-image (traiter une photo comme un prompt) &mdash; le célèbre nœud personnalisé est :</div>
+    <pre class="exercise"><input class="blank" data-answer="IPAdapter|IP-Adapter|ipadapter|ip-adapter" size="13" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">29</span> Animez un graphe en insérant un module de mouvement (pack de nœuds personnalisés) :</div>
+    <pre class="exercise"><input class="blank" data-answer="AnimateDiff|animatediff" size="13" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">30</span> Deux schedulers favoris : <code>normal</code> et <em>____</em> (populaire, nommé d'après un chercheur) :</div>
+    <pre class="exercise"><input class="blank" data-answer="karras" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>Mini-projet &mdash; câblez un workflow txt2img complet</h1>
+  <p class="lead">
+    Remplissez le JSON API d'un workflow txt2img à 6 nœuds. Quand toutes les cases passent au vert,
+    on simule la soumission au serveur ComfyUI et on anime l'exécution du graphe
+    nœud par nœud, comme en vrai.
+  </p>
+
+  <div class="project-card">
+    <h3>workflow_api.json (remplissez les cases)</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      8 cases. Cliquez <em>Tout vérifier</em> quand elles sont remplies, puis <em>Soumettre le workflow</em>.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;">{
+  <span class="tok-s">"3"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"<input class="blank" data-answer="KSampler|ksampler" size="10" placeholder="?">"</span>,
+    <span class="tok-s">"inputs"</span>: {
+      <span class="tok-s">"seed"</span>: <span class="tok-n">42</span>,
+      <span class="tok-s">"steps"</span>: <span class="tok-n">20</span>,
+      <span class="tok-s">"cfg"</span>: <span class="tok-n">8.0</span>,
+      <span class="tok-s">"sampler_name"</span>: <span class="tok-s">"<input class="blank" data-answer="euler|euler_a|euler_ancestral|dpmpp_2m|dpmpp_2m_sde|uni_pc|ddim" size="12" placeholder="?">"</span>,
+      <span class="tok-s">"scheduler"</span>: <span class="tok-s">"<input class="blank" data-answer="normal|karras|exponential|simple|sgm_uniform" size="10" placeholder="?">"</span>,
+      <span class="tok-s">"denoise"</span>: <span class="tok-n"><input class="blank" data-answer="1.0|1|1.00" size="6" placeholder="?"></span>,
+      <span class="tok-s">"model"</span>:        [<span class="tok-s">"4"</span>, <span class="tok-n">0</span>],
+      <span class="tok-s">"positive"</span>:     [<span class="tok-s">"6"</span>, <span class="tok-n">0</span>],
+      <span class="tok-s">"negative"</span>:     [<span class="tok-s">"7"</span>, <span class="tok-n">0</span>],
+      <span class="tok-s">"latent_image"</span>: [<span class="tok-s">"5"</span>, <span class="tok-n">0</span>]
+    }
+  },
+  <span class="tok-s">"4"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"CheckpointLoaderSimple"</span>,
+    <span class="tok-s">"inputs"</span>: { <span class="tok-s">"ckpt_name"</span>: <span class="tok-s">"v1-5-pruned.safetensors"</span> }
+  },
+  <span class="tok-s">"5"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"<input class="blank" data-answer="EmptyLatentImage|empty latent image|emptylatentimage" size="18" placeholder="?">"</span>,
+    <span class="tok-s">"inputs"</span>: { <span class="tok-s">"width"</span>: <span class="tok-n">512</span>, <span class="tok-s">"height"</span>: <span class="tok-n">512</span>, <span class="tok-s">"batch_size"</span>: <span class="tok-n">1</span> }
+  },
+  <span class="tok-s">"6"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"CLIPTextEncode"</span>,
+    <span class="tok-s">"inputs"</span>: { <span class="tok-s">"text"</span>: <span class="tok-s">"a corgi astronaut on mars, cinematic"</span>, <span class="tok-s">"clip"</span>: [<span class="tok-s">"4"</span>, <span class="tok-n">1</span>] }
+  },
+  <span class="tok-s">"7"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"CLIPTextEncode"</span>,
+    <span class="tok-s">"inputs"</span>: { <span class="tok-s">"text"</span>: <span class="tok-s">"blurry, low quality, text"</span>, <span class="tok-s">"clip"</span>: [<span class="tok-s">"4"</span>, <span class="tok-n">1</span>] }
+  },
+  <span class="tok-s">"8"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"<input class="blank" data-answer="VAEDecode|vae decode|vaedecode" size="11" placeholder="?">"</span>,
+    <span class="tok-s">"inputs"</span>: { <span class="tok-s">"samples"</span>: [<span class="tok-s">"3"</span>, <span class="tok-n">0</span>], <span class="tok-s">"vae"</span>: [<span class="tok-s">"4"</span>, <span class="tok-n">2</span>] }
+  },
+  <span class="tok-s">"9"</span>: {
+    <span class="tok-s">"class_type"</span>: <span class="tok-s">"SaveImage"</span>,
+    <span class="tok-s">"inputs"</span>: { <span class="tok-s">"filename_prefix"</span>: <span class="tok-s">"ComfyUI"</span>, <span class="tok-s">"images"</span>: [<span class="tok-s">"8"</span>, <span class="tok-n">0</span>] }
+  }
+}
+
+<span class="tok-c"># soumets-le</span>
+requests.post(<span class="tok-s">"http://localhost:<input class="blank" data-answer="8188" size="6" placeholder="?">/<input class="blank" data-answer="prompt" size="8" placeholder="?">"</span>,
+              json={<span class="tok-s">"prompt"</span>: workflow})</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">Tout vérifier</button>
+      <button class="btn ghost" id="submitBtn" onclick="submitWorkflow()" disabled>&#9654; Soumettre le workflow</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="canvas-card">
+    <h3>journal d'exécution</h3>
+    <pre class="code" id="apiLog" style="min-height: 130px; margin: 0;"><span class="tok-c">// remplissez les cases ci-dessus puis cliquez Soumettre le workflow.</span></pre>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">Workflow terminé !</strong>
+    Le vrai ComfyUI aurait maintenant <code style="color: var(--tag)">ComfyUI_00001_.png</code>
+    posé dans <code style="color: var(--tag)">output/</code> avec le graphe entier intégré
+    dans ses métadonnées PNG. Glissez-le sur le canevas et le workflow se restaure tout seul.
+  </div>
+
+  <h2>Et après ?</h2>
+  <p class="lead">
+    Reprenez ce graphe et ajoutez un <code style="color: var(--tag)">LoraLoader</code> entre
+    <code>Load Checkpoint</code> et <code>KSampler</code>. Ou bifurquez le LATENT vers un
+    <code style="color: var(--tag)">LatentUpscale</code> + un second KSampler à
+    <code>denoise=0.4</code> pour un fix haute résolution. Ou remplacez l'encodeur de prompt par
+    un IP-Adapter pour piloter le style depuis une image de référence. Mêmes six nœuds de base, variations infinies.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Raccourcis clavier</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>passer à la case suivante</td></tr>
+      <tr><td><kbd>Entrée</kbd></td><td>vérifier l'exercice courant</td></tr>
+      <tr><td><kbd>?</kbd></td><td>cette aide</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>changer d'onglet</td></tr>
+      <tr><td><kbd>Échap</kbd></td><td>fermer la superposition</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Cliquez n'importe où pour fermer.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Glissez n'importe quel PNG de sortie sur le canevas</strong> &mdash;
+  ComfyUI restaure tout le workflow depuis les métadonnées intégrées. Voilà la reproductibilité.<br><br>
+  Compagnon de <a href="basicai.html">basicai.html</a> &middot; &#x2B22; câblez-le &middot; &#9654; lancez-le &middot; &#128247; sauvegardez-le
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.drill[data-drill] .blank').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partiel — ' + newlySolved + ' correct(s), continuez.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'réponses masquées — essayez de les taper vous-même';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'tout est terminé.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'toutes les réponses révélées · cliquez encore pour masquer';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['joli.', 'correct !', 'pile poil.', 'exactement.', 'pointu.', 'c\'est bien ça.', 'connexion propre.', 'branchez-le.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['pas tout à fait — réessayez.', 'proche. un indice ?', 'presque. vérifiez l\'orthographe.', 'fil rouge. encore un essai.', 'type incompatible.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section terminée ! +' + drills.length + ' exercices');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = 'tout est vert ! cliquez Soumettre le workflow.';
+    document.getElementById('submitBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' correct(s). corrigez les rouges.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#14b8a6','#22c55e','#fbbf24','#4ade80','#79c0ff','#a78bfa','#ffffff','#ec4899'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copié !';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copier'; }, 1300);
+  });
+}
+
+// ============== WORKFLOW ANIMATION ==============
+const workflowSteps = [
+  { nodes: ['n0'], wires: [], status: 'chargement du checkpoint…' },
+  { nodes: ['n0','n1','n2','n3'], wires: ['w-clip-pos','w-clip-neg','w-elatent'], status: 'encodage des prompts + latent vide…' },
+  { nodes: ['n4'], wires: ['w-model','w-pos','w-neg'], status: 'KSampler : débruitage 20 pas…' },
+  { nodes: ['n4','n5'], wires: ['w-klatent','w-vae'], status: 'VAE Decode : latent → pixels…' },
+  { nodes: ['n6'], wires: ['w-image'], status: 'Save Image : ComfyUI_00001_.png ✓' }
+];
+
+function runWorkflow() {
+  resetWorkflow();
+  const status = document.getElementById('runStatus');
+  let i = 0;
+  function step() {
+    if (i >= workflowSteps.length) {
+      status.textContent = 'terminé · sortie sauvegardée.';
+      status.style.color = 'var(--good)';
+      return;
+    }
+    const s = workflowSteps[i];
+    s.nodes.forEach(n => {
+      const r = document.querySelector(`#txtSvg [data-node="${n}"] .node-rect`);
+      if (r) r.classList.add('active');
+    });
+    s.wires.forEach(w => {
+      const wire = document.getElementById(w);
+      if (wire) wire.classList.add('flow');
+    });
+    status.textContent = s.status;
+    status.style.color = 'var(--accent)';
+    i++;
+    setTimeout(step, 900);
+  }
+  step();
+}
+function resetWorkflow() {
+  document.querySelectorAll('#txtSvg .node-rect').forEach(r => r.classList.remove('active'));
+  document.querySelectorAll('#txtSvg .wire').forEach(w => w.classList.remove('flow'));
+  const status = document.getElementById('runStatus');
+  status.textContent = 'inactif.';
+  status.style.color = 'var(--muted)';
+}
+
+// ============== KSAMPLER OUTCOME PANEL ==============
+function ksUpdate() {
+  const steps = +document.getElementById('ks-steps').value;
+  const cfg   = +document.getElementById('ks-cfg').value;
+  const den   = +document.getElementById('ks-denoise').value;
+  const samp  = document.getElementById('ks-sampler').value;
+  const sched = document.getElementById('ks-sched').value;
+
+  document.getElementById('ks-steps-v').textContent = steps;
+  document.getElementById('ks-cfg-v').textContent = cfg.toFixed(1);
+  document.getElementById('ks-denoise-v').textContent = den.toFixed(2);
+
+  let q = 0.4 + 0.6 * (1 - Math.exp(-steps / 14));
+  if (sched === 'karras') q += 0.05 * (1 - Math.exp(-steps / 8));
+  if ((samp === 'dpmpp_2m' || samp === 'dpmpp_2m_sde' || samp === 'uni_pc') && sched === 'karras') q += 0.04;
+  q = Math.min(1, q);
+
+  let adh = 0;
+  if (cfg < 3) adh = 0.3;
+  else if (cfg < 6) adh = 0.55 + (cfg - 3) * 0.10;
+  else if (cfg <= 9) adh = 0.85 + (9 - cfg) * 0.02;
+  else adh = Math.max(0.2, 0.9 - (cfg - 9) * 0.07);
+  adh = Math.max(0.05, Math.min(1, adh));
+
+  let div = 0.4;
+  if (samp.includes('ancestral') || samp === 'euler_a') div += 0.25;
+  if (samp === 'dpmpp_2m_sde') div += 0.15;
+  if (cfg < 5) div += 0.15;
+  div = Math.min(1, div);
+
+  const samplerCost = { 'euler': 1, 'euler_ancestral': 1.05, 'dpmpp_2m': 1.15,
+                        'dpmpp_2m_sde': 1.4, 'uni_pc': 1.2, 'ddim': 1.0 }[samp] || 1;
+  const t = (steps * 0.06 * samplerCost).toFixed(2);
+
+  let mode = '';
+  if (den >= 0.99) mode = 'txt2img · bruit pur';
+  else if (den >= 0.6) mode = 'img2img · fort';
+  else if (den >= 0.25) mode = 'img2img · subtil';
+  else mode = 'quasi-identité (presque aucun changement)';
+
+  function pct(v) { return (v * 100).toFixed(0) + '%'; }
+  function bar(v) {
+    const n = Math.round(v * 10);
+    return '█'.repeat(n) + '░'.repeat(10 - n);
+  }
+
+  document.getElementById('o-quality').innerHTML   = bar(q)   + '  ' + pct(q);
+  document.getElementById('o-adherence').innerHTML = bar(adh) + '  ' + pct(adh);
+  document.getElementById('o-div').innerHTML       = bar(div) + '  ' + pct(div);
+  document.getElementById('o-time').innerHTML      = '~' + t + 's';
+  document.getElementById('o-mode').textContent    = mode;
+
+  let verdict = '';
+  if (cfg > 13) verdict = 'cfg trop élevé — l\'image va paraître cramée/sursaturée.';
+  else if (cfg < 2) verdict = 'cfg trop bas — le prompt sera quasi ignoré.';
+  else if (steps < 8) verdict = 'peu de pas — l\'image sera bruitée et sous-cuite.';
+  else if (steps > 45) verdict = 'gains diminuants au-dessus de ~30 pas.';
+  else if (q > 0.92 && adh > 0.8) verdict = 'point idéal ✓ — image propre et fidèle au prompt.';
+  else if (den < 0.2) verdict = 'denoise si faible que la source ne change presque pas.';
+  else verdict = 'réglages raisonnables.';
+  document.getElementById('o-verdict').textContent = verdict;
+}
+['ks-steps','ks-cfg','ks-denoise','ks-sampler','ks-sched'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', ksUpdate);
+});
+ksUpdate();
+
+// ============== API LOG (project) ==============
+function submitWorkflow() {
+  const log = document.getElementById('apiLog');
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true; btn.textContent = 'soumission…';
+  log.innerHTML = '';
+  const lines = [
+    { t: 0,    s: '<span class="tok-c">$ python submit.py</span>' },
+    { t: 250,  s: 'POST /prompt → <span class="tok-s">{"prompt_id": "a3f2-..."}</span>' },
+    { t: 600,  s: '<span class="tok-c">// websocket connecté</span>' },
+    { t: 900,  s: 'execution_start { node: <span class="tok-s">"4"</span> }   <span class="tok-c">// CheckpointLoaderSimple</span>' },
+    { t: 1250, s: 'execution_start { node: <span class="tok-s">"6"</span> }   <span class="tok-c">// CLIPTextEncode +</span>' },
+    { t: 1500, s: 'execution_start { node: <span class="tok-s">"7"</span> }   <span class="tok-c">// CLIPTextEncode -</span>' },
+    { t: 1750, s: 'execution_start { node: <span class="tok-s">"5"</span> }   <span class="tok-c">// EmptyLatentImage</span>' },
+    { t: 2050, s: 'execution_start { node: <span class="tok-s">"3"</span> }   <span class="tok-c">// KSampler</span>' },
+    { t: 2300, s: 'progress { value:  4 / 20 }' },
+    { t: 2600, s: 'progress { value:  8 / 20 }' },
+    { t: 2900, s: 'progress { value: 12 / 20 }' },
+    { t: 3200, s: 'progress { value: 16 / 20 }' },
+    { t: 3500, s: 'progress { value: 20 / 20 }' },
+    { t: 3800, s: 'execution_start { node: <span class="tok-s">"8"</span> }   <span class="tok-c">// VAEDecode</span>' },
+    { t: 4100, s: 'execution_start { node: <span class="tok-s">"9"</span> }   <span class="tok-c">// SaveImage</span>' },
+    { t: 4400, s: 'execution_cached []   execution_success { prompt_id: "a3f2-..." }' },
+    { t: 4700, s: '<span style="color: var(--good); font-weight: 700;">✓ output/ComfyUI_00001_.png  (graphe intégré dans les métadonnées PNG)</span>' }
+  ];
+  lines.forEach(l => {
+    setTimeout(() => {
+      log.innerHTML += l.s + '\n';
+      log.scrollTop = log.scrollHeight;
+    }, l.t);
+  });
+  setTimeout(() => {
+    btn.textContent = '✓ soumis';
+    document.getElementById('projDone').style.display = '';
+    burstConfetti();
+    showToast('workflow exécuté · 1 image sauvegardée');
+  }, 4900);
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome', '2':'anatomy', '3':'wires', '4':'txt2img',
+    '5':'ksampler', '6':'custom', '7':'api', '8':'drills', '9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

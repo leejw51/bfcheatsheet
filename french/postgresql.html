@@ -1,0 +1,2180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PostgreSQL CLI — Exercice interactif</title>
+<style>
+  :root {
+    --bg: #0a1628;
+    --panel: #11203a;
+    --panel-2: #172a48;
+    --border: #29456e;
+    --text: #e6edf3;
+    --muted: #8ba0bd;
+    --accent: #336791;       /* bleu éléphant PostgreSQL */
+    --accent-2: #4a8bc2;
+    --accent-deep: #1e4870;
+    --code-bg: #060f1f;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7b8fa8;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #142a48 0%, #0a1628 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .elephant { color: var(--accent-2); font-size: 24px; }
+  .badge {
+    background: var(--accent); color: #fff;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent-2); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(74, 139, 194, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent-2);
+    background: rgba(74, 139, 194, 0.14);
+    border-color: rgba(74, 139, 194, 0.5);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent-2); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent-2); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent-2);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent-2);
+    border-radius: 4px;
+    color: var(--accent-2);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(74, 139, 194, 0.28);
+    background: rgba(74, 139, 194, 0.06);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(74, 139, 194, 0.08);
+    border-left: 3px solid var(--accent-2);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent-2); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* Meta-command reference table */
+  table.meta {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  table.meta th, table.meta td {
+    padding: 10px 14px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  table.meta th {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    font-weight: 700; text-transform: uppercase;
+    font-size: 11px; letter-spacing: 0.5px;
+  }
+  table.meta td:first-child {
+    font-family: ui-monospace, monospace;
+    color: var(--accent-2); font-weight: 700;
+    white-space: nowrap;
+  }
+  table.meta td:last-child { color: var(--muted); }
+  table.meta tr:last-child td { border-bottom: none; }
+  table.meta tr:hover td { background: rgba(74, 139, 194, 0.04); }
+
+  /* Faux psql terminal simulator */
+  .terminal {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+  .terminal-head {
+    background: linear-gradient(180deg, #1a3052, #142540);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .terminal-head .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.red { background: #ff5f57; }
+  .dot.yellow { background: #febc2e; }
+  .dot.green { background: #28c840; }
+  .terminal-head .title {
+    color: var(--muted); font-size: 12px; margin-left: 8px;
+  }
+  .terminal-body {
+    padding: 14px;
+    min-height: 240px;
+    max-height: 480px;
+    overflow-y: auto;
+    line-height: 1.65;
+    color: #d3deeb;
+  }
+  .term-prompt { color: var(--accent-2); font-weight: 700; }
+  .term-user-input { color: var(--good); }
+  .term-output { color: #c5d2e2; white-space: pre; display: block; margin: 4px 0 8px; }
+  .term-comment { color: var(--muted); font-style: italic; }
+
+  .query-buttons {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 10px;
+  }
+  .query-buttons button {
+    background: var(--panel-2);
+    color: var(--accent-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .query-buttons button:hover {
+    background: rgba(74, 139, 194, 0.14);
+    border-color: var(--accent-2);
+  }
+  .query-buttons button.recent {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+
+  /* Mini project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(74,139,194,0.07), rgba(51,103,145,0.02));
+    border: 1px solid rgba(74, 139, 194, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent-2); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Pipeline ladder for mini project */
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+  .ladder .step {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+    transition: all 0.3s;
+  }
+  .ladder .step.active {
+    border-color: var(--accent-2);
+    background: rgba(74, 139, 194, 0.14);
+    box-shadow: 0 0 14px rgba(74, 139, 194, 0.3);
+    transform: translateY(-2px);
+  }
+  .ladder .step .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .ladder .step .name { color: var(--text); font-weight: 700; font-family: ui-monospace, monospace; }
+  .ladder .step .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(74, 139, 194, 0.18);
+    color: var(--accent-2);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.warn { background: rgba(248,113,113,0.13); color: var(--bad); }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent-2); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent-2);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent-2);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(74, 139, 194, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent-2); text-decoration: none; }
+  footer code { color: var(--accent-2); }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="elephant">🐘</span> PostgreSQL CLI <span class="badge">Type to Learn</span>
+    </div>
+    <div class="progress-bar-outer" title="progression globale">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercices terminés">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">résolus</span>
+    </div>
+    <div class="streak" title="série">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent-2); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. Bienvenue</button>
+    <button data-tab="connect">2. Connexion</button>
+    <button data-tab="meta">3. Méta-commandes</button>
+    <button data-tab="inspect">4. Inspection</button>
+    <button data-tab="simulator">5. Simulateur</button>
+    <button data-tab="queries">6. Requêtes utiles</button>
+    <button data-tab="backup">7. Sauvegarde / Restauration</button>
+    <button data-tab="drills">8. Exercices</button>
+    <button data-tab="project">9. Mini-projet</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>La CLI PostgreSQL — drillez <code style="color: var(--tag); font-size: 22px;">psql</code> jusqu’à ce que ça tienne</h1>
+  <p class="lead">
+    <code style="color: var(--tag)">psql</code> est le client terminal officiel pour PostgreSQL. Il est
+    livré avec chaque serveur, scriptable, rapide à scripter, et bourré de <em>méta-commandes</em> backslash
+    qui battent n’importe quelle GUI. À la fin de cette page, vous aurez <strong>tapé</strong> les flags de
+    connexion, les méta-commandes, le SQL, le dump/restore, les one-liners de maintenance, et un petit
+    projet bout-en-bout.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">Qu’est-ce que psql ?</div></div>
+      <div class="card-body">
+        Un programme terminal qui parle le protocole filaire PostgreSQL. Il exécute votre SQL mais aussi
+        des <em>commandes backslash</em> comme <code style="color: var(--tag)">\dt</code> (lister les tables) et
+        <code style="color: var(--tag)">\d users</code> (décrire une table). Complétion par tabulation, historique,
+        scripting via <code style="color: var(--tag)">-c / -f</code>, et chargement en masse via
+        <code style="color: var(--tag)">\copy</code>.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Pourquoi pas une GUI ?</div></div>
+      <div class="card-body">
+        Parce que les GUI cachent la commande réelle, ne peuvent être scriptées, ne tournent pas sur une machine distante via SSH,
+        et cassent sur les gros résultats. Une fois que <code style="color: var(--tag)">\d</code>,
+        <code style="color: var(--tag)">\dt+</code>, et <code style="color: var(--tag)">\watch</code>
+        vivent dans vos doigts, vous serez plus rapide que n’importe quelle UI sur Terre.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Les amis de psql</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">pg_dump</code> / <code style="color: var(--tag)">pg_restore</code>
+        pour les sauvegardes, <code style="color: var(--tag)">pg_isready</code> pour les health checks,
+        <code style="color: var(--tag)">createdb</code> / <code style="color: var(--tag)">dropdb</code>
+        en wrappers fins, <code style="color: var(--tag)">vacuumdb</code>,
+        <code style="color: var(--tag)">reindexdb</code>. Tous parlent les mêmes flags de connexion.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Conventions</div></div>
+      <div class="card-body">
+        Port par défaut <span class="pill">5432</span>, BD et utilisateur par défaut correspondent généralement à votre utilisateur OS.
+        Dans <code style="color: var(--tag)">psql</code> :
+        <code style="color: var(--tag)">\?</code> liste les méta-commandes,
+        <code style="color: var(--tag)">\h SELECT</code> montre la syntaxe SQL,
+        <code style="color: var(--tag)">\q</code> quitte.
+      </div>
+    </div>
+  </div>
+
+  <h2>L’antisèche psql que vous mémoriserez</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">essentiels</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># se connecter</span>
+psql -h db.example.com -p 5432 -U app -d shop
+
+<span class="tok-c"># dans psql</span>
+\l            <span class="tok-c"># lister les bases de données</span>
+\c shop       <span class="tok-c"># se connecter à la BD "shop"</span>
+\dt           <span class="tok-c"># lister les tables</span>
+\d users      <span class="tok-c"># décrire la table "users"</span>
+\df           <span class="tok-c"># lister les fonctions</span>
+\du           <span class="tok-c"># lister les rôles</span>
+\timing on    <span class="tok-c"># chronométrer chaque requête</span>
+\watch 2      <span class="tok-c"># relancer la dernière requête toutes les 2s</span>
+\copy users TO 'users.csv' CSV HEADER
+\q            <span class="tok-c"># quitter</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Comment utiliser cette page :</strong> parcourez les sections, tapez dans les
+    <span class="pill">blancs</span> (Entrée pour vérifier, Tab pour passer), visez la série. Une explosion
+    de confettis signifie que vous avez fini une section.
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    Prêt ? Cliquez <strong>2. Connexion</strong> en haut. On démarre là où chaque session démarre :
+    en y rentrant.
+  </p>
+</section>
+
+<!-- ========================= CONNECT ========================= -->
+<section class="tab-section" id="tab-connect">
+  <h1>Connexion — entrer dans psql</h1>
+  <p class="lead">
+    Six façons de se connecter. Choisissez celle qui correspond à votre situation.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">tous les styles de connexion</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. défauts — utilise $PGUSER / $PGDATABASE / unix socket</span>
+psql
+
+<span class="tok-c"># 2. flags explicites</span>
+psql -h db.example.com -p 5432 -U alice -d shop
+
+<span class="tok-c"># 3. forme URI (idéal pour les variables d’env / CI)</span>
+psql postgresql://alice:secret@db.example.com:5432/shop
+
+<span class="tok-c"># 4. requête one-shot, sans shell interactif</span>
+psql -h host -U alice -d shop -c "SELECT now();"
+
+<span class="tok-c"># 5. exécuter un script .sql</span>
+psql -h host -U alice -d shop -f migrate.sql
+
+<span class="tok-c"># 6. avec des variables d’environnement</span>
+PGHOST=db PGUSER=alice PGDATABASE=shop psql</code></pre>
+  </div>
+
+  <h2>Authentification sans taper son mot de passe à chaque fois</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">~/.pgpass</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># ~/.pgpass — une ligne par (host, port, db, user, password)</span>
+<span class="tok-c"># wildcards autorisés pour n’importe quel champ</span>
+db.example.com:5432:shop:alice:s3cret
+*:*:*:postgres:rootpw
+
+<span class="tok-c"># DOIT être chmod 600 sinon psql l’ignore</span>
+chmod 600 ~/.pgpass</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Définissez votre propre mot de passe depuis psql</strong> avec
+    <code style="color: var(--tag)">\password</code>. Il hashe côté client donc le plaintext ne quitte
+    jamais le terminal — bien plus sûr que <code style="color: var(--tag)">ALTER USER ... PASSWORD '...'</code>
+    qui atterrirait dans le log serveur.
+  </div>
+
+  <h2>Tapez les flags de connexion</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Se connecter à l’hôte <code style="color: var(--tag)">db.example.com</code>, port 5432, en tant qu’utilisateur <code style="color: var(--tag)">alice</code>, à la base <code style="color: var(--tag)">shop</code>. Remplissez le flag d’hôte.</div>
+    <pre class="exercise">psql <input class="blank" data-answer="-h" size="3" placeholder="?"> db.example.com -p 5432 -U alice -d shop</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Même connexion, remplissez le flag utilisateur.</div>
+    <pre class="exercise">psql -h db.example.com -p 5432 <input class="blank" data-answer="-U" size="3" placeholder="?"> alice -d shop</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Forme URI — tapez le numéro de port Postgres par défaut.</div>
+    <pre class="exercise">psql postgresql://user:pass@host:<input class="blank" data-answer="5432" size="6" placeholder="?">/dbname</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Quitter psql.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="q" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Définir votre propre mot de passe en sécurité depuis psql.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="password" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Quelle permission doit avoir <code style="color: var(--tag)">~/.pgpass</code> pour que psql le lise ? (octal)</div>
+    <pre class="exercise">chmod <input class="blank" data-answer="600" size="5" placeholder="?"> ~/.pgpass</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Afficher l’aide intégrée pour la syntaxe SQL d’un statement.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="h" size="3" placeholder="?"> SELECT</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>Continuez à taper :</strong> <code style="color: var(--tag)">\?</code> liste toutes les méta-commandes.
+    <code style="color: var(--tag)">\h</code> liste toutes les instructions SQL. Ce sont vos deux meilleurs amis.
+  </div>
+</section>
+
+<!-- ========================= META ========================= -->
+<section class="tab-section" id="tab-meta">
+  <h1>Aide-mémoire des méta-commandes</h1>
+  <p class="lead">
+    Les méta-commandes backslash sont spéciales — elles ne sont pas envoyées au serveur, psql les interprète
+    localement. Ajoutez un <code style="color: var(--tag)">+</code> pour le mode verbeux, préfixez avec
+    <code style="color: var(--tag)">\d</code> pour décrire.
+  </p>
+
+  <h2>Lister des choses</h2>
+  <table class="meta">
+    <tr><th>Commande</th><th>Description</th></tr>
+    <tr><td>\l</td><td>lister toutes les bases (tailles, propriétaires, encodage)</td></tr>
+    <tr><td>\c <em>dbname</em></td><td>se connecter à une autre base</td></tr>
+    <tr><td>\dt</td><td>lister les tables du schéma courant</td></tr>
+    <tr><td>\dt+</td><td>idem, plus taille et description</td></tr>
+    <tr><td>\dt *.*</td><td>lister les tables de <em>tous</em> les schémas</td></tr>
+    <tr><td>\dn</td><td>lister les schémas</td></tr>
+    <tr><td>\dv</td><td>lister les vues</td></tr>
+    <tr><td>\di</td><td>lister les index</td></tr>
+    <tr><td>\df</td><td>lister les fonctions</td></tr>
+    <tr><td>\du</td><td>lister les rôles / utilisateurs</td></tr>
+    <tr><td>\dx</td><td>lister les extensions installées</td></tr>
+  </table>
+
+  <h2>Décrire des choses</h2>
+  <table class="meta">
+    <tr><th>Commande</th><th>Description</th></tr>
+    <tr><td>\d <em>table</em></td><td>colonnes, types, index, contraintes, FK</td></tr>
+    <tr><td>\d+ <em>table</em></td><td>tout, plus stockage et cibles statistiques</td></tr>
+    <tr><td>\d <em>view</em></td><td>montre le SELECT sous-jacent</td></tr>
+    <tr><td>\d <em>idx</em></td><td>montre les colonnes de l’index et sa définition</td></tr>
+    <tr><td>\sf <em>func</em></td><td>montre la source complète d’une fonction</td></tr>
+  </table>
+
+  <h2>Édition &amp; exécution</h2>
+  <table class="meta">
+    <tr><th>Commande</th><th>Description</th></tr>
+    <tr><td>\e</td><td>ouvrir la dernière requête dans $EDITOR</td></tr>
+    <tr><td>\i <em>file.sql</em></td><td>exécuter un fichier de script</td></tr>
+    <tr><td>\copy <em>tbl</em> FROM 'f.csv' CSV HEADER</td><td>chargement en masse côté client (pas besoin d’accès fichier serveur)</td></tr>
+    <tr><td>\watch <em>n</em></td><td>relancer la dernière requête toutes les <em>n</em> secondes</td></tr>
+    <tr><td>\timing on</td><td>imprimer le temps d’exécution après chaque requête</td></tr>
+    <tr><td>\x</td><td>basculer l’affichage étendu (lignes les unes au-dessus des autres)</td></tr>
+    <tr><td>\set</td><td>afficher / définir les variables psql</td></tr>
+    <tr><td>\password [<em>user</em>]</td><td>changer un mot de passe en sécurité</td></tr>
+    <tr><td>\?</td><td>aide complète des méta-commandes</td></tr>
+    <tr><td>\h <em>STMT</em></td><td>aide syntaxe SQL</td></tr>
+    <tr><td>\q</td><td>quitter psql</td></tr>
+  </table>
+
+  <h2>Exercices</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> Lister toutes les bases.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="l|list" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> Lister toutes les tables du schéma courant.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="dt" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> Décrire une seule table appelée <code style="color: var(--tag)">orders</code>.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="d" size="3" placeholder="?"> orders</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> Basculer vers une autre base appelée <code style="color: var(--tag)">mydb</code>.</div>
+    <pre class="exercise">postgres=# \<input class="blank" data-answer="c|connect" size="6" placeholder="?"> mydb</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> Activer le chronométrage par requête.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="timing" size="8" placeholder="?"> on</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> Relancer la requête précédente toutes les 1 seconde (moniteur live).</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="watch" size="7" placeholder="?"> 1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Lister les extensions installées.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="dx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= INSPECT ========================= -->
+<section class="tab-section" id="tab-inspect">
+  <h1>Inspection — schéma, types, index, plans</h1>
+  <p class="lead">
+    Une fois connecté, la première chose à faire c’est de regarder autour. Voici comment savoir ce qu’il y a dans votre base.
+  </p>
+
+  <h2>SQL DDL — les types que vous utiliserez vraiment</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">CREATE TABLE — les types riches</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">CREATE TABLE</span> users (
+    id          <span class="tok-t">UUID</span>        <span class="tok-k">PRIMARY KEY</span> <span class="tok-k">DEFAULT</span> gen_random_uuid(),
+    email       <span class="tok-t">TEXT</span>        <span class="tok-k">NOT NULL UNIQUE</span>,
+    age         <span class="tok-t">INT</span>         <span class="tok-k">CHECK</span> (age &gt;= <span class="tok-n">0</span>),
+    tags        <span class="tok-t">TEXT</span>[],                                <span class="tok-c">-- ARRAY</span>
+    profile     <span class="tok-t">JSONB</span>       <span class="tok-k">NOT NULL</span> <span class="tok-k">DEFAULT</span> <span class="tok-s">'{}'</span>,    <span class="tok-c">-- JSONB</span>
+    created_at  <span class="tok-t">TIMESTAMPTZ</span> <span class="tok-k">NOT NULL</span> <span class="tok-k">DEFAULT</span> now()
+);
+
+<span class="tok-c">-- clé étrangère</span>
+<span class="tok-k">CREATE TABLE</span> orders (
+    id       <span class="tok-t">BIGSERIAL</span> <span class="tok-k">PRIMARY KEY</span>,
+    user_id  <span class="tok-t">UUID</span> <span class="tok-k">NOT NULL REFERENCES</span> users(id) <span class="tok-k">ON DELETE CASCADE</span>,
+    total    <span class="tok-t">NUMERIC</span>(<span class="tok-n">10</span>,<span class="tok-n">2</span>) <span class="tok-k">NOT NULL</span>
+);</code></pre>
+  </div>
+
+  <h2>Index — trois saveurs qui couvrent la plupart des besoins</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">patrons d’indexation</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c">-- 1. B-tree simple (le défaut)</span>
+<span class="tok-k">CREATE INDEX</span> idx_orders_user <span class="tok-k">ON</span> orders(user_id);
+
+<span class="tok-c">-- 2. contrainte d’unicité via index</span>
+<span class="tok-k">CREATE UNIQUE INDEX</span> idx_users_email <span class="tok-k">ON</span> users(lower(email));
+
+<span class="tok-c">-- 3. partiel — n’indexer que les lignes "live"</span>
+<span class="tok-k">CREATE INDEX</span> idx_open_orders <span class="tok-k">ON</span> orders(user_id)
+    <span class="tok-k">WHERE</span> status = <span class="tok-s">'open'</span>;
+
+<span class="tok-c">-- 4. GIN pour JSONB / tableaux / full text</span>
+<span class="tok-k">CREATE INDEX</span> idx_users_profile <span class="tok-k">ON</span> users <span class="tok-k">USING GIN</span> (profile);
+<span class="tok-k">CREATE INDEX</span> idx_users_tags    <span class="tok-k">ON</span> users <span class="tok-k">USING GIN</span> (tags);</code></pre>
+  </div>
+
+  <h2>EXPLAIN — lire votre plan de requête</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">explain analyze</div></div>
+    <pre class="code"><code><span class="tok-k">EXPLAIN</span> (ANALYZE, BUFFERS) <span class="tok-k">SELECT</span> * <span class="tok-k">FROM</span> orders <span class="tok-k">WHERE</span> user_id = <span class="tok-s">'...'</span>;
+<span class="tok-c">--  Index Scan using idx_orders_user on orders  (cost=0.42..8.44 rows=1 width=...)</span>
+<span class="tok-c">--    Index Cond: (user_id = '...'::uuid)</span>
+<span class="tok-c">--  Planning Time: 0.12 ms</span>
+<span class="tok-c">--  Execution Time: 0.04 ms</span></code></pre>
+  </div>
+  <div class="note">
+    <strong>Lire EXPLAIN :</strong> exécution top-down, coût bottom-up. <em>Seq Scan</em> sur une grosse
+    table où vous attendiez un <em>Index Scan</em> = index manquant/inutilisé. Utilisez l’option
+    <code style="color: var(--tag)">BUFFERS</code> pour voir les lectures disque vs cache.
+  </div>
+
+  <h2>UPSERT, CTE, fonctions de fenêtre — les bonnes choses</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">upsert (INSERT … ON CONFLICT)</div></div>
+    <pre class="code"><code><span class="tok-k">INSERT INTO</span> users (id, email)
+<span class="tok-k">VALUES</span> (<span class="tok-s">'a-uuid'</span>, <span class="tok-s">'a@x'</span>)
+<span class="tok-k">ON CONFLICT</span> (id) <span class="tok-k">DO UPDATE SET</span> email = <span class="tok-k">EXCLUDED</span>.email;</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">CTE + fonction de fenêtre</div></div>
+    <pre class="code"><code><span class="tok-k">WITH</span> ranked <span class="tok-k">AS</span> (
+    <span class="tok-k">SELECT</span> user_id, total,
+           ROW_NUMBER() <span class="tok-k">OVER</span> (<span class="tok-k">PARTITION BY</span> user_id <span class="tok-k">ORDER BY</span> total <span class="tok-k">DESC</span>) <span class="tok-k">AS</span> rn
+    <span class="tok-k">FROM</span> orders
+)
+<span class="tok-k">SELECT</span> * <span class="tok-k">FROM</span> ranked <span class="tok-k">WHERE</span> rn = <span class="tok-n">1</span>;   <span class="tok-c">-- meilleure commande par utilisateur</span></code></pre>
+  </div>
+
+  <h2>Exercices</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> Câblez une clé étrangère de <code style="color: var(--tag)">orders.user_id</code> vers <code style="color: var(--tag)">users(id)</code>.</div>
+    <pre class="exercise">FOREIGN KEY (user_id) <input class="blank" data-answer="REFERENCES|references" size="11" placeholder="?"> users(id)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> UPSERT — qu’est-ce qui vient après <code style="color: var(--tag)">ON</code> ?</div>
+    <pre class="exercise">INSERT INTO users (id, email) VALUES (...)
+ON <input class="blank" data-answer="CONFLICT|conflict" size="9" placeholder="?"> (id) DO UPDATE SET email = EXCLUDED.email;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> Fonctions de fenêtre — remplissez le mot-clé qui introduit la fenêtre.</div>
+    <pre class="exercise">SELECT user_id,
+       ROW_NUMBER() <input class="blank" data-answer="OVER|over" size="6" placeholder="?"> (PARTITION BY user_id ORDER BY total DESC) AS rn
+FROM orders;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> Construisez un index optimisé pour les requêtes de containment JSONB.</div>
+    <pre class="exercise">CREATE INDEX idx_profile ON users USING <input class="blank" data-answer="GIN|gin" size="5" placeholder="?"> (profile);</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> Voir le runtime réel + buffers pour une requête.</div>
+    <pre class="exercise"><input class="blank" data-answer="EXPLAIN|explain" size="9" placeholder="?"> (ANALYZE, BUFFERS) SELECT * FROM orders WHERE user_id = '...';</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= SIMULATOR ========================= -->
+<section class="tab-section" id="tab-simulator">
+  <h1>Simulateur psql interactif</h1>
+  <p class="lead">
+    Cliquez sur une requête pré-construite et voyez la sortie scriptée, exactement comme une vraie
+    session <code style="color: var(--tag)">psql</code>. Aucune base de données requise.
+  </p>
+
+  <div class="terminal">
+    <div class="terminal-head">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title">alice@db.example.com — psql (16.2)</span>
+    </div>
+    <div class="terminal-body" id="termBody">
+<div><span class="term-prompt">$</span> <span class="term-user-input">psql -h db.example.com -U alice -d shop</span></div>
+<span class="term-output">psql (16.2)
+SSL connection (protocol: TLSv1.3, cipher: TLS_AES_256_GCM_SHA384)
+Type "help" for help.
+
+shop=&gt;</span>
+    </div>
+  </div>
+
+  <p style="margin-top: 14px; color: var(--muted); font-size: 13px;">cliquez sur une requête pour la lancer dans le simulateur :</p>
+  <div class="query-buttons" id="queryButtons">
+    <button data-q="\l">\l</button>
+    <button data-q="\dt">\dt</button>
+    <button data-q="\d users">\d users</button>
+    <button data-q="\du">\du</button>
+    <button data-q="\dx">\dx</button>
+    <button data-q="\timing on">\timing on</button>
+    <button data-q="select-now">SELECT now();</button>
+    <button data-q="select-version">SELECT version();</button>
+    <button data-q="count-users">SELECT count(*) FROM users;</button>
+    <button data-q="big-tables">top 5 plus grosses tables</button>
+    <button data-q="active">requêtes en cours (pg_stat_activity)</button>
+    <button data-q="size">taille de la base</button>
+    <button data-q="explain">EXPLAIN ANALYZE</button>
+    <button data-q="clear">effacer</button>
+  </div>
+
+  <div class="note" style="margin-top: 18px;">
+    <strong>Ce qui est réel ici :</strong> le format du prompt, la disposition des colonnes, la façon dont les méta-commandes
+    s’impriment, et le timing. Les lignes elles-mêmes sont des fixtures — copiez n’importe quel SQL dans une vraie session psql
+    et ça marchera.
+  </div>
+</section>
+
+<!-- ========================= QUERIES ========================= -->
+<section class="tab-section" id="tab-queries">
+  <h1>One-liners utiles</h1>
+  <p class="lead">
+    Les requêtes que les vrais DBA en prod collent à 3h du matin. Sauvegardez-les.
+  </p>
+
+  <h2>Top 5 plus grosses tables</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">détective de la taille</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">SELECT</span>
+    schemaname || <span class="tok-s">'.'</span> || relname           <span class="tok-k">AS</span> table,
+    pg_size_pretty(pg_total_relation_size(relid))  <span class="tok-k">AS</span> total_size,
+    pg_size_pretty(pg_relation_size(relid))        <span class="tok-k">AS</span> data_size,
+    pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) <span class="tok-k">AS</span> idx_size
+<span class="tok-k">FROM</span> pg_catalog.pg_statio_user_tables
+<span class="tok-k">ORDER BY</span> pg_total_relation_size(relid) <span class="tok-k">DESC</span>
+<span class="tok-k">LIMIT</span> <span class="tok-n">5</span>;</code></pre>
+  </div>
+
+  <h2>Requêtes en cours — qui fait quoi maintenant</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">pg_stat_activity</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">SELECT</span> pid, usename, application_name, state,
+       now() - query_start <span class="tok-k">AS</span> runtime,
+       <span class="tok-f">left</span>(query, <span class="tok-n">100</span>) <span class="tok-k">AS</span> q
+<span class="tok-k">FROM</span> pg_stat_activity
+<span class="tok-k">WHERE</span> state &lt;&gt; <span class="tok-s">'idle'</span>
+<span class="tok-k">ORDER BY</span> runtime <span class="tok-k">DESC</span>;</code></pre>
+  </div>
+
+  <h2>Annuler / tuer une requête qui s’emballe</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">cancel vs terminate</div></div>
+    <pre class="code"><code><span class="tok-c">-- poli : demander à la requête de s’arrêter (garde la connexion ouverte)</span>
+<span class="tok-k">SELECT</span> pg_cancel_backend(<span class="tok-n">12345</span>);
+
+<span class="tok-c">-- nucléaire : tuer toute la connexion</span>
+<span class="tok-k">SELECT</span> pg_terminate_backend(<span class="tok-n">12345</span>);</code></pre>
+  </div>
+
+  <h2>Rôles &amp; GRANT</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">créer un utilisateur en lecture seule</div></div>
+    <pre class="code"><code><span class="tok-k">CREATE ROLE</span> readonly <span class="tok-k">LOGIN PASSWORD</span> <span class="tok-s">'change-me'</span>;
+<span class="tok-k">GRANT CONNECT</span> <span class="tok-k">ON DATABASE</span> shop <span class="tok-k">TO</span> readonly;
+<span class="tok-k">GRANT USAGE</span> <span class="tok-k">ON SCHEMA</span> public <span class="tok-k">TO</span> readonly;
+<span class="tok-k">GRANT SELECT</span> <span class="tok-k">ON ALL TABLES</span> <span class="tok-k">IN SCHEMA</span> public <span class="tok-k">TO</span> readonly;
+<span class="tok-k">ALTER DEFAULT PRIVILEGES</span> <span class="tok-k">IN SCHEMA</span> public
+    <span class="tok-k">GRANT SELECT</span> <span class="tok-k">ON TABLES</span> <span class="tok-k">TO</span> readonly;</code></pre>
+  </div>
+
+  <h2>Extensions à connaître</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">pg_stat_statements</div></div>
+      <div class="card-body">
+        Suivre le runtime + les stats de plan de chaque requête. <em>La</em> première chose qu’un DBA sérieux installe.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pg_stat_statements;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pgcrypto</div></div>
+      <div class="card-body">
+        <code style="color: var(--tag)">gen_random_uuid()</code>, <code style="color: var(--tag)">crypt()</code>,
+        hashing bcrypt des mots de passe.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pgcrypto;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">uuid-ossp</div></div>
+      <div class="card-body">
+        Anciens générateurs d’UUID (v1, v3, v4, v5). Sur PG moderne, préférez le <code style="color: var(--tag)">gen_random_uuid()</code>
+        de <em>pgcrypto</em>.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> <span class="tok-s">"uuid-ossp"</span>;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pg_trgm</div></div>
+      <div class="card-body">
+        Recherche texte fuzzy / par similarité. Combinez avec un index GIN pour des perfs
+        <code style="color: var(--tag)">LIKE '%foo%'</code> fulgurantes.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> pg_trgm;</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pgvector</div></div>
+      <div class="card-body">
+        Stocker des vecteurs d’embeddings ; <code style="color: var(--tag)">&lt;-&gt;</code> = L2,
+        <code style="color: var(--tag)">&lt;=&gt;</code> = cosinus. Support natif AI/RAG.
+        <pre class="code" style="margin-top: 8px;"><code><span class="tok-k">CREATE EXTENSION IF NOT EXISTS</span> vector;</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h2>Exercices</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> Vue des requêtes en cours — tapez le nom de la relation.</div>
+    <pre class="exercise">SELECT pid, query FROM pg_stat_<input class="blank" data-answer="activity" size="10" placeholder="?"> WHERE state &lt;&gt; 'idle';</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> Annuler poliment la requête tournant sur le PID 12345.</div>
+    <pre class="exercise">SELECT pg_cancel_<input class="blank" data-answer="backend" size="9" placeholder="?">(12345);</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> Installer une extension par son nom (n’importe laquelle des standards — pgcrypto, pg_trgm, vector).</div>
+    <pre class="exercise">CREATE EXTENSION IF NOT EXISTS <input class="blank" data-answer="pgcrypto|pg_trgm|pgvector|vector|pg_stat_statements|uuid-ossp" size="14" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> Accorder SELECT sur toutes les tables du schéma <code style="color: var(--tag)">public</code> à <code style="color: var(--tag)">readonly</code>.</div>
+    <pre class="exercise">GRANT <input class="blank" data-answer="SELECT|select" size="8" placeholder="?"> ON ALL TABLES IN SCHEMA public TO readonly;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= BACKUP ========================= -->
+<section class="tab-section" id="tab-backup">
+  <h1>Sauvegarde &amp; Restauration — pg_dump / pg_restore</h1>
+  <p class="lead">
+    Deux binaires, quatre flags. Maîtrisez-les et vos données sont en sécurité.
+  </p>
+
+  <h2>Les quatre formats</h2>
+  <table class="meta">
+    <tr><th>Flag</th><th>Format</th><th>Quand l’utiliser</th></tr>
+    <tr><td>-Fp</td><td>SQL plat</td><td>petites BD, lisible, rejouable avec <code>psql -f</code></td></tr>
+    <tr><td>-Fc</td><td>custom (binaire)</td><td><strong>défaut pour l’ops</strong> — compressé, restore parallèle, filtres de tables</td></tr>
+    <tr><td>-Ft</td><td>tar</td><td>tarball de répertoire non compressé — rare</td></tr>
+    <tr><td>-Fd</td><td>répertoire</td><td><strong>dump</strong> parallèle avec <code>-j N</code></td></tr>
+  </table>
+
+  <h2>Recettes</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">sauvegarde</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># une seule BD, format custom (recommandé)</span>
+pg_dump -h host -U alice -Fc shop &gt; shop.dump
+
+<span class="tok-c"># SQL plat compressé</span>
+pg_dump -h host -U alice shop | gzip &gt; shop.sql.gz
+
+<span class="tok-c"># schéma seul / données seules</span>
+pg_dump -Fc --schema-only shop &gt; shop_schema.dump
+pg_dump -Fc --data-only   shop &gt; shop_data.dump
+
+<span class="tok-c"># dump répertoire parallèle (4 jobs)</span>
+pg_dump -Fd -j 4 -f shop_dir shop
+
+<span class="tok-c"># toutes les bases du cluster (incl. rôles)</span>
+pg_dumpall -U postgres &gt; cluster.sql</code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">restauration</div>
+      <button class="copy-btn" onclick="copyCode(this)">copier</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># format custom → utiliser pg_restore</span>
+createdb shop_new
+pg_restore -h host -U alice -d shop_new -j 4 shop.dump
+
+<span class="tok-c"># SQL plat → utiliser psql -f</span>
+psql -h host -U alice -d shop_new -f shop.sql
+
+<span class="tok-c"># lister le contenu d’un dump custom (sans restaurer)</span>
+pg_restore -l shop.dump | head
+
+<span class="tok-c"># restaurer une seule table</span>
+pg_restore -d shop_new -t users shop.dump</code></pre>
+  </div>
+
+  <h2>Maintenance — gardez PG content</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">vacuum / analyze / reindex</div></div>
+    <pre class="code"><code><span class="tok-c">-- récupérer les lignes mortes + rafraîchir les stats du planificateur</span>
+<span class="tok-k">VACUUM ANALYZE</span>;
+<span class="tok-k">VACUUM ANALYZE</span> orders;            <span class="tok-c">-- une seule table</span>
+
+<span class="tok-c">-- agressif : verrouille la table, la réécrit (rarement nécessaire)</span>
+<span class="tok-k">VACUUM FULL</span> orders;
+
+<span class="tok-c">-- reconstruire les index gonflés</span>
+<span class="tok-k">REINDEX TABLE CONCURRENTLY</span> orders;
+<span class="tok-k">REINDEX INDEX</span> idx_orders_user;</code></pre>
+  </div>
+
+  <h2>Exercices</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> Dump de la base <code style="color: var(--tag)">mydb</code> vers un fichier au format custom. Tapez l’extension du fichier.</div>
+    <pre class="exercise">pg_dump -Fc mydb &gt; out.<input class="blank" data-answer="dump" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> Choisissez le flag de format pour le format ops recommandé (binaire, compressé, supporte <code style="color: var(--tag)">-j</code>).</div>
+    <pre class="exercise">pg_dump <input class="blank" data-answer="-Fc|-fc" size="5" placeholder="?"> mydb &gt; out.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> Restaurer le fichier au format custom avec 4 workers parallèles.</div>
+    <pre class="exercise">pg_restore -d mydb_new -<input class="blank" data-answer="j" size="3" placeholder="?"> 4 out.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">27</span> Récupérer les tuples morts et rafraîchir les statistiques du planificateur en une instruction.</div>
+    <pre class="exercise"><input class="blank" data-answer="VACUUM|vacuum" size="9" placeholder="?"> ANALYZE orders;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>Règle d’or des restaurations :</strong> restaurez toujours dans une base <em>fraîche</em> et vide
+    (<code style="color: var(--tag)">createdb shop_new</code>), vérifiez, puis renommez ou réorientez votre app.
+    Ne restaurez jamais par-dessus une BD live.
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Exercices mélangés</h1>
+  <p class="lead">
+    Tout des sections précédentes, mélangé. Si vous réussissez ceux-ci sans indice, vous pouvez
+    piloter psql en dormant.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">28</span> Basculer l’affichage étendu (une ligne par écran, colonnes empilées).</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="x" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">29</span> Exécuter le script SQL <code style="color: var(--tag)">migrate.sql</code> depuis psql.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="i" size="3" placeholder="?"> migrate.sql</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">30</span> Charger en masse <code style="color: var(--tag)">users.csv</code> depuis votre laptop dans la table <code style="color: var(--tag)">users</code> (côté client, sans accès fichier serveur).</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="copy" size="6" placeholder="?"> users FROM 'users.csv' CSV HEADER</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">31</span> Démarrer une transaction.</div>
+    <pre class="exercise">shop=# <input class="blank" data-answer="BEGIN|begin" size="7" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">32</span> Annuler la transaction (rollback).</div>
+    <pre class="exercise">shop=# <input class="blank" data-answer="ROLLBACK|rollback" size="9" placeholder="?">;</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">33</span> Ouvrir la dernière requête dans votre $EDITOR.</div>
+    <pre class="exercise">shop=# \<input class="blank" data-answer="e" size="3" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">34</span> Identifiant unique universel — tapez le type de colonne pour les clés primaires que vous générez avec <code style="color: var(--tag)">gen_random_uuid()</code>.</div>
+    <pre class="exercise">id <input class="blank" data-answer="UUID|uuid" size="6" placeholder="?"> PRIMARY KEY DEFAULT gen_random_uuid()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">35</span> Type de colonne JSON indexable (binaire, requêtable).</div>
+    <pre class="exercise">profile <input class="blank" data-answer="JSONB|jsonb" size="6" placeholder="?"> NOT NULL DEFAULT '{}'</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Vérifier</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Indice</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>Mini-projet — construire une petite boutique de bout en bout</h1>
+  <p class="lead">
+    Cinq étapes : créer la base, définir le schéma, insérer des données, requêter, sauvegarder. Chaque étape
+    a un ou deux blancs. Quand tout est vert, cliquez <em>Lancer le pipeline</em> et regardez la session psql
+    simulée l’exécuter.
+  </p>
+
+  <div class="ladder" id="projLadder">
+    <div class="step" data-step="0">
+      <span class="icon">🏗️</span>
+      <div class="name">createdb</div>
+      <div class="desc">créer la base</div>
+    </div>
+    <div class="step" data-step="1">
+      <span class="icon">📐</span>
+      <div class="name">schéma</div>
+      <div class="desc">CREATE TABLE</div>
+    </div>
+    <div class="step" data-step="2">
+      <span class="icon">📥</span>
+      <div class="name">insert</div>
+      <div class="desc">charger les lignes</div>
+    </div>
+    <div class="step" data-step="3">
+      <span class="icon">🔍</span>
+      <div class="name">requête</div>
+      <div class="desc">SELECT</div>
+    </div>
+    <div class="step" data-step="4">
+      <span class="icon">💾</span>
+      <div class="name">pg_dump</div>
+      <div class="desc">sauvegarde</div>
+    </div>
+  </div>
+
+  <div class="project-card">
+    <h3>remplissez les blancs</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      9 blancs à remplir. Cliquez <em>Tout vérifier</em>, puis <em>Lancer le pipeline</em>.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-c"># 1. CRÉER LA BASE (depuis votre shell)</span>
+<span class="tok-k">createdb</span> -U alice shop
+
+<span class="tok-c"># 2. CONNEXION</span>
+psql -U alice -d shop
+
+<span class="tok-c"># 3. SCHÉMA</span>
+shop=&gt; CREATE EXTENSION IF NOT EXISTS <input class="blank" data-answer="pgcrypto" size="10" placeholder="?">;
+
+shop=&gt; CREATE TABLE users (
+    id    <input class="blank" data-answer="UUID|uuid" size="6" placeholder="?"> PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
+    profile <input class="blank" data-answer="JSONB|jsonb" size="6" placeholder="?"> NOT NULL DEFAULT '{}'
+);
+
+shop=&gt; CREATE TABLE orders (
+    id      BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL <input class="blank" data-answer="REFERENCES|references" size="11" placeholder="?"> users(id) ON DELETE CASCADE,
+    total   NUMERIC(10,2) NOT NULL
+);
+
+<span class="tok-c"># 4. INSERT (idempotent via UPSERT)</span>
+shop=&gt; INSERT INTO users (email) VALUES ('a@x'), ('b@x')
+       ON <input class="blank" data-answer="CONFLICT|conflict" size="9" placeholder="?"> (email) DO NOTHING;
+
+<span class="tok-c"># 5. REQUÊTE : meilleure commande par utilisateur</span>
+shop=&gt; SELECT user_id, total,
+              ROW_NUMBER() <input class="blank" data-answer="OVER|over" size="6" placeholder="?"> (PARTITION BY user_id ORDER BY total DESC) AS rn
+       FROM orders;
+
+<span class="tok-c"># 6. INSPECTION</span>
+shop=&gt; \<input class="blank" data-answer="dt" size="4" placeholder="?">
+
+<span class="tok-c"># 7. SAUVEGARDE (retour au shell)</span>
+shop=&gt; \<input class="blank" data-answer="q" size="3" placeholder="?">
+$ pg_dump -<input class="blank" data-answer="Fc|fc" size="4" placeholder="?"> shop &gt; shop.dump</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">Tout vérifier</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="runPipeline()" disabled>▶ Lancer le pipeline</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="terminal" style="margin-top: 18px;">
+    <div class="terminal-head">
+      <span class="dot red"></span>
+      <span class="dot yellow"></span>
+      <span class="dot green"></span>
+      <span class="title">sortie du pipeline</span>
+    </div>
+    <div class="terminal-body" id="pipelineBody" style="min-height: 280px;">
+<span class="term-comment">— cliquez « Lancer le pipeline » une fois tous les blancs verts —</span>
+    </div>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">Pipeline complet !</strong>
+    Vous vous êtes connecté, avez conçu un schéma avec UUID et JSONB, chargé des données avec UPSERT, lancé une
+    requête à fonction de fenêtre, et produit une sauvegarde portable. C’est un vrai jour-1 de n’importe quelle nouvelle
+    base Postgres.
+  </div>
+
+  <h2>La suite ?</h2>
+  <p class="lead">
+    Installez <code style="color: var(--tag)">postgresql-client</code> et essayez chaque commande de cette page
+    contre une vraie base. Lancez Postgres en 30 secondes avec
+    <code style="color: var(--tag)">docker run -e POSTGRES_PASSWORD=pw -p 5432:5432 postgres:16</code>
+    et connectez-vous avec <code style="color: var(--tag)">psql -h localhost -U postgres</code>.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Raccourcis clavier</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>passer au blanc suivant</td></tr>
+      <tr><td><kbd>Entrée</kbd></td><td>vérifier l’exercice courant</td></tr>
+      <tr><td><kbd>?</kbd></td><td>cette aide</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>changer d’onglet</td></tr>
+      <tr><td><kbd>Échap</kbd></td><td>fermer l’overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Cliquez n’importe où pour fermer.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent-2);">Les sorties du simulateur sont des fixtures</strong> — copiez n’importe lequel
+  des SQL dans une vraie session <code>psql</code> et il tournera pour de vrai. Lancez Postgres localement
+  avec <code>docker run -e POSTGRES_PASSWORD=pw -p 5432:5432 postgres:16</code>.<br><br>
+  Compagnon de <a href="basicai.html">basicai.html</a> · 🐘 connecter, requêter, dumper
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('[data-drill]').length
+       + document.querySelectorAll('#finalCode .blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partiel — ' + newlySolved + ' correct(s), continuez.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'réponses masquées — essayez de les taper vous-même';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'tout est fait.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'toutes les réponses révélées · cliquez à nouveau pour masquer';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['joli.', 'correct !', 'pile dessus.', '✓ exactement.', 'précis.', "c'est bien ça.", 'propre.', 'qualité psql.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['pas tout à fait — réessayez.', 'proche. un coup d’œil à l’indice ?', 'presque. vérifiez l’orthographe.', 'rouge. encore un essai.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section terminée ! 🐘  +' + drills.length + ' résolus');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT CHECK ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = 'tout est vert ! cliquez Lancer le pipeline.';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' corrects. corrigez les rouges.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent-2));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent-2);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#336791','#4a8bc2','#79c0ff','#4ade80','#a5d6ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copié !';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copier'; }, 1300);
+  });
+}
+
+// ============== SIMULATOR ==============
+const fixtures = {
+  '\\l': `                                List of databases
+   Name    |  Owner   | Encoding |  Collate   |   Ctype    |   Access privileges
+-----------+----------+----------+------------+------------+-----------------------
+ postgres  | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 |
+ shop      | alice    | UTF8     | en_US.UTF8 | en_US.UTF8 |
+ template0 | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+ template1 | postgres | UTF8     | en_US.UTF8 | en_US.UTF8 | =c/postgres          +
+           |          |          |            |            | postgres=CTc/postgres
+(4 rows)`,
+  '\\dt': `         List of relations
+ Schema |  Name    | Type  | Owner
+--------+----------+-------+-------
+ public | users    | table | alice
+ public | orders   | table | alice
+ public | products | table | alice
+ public | reviews  | table | alice
+(4 rows)`,
+  '\\d users': `                                       Table "public.users"
+   Column   |           Type           | Collation | Nullable |          Default
+------------+--------------------------+-----------+----------+----------------------------
+ id         | uuid                     |           | not null | gen_random_uuid()
+ email      | text                     |           | not null |
+ age        | integer                  |           |          |
+ tags       | text[]                   |           |          |
+ profile    | jsonb                    |           | not null | '{}'::jsonb
+ created_at | timestamp with time zone |           | not null | now()
+Indexes:
+    "users_pkey" PRIMARY KEY, btree (id)
+    "users_email_key" UNIQUE CONSTRAINT, btree (email)
+    "idx_users_profile" gin (profile)
+Referenced by:
+    TABLE "orders" CONSTRAINT "orders_user_id_fkey" FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`,
+  '\\du': `                              List of roles
+ Role name |                         Attributes                         | Member of
+-----------+------------------------------------------------------------+-----------
+ alice     | Create DB                                                  | {}
+ postgres  | Superuser, Create role, Create DB, Replication, Bypass RLS | {}
+ readonly  |                                                            | {}`,
+  '\\dx': `                       List of installed extensions
+        Name        | Version |   Schema   |              Description
+--------------------+---------+------------+----------------------------------------
+ pgcrypto           | 1.3     | public     | cryptographic functions
+ pg_stat_statements | 1.10    | public     | track planning and execution statistics
+ pg_trgm            | 1.6     | public     | trigram-based similarity matching
+ plpgsql            | 1.0     | pg_catalog | PL/pgSQL procedural language
+(4 rows)`,
+  '\\timing on': `Timing is on.`,
+  'select-now': {
+    sql: 'SELECT now();',
+    out: `              now
+-------------------------------
+ 2026-05-20 14:32:09.471293+00
+(1 row)
+
+Time: 1.124 ms`
+  },
+  'select-version': {
+    sql: 'SELECT version();',
+    out: `                                                version
+---------------------------------------------------------------------------------------------------------
+ PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc 11.4.0, 64-bit
+(1 row)`
+  },
+  'count-users': {
+    sql: 'SELECT count(*) FROM users;',
+    out: ` count
+-------
+  4287
+(1 row)
+
+Time: 3.812 ms`
+  },
+  'big-tables': {
+    sql: `SELECT schemaname || '.' || relname AS table,
+       pg_size_pretty(pg_total_relation_size(relid)) AS size
+FROM pg_catalog.pg_statio_user_tables
+ORDER BY pg_total_relation_size(relid) DESC LIMIT 5;`,
+    out: `      table       |   size
+------------------+----------
+ public.events    | 4128 MB
+ public.orders    |  812 MB
+ public.users     |   94 MB
+ public.products  |   12 MB
+ public.reviews   | 6312 kB
+(5 rows)
+
+Time: 8.402 ms`
+  },
+  'active': {
+    sql: `SELECT pid, usename, state, now() - query_start AS runtime, left(query,60) AS q
+FROM pg_stat_activity WHERE state <> 'idle';`,
+    out: `  pid  | usename | state  |     runtime     |                              q
+-------+---------+--------+-----------------+--------------------------------------------------------------
+ 31204 | alice   | active | 00:00:00.418722 | SELECT * FROM orders WHERE created_at > now() - interval '1
+ 31318 | alice   | active | 00:00:12.041000 | UPDATE users SET profile = profile || '{"plan":"pro"}' WHE
+ 31521 | bob     | active | 00:00:00.002013 | SELECT pid, usename, state, now() - query_start AS runtime
+(3 rows)
+
+Time: 2.114 ms`
+  },
+  'size': {
+    sql: "SELECT pg_size_pretty(pg_database_size('shop')) AS size;",
+    out: `   size
+----------
+ 5234 MB
+(1 row)
+
+Time: 1.221 ms`
+  },
+  'explain': {
+    sql: `EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = '7c2e1a96-...';`,
+    out: `                                                    QUERY PLAN
+-------------------------------------------------------------------------------------------------------------------
+ Index Scan using idx_orders_user on orders  (cost=0.42..8.44 rows=1 width=42) (actual time=0.018..0.020 rows=3 loops=1)
+   Index Cond: (user_id = '7c2e1a96-...'::uuid)
+ Planning Time: 0.124 ms
+ Execution Time: 0.041 ms
+(4 rows)
+
+Time: 0.612 ms`
+  }
+};
+
+const termBody = document.getElementById('termBody');
+const queryButtons = document.getElementById('queryButtons');
+
+queryButtons.addEventListener('click', e => {
+  if (e.target.tagName !== 'BUTTON') return;
+  const q = e.target.dataset.q;
+  // mark recent
+  queryButtons.querySelectorAll('button').forEach(b => b.classList.remove('recent'));
+  e.target.classList.add('recent');
+  if (q === 'clear') {
+    termBody.innerHTML = '<div><span class="term-prompt">shop=&gt;</span> <span class="term-comment">terminal effacé</span></div>';
+    return;
+  }
+  appendTerm(q);
+});
+
+function appendTerm(q) {
+  const fx = fixtures[q];
+  const line = document.createElement('div');
+  let inputText, outputText;
+  if (typeof fx === 'string') {
+    inputText = q;
+    outputText = fx;
+  } else if (fx && typeof fx === 'object') {
+    inputText = fx.sql;
+    outputText = fx.out;
+  } else {
+    inputText = q;
+    outputText = `ERROR: command "${q}" not implemented in simulator`;
+  }
+  line.innerHTML =
+    '<span class="term-prompt">shop=&gt;</span> <span class="term-user-input">' + escapeHtml(inputText) + '</span>';
+  termBody.appendChild(line);
+  const out = document.createElement('span');
+  out.className = 'term-output';
+  out.textContent = outputText + '\n';
+  termBody.appendChild(out);
+  // scroll to bottom
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// ============== PIPELINE (mini project) ==============
+const pipelineSteps = [
+  {
+    cmd: '$ createdb -U alice shop',
+    out: 'CREATE DATABASE'
+  },
+  {
+    cmd: '$ psql -U alice -d shop',
+    out: `psql (16.2)
+Type "help" for help.
+
+shop=>`
+  },
+  {
+    cmd: 'shop=> CREATE EXTENSION IF NOT EXISTS pgcrypto;',
+    out: 'CREATE EXTENSION'
+  },
+  {
+    cmd: 'shop=> CREATE TABLE users ( id UUID PRIMARY KEY DEFAULT gen_random_uuid(), email TEXT NOT NULL UNIQUE, profile JSONB NOT NULL DEFAULT \'{}\' );',
+    out: 'CREATE TABLE'
+  },
+  {
+    cmd: 'shop=> CREATE TABLE orders ( id BIGSERIAL PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE, total NUMERIC(10,2) NOT NULL );',
+    out: 'CREATE TABLE'
+  },
+  {
+    cmd: "shop=> INSERT INTO users (email) VALUES ('a@x'),('b@x') ON CONFLICT (email) DO NOTHING;",
+    out: 'INSERT 0 2'
+  },
+  {
+    cmd: "shop=> INSERT INTO orders (user_id, total) SELECT id, (random()*200)::numeric(10,2) FROM users, generate_series(1,3);",
+    out: 'INSERT 0 6'
+  },
+  {
+    cmd: 'shop=> SELECT user_id, total, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY total DESC) AS rn FROM orders LIMIT 4;',
+    out: `              user_id               | total  | rn
+--------------------------------------+--------+----
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a | 187.41 |  1
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a |  92.18 |  2
+ 7c2e1a96-2f4a-4b9d-9a2e-5f4d0b1c8d3a |  14.05 |  3
+ b1f7d2e8-3a9b-4c2d-8e1a-7c4b0f5a9e2d | 198.72 |  1
+(4 rows)`
+  },
+  {
+    cmd: 'shop=> \\dt',
+    out: `        List of relations
+ Schema |  Name  | Type  | Owner
+--------+--------+-------+-------
+ public | orders | table | alice
+ public | users  | table | alice
+(2 rows)`
+  },
+  {
+    cmd: 'shop=> \\q',
+    out: ''
+  },
+  {
+    cmd: '$ pg_dump -Fc shop > shop.dump',
+    out: '$ ls -lh shop.dump\n-rw-r--r--  1 alice  staff  43K May 20 14:32 shop.dump'
+  }
+];
+
+const ladderTotalSteps = 5;
+const stepGroups = [
+  [0, 1],            // createdb + connect
+  [2, 3, 4],         // schema
+  [5, 6],            // insert
+  [7, 8],            // query / inspect
+  [9, 10]            // backup
+];
+
+let pipelineRunning = false;
+function runPipeline() {
+  if (pipelineRunning) return;
+  pipelineRunning = true;
+  const body = document.getElementById('pipelineBody');
+  body.innerHTML = '';
+  document.getElementById('projDone').style.display = 'none';
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = 'exécution...';
+
+  let i = 0;
+  let groupIdx = 0;
+  function nextStep() {
+    if (i >= pipelineSteps.length) {
+      pipelineRunning = false;
+      document.getElementById('trainProjectBtn').textContent = '✓ terminé';
+      document.getElementById('projDone').style.display = '';
+      document.querySelectorAll('#projLadder .step').forEach(s => s.classList.remove('active'));
+      burstConfetti();
+      showToast('pipeline terminé · sauvegarde prête 🐘');
+      return;
+    }
+    const step = pipelineSteps[i];
+    // figure out which group this index belongs to
+    while (groupIdx < stepGroups.length && !stepGroups[groupIdx].includes(i)) groupIdx++;
+    document.querySelectorAll('#projLadder .step').forEach((s, idx) => {
+      s.classList.toggle('active', idx === groupIdx);
+    });
+
+    const line = document.createElement('div');
+    const isShell = step.cmd.startsWith('$');
+    line.innerHTML = '<span class="term-prompt">' + (isShell ? '$' : 'shop=&gt;') + '</span> '
+      + '<span class="term-user-input">' + escapeHtml(step.cmd.replace(/^\$ |^shop=&gt;\s|^shop=>\s/, '')) + '</span>';
+    body.appendChild(line);
+    if (step.out) {
+      const out = document.createElement('span');
+      out.className = 'term-output';
+      out.textContent = step.out + '\n';
+      body.appendChild(out);
+    }
+    body.scrollTop = body.scrollHeight;
+    i++;
+    setTimeout(nextStep, 520);
+  }
+  nextStep();
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'connect','3':'meta','4':'inspect',
+    '5':'simulator','6':'queries','7':'backup','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

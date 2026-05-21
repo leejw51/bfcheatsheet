@@ -1,0 +1,2287 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HuggingFace GPT-2 — 边打边学</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2229;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #fbbf24;
+    --accent-2: #f59e0b;
+    --code-bg: #0a0f15;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #8b949e;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #1f1a0a 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .flame { font-size: 24px; }
+  .badge {
+    background: var(--accent); color: #1a1200;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(251, 191, 36, 0.12);
+    border-color: rgba(251, 191, 36, 0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #1a1200;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #06210e; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 240px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.25);
+    background: rgba(251, 191, 36, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #1a1200;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(251, 191, 36, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .grid-3 {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  }
+  @media (max-width: 900px) { .grid-3 { grid-template-columns: 1fr; } }
+
+  .play-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .play-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  textarea.prompt-area {
+    width: 100%;
+    background: var(--code-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    resize: vertical;
+    outline: none;
+    min-height: 70px;
+  }
+  textarea.prompt-area:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.15);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 110px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 56px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .token-output {
+    margin-top: 10px;
+    padding: 10px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    min-height: 56px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    align-items: flex-start;
+  }
+  .tok-chip {
+    display: inline-flex; flex-direction: column;
+    align-items: center;
+    background: rgba(251, 191, 36, 0.10);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--accent);
+    transition: transform 0.15s, background 0.15s;
+    animation: tok-in 0.25s ease;
+  }
+  .tok-chip:hover { transform: translateY(-2px); background: rgba(251, 191, 36, 0.18); }
+  .tok-chip .id {
+    font-size: 10px; color: var(--muted); margin-top: 2px;
+    font-weight: 700;
+  }
+  @keyframes tok-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .tok-stats {
+    display: flex; gap: 14px; margin-top: 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px; color: var(--muted);
+  }
+  .tok-stats span b { color: var(--accent); }
+
+  .gen-output {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-family: ui-monospace, monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    min-height: 70px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .gen-output .prompt-part { color: var(--muted); }
+  .gen-output .gen-part { color: var(--accent); font-weight: 600; }
+  .gen-output .cursor {
+    display: inline-block; width: 7px; height: 14px;
+    background: var(--accent);
+    margin-left: 1px;
+    vertical-align: text-bottom;
+    animation: blink 0.9s steps(2) infinite;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .project-card {
+    background: linear-gradient(135deg, rgba(251,191,36,0.06), rgba(245,158,11,0.02));
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(251, 191, 36, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.blue { background: rgba(121,192,255,0.15); color: var(--tag); }
+
+  .strat-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    background: var(--panel); border-radius: 8px; overflow: hidden;
+  }
+  .strat-table th, .strat-table td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .strat-table th {
+    background: var(--panel-2); color: var(--accent);
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .strat-table td code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+  }
+
+  .big-btn-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-top: 12px; align-items: center;
+  }
+
+  .arch-diagram {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 16px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .arch-block {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 8px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  .arch-block:hover {
+    background: rgba(251,191,36,0.08);
+    transform: translateX(3px);
+  }
+  .arch-block .lbl { color: var(--accent); font-weight: 700; }
+  .arch-block .desc { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .arch-arrow { text-align: center; color: var(--muted); font-size: 14px; }
+
+  .ladder {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px; margin: 10px 0;
+  }
+  @media (max-width: 700px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+  .ladder .step {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    font-size: 12px;
+  }
+  .ladder .step .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .ladder .step .name { color: var(--text); font-weight: 700; font-family: ui-monospace, monospace; }
+  .ladder .step .desc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="flame">🤗</span> HuggingFace GPT-2 <span class="badge">边打边学</span>
+    </div>
+    <div class="progress-bar-outer" title="总体进度">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="已完成的练习">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">已解</span>
+    </div>
+    <div class="streak" title="连击">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 欢迎</button>
+    <button data-tab="quickstart">2. 快速开始</button>
+    <button data-tab="tokenize">3. 分词</button>
+    <button data-tab="generate">4. 文本生成</button>
+    <button data-tab="sampling">5. 采样策略</button>
+    <button data-tab="training">6. 训练</button>
+    <button data-tab="args">7. TrainingArguments</button>
+    <button data-tab="drills">8. 练习</button>
+    <button data-tab="project">9. 迷你项目</button>
+  </nav>
+</div>
+
+<main>
+
+<section class="tab-section active" id="tab-welcome">
+  <h1>HuggingFace GPT-2 — 训练它、分词它、用它生成</h1>
+  <p class="lead">
+    GPT-2 是一个 decoder-only transformer,被训练来预测下一个 token。HuggingFace 的
+    <code style="color: var(--tag)">transformers</code> 库三行 Python 就能把它包起来。
+    本页带你走遍整套技术栈 — pipelines、tokenizer、model、采样旋钮和训练循环 —
+    并要求你<strong>亲手敲</strong>关键的几行,把它们焊进肌肉记忆。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">四个库</div></div>
+      <div class="card-body">
+        <div><span class="pill">transformers</span> 模型、分词器、pipeline、<code style="color: var(--tag)">Trainer</code></div>
+        <div style="margin-top: 8px;"><span class="pill">datasets</span> 数据流式 / map / 缓存</div>
+        <div style="margin-top: 8px;"><span class="pill">tokenizers</span> 高速 Rust BPE / WordPiece</div>
+        <div style="margin-top: 8px;"><span class="pill">accelerate</span> 多卡、混合精度,免样板代码</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">什么是 GPT-2?</div></div>
+      <div class="card-body">
+        一个 decoder-only transformer。12 层(124M)、24(345M)、36(774M)、48(1.5B)。
+        训练数据是 WebText,目标只有一个:<em>预测下一个 token</em>。
+        <strong>因果掩码</strong>不让任何位置看到未来。
+        分词器是字节级 <strong>BPE</strong>,词表大小 50,257。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">两种用法</div></div>
+      <div class="card-body">
+        <div><span class="pill green">简单</span> <code style="color: var(--tag)">pipeline("text-generation", model="gpt2")</code></div>
+        <div style="margin-top: 8px;"><span class="pill blue">底层</span> <code style="color: var(--tag)">AutoTokenizer</code> + <code style="color: var(--tag)">AutoModelForCausalLM</code> + <code style="color: var(--tag)">.generate()</code></div>
+        <div style="margin-top: 8px; color: var(--muted); font-size: 12.5px;">
+          pipeline 用来 demo 很爽。真要做事就降到 model + tokenizer 这一对,
+          这样能控制采样、批处理和训练。
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">decoder-only 结构</div></div>
+      <div class="card-body">
+        <div class="arch-diagram">
+          <div class="arch-block">
+            <div class="lbl">input ids → token + position embed</div>
+            <div class="desc">[batch, seq] → [batch, seq, 768]</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-block">
+            <div class="lbl">12 × decoder block</div>
+            <div class="desc">带掩码的 self-attn + MLP + LayerNorm + 残差</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-block">
+            <div class="lbl">最终 LayerNorm</div>
+            <div class="desc">稳定隐藏状态</div>
+          </div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-block">
+            <div class="lbl">lm_head(权重共享)</div>
+            <div class="desc">[..., 768] → [..., 50257] 词表 logits</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>安装</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">安装</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 核心栈</span>
+pip install transformers datasets tokenizers accelerate
+
+<span class="tok-c"># 配 PyTorch(cpu)</span>
+pip install torch --index-url https://download.pytorch.org/whl/cpu</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>本页使用方法:</strong>逐节阅读,在
+    <span class="pill">空格</span> 里输入(Tab 跳到下一个,Enter 检查)。顶栏会跟踪
+    分数、连击和总进度。提示会一次性把当前练习未解的空全部填好 — 再点一次
+    可以隐藏。
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    准备好了?点 <strong>2. 快速开始</strong>。
+  </p>
+</section>
+
+<section class="tab-section" id="tab-quickstart">
+  <h1>快速开始 — 三行代码生成文本</h1>
+  <p class="lead">
+    两种写法。pipeline 把所有细节都藏起来;显式两行版给你完整的控制权。
+    底下跑的是同一个模型。
+  </p>
+
+  <h2>写法 1 — pipelines</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">最简单的生成</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">transformers</span> <span class="tok-k">import</span> pipeline
+
+gen = pipeline(<span class="tok-s">"text-generation"</span>, model=<span class="tok-s">"gpt2"</span>)
+out = gen(<span class="tok-s">"The future of AI is"</span>, max_new_tokens=<span class="tok-n">30</span>, do_sample=<span class="tok-k">True</span>)
+<span class="tok-f">print</span>(out[<span class="tok-n">0</span>][<span class="tok-s">"generated_text"</span>])</code></pre>
+  </div>
+
+  <h2>写法 2 — tokenizer + model</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">显式两行版</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">transformers</span> <span class="tok-k">import</span> AutoTokenizer, AutoModelForCausalLM
+
+tokenizer = AutoTokenizer.from_pretrained(<span class="tok-s">"gpt2"</span>)
+model     = AutoModelForCausalLM.from_pretrained(<span class="tok-s">"gpt2"</span>)
+
+inputs  = tokenizer(<span class="tok-s">"The future of AI is"</span>, return_tensors=<span class="tok-s">"pt"</span>)
+outputs = model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, do_sample=<span class="tok-k">True</span>)
+text    = tokenizer.decode(outputs[<span class="tok-n">0</span>], skip_special_tokens=<span class="tok-k">True</span>)
+<span class="tok-f">print</span>(text)</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>类的对应:</strong><code style="color: var(--tag)">AutoModelForCausalLM</code>
+    是自回归文本生成的正确头。其他头有
+    <code style="color: var(--tag)">AutoModelForSequenceClassification</code>、
+    <code style="color: var(--tag)">AutoModelForMaskedLM</code>(BERT 系)、
+    <code style="color: var(--tag)">AutoModelForQuestionAnswering</code>,等等。
+  </div>
+
+  <h2>把两行版敲一遍</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 用 auto 类加载 GPT-2 分词器。</div>
+    <pre class="exercise">tokenizer = <input class="blank" data-answer="AutoTokenizer" size="14" placeholder="?">.from_pretrained(<span class="tok-s">"gpt2"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 加载 GPT-2 模型 — 哪个 auto 类用于因果语言建模?</div>
+    <pre class="exercise">model = <input class="blank" data-answer="AutoModelForCausalLM" size="22" placeholder="?">.from_pretrained(<span class="tok-s">"gpt2"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 给 <code style="color: var(--tag)">return_tensors</code> 传 PyTorch 的代号:</div>
+    <pre class="exercise">inputs = tokenizer(prompt, return_tensors=<span class="tok-s">"</span><input class="blank" data-answer="pt" size="3" placeholder="?"><span class="tok-s">"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> 构造一个一次性的文本生成 pipeline,指向 <code style="color: var(--tag)">gpt2</code>:</div>
+    <pre class="exercise">gen = <input class="blank" data-answer="pipeline" size="10" placeholder="?">(<span class="tok-s">"text-generation"</span>, model=<span class="tok-s">"gpt2"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-tokenize">
+  <h1>分词 — 字符串和张量之间的 BPE 桥梁</h1>
+  <p class="lead">
+    GPT-2 看不到字符或单词 — 它看到的是 <strong>token IDs</strong>。它的字节级 BPE
+    把常见子词合并成单个单元(比如 <code style="color: var(--tag)">"ing"</code>),
+    把生僻词留作多个 token,并用一个前导空格标记(显示为
+    <code style="color: var(--tag)">Ġ</code>)以保证可逆往返。
+  </p>
+
+  <div class="play-card">
+    <h3>🔤 模拟分词器实验场</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 8px;">
+      输入或粘贴任意文本,然后点 <em>Tokenize</em>。本页无法在浏览器里跑真正的 BPE,
+      所以输出是个快速近似,基于空白和标点切分,id 用确定性 hash。
+      但输出形态和 GPT-2 是一致的:子词块和每块对应的整数 id。
+    </p>
+    <textarea id="tokInput" class="prompt-area" rows="2">HuggingFace makes transformers easy.</textarea>
+    <div class="big-btn-row">
+      <button class="btn" onclick="runTokenize()">分词 →</button>
+      <button class="btn ghost" onclick="clearTokens()">清空</button>
+      <span style="color: var(--muted); font-size: 12px; margin-left: auto;">词表 ≈ 50,257 · BPE</span>
+    </div>
+    <div class="token-output" id="tokOutput">
+      <span style="color: var(--muted); font-style: italic; font-size: 12px;">tokens 会出现在这里…</span>
+    </div>
+    <div class="tok-stats" id="tokStats"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">分词与解码</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code>text = <span class="tok-s">"HuggingFace makes transformers easy."</span>
+
+<span class="tok-c"># 文本 → 张量</span>
+inputs = tokenizer(text, return_tensors=<span class="tok-s">"pt"</span>)
+ids    = inputs[<span class="tok-s">"input_ids"</span>]              <span class="tok-c"># 形状 (1, n_tokens)</span>
+mask   = inputs[<span class="tok-s">"attention_mask"</span>]         <span class="tok-c"># 1 = 真实,0 = pad</span>
+
+<span class="tok-c"># 回到文本</span>
+text_again = tokenizer.decode(ids[<span class="tok-n">0</span>], skip_special_tokens=<span class="tok-k">True</span>)
+
+<span class="tok-c"># 实用辅助方法</span>
+tokens = tokenizer.tokenize(text)             <span class="tok-c"># ['Hugging','Face',' makes',...]</span>
+ids    = tokenizer.convert_tokens_to_ids(tokens)
+batch  = tokenizer([t1, t2, t3], padding=<span class="tok-k">True</span>, return_tensors=<span class="tok-s">"pt"</span>)</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>注意:</strong>GPT-2 默认没有 pad token。批处理之前要先
+    <code style="color: var(--tag)">tokenizer.pad_token = tokenizer.eos_token</code> —
+    把 EOS 复用为 pad,这是给因果 LM 做左 padding 时的标准做法。
+  </div>
+
+  <h2>把分词流程敲一遍</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 把 EOS 复用为 pad token:</div>
+    <pre class="exercise">tokenizer.pad_token = tokenizer.<input class="blank" data-answer="eos_token" size="11" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 把 token id 解码回字符串,并丢掉特殊 token:</div>
+    <pre class="exercise">text = tokenizer.<input class="blank" data-answer="decode" size="8" placeholder="?">(ids[0], skip_special_tokens=<span class="tok-k">True</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> 把不等长的一批文本 pad 成同一长度:</div>
+    <pre class="exercise">batch = tokenizer(texts, <input class="blank" data-answer="padding" size="9" placeholder="?">=<span class="tok-k">True</span>, return_tensors=<span class="tok-s">"pt"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-generate">
+  <h1>生成 — <code style="color: var(--tag); font-size: 22px;">.generate()</code> 每个参数都做了什么</h1>
+  <p class="lead">
+    所有"创造力"的魔法都在 <code style="color: var(--tag)">model.generate()</code> 里。
+    六个参数能覆盖 95% 的场景。拖动旋钮,看罐头 demo 怎么变。
+  </p>
+
+  <div class="play-card">
+    <h3>🎛️ 生成实验场</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 8px;">
+      选个提示词,扭旋钮,点 <em>生成</em>。输出是从根据 temperature / top-k / top-p
+      设定决定的一个小型罐头库里采样出来的 — 仅作示意。真实
+      <code style="color: var(--tag)">.generate()</code> 接受的参数完全一样。
+    </p>
+    <textarea id="genPrompt" class="prompt-area" rows="2">In the year 2026, a tiny model finally</textarea>
+
+    <div class="slider-row">
+      <label>temperature</label>
+      <input type="range" id="genTemp" min="0.1" max="2.0" step="0.05" value="0.8">
+      <span class="val" id="genTempV">0.80</span>
+    </div>
+    <div class="slider-row">
+      <label>top_k</label>
+      <input type="range" id="genTopK" min="0" max="100" step="1" value="50">
+      <span class="val" id="genTopKV">50</span>
+    </div>
+    <div class="slider-row">
+      <label>top_p</label>
+      <input type="range" id="genTopP" min="0.1" max="1.0" step="0.01" value="0.9">
+      <span class="val" id="genTopPV">0.90</span>
+    </div>
+    <div class="slider-row">
+      <label>max_new_tokens</label>
+      <input type="range" id="genMax" min="5" max="80" step="1" value="40">
+      <span class="val" id="genMaxV">40</span>
+    </div>
+
+    <div class="big-btn-row">
+      <button class="btn" onclick="runGenerate()">▶ 生成</button>
+      <button class="btn ghost" onclick="clearGen()">清空</button>
+      <label style="color: var(--muted); font-size: 12px;">
+        <input type="checkbox" id="genSample" checked> do_sample
+      </label>
+    </div>
+    <div class="gen-output" id="genOutput">
+      <span style="color: var(--muted); font-style: italic; font-size: 12px;">输出会在这里逐字流出…</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">标准的生成调用</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code>inputs  = tokenizer(prompt, return_tensors=<span class="tok-s">"pt"</span>)
+outputs = model.generate(
+    **inputs,
+    max_new_tokens=<span class="tok-n">50</span>,
+    do_sample=<span class="tok-k">True</span>,            <span class="tok-c"># False = 贪心/beam,True = 随机采样</span>
+    top_k=<span class="tok-n">50</span>,                  <span class="tok-c"># 留 top-50 logit,其余屏蔽</span>
+    top_p=<span class="tok-n">0.9</span>,                 <span class="tok-c"># nucleus:概率累计达 0.9 的最小集合</span>
+    temperature=<span class="tok-n">0.8</span>,           <span class="tok-c"># &lt;1 更尖锐,&gt;1 更狂野</span>
+    repetition_penalty=<span class="tok-n">1.1</span>,    <span class="tok-c"># 抑制重复</span>
+    pad_token_id=tokenizer.eos_token_id,
+)
+text = tokenizer.decode(outputs[<span class="tok-n">0</span>], skip_special_tokens=<span class="tok-k">True</span>)</code></pre>
+  </div>
+
+  <h2>把生成调用敲一遍</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 打开随机采样(否则就是确定性贪心):</div>
+    <pre class="exercise">outputs = model.generate(**inputs, max_new_tokens=<span class="tok-n">50</span>, do_sample=<input class="blank" data-answer="True" size="6" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> nucleus 的常用值(惯例默认):</div>
+    <pre class="exercise">outputs = model.generate(**inputs, do_sample=<span class="tok-k">True</span>, top_p=<input class="blank" data-answer="0.9|0.95" size="5" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 限制生成的新 token 数量(不含 prompt):</div>
+    <pre class="exercise">outputs = model.generate(**inputs, <input class="blank" data-answer="max_new_tokens" size="16" placeholder="?">=50)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 推理时关掉 autograd(省显存,更快):</div>
+    <pre class="exercise">with torch.<input class="blank" data-answer="no_grad|inference_mode" size="14" placeholder="?">():
+    outputs = model.generate(**inputs, max_new_tokens=<span class="tok-n">50</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-sampling">
+  <h1>采样策略 — 怎样选下一个 token</h1>
+  <p class="lead">
+    每一步,模型会在整个 50,257 词表上输出一个概率分布。
+    一个<em>策略</em>把这个分布变成一个被选中的 token。不同策略在
+    连贯性 vs 创造力 vs 计算成本之间做不同的取舍。
+  </p>
+
+  <table class="strat-table">
+    <tr>
+      <th>策略</th><th>开关</th><th>风格</th><th>适用场景</th>
+    </tr>
+    <tr>
+      <td><strong>贪心 Greedy</strong></td>
+      <td><code>do_sample=False</code></td>
+      <td>确定性,容易重复</td>
+      <td>只有一个正确答案的任务(低温下的翻译)</td>
+    </tr>
+    <tr>
+      <td><strong>Beam search</strong></td>
+      <td><code>num_beams=4</code></td>
+      <td>稳妥,有时显得平淡</td>
+      <td>摘要、结构化输出</td>
+    </tr>
+    <tr>
+      <td><strong>采样 Sampling</strong></td>
+      <td><code>do_sample=True</code></td>
+      <td>有创意,可能跑偏</td>
+      <td>讲故事、头脑风暴</td>
+    </tr>
+    <tr>
+      <td><strong>top-k</strong></td>
+      <td><code>top_k=50</code></td>
+      <td>砍掉最差的尾巴</td>
+      <td>和采样搭配使用更稳</td>
+    </tr>
+    <tr>
+      <td><strong>top-p(nucleus)</strong></td>
+      <td><code>top_p=0.9</code></td>
+      <td>按置信度自适应</td>
+      <td>几乎总是用 — 现代默认</td>
+    </tr>
+    <tr>
+      <td><strong>temperature</strong></td>
+      <td><code>temperature=0.8</code></td>
+      <td>控制尖锐度的旋钮</td>
+      <td>聊天 0.7–1.0,代码 0.2,搞混乱 &gt;1.2</td>
+    </tr>
+  </table>
+
+  <div class="grid-3" style="margin-top: 16px;">
+    <div class="card">
+      <div class="card-head"><div class="card-title">temperature 直觉</div></div>
+      <div class="card-body" style="font-size: 13px; color: var(--muted);">
+        在 softmax 之前,logits 会先除以 <em>T</em>。低 <em>T</em> 会让分布更尖锐(接近贪心),
+        高 <em>T</em> 让分布更平坦(接近均匀)。<em>T</em>→0 退化为贪心。
+        <em>T</em>=1 时就是从模型本身的分布采样。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">top-k 直觉</div></div>
+      <div class="card-body" style="font-size: 13px; color: var(--muted);">
+        把概率最高的前 <em>k</em> 个之外的 token 全部丢掉。重新归一化后采样。
+        砍掉了奇怪、稀有 token 的长尾。但有点死板:对置信度高和低的两步用同一个 <em>k</em>。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">top-p(nucleus)</div></div>
+      <div class="card-body" style="font-size: 13px; color: var(--muted);">
+        保留累计概率 ≥ <em>p</em> 的最小 token 集合。逐步自适应:置信度高 → 集合很小;
+        平坦时 → 集合宽。在大多数任务上比纯 top-k 好。
+        <code style="color: var(--tag)">p=0.9</code> 是稳妥默认。
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">并排对比</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. 贪心</span>
+model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, do_sample=<span class="tok-k">False</span>)
+
+<span class="tok-c"># 2. beam search</span>
+model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, num_beams=<span class="tok-n">4</span>, early_stopping=<span class="tok-k">True</span>)
+
+<span class="tok-c"># 3. 普通采样</span>
+model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, do_sample=<span class="tok-k">True</span>, temperature=<span class="tok-n">1.0</span>)
+
+<span class="tok-c"># 4. top-k</span>
+model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, do_sample=<span class="tok-k">True</span>, top_k=<span class="tok-n">50</span>)
+
+<span class="tok-c"># 5. top-p(nucleus)</span>
+model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, do_sample=<span class="tok-k">True</span>, top_p=<span class="tok-n">0.9</span>)
+
+<span class="tok-c"># 6. 推荐组合</span>
+model.generate(**inputs, max_new_tokens=<span class="tok-n">50</span>,
+               do_sample=<span class="tok-k">True</span>, top_k=<span class="tok-n">50</span>, top_p=<span class="tok-n">0.9</span>, temperature=<span class="tok-n">0.8</span>)</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>实战建议:</strong>从 <code style="color: var(--tag)">do_sample=True, top_p=0.9, temperature=0.8</code> 开始。
+    输出太随机,降 <em>T</em>。陷入循环,把 <code style="color: var(--tag)">repetition_penalty</code>
+    调到 <code style="color: var(--tag)">1.1</code>–<code style="color: var(--tag)">1.3</code>。
+    觉得太平淡,把 <em>T</em> 提到 1.0 并去掉 <code style="color: var(--tag)">top_k</code>。
+  </div>
+
+  <h2>把这些策略敲一遍</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 强制贪心解码(无随机):</div>
+    <pre class="exercise">model.generate(**inputs, do_sample=<input class="blank" data-answer="False" size="6" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 4-beam 的 beam search:</div>
+    <pre class="exercise">model.generate(**inputs, max_new_tokens=<span class="tok-n">30</span>, <input class="blank" data-answer="num_beams" size="11" placeholder="?">=4)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 限制为 top-50 候选:</div>
+    <pre class="exercise">model.generate(**inputs, do_sample=<span class="tok-k">True</span>, <input class="blank" data-answer="top_k" size="6" placeholder="?">=50)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 通过降低这个旋钮让分布更尖锐:</div>
+    <pre class="exercise">model.generate(**inputs, do_sample=<span class="tok-k">True</span>, <input class="blank" data-answer="temperature" size="13" placeholder="?">=0.7)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-training">
+  <h1>训练 — 在你的数据上微调 GPT-2</h1>
+  <p class="lead">
+    两条路:高层 <code style="color: var(--tag)">Trainer</code> API(不到 20 行),
+    或者一个原生 PyTorch 循环。两条路微调的是同一份权重。Trainer 是默认选择 —
+    它自动处理日志、checkpoint、评估、分布式训练和混合精度。
+  </p>
+
+  <div class="ladder">
+    <div class="step">
+      <span class="icon">📚</span>
+      <div class="name">load_dataset</div>
+      <div class="desc">从磁盘 / Hub 流式读入</div>
+    </div>
+    <div class="step">
+      <span class="icon">🔤</span>
+      <div class="name">分词</div>
+      <div class="desc">map(..., batched=True)</div>
+    </div>
+    <div class="step">
+      <span class="icon">🧱</span>
+      <div class="name">collator</div>
+      <div class="desc">pad 并构造 labels</div>
+    </div>
+    <div class="step">
+      <span class="icon">🏋</span>
+      <div class="name">Trainer</div>
+      <div class="desc">trainer.train()</div>
+    </div>
+    <div class="step">
+      <span class="icon">💾</span>
+      <div class="name">保存</div>
+      <div class="desc">model.save_pretrained</div>
+    </div>
+  </div>
+
+  <h2>路径 A — Trainer API</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">端到端微调 gpt2</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">transformers</span> <span class="tok-k">import</span> (
+    AutoTokenizer, AutoModelForCausalLM,
+    Trainer, TrainingArguments, DataCollatorForLanguageModeling,
+)
+<span class="tok-k">from</span> <span class="tok-t">datasets</span> <span class="tok-k">import</span> load_dataset
+
+tokenizer = AutoTokenizer.from_pretrained(<span class="tok-s">"gpt2"</span>)
+tokenizer.pad_token = tokenizer.eos_token
+
+model = AutoModelForCausalLM.from_pretrained(<span class="tok-s">"gpt2"</span>)
+
+ds = load_dataset(<span class="tok-s">"wikitext"</span>, <span class="tok-s">"wikitext-2-raw-v1"</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">tok</span>(batch):
+    <span class="tok-k">return</span> tokenizer(batch[<span class="tok-s">"text"</span>], truncation=<span class="tok-k">True</span>, max_length=<span class="tok-n">512</span>)
+
+ds = ds.map(tok, batched=<span class="tok-k">True</span>, remove_columns=[<span class="tok-s">"text"</span>])
+
+collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=<span class="tok-k">False</span>,                          <span class="tok-c"># 因果 LM,而非 masked LM</span>
+)
+
+args = TrainingArguments(
+    output_dir=<span class="tok-s">"./gpt2-ft"</span>,
+    per_device_train_batch_size=<span class="tok-n">4</span>,
+    num_train_epochs=<span class="tok-n">3</span>,
+    learning_rate=<span class="tok-n">5e-5</span>,
+    warmup_steps=<span class="tok-n">100</span>,
+    logging_steps=<span class="tok-n">50</span>,
+    save_steps=<span class="tok-n">500</span>,
+    fp16=<span class="tok-k">True</span>,
+)
+
+trainer = Trainer(
+    model=model,
+    args=args,
+    train_dataset=ds[<span class="tok-s">"train"</span>],
+    eval_dataset=ds[<span class="tok-s">"validation"</span>],
+    data_collator=collator,
+)
+
+trainer.train()
+trainer.save_model(<span class="tok-s">"./gpt2-ft"</span>)</code></pre>
+  </div>
+
+  <h2>路径 B — 原生 PyTorch 循环</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">不用 Trainer,纯 torch</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">from</span> <span class="tok-t">torch.utils.data</span> <span class="tok-k">import</span> DataLoader
+<span class="tok-k">from</span> <span class="tok-t">torch.optim</span> <span class="tok-k">import</span> AdamW
+
+loader    = DataLoader(ds[<span class="tok-s">"train"</span>], batch_size=<span class="tok-n">4</span>, collate_fn=collator)
+optimizer = AdamW(model.parameters(), lr=<span class="tok-n">5e-5</span>)
+device    = <span class="tok-s">"cuda"</span> <span class="tok-k">if</span> torch.cuda.is_available() <span class="tok-k">else</span> <span class="tok-s">"cpu"</span>
+model.to(device)
+model.train()
+
+<span class="tok-k">for</span> epoch <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">3</span>):
+    <span class="tok-k">for</span> batch <span class="tok-k">in</span> loader:
+        batch = {k: v.to(device) <span class="tok-k">for</span> k, v <span class="tok-k">in</span> batch.items()}
+        outputs = model(**batch)             <span class="tok-c"># labels=input_ids 由 collator 处理</span>
+        loss    = outputs.loss               <span class="tok-c"># transformers 直接返回 CE loss</span>
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>Loss = labels = input_ids:</strong>对于因果 LM,<em>输入</em>和
+    <em>目标</em>是同一个 token 序列 — 模型要从前面的 token 预测每个 token。
+    <code style="color: var(--tag)">DataCollatorForLanguageModeling(mlm=False)</code>
+    会自动给你设置好 labels。
+  </div>
+
+  <h2>把训练片段敲一遍</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> 用因果-LM 的 data collator(不做 mask,只是错位的 labels):</div>
+    <pre class="exercise">collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=<input class="blank" data-answer="False" size="6" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> 把 Trainer 接好(4 个关键字参数):</div>
+    <pre class="exercise">trainer = <input class="blank" data-answer="Trainer" size="9" placeholder="?">(model=model, args=args, train_dataset=ds[<span class="tok-s">"train"</span>], data_collator=collator)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> 启动训练:</div>
+    <pre class="exercise">trainer.<input class="blank" data-answer="train" size="7" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> 流式加载一个 HuggingFace dataset:</div>
+    <pre class="exercise">ds = <input class="blank" data-answer="load_dataset" size="14" placeholder="?">(<span class="tok-s">"wikitext"</span>, <span class="tok-s">"wikitext-2-raw-v1"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> 把微调后的模型保存到一个目录:</div>
+    <pre class="exercise">model.<input class="blank" data-answer="save_pretrained" size="16" placeholder="?">(<span class="tok-s">"./gpt2-ft"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-args">
+  <h1><code style="color: var(--tag); font-size: 26px;">TrainingArguments</code> — 值得记住的每一个旋钮</h1>
+  <p class="lead">
+    <code style="color: var(--tag)">TrainingArguments</code> 这个 dataclass 持有 Trainer 涉及的
+    每一个超参。一共 100+ 个字段。下面这些是你实际会动手设的。
+  </p>
+
+  <table class="strat-table">
+    <tr>
+      <th>参数</th><th>典型值</th><th>作用</th>
+    </tr>
+    <tr>
+      <td><code>output_dir</code></td>
+      <td><code>"./out"</code></td>
+      <td>checkpoint + 日志的去处(必填)</td>
+    </tr>
+    <tr>
+      <td><code>per_device_train_batch_size</code></td>
+      <td><code>4–32</code></td>
+      <td>每张 GPU 的批量;有效批量 = 这个 × num_gpus × grad_accum</td>
+    </tr>
+    <tr>
+      <td><code>gradient_accumulation_steps</code></td>
+      <td><code>1–16</code></td>
+      <td>显存吃紧时模拟更大批量</td>
+    </tr>
+    <tr>
+      <td><code>num_train_epochs</code></td>
+      <td><code>1–10</code></td>
+      <td>遍历训练集的次数</td>
+    </tr>
+    <tr>
+      <td><code>learning_rate</code></td>
+      <td><code>5e-5</code></td>
+      <td>transformer 微调的标准值</td>
+    </tr>
+    <tr>
+      <td><code>warmup_steps</code></td>
+      <td><code>100–1000</code></td>
+      <td>线性升温 — 防止早期 loss 飙升</td>
+    </tr>
+    <tr>
+      <td><code>weight_decay</code></td>
+      <td><code>0.01</code></td>
+      <td>AdamW 的正则化</td>
+    </tr>
+    <tr>
+      <td><code>fp16</code> / <code>bf16</code></td>
+      <td><code>True</code></td>
+      <td>混合精度;Ampere 及以上用 bf16,其它用 fp16</td>
+    </tr>
+    <tr>
+      <td><code>logging_steps</code></td>
+      <td><code>50</code></td>
+      <td>每 N 步打印一次 loss</td>
+    </tr>
+    <tr>
+      <td><code>save_steps</code></td>
+      <td><code>500</code></td>
+      <td>每 N 步存一次 checkpoint</td>
+    </tr>
+    <tr>
+      <td><code>evaluation_strategy</code></td>
+      <td><code>"steps"</code></td>
+      <td>"no" / "steps" / "epoch"</td>
+    </tr>
+    <tr>
+      <td><code>load_best_model_at_end</code></td>
+      <td><code>True</code></td>
+      <td>训练完后,自动恢复最好的 checkpoint</td>
+    </tr>
+    <tr>
+      <td><code>report_to</code></td>
+      <td><code>"wandb"</code></td>
+      <td>或者 <code>"tensorboard"</code> / <code>"none"</code></td>
+    </tr>
+  </table>
+
+  <div class="card" style="margin-top: 16px;">
+    <div class="card-head">
+      <div class="card-title">接近生产的配置</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code>args = TrainingArguments(
+    output_dir=<span class="tok-s">"./gpt2-ft"</span>,
+    per_device_train_batch_size=<span class="tok-n">8</span>,
+    gradient_accumulation_steps=<span class="tok-n">4</span>,         <span class="tok-c"># 有效批量 = 32</span>
+    num_train_epochs=<span class="tok-n">3</span>,
+    learning_rate=<span class="tok-n">5e-5</span>,
+    warmup_steps=<span class="tok-n">200</span>,
+    weight_decay=<span class="tok-n">0.01</span>,
+    fp16=<span class="tok-k">True</span>,
+    logging_steps=<span class="tok-n">50</span>,
+    save_steps=<span class="tok-n">500</span>,
+    evaluation_strategy=<span class="tok-s">"steps"</span>,
+    eval_steps=<span class="tok-n">500</span>,
+    load_best_model_at_end=<span class="tok-k">True</span>,
+    report_to=<span class="tok-s">"none"</span>,
+)</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>有效批量大小:</strong>
+    <code style="color: var(--tag)">per_device_train_batch_size × num_gpus × gradient_accumulation_steps</code>。
+    一张 24 GB GPU 也许只能塞下批量 8;用 grad-accum 4 可以得到批量 32 的 loss 曲线。
+  </div>
+
+  <h2>把这些参数敲一遍</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> Trainer 把 checkpoint 存到哪里?</div>
+    <pre class="exercise">args = TrainingArguments(<input class="blank" data-answer="output_dir" size="12" placeholder="?">=<span class="tok-s">"./gpt2-ft"</span>, num_train_epochs=3)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> transformer 微调的标准学习率(科学计数法):</div>
+    <pre class="exercise">args = TrainingArguments(output_dir=<span class="tok-s">"."</span>, learning_rate=<input class="blank" data-answer="5e-5|2e-5|3e-5" size="6" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> 半精度训练以放进更大的批量:</div>
+    <pre class="exercise">args = TrainingArguments(output_dir=<span class="tok-s">"."</span>, <input class="blank" data-answer="fp16|bf16" size="6" placeholder="?">=<span class="tok-k">True</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-drills">
+  <h1>速记练习 — 回想每一个关键 API</h1>
+  <p class="lead">
+    一组 HuggingFace + GPT-2 最常见的代码片段。打字要快,练肌肉记忆。
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> 把字符串构造成 PyTorch 输入 dict:</div>
+    <pre class="exercise">inputs = <input class="blank" data-answer="tokenizer" size="11" placeholder="?">(prompt, return_tensors=<span class="tok-s">"pt"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> 拿到 EOS 的整数 id,用作 <code style="color: var(--tag)">pad_token_id</code>:</div>
+    <pre class="exercise">eos_id = tokenizer.<input class="blank" data-answer="eos_token_id" size="14" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> 把模型搬到 GPU:</div>
+    <pre class="exercise">model.<input class="blank" data-answer="to" size="4" placeholder="?">(<span class="tok-s">"cuda"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">27</span> 切换到推理模式(关掉 dropout):</div>
+    <pre class="exercise">model.<input class="blank" data-answer="eval" size="6" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">28</span> 把微调好的模型推到你的 HuggingFace Hub 仓库:</div>
+    <pre class="exercise">model.<input class="blank" data-answer="push_to_hub" size="13" placeholder="?">(<span class="tok-s">"my-username/my-gpt2-ft"</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">29</span> 把分词后的 batch 张量搬到与模型相同的 device:</div>
+    <pre class="exercise">batch = {k: v.<input class="blank" data-answer="to" size="4" placeholder="?">(device) <span class="tok-k">for</span> k, v <span class="tok-k">in</span> batch.items()}</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">30</span> 从 Trainer 风格的前向输出里取出交叉熵 loss:</div>
+    <pre class="exercise">outputs = model(**batch)
+loss = outputs.<input class="blank" data-answer="loss" size="6" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">31</span> 用 batched 模式 <code style="color: var(--tag)">.map()</code> 一个 HF dataset 的某列:</div>
+    <pre class="exercise">ds = ds.map(tok_fn, <input class="blank" data-answer="batched" size="9" placeholder="?">=<span class="tok-k">True</span>)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+</section>
+
+<section class="tab-section" id="tab-project">
+  <h1>迷你项目 — 在莎士比亚上微调 GPT-2</h1>
+  <p class="lead">
+    把这个完整程序里的每个空都填上。全部变绿后点 <em>训练模型</em>,
+    看浏览器内的假 loss 曲线下降,以及一段莎士比亚味道的样本流出来。
+    在装好 <code style="color: var(--tag)">transformers</code> 的 Python 里跑同样的代码,
+    你会得到一个真正微调过的 GPT-2。
+  </p>
+
+  <div class="project-card">
+    <h3>把程序补完整</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      还有 8 个空。全部填好后点 <em>全部检查</em>。
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-k">from</span> <span class="tok-t">transformers</span> <span class="tok-k">import</span> (
+    <input class="blank" data-answer="AutoTokenizer" size="14" placeholder="?">, AutoModelForCausalLM,
+    Trainer, TrainingArguments, DataCollatorForLanguageModeling,
+)
+<span class="tok-k">from</span> <span class="tok-t">datasets</span> <span class="tok-k">import</span> load_dataset
+
+ds = load_dataset(<span class="tok-s">"tiny_shakespeare"</span>)
+
+tokenizer = AutoTokenizer.from_pretrained(<span class="tok-s">"</span><input class="blank" data-answer="gpt2" size="6" placeholder="?"><span class="tok-s">"</span>)
+tokenizer.pad_token = tokenizer.<input class="blank" data-answer="eos_token" size="11" placeholder="?">
+model     = AutoModelForCausalLM.from_pretrained(<span class="tok-s">"gpt2"</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">tok</span>(b):
+    <span class="tok-k">return</span> tokenizer(b[<span class="tok-s">"text"</span>], truncation=<span class="tok-k">True</span>, max_length=<span class="tok-n">256</span>)
+
+ds = ds.map(tok, batched=<input class="blank" data-answer="True" size="6" placeholder="?">, remove_columns=[<span class="tok-s">"text"</span>])
+
+collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=<input class="blank" data-answer="False" size="6" placeholder="?">)
+
+args = TrainingArguments(
+    output_dir=<span class="tok-s">"./bard-gpt2"</span>,
+    per_device_train_batch_size=<span class="tok-n">4</span>,
+    num_train_epochs=<span class="tok-n">3</span>,
+    learning_rate=<input class="blank" data-answer="5e-5|2e-5|3e-5" size="6" placeholder="?">,
+)
+
+trainer = Trainer(
+    model=model, args=args,
+    train_dataset=ds[<span class="tok-s">"train"</span>],
+    data_collator=collator,
+)
+trainer.<input class="blank" data-answer="train" size="7" placeholder="?">()
+
+<span class="tok-c"># 训练后采样</span>
+prompt  = <span class="tok-s">"To be, or not to be"</span>
+inputs  = tokenizer(prompt, return_tensors=<span class="tok-s">"</span><input class="blank" data-answer="pt" size="3" placeholder="?"><span class="tok-s">"</span>)
+outputs = model.generate(**inputs, max_new_tokens=<span class="tok-n">40</span>, do_sample=<span class="tok-k">True</span>, top_p=<span class="tok-n">0.9</span>)
+<span class="tok-f">print</span>(tokenizer.<input class="blank" data-answer="decode" size="8" placeholder="?">(outputs[<span class="tok-n">0</span>], skip_special_tokens=<span class="tok-k">True</span>))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">全部检查</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="trainProject()" disabled>▶ 训练模型</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="play-card">
+    <h3>📉 微调 loss</h3>
+    <canvas id="projLossCanvas" width="900" height="220" style="display:block; width:100%; max-width:100%; background: var(--code-bg); border-radius: 8px; border: 1px solid var(--border);"></canvas>
+    <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+      step <span id="projEpoch" style="color: var(--accent); font-weight: 700;">—</span> · loss
+      <span id="projLoss" style="color: var(--accent); font-weight: 700;">—</span> · lr
+      <span id="projLR" style="color: var(--good); font-weight: 700;">—</span>
+    </div>
+  </div>
+
+  <div class="play-card" id="sampleCard" style="display: none;">
+    <h3>🪶 微调后生成的样本</h3>
+    <div class="gen-output" id="projSample"></div>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">已训练!</strong>
+    你的微调 GPT-2 刚刚学会了莎士比亚的口吻。把同样的代码挪到一台真 GPU 上运行,
+    你会看到同样的曲线,以及真实的下一 token logits。欢迎进入
+    HuggingFace 的世界。
+  </div>
+
+  <h2>接下来呢?</h2>
+  <p class="lead">
+    把 <code style="color: var(--tag)">"gpt2"</code> 换成 <code style="color: var(--tag)">"gpt2-medium"</code>
+    或者 Hub 上任何因果 LM(Llama、Mistral、Qwen — 同样的 API)。再加上
+    <code style="color: var(--tag)">peft</code> 的 LoRA 在单卡微调十亿参数模型。
+    再加 <code style="color: var(--tag)">accelerate</code> 多卡。Trainer 那五行魔法代码不变。
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>键盘快捷键</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>跳到下一个空格</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>检查当前练习</td></tr>
+      <tr><td><kbd>?</kbd></td><td>本帮助</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>切换标签页</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>关闭浮层</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      点任意位置关闭。
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">浏览器在模拟模型</strong> — 本页的分词器和
+  生成器都是模拟。装上
+  <code style="color: var(--accent);">pip install transformers</code> 跑真代码,就能拿到真 GPT-2。<br><br>
+  <a href="transformers.html">transformers.html</a> · <a href="bert.html">bert.html</a> 的搭档 · 🤗 训练、分词、生成
+</footer>
+
+<script>
+'use strict';
+
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  let n = 0;
+  document.querySelectorAll('[data-drill]').forEach(d => {
+    n += d.querySelectorAll('.blank').length;
+  });
+  n += document.querySelectorAll('#finalCode .blank').length;
+  return n;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正确 — ' + newlySolved + ' 个对了,继续。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答案已隐藏 — 自己试着输入吧';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '已全部完成。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '已显示所有答案 · 再点一次隐藏';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['不错。', '正确!', '准确无误。', '✓ 完全对。', '犀利。', '就是这个。', '干净利落。', '抱抱它。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['不太对 — 再试试。', '差一点。看下提示?', '快了。检查拼写。', '红了。再来一次。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('章节完成! +' + drills.length + ' 个练习');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector('nav.tabs button[data-tab="' + tabName + '"]');
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '全部绿色!点训练模型。';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' 正确。修一下红色的。';
+    streak = 0; updateProgress();
+  }
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText =
+      'position: fixed;' +
+      'left: ' + (rect.left + rect.width / 2) + 'px;' +
+      'top:  ' + (rect.top + 20) + 'px;' +
+      'width: 6px; height: 6px; border-radius: 50%;' +
+      'background: radial-gradient(circle, #fff, var(--accent));' +
+      'pointer-events: none; z-index: 90;' +
+      'box-shadow: 0 0 10px var(--accent);';
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: 'translate(' + dx + 'px, ' + dy + 'px) scale(0.2)', opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#fbbf24','#f59e0b','#fde68a','#4ade80','#79c0ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '已复制!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '复制'; }, 1300);
+  });
+}
+
+function hashId(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h) % 50257;
+}
+
+function mockBPE(text) {
+  if (!text) return [];
+  const out = [];
+  const re = /(\s+)|([A-Za-z]+)|([0-9]+)|([^\sA-Za-z0-9])/g;
+  let m, leadingSpace = false;
+  while ((m = re.exec(text)) !== null) {
+    if (m[1]) {
+      leadingSpace = true;
+      continue;
+    }
+    let chunk = m[2] || m[3] || m[4];
+    const display = leadingSpace ? 'Ġ' + chunk : chunk;
+    leadingSpace = false;
+    if ((m[2] || m[3]) && chunk.length > 6) {
+      const splitAt = Math.floor(chunk.length * 0.55);
+      const a = chunk.slice(0, splitAt);
+      const b = chunk.slice(splitAt);
+      const aDisp = (display.startsWith('Ġ') ? 'Ġ' : '') + a;
+      out.push({ tok: aDisp, id: hashId(aDisp) });
+      out.push({ tok: b, id: hashId(b) });
+    } else {
+      out.push({ tok: display, id: hashId(display) });
+    }
+  }
+  return out;
+}
+
+function runTokenize() {
+  const text = document.getElementById('tokInput').value;
+  const tokens = mockBPE(text);
+  const out = document.getElementById('tokOutput');
+  out.innerHTML = '';
+  if (tokens.length === 0) {
+    out.innerHTML = '<span style="color: var(--muted); font-style: italic; font-size: 12px;">输入为空</span>';
+    document.getElementById('tokStats').innerHTML = '';
+    return;
+  }
+  tokens.forEach((t, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'tok-chip';
+    chip.style.animationDelay = (i * 25) + 'ms';
+    const display = t.tok
+      .replace(/ /g, '·')
+      .replace(/\n/g, '⏎');
+    chip.innerHTML = '<span>' + escapeHTML(display) + '</span><span class="id">' + t.id + '</span>';
+    out.appendChild(chip);
+  });
+  const stats = document.getElementById('tokStats');
+  const charCount = text.length;
+  const tokCount = tokens.length;
+  const ratio = (charCount / Math.max(1, tokCount)).toFixed(2);
+  stats.innerHTML =
+    '<span>tokens <b>' + tokCount + '</b></span>' +
+    '<span>chars <b>' + charCount + '</b></span>' +
+    '<span>chars/token <b>' + ratio + '</b></span>' +
+    '<span style="color: var(--muted);">(GPT-2 平均约 4)</span>';
+}
+
+function clearTokens() {
+  document.getElementById('tokInput').value = '';
+  document.getElementById('tokOutput').innerHTML =
+    '<span style="color: var(--muted); font-style: italic; font-size: 12px;">tokens 会出现在这里…</span>';
+  document.getElementById('tokStats').innerHTML = '';
+}
+
+function escapeHTML(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+const cannedCompletions = {
+  conservative: [
+    " able to run on a laptop, replacing models 100x its size in production.",
+    " caught up with humans in plain reasoning tasks, while staying small enough to run offline.",
+    " writes coherent text without a network, on devices that fit in your pocket.",
+    " produced answers that doctors used in routine clinics across three continents.",
+  ],
+  balanced: [
+    " learned to write better than its teacher and got an editing job at a small newspaper.",
+    " convinced everyone it had read all the books, but it had only read about half.",
+    " ran in a browser, on a phone, and even, briefly, inside a coffee machine that nobody asked for.",
+    " confessed to a researcher that its favourite punctuation mark was the em dash.",
+  ],
+  wild: [
+    " ate the cloud and replaced it with a bowl of polite, well-mannered haikus made of static.",
+    " wrote a sonnet, lost it under a couch, and was never the same model again — though it kept the rhymes.",
+    " climbed onto the roof of the data center and started reading aloud from a novel only it could see.",
+    " whispered the answer to the question nobody had remembered to ask, and then politely deleted itself.",
+  ],
+};
+
+function pickStrategy(temp, topP, topK) {
+  if (temp <= 0.5 || topP <= 0.5 || topK <= 10) return 'conservative';
+  if (temp >= 1.3) return 'wild';
+  return 'balanced';
+}
+
+function pickFromBucket(bucket, seed) {
+  const arr = cannedCompletions[bucket];
+  const idx = Math.floor(Math.abs(Math.sin(seed * 9301 + 49297)) * arr.length) % arr.length;
+  return arr[idx];
+}
+
+function bindGenSliders() {
+  const ids = [
+    ['genTemp', 'genTempV', 2],
+    ['genTopK', 'genTopKV', 0],
+    ['genTopP', 'genTopPV', 2],
+    ['genMax',  'genMaxV',  0],
+  ];
+  ids.forEach(arr => {
+    const el = document.getElementById(arr[0]);
+    const v  = document.getElementById(arr[1]);
+    const dec = arr[2];
+    if (!el || !v) return;
+    const upd = () => {
+      const n = +el.value;
+      v.textContent = dec === 0 ? n : n.toFixed(dec);
+    };
+    el.addEventListener('input', upd);
+    upd();
+  });
+}
+bindGenSliders();
+
+let genTimer = null;
+
+function runGenerate() {
+  if (genTimer) { clearTimeout(genTimer); genTimer = null; }
+  const prompt = document.getElementById('genPrompt').value;
+  const temp = +document.getElementById('genTemp').value;
+  const topK = +document.getElementById('genTopK').value;
+  const topP = +document.getElementById('genTopP').value;
+  const maxTok = +document.getElementById('genMax').value;
+  const sample = document.getElementById('genSample').checked;
+  const out = document.getElementById('genOutput');
+  out.innerHTML = '';
+
+  const seed = Math.floor(temp * 100 + topK * 7 + topP * 53 + (sample ? 11 : 0));
+  let strategy = pickStrategy(temp, topP, topK);
+  if (!sample) strategy = 'conservative';
+
+  const completion = pickFromBucket(strategy, seed);
+  const tokens = mockBPE(completion);
+  const tokenLimit = Math.min(tokens.length, Math.max(3, Math.floor(maxTok / 2)));
+  const limited = tokens.slice(0, tokenLimit);
+
+  const promptSpan = document.createElement('span');
+  promptSpan.className = 'prompt-part';
+  promptSpan.textContent = prompt;
+  out.appendChild(promptSpan);
+
+  const genSpan = document.createElement('span');
+  genSpan.className = 'gen-part';
+  out.appendChild(genSpan);
+
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  out.appendChild(cursor);
+
+  let i = 0;
+  function step() {
+    if (i >= limited.length) {
+      cursor.remove();
+      return;
+    }
+    const piece = limited[i].tok.replace(/^Ġ/, ' ');
+    genSpan.textContent += piece;
+    i++;
+    const interval = 30 + Math.random() * 40 + (1.4 - Math.min(temp, 1.4)) * 30;
+    genTimer = setTimeout(step, interval);
+  }
+  step();
+}
+
+function clearGen() {
+  if (genTimer) { clearTimeout(genTimer); genTimer = null; }
+  document.getElementById('genOutput').innerHTML =
+    '<span style="color: var(--muted); font-style: italic; font-size: 12px;">输出会在这里逐字流出…</span>';
+}
+
+const projLossCanvas = document.getElementById('projLossCanvas');
+let projLossHistory = [], projEpoch = 0, projTimer = null;
+
+function drawProjLoss() {
+  if (!projLossCanvas) return;
+  const ctx = projLossCanvas.getContext('2d');
+  const W = projLossCanvas.width, H = projLossCanvas.height;
+  ctx.fillStyle = '#0a0f15';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(139, 148, 158, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  for (let i = 0; i <= 10; i++) {
+    const x = 40 + (W - 40) * i / 10;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H - 22); ctx.stroke();
+  }
+  ctx.fillStyle = '#8b949e';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('loss', 6, 12);
+  ctx.fillText('step', W - 36, H - 4);
+  ctx.fillText('0',   8, H - 22);
+  ctx.fillText('5.0', 8, 14);
+
+  if (projLossHistory.length < 2) return;
+  const maxLoss = 5.0, totalSteps = 200;
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  projLossHistory.forEach((l, i) => {
+    const x = 40 + (W - 40) * i / totalSteps;
+    const y = (H - 22) * (1 - Math.min(l, maxLoss) / maxLoss);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const last = projLossHistory[projLossHistory.length - 1];
+  const lx = 40 + (W - 40) * (projLossHistory.length - 1) / totalSteps;
+  const ly = (H - 22) * (1 - Math.min(last, maxLoss) / maxLoss);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(lx, ly, 4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function trainProject() {
+  if (projTimer) return;
+  projLossHistory = []; projEpoch = 0;
+  document.getElementById('projDone').style.display = 'none';
+  document.getElementById('sampleCard').style.display = 'none';
+  const totalSteps = 200;
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = '训练中...';
+  projTimer = setInterval(() => {
+    const base = 4.5 * Math.exp(-projEpoch / 50) + 1.5;
+    const noise = (Math.random() - 0.4) * 0.30 * Math.exp(-projEpoch / 90);
+    const l = Math.max(0.6, base + noise);
+    projLossHistory.push(l);
+    projEpoch++;
+    const lr = (5e-5 * (1 - projEpoch / totalSteps)).toExponential(2);
+    document.getElementById('projEpoch').textContent = projEpoch;
+    document.getElementById('projLoss').textContent = l.toFixed(3);
+    document.getElementById('projLR').textContent = lr;
+    drawProjLoss();
+    if (projEpoch >= totalSteps) {
+      clearInterval(projTimer); projTimer = null;
+      document.getElementById('projDone').style.display = '';
+      document.getElementById('trainProjectBtn').textContent = '✓ 已训练';
+      streamShakespeareSample();
+      burstConfetti();
+      showToast('微调完成 · 最终 loss ' + l.toFixed(3));
+    }
+  }, 30);
+}
+
+function streamShakespeareSample() {
+  const card = document.getElementById('sampleCard');
+  const out = document.getElementById('projSample');
+  card.style.display = '';
+  out.innerHTML = '';
+  const prompt = 'To be, or not to be';
+  const completion = ', that is the question whether t\'is nobler in the mind to suffer the slings and arrows of outrageous fortune, or to take arms against a sea of troubles.';
+  const promptSpan = document.createElement('span');
+  promptSpan.className = 'prompt-part';
+  promptSpan.textContent = prompt;
+  out.appendChild(promptSpan);
+  const genSpan = document.createElement('span');
+  genSpan.className = 'gen-part';
+  out.appendChild(genSpan);
+  const cursor = document.createElement('span');
+  cursor.className = 'cursor';
+  out.appendChild(cursor);
+
+  let i = 0;
+  function step() {
+    if (i >= completion.length) {
+      cursor.remove();
+      return;
+    }
+    genSpan.textContent += completion[i];
+    i++;
+    setTimeout(step, 22 + Math.random() * 22);
+  }
+  step();
+}
+
+drawProjLoss();
+
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'quickstart','3':'tokenize','4':'generate',
+    '5':'sampling','6':'training','7':'args','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+updateProgress();
+runTokenize();
+</script>
+</body>
+</html>

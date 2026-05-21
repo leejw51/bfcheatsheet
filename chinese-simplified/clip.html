@@ -1,0 +1,2109 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLIP — 交互式练习</title>
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --panel: #11172a;
+    --panel-2: #182040;
+    --border: #2a3357;
+    --text: #e6edf3;
+    --muted: #8b94b3;
+    --accent: #38bdf8;       /* electric blue */
+    --accent-2: #ec4899;     /* magenta */
+    --accent-soft: rgba(56, 189, 248, 0.12);
+    --code-bg: #070b15;
+    --keyword: #f472b6;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #8b94b3;
+    --fn: #c4b5fd;
+    --tag: #67e8f9;
+    --good: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(800px circle at 10% -10%, rgba(56,189,248,0.10), transparent 50%),
+      radial-gradient(600px circle at 110% 20%, rgba(236,72,153,0.10), transparent 50%);
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #0e1428 0%, #0b0f1a 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    position: relative;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .logo .glyph {
+    font-size: 22px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-weight: 900;
+  }
+  .badge {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.12);
+    border-color: rgba(56, 189, 248, 0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; position: relative; z-index: 1; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 {
+    font-size: 28px; margin: 0 0 8px;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent-2) 110%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
+    background: rgba(56, 189, 248, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(56, 189, 248, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.magenta {
+    background: rgba(236, 72, 153, 0.08);
+    border-left-color: var(--accent-2);
+  }
+  .note.magenta strong { color: var(--accent-2); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 80px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 56px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .pill {
+    display: inline-block;
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.magenta { background: rgba(236, 72, 153, 0.15); color: var(--accent-2); }
+
+  /* Architecture diagram */
+  .arch-svg {
+    width: 100%; height: auto;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* Similarity matrix */
+  .sim-matrix-wrap {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .sim-matrix {
+    border-collapse: collapse;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    margin: 0 auto;
+  }
+  .sim-matrix th, .sim-matrix td {
+    border: 1px solid var(--border);
+    padding: 0;
+    text-align: center;
+    width: 64px; height: 56px;
+    position: relative;
+  }
+  .sim-matrix th {
+    background: var(--panel-2);
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11px;
+    padding: 4px 6px;
+    width: auto; height: auto;
+  }
+  .sim-matrix .corner { background: transparent; border: none; }
+  .sim-cell {
+    width: 100%; height: 100%;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    text-align: center;
+    cursor: ns-resize;
+    outline: none;
+  }
+  .sim-cell:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+  .sim-matrix td.diag {
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+
+  .loss-readout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .loss-readout .row { display: flex; justify-content: space-between; }
+  .loss-readout .row .lab { color: var(--muted); }
+  .loss-readout .row .val {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .loss-readout .row.total .val { color: var(--accent-2); font-size: 15px; }
+
+  /* temperature softmax bars */
+  .softmax-bars {
+    display: grid;
+    grid-template-columns: 90px 1fr 60px;
+    gap: 6px 10px;
+    align-items: center;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+  }
+  .softmax-bars .bar-label { color: var(--text); }
+  .softmax-bars .bar-track {
+    height: 16px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+  }
+  .softmax-bars .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.25s ease;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+  }
+  .softmax-bars .bar-val { color: var(--accent); text-align: right; font-weight: 700; }
+
+  /* zero-shot demo */
+  .zs-demo {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 720px) { .zs-demo { grid-template-columns: 1fr; } }
+  .zs-image {
+    aspect-ratio: 1 / 1;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 110px;
+    user-select: none;
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.08) inset;
+  }
+  .zs-thumbs {
+    display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .zs-thumb {
+    width: 44px; height: 44px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .zs-thumb:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .zs-thumb.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+    transform: scale(1.05);
+  }
+  .zs-cap-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 70px;
+    gap: 8px;
+    align-items: center;
+    margin: 6px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+  .zs-cap-row .cap {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--text);
+  }
+  .zs-cap-row .cap.top {
+    border-color: var(--accent-2);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(236, 72, 153, 0.3);
+  }
+  .zs-cap-row .bar-track {
+    height: 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .zs-cap-row .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.4s ease;
+  }
+  .zs-cap-row .pct {
+    color: var(--accent);
+    font-weight: 700;
+    text-align: right;
+  }
+
+  /* Boss / mini project */
+  .project-card {
+    background: linear-gradient(135deg, rgba(56,189,248,0.06), rgba(236,72,153,0.04));
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(56, 189, 248, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .formula {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: "Computer Modern", ui-monospace, monospace;
+    font-size: 14px;
+    text-align: center;
+    margin: 10px 0;
+    color: var(--text);
+    overflow-x: auto;
+  }
+  .formula em { color: var(--accent); font-style: italic; font-weight: 600; }
+  .formula b { color: var(--accent-2); }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="glyph">◐◑</span> CLIP <span class="badge">边打边学</span>
+    </div>
+    <div class="progress-bar-outer" title="总体进度">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="已完成的练习">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">已解</span>
+    </div>
+    <div class="streak" title="连击">
+      <span class="flame-mini">⚡</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 欢迎</button>
+    <button data-tab="arch">2. 架构</button>
+    <button data-tab="contrastive">3. 对比损失</button>
+    <button data-tab="temp">4. 温度</button>
+    <button data-tab="zeroshot">5. 零样本</button>
+    <button data-tab="code">6. 代码练习</button>
+    <button data-tab="boss">7. Boss</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>CLIP — 让图片和文字进同一间屋</h1>
+  <p class="lead">
+    <strong>CLIP</strong>(Contrastive Language–Image Pre-training,OpenAI 2021)开启了
+    多模态的淘金热。它训练一个图像编码器和一个文本编码器,把匹配的图像-描述对放到一个共享的
+    embedding 空间中的同一个点上 —— 不相关的对则相距甚远。训练完成后,只要把类别名写成句子,
+    就能做<em>零样本</em>分类。
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">两个编码器,一个空间</div></div>
+      <div class="card-body">
+        图像编码器(ViT-B/32 或 ResNet-50)和文本编码器(Transformer)各自输出一个向量。
+        每一侧都有一个小小的<em>投影头</em>,把两者映射到同一个
+        <code style="color: var(--tag)">d=512</code> 的 embedding 空间。然后我们就度量
+        余弦相似度。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">对比目标</div></div>
+      <div class="card-body">
+        对一个 <code style="color: var(--tag)">N</code> 大小的图像-文本对 batch,构建
+        <code style="color: var(--tag)">N×N</code> 的相似度矩阵。对角线上的格子是真匹配
+        (正样本);其他都是负样本。把对角线拉高,把非对角线压下去 —— 在行和列上分别做对称
+        交叉熵。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">为什么重要</div></div>
+      <div class="card-body">
+        训练数据:从网上抓取的 4 亿对图像-文本。没有人工标注 —— 描述就是标签。结果是:一个
+        模型能识别它从未被显式教过的东西,只要你能把它和一句话匹配上。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">它驱动了什么</div></div>
+      <div class="card-body">
+        DALL·E 2 的 CLIP 引导、Stable Diffusion 的文本编码器(CLIP-L/14)、
+        零样本分类器、图像搜索、内容审核、检索、image-to-image、
+        text-to-image 评分、OpenCLIP、SigLIP、EVA-CLIP…… 全是后裔。
+      </div>
+    </div>
+  </div>
+
+  <h2>一口气讲完的食谱</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <pre class="code"><code><span class="tok-c"># 伪代码 (Radford et al., 2021)</span>
+I_f = image_encoder(I)            <span class="tok-c"># [N, d_i]</span>
+T_f = text_encoder(T)             <span class="tok-c"># [N, d_t]</span>
+
+I_e = l2_normalize(W_i @ I_f)     <span class="tok-c"># [N, d]  投影 + 归一化</span>
+T_e = l2_normalize(W_t @ T_f)     <span class="tok-c"># [N, d]</span>
+
+logits = (I_e @ T_e.T) * exp(t)   <span class="tok-c"># [N, N] 用温度缩放</span>
+labels = arange(N)                <span class="tok-c"># 对角线就是目标</span>
+loss   = (CE(logits, labels) + CE(logits.T, labels)) / 2</code></pre>
+  </div>
+
+  <div class="note magenta">
+    <strong>本页阅读方式:</strong>按顺序点击每个标签。在
+    <span class="pill">空格</span> 中输入(Tab 跳到下一个,Enter 检查)。拖动相似度矩阵
+    中的格子,感受损失变化。滑动温度,看 softmax 变锐。挑一个候选描述,在一张小小的
+    emoji 图像上做零样本分类。打通 boss 完成全部。
+  </div>
+
+  <p class="lead" style="margin-top: 20px;">
+    点上方的 <strong>2. 架构</strong> 标签开始。
+  </p>
+</section>
+
+<!-- ========================= ARCHITECTURE ========================= -->
+<section class="tab-section" id="tab-arch">
+  <h1>架构 — 两座塔,一间屋</h1>
+  <p class="lead">
+    CLIP 是<em>双编码器</em>。两座独立的塔各自把输入变成定长向量,一个小小的线性投影把
+    它们对齐到相同维度,L2 归一化后,点积 = 余弦相似度。
+  </p>
+
+  <div class="canvas-card">
+    <h3>双塔示意图</h3>
+    <svg class="arch-svg" viewBox="0 0 920 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="gImg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#0ea5e9"/>
+        </linearGradient>
+        <linearGradient id="gTxt" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ec4899"/>
+          <stop offset="100%" stop-color="#a855f7"/>
+        </linearGradient>
+        <linearGradient id="gSpace" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#ec4899"/>
+        </linearGradient>
+        <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#8b94b3"/>
+        </marker>
+      </defs>
+
+      <!-- IMAGE TOWER -->
+      <g>
+        <rect x="20" y="40" width="140" height="100" rx="10" fill="#11172a" stroke="url(#gImg)" stroke-width="2"/>
+        <text x="90" y="80" text-anchor="middle" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="13" font-weight="700">image</text>
+        <text x="90" y="100" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">224×224×3</text>
+        <text x="90" y="118" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="20">🐶</text>
+
+        <line x1="160" y1="90" x2="200" y2="90" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="200" y="50" width="180" height="80" rx="10" fill="url(#gImg)" opacity="0.15" stroke="url(#gImg)" stroke-width="2"/>
+        <text x="290" y="80" text-anchor="middle" fill="#67e8f9" font-family="ui-monospace, monospace" font-size="14" font-weight="700">Image Encoder</text>
+        <text x="290" y="100" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">ViT-B/32 or ResNet-50</text>
+        <text x="290" y="118" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">→ I_f ∈ ℝ^768</text>
+
+        <line x1="380" y1="90" x2="420" y2="90" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="420" y="60" width="120" height="60" rx="8" fill="#182040" stroke="#67e8f9" stroke-width="1.5"/>
+        <text x="480" y="85" text-anchor="middle" fill="#fff" font-family="ui-monospace, monospace" font-size="12" font-weight="700">W_i · ‖·‖₂</text>
+        <text x="480" y="105" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">project → 512</text>
+      </g>
+
+      <!-- TEXT TOWER -->
+      <g>
+        <rect x="20" y="240" width="140" height="100" rx="10" fill="#11172a" stroke="url(#gTxt)" stroke-width="2"/>
+        <text x="90" y="278" text-anchor="middle" fill="#f0abfc" font-family="ui-monospace, monospace" font-size="13" font-weight="700">text</text>
+        <text x="90" y="298" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">"a photo of a dog"</text>
+        <text x="90" y="318" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">77 BPE tokens max</text>
+
+        <line x1="160" y1="290" x2="200" y2="290" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="200" y="250" width="180" height="80" rx="10" fill="url(#gTxt)" opacity="0.15" stroke="url(#gTxt)" stroke-width="2"/>
+        <text x="290" y="280" text-anchor="middle" fill="#f0abfc" font-family="ui-monospace, monospace" font-size="14" font-weight="700">Text Encoder</text>
+        <text x="290" y="300" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">12-layer Transformer</text>
+        <text x="290" y="318" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">→ T_f ∈ ℝ^512 (EOS)</text>
+
+        <line x1="380" y1="290" x2="420" y2="290" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <rect x="420" y="260" width="120" height="60" rx="8" fill="#182040" stroke="#f0abfc" stroke-width="1.5"/>
+        <text x="480" y="285" text-anchor="middle" fill="#fff" font-family="ui-monospace, monospace" font-size="12" font-weight="700">W_t · ‖·‖₂</text>
+        <text x="480" y="305" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">project → 512</text>
+      </g>
+
+      <!-- merge into joint space -->
+      <line x1="540" y1="90"  x2="600" y2="180" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+      <line x1="540" y1="290" x2="600" y2="200" stroke="#8b94b3" stroke-width="2" marker-end="url(#arrow)"/>
+
+      <rect x="600" y="135" width="290" height="110" rx="14" fill="url(#gSpace)" opacity="0.10" stroke="url(#gSpace)" stroke-width="2"/>
+      <text x="745" y="170" text-anchor="middle" fill="#fff" font-family="ui-monospace, monospace" font-size="14" font-weight="700">共享 Embedding 空间</text>
+      <text x="745" y="192" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="11">ℝ^512 · 单位超球面</text>
+
+      <!-- vectors on sphere -->
+      <circle cx="710" cy="220" r="5" fill="#67e8f9"/>
+      <circle cx="722" cy="222" r="5" fill="#f0abfc"/>
+      <line x1="710" y1="220" x2="722" y2="222" stroke="#fff" stroke-dasharray="3 3" stroke-width="1"/>
+      <text x="745" y="232" text-anchor="middle" fill="#8b94b3" font-family="ui-monospace, monospace" font-size="10">cosine sim ≈ 1</text>
+    </svg>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">图像编码器选择</div></div>
+      <div class="card-body" style="font-size: 13px;">
+        <div><span class="pill">ViT-B/32</span> 12 层,patch 32,86M 参数(原论文默认)</div>
+        <div style="margin-top:6px;"><span class="pill">ViT-L/14</span> 24 层,patch 14,304M 参数(Stable Diffusion 用这个)</div>
+        <div style="margin-top:6px;"><span class="pill">RN50, RN101</span> ResNet 变体,用 attention pool 替换 GAP</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">文本编码器细节</div></div>
+      <div class="card-body" style="font-size: 13px;">
+        <div><span class="pill magenta">架构</span> 12 层 Transformer,8 头,512 维,带 mask 的自注意力</div>
+        <div style="margin-top:6px;"><span class="pill magenta">tokens</span> 49,152 词表 BPE;每个序列最多 77 token</div>
+        <div style="margin-top:6px;"><span class="pill magenta">pool</span> <code style="color: var(--tag)">[EOS]</code> token 的 hidden state,然后做线性投影</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>把架构敲出来</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 两座塔在投影之前<em>什么都不共享</em>。余弦相似度需要向量住在同一个 <span class="pill">d</span> 维空间 —— 这就是 <code style="color: var(--tag)">W_i</code> 和 <code style="color: var(--tag)">W_t</code> 的作用。说出在点积之前让幅值变得无关紧要的那个操作。</div>
+    <pre class="exercise">image_features = image_features / image_features.<input class="blank" data-answer="norm" size="6" placeholder="?">(dim=-1, keepdim=True)
+text_features  = text_features  / text_features.norm(dim=-1, keepdim=True)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 原版 CLIP 图像编码器使用 patch 大小为 32 的<em>vision transformer</em>(ViT-B/32)。输入类名(区分大小写)。</div>
+    <pre class="exercise">image_encoder = <input class="blank" data-answer="VisionTransformer|ViT" size="20" placeholder="?">(patch_size=32, width=768, layers=12)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 文本编码器在哪个特殊 token 的位置上对 hidden state 做 pool?</div>
+    <pre class="exercise"><span class="tok-c"># 取 eot embedding 位置上的 features (eot_token 是每个序列里最大的数字)</span>
+x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)]
+<span class="tok-c"># 这是 [<input class="blank" data-answer="EOS|EOT|eos|eot" size="5" placeholder="?">] token</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> 两侧投影完之后,你要为 batch 计算两两相似度的<em>矩阵</em>。图像 features <code style="color: var(--tag)">[N, d]</code>,文本 features <code style="color: var(--tag)">[N, d]</code> —— 正确的张量操作是:</div>
+    <pre class="exercise">logits_per_image = image_features @ text_features.<input class="blank" data-answer="T|t()" size="5" placeholder="?">   <span class="tok-c"># [N, N]</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CONTRASTIVE ========================= -->
+<section class="tab-section" id="tab-contrastive">
+  <h1>对比损失 — 把对角线拉上去</h1>
+  <p class="lead">
+    在一个 <code style="color: var(--tag)">N</code> 大小的图像-描述对 batch 中,构建
+    <code style="color: var(--tag)">N×N</code> 相似度矩阵。对角线项是仅有的正确匹配;
+    其他都是 <em>批内负样本</em>。损失是对称交叉熵:行为每张图选对的描述,列为每个描述
+    选对的图。
+  </p>
+
+  <div class="formula">
+    L = ½ · ( CE(logits, labels) + CE(logitsᵀ, labels) ),  labels = [0, 1, 2, …, N−1]
+  </div>
+
+  <div class="canvas-card">
+    <h3>玩 4×4 batch — 拖动格子,看损失</h3>
+    <p style="color: var(--muted); font-size: 12.5px; margin: 0 0 10px;">
+      每个格子是图像 <code style="color: var(--tag)">i</code>(行)和文本
+      <code style="color: var(--tag)">j</code>(列)之间的<em>logit</em>(相似度 × 温度)。
+      点一个格子,然后用
+      <kbd style="background: var(--code-bg); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent);">↑</kbd>
+      / <kbd style="background: var(--code-bg); border: 1px solid var(--border); padding: 1px 5px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent);">↓</kbd> 微调它。对角线格子有蓝色边框 —— 那是你想要质量集中的地方。
+    </p>
+    <div class="grid-2" style="grid-template-columns: 1.6fr 1fr;">
+      <div>
+        <table class="sim-matrix" id="simMatrix">
+          <thead>
+            <tr>
+              <th class="corner"></th>
+              <th>📷 cat</th>
+              <th>📷 dog</th>
+              <th>📷 car</th>
+              <th>📷 tree</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>"a cat" 🐱</th>
+              <td class="diag" data-i="0" data-j="0"></td>
+              <td data-i="0" data-j="1"></td>
+              <td data-i="0" data-j="2"></td>
+              <td data-i="0" data-j="3"></td>
+            </tr>
+            <tr>
+              <th>"a dog" 🐶</th>
+              <td data-i="1" data-j="0"></td>
+              <td class="diag" data-i="1" data-j="1"></td>
+              <td data-i="1" data-j="2"></td>
+              <td data-i="1" data-j="3"></td>
+            </tr>
+            <tr>
+              <th>"a car" 🚗</th>
+              <td data-i="2" data-j="0"></td>
+              <td data-i="2" data-j="1"></td>
+              <td class="diag" data-i="2" data-j="2"></td>
+              <td data-i="2" data-j="3"></td>
+            </tr>
+            <tr>
+              <th>"a tree" 🌳</th>
+              <td data-i="3" data-j="0"></td>
+              <td data-i="3" data-j="1"></td>
+              <td data-i="3" data-j="2"></td>
+              <td class="diag" data-i="3" data-j="3"></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+          <button class="btn" onclick="presetSim('random')">随机化</button>
+          <button class="btn ghost" onclick="presetSim('untrained')">未训练 (~0)</button>
+          <button class="btn ghost" onclick="presetSim('trained')">已训练(对角线高)</button>
+          <button class="btn ghost" onclick="presetSim('worst')">最差(反对角)</button>
+        </div>
+      </div>
+      <div>
+        <div class="loss-readout">
+          <div class="row"><span class="lab">L_i (image→text CE)</span><span class="val" id="lossI">—</span></div>
+          <div class="row"><span class="lab">L_t (text→image CE)</span><span class="val" id="lossT">—</span></div>
+          <div class="row total"><span class="lab">总 L</span><span class="val" id="lossTotal">—</span></div>
+          <div class="row"><span class="lab">acc (image→text)</span><span class="val" id="accI">—</span></div>
+          <div class="row"><span class="lab">acc (text→image)</span><span class="val" id="accT">—</span></div>
+        </div>
+        <div class="note" style="margin-top: 14px; font-size: 12.5px;">
+          <strong>目标:</strong>把对角线推到比所在行/列其它项都高。
+          损失 = 0 意味着每行的 argmax 和每列的 argmax 都落在对角线上。
+          未训练的 CLIP 起点接近 <code style="color: var(--tag)">log(N) ≈ 1.39</code>。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>把损失敲出来</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 标签就是 <span class="pill">0, 1, 2, …, N−1</span> —— 每行对角线项的索引。输入这个 PyTorch 函数:</div>
+    <pre class="exercise">labels = torch.<input class="blank" data-answer="arange" size="8" placeholder="?">(N, device=device)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 对称损失:把行 CE 和列 CE 求平均。</div>
+    <pre class="exercise">loss_i = F.cross_entropy(logits_per_image, labels)        <span class="tok-c"># 行</span>
+loss_t = F.cross_entropy(logits_per_text,  labels)        <span class="tok-c"># 列 (= logits.T)</span>
+loss   = (loss_i + <input class="blank" data-answer="loss_t|loss_text" size="9" placeholder="?">) / 2</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> 非对角线项是<em>批内负样本</em>。batch 越大 → 负样本越多 → 对比信号越好。CLIP 训练时 N = ?</div>
+    <pre class="exercise"><span class="tok-c"># 原版 CLIP 的 batch size:</span>
+N = <input class="blank" data-answer="32768|32_768" size="8" placeholder="?">    <span class="tok-c"># 2^15</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 不重新计算就把 <code style="color: var(--tag)">logits_per_image</code> 转成 <code style="color: var(--tag)">logits_per_text</code> —— 转置即可:</div>
+    <pre class="exercise">logits_per_text = logits_per_image.<input class="blank" data-answer="T|t()" size="5" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= TEMPERATURE ========================= -->
+<section class="tab-section" id="tab-temp">
+  <h1>温度 — softmax 有多锐?</h1>
+  <p class="lead">
+    原始相似度 <code style="color: var(--tag)">I_e @ T_e.T</code> 落在
+    <code style="color: var(--tag)">[-1, 1]</code> 区间 —— 对一个有用的 softmax 来说太平了。
+    CLIP 把它乘以一个可学习的 scale <code style="color: var(--tag)">exp(t)</code>,其中
+    <code style="color: var(--tag)">t</code> 是单个标量参数(初始化为
+    <code style="color: var(--tag)">log(1/0.07) ≈ 2.66</code>)。
+  </p>
+
+  <div class="formula">
+    P(text=j | image=i) = softmax<sub>j</sub>( <em>τ</em> · cos(I<sub>i</sub>, T<sub>j</sub>) ),  其中  <em>τ</em> = exp(<b>t</b>)
+  </div>
+
+  <div class="canvas-card">
+    <h3>滑动温度,看 softmax 变锐</h3>
+    <p style="color: var(--muted); font-size: 12.5px; margin: 0 0 12px;">
+      图像:🐶。四个候选描述,底层余弦相似度为:
+      <strong>0.30, 0.10, 0.27, 0.18</strong>。τ 越大,模型越自信 ——
+      最高的相似度会主导结果。
+    </p>
+    <div class="slider-row">
+      <label>log scale t</label>
+      <input type="range" id="tempT" min="-1" max="5" step="0.05" value="2.66">
+      <span class="val" id="tempTval">2.66</span>
+    </div>
+    <div class="slider-row">
+      <label>τ = exp(t)</label>
+      <div style="flex:1; height: 8px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; opacity: 0.3;"></div>
+      <span class="val" id="tempTau">14.3</span>
+    </div>
+
+    <div class="softmax-bars" id="softmaxBars" style="margin-top: 16px;">
+      <div class="bar-label">"a dog" 🐶</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="0"></div></div>
+        <div class="bar-val" data-val="0">—</div>
+      <div class="bar-label">"a cat" 🐱</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="1"></div></div>
+        <div class="bar-val" data-val="1">—</div>
+      <div class="bar-label">"a wolf" 🐺</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="2"></div></div>
+        <div class="bar-val" data-val="2">—</div>
+      <div class="bar-label">"a fox" 🦊</div>
+        <div class="bar-track"><div class="bar-fill" data-bar="3"></div></div>
+        <div class="bar-val" data-val="3">—</div>
+    </div>
+
+    <div class="note magenta" style="margin-top: 16px; font-size: 12.5px;">
+      <strong>τ 的上限:</strong>CLIP 会把 <code style="color: var(--tag)">t</code> 钳制在
+      <code style="color: var(--tag)">log(100) ≈ 4.6</code>,以防训练不稳定。
+      把滑块拉到最右 —— 条形会塌缩成接近 one-hot。
+    </div>
+  </div>
+
+  <h2>把温度敲出来</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 缩放后的 logits —— 这里的 <code style="color: var(--tag)">temperature</code> 指<em>对数温度参数</em> <code style="color: var(--tag)">t</code>。</div>
+    <pre class="exercise">logit_scale = self.logit_scale.<input class="blank" data-answer="exp" size="5" placeholder="?">()
+logits = logit_scale * image_features @ text_features.T</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 对数温度的初始值。CLIP 起步时 τ ≈ 1/0.07;按官方代码原样输入 <code style="color: var(--tag)">numpy</code> log 表达式:</div>
+    <pre class="exercise">self.logit_scale = nn.Parameter(torch.ones([]) * np.<input class="blank" data-answer="log" size="5" placeholder="?">(1 / 0.07))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 对 log-scale 做稳定性钳制(防止 τ 突破 100):</div>
+    <pre class="exercise">self.logit_scale.data.clamp_(0, math.log(<input class="blank" data-answer="100" size="5" placeholder="?">))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= ZERO-SHOT ========================= -->
+<section class="tab-section" id="tab-zeroshot">
+  <h1>零样本 — 不训练就能分类</h1>
+  <p class="lead">
+    CLIP 的超能力:把任何分类任务变成文本匹配问题。把每个类别名套进句子模板
+    (<em>"a photo of a {class}"</em>),一次性编码全部,然后对任何图像:编码它,
+    与类 embedding 做点积,softmax → 完成。无需微调,无需标签。
+  </p>
+
+  <div class="canvas-card">
+    <h3>挑一张图 → 看 CLIP 的描述排序</h3>
+
+    <div class="zs-demo">
+      <div>
+        <div class="zs-image" id="zsImage">🐶</div>
+        <div class="zs-thumbs" id="zsThumbs">
+          <div class="zs-thumb active" data-img="dog">🐶</div>
+          <div class="zs-thumb" data-img="cat">🐱</div>
+          <div class="zs-thumb" data-img="car">🚗</div>
+          <div class="zs-thumb" data-img="pizza">🍕</div>
+          <div class="zs-thumb" data-img="rocket">🚀</div>
+          <div class="zs-thumb" data-img="violin">🎻</div>
+        </div>
+        <div style="font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); margin-top: 12px;">
+          embedding(卡通版,6 维):
+          <div id="zsEmbed" style="margin-top: 4px; color: var(--accent); font-size: 11px; word-break: break-all;"></div>
+        </div>
+      </div>
+      <div>
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-bottom: 6px;">
+          候选描述(模板:<code style="color: var(--tag)">"a photo of a {class}"</code>)
+        </div>
+        <div id="zsCaptions"></div>
+        <div class="note" style="margin-top: 14px; font-size: 12.5px;">
+          <strong>窍门:</strong>提示词模板影响很大。<em>"a photo of a {x}"</em>
+          在 ImageNet 上比 <em>"{x}"</em> 高约 1.3 个点。集成 80 个模板是 CLIP
+          零样本的标准配方。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>把零样本配方敲出来</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 在分词之前,把类名套进标准提示词模板:</div>
+    <pre class="exercise">classes = ["cat", "dog", "car", "pizza"]
+prompts = [<input class="blank" data-answer='f&quot;a photo of a {c}&quot;|&quot;a photo of a &quot; + c|f&apos;a photo of a {c}&apos;' size="28" placeholder="?"> for c in classes]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 一旦你有单张图像 embedding <code style="color: var(--tag)">img_emb</code> 和类别文本 embedding <code style="color: var(--tag)">text_embs</code>,预测的类别是:</div>
+    <pre class="exercise">logits = (100.0 * img_emb @ text_embs.T)
+probs  = logits.softmax(dim=-1)
+pred   = probs.<input class="blank" data-answer="argmax" size="8" placeholder="?">(dim=-1)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 用 <code style="color: var(--tag)">open_clip</code> 给类别提示词分词的标准 import:</div>
+    <pre class="exercise">import open_clip
+tokens = open_clip.<input class="blank" data-answer="tokenize" size="10" placeholder="?">(prompts)   <span class="tok-c"># [N_classes, 77]</span></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= CODE DRILLS ========================= -->
+<section class="tab-section" id="tab-code">
+  <h1>代码练习 — 用真实 CLIP</h1>
+  <p class="lead">
+    三套真实世界的栈。<code style="color: var(--tag)">open_clip_torch</code> 是事实标准
+    (模型比原版发布更好)。<code style="color: var(--tag)">transformers</code> 提供
+    HuggingFace 的 <code style="color: var(--tag)">CLIPModel</code>。两者包装的是同样的数学。
+  </p>
+
+  <h2>open_clip — 加载与 embed</h2>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">完整参考</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>, <span class="tok-t">open_clip</span>
+<span class="tok-k">from</span> <span class="tok-t">PIL</span> <span class="tok-k">import</span> <span class="tok-t">Image</span>
+
+model, _, preprocess = open_clip.create_model_and_transforms(
+    <span class="tok-s">"ViT-B-32"</span>, pretrained=<span class="tok-s">"laion2b_s34b_b79k"</span>)
+tokenizer = open_clip.get_tokenizer(<span class="tok-s">"ViT-B-32"</span>)
+model.eval()
+
+img    = preprocess(Image.open(<span class="tok-s">"cat.jpg"</span>)).unsqueeze(<span class="tok-n">0</span>)
+labels = [<span class="tok-s">"a photo of a cat"</span>, <span class="tok-s">"a photo of a dog"</span>]
+text   = tokenizer(labels)
+
+<span class="tok-k">with</span> torch.no_grad():
+    img_f = model.encode_image(img)
+    txt_f = model.encode_text(text)
+    img_f /= img_f.norm(dim=-1, keepdim=True)
+    txt_f /= txt_f.norm(dim=-1, keepdim=True)
+    probs = (<span class="tok-n">100.0</span> * img_f @ txt_f.T).softmax(dim=-1)
+
+<span class="tok-f">print</span>(<span class="tok-s">"probs"</span>, probs)   <span class="tok-c"># [[0.98, 0.02]]</span></code></pre>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 加载预训练的 <code style="color: var(--tag)">open_clip</code> 模型。这个函数返回模型、训练 transform 和用于推理的 <em>preprocess</em>。补全调用:</div>
+    <pre class="exercise">model, _, preprocess = open_clip.<input class="blank" data-answer="create_model_and_transforms" size="32" placeholder="?">(
+    "ViT-B-32", pretrained="laion2b_s34b_b79k")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> 你实际会调用的两个模型方法:</div>
+    <pre class="exercise">img_f = model.<input class="blank" data-answer="encode_image" size="14" placeholder="?">(img)
+txt_f = model.<input class="blank" data-answer="encode_text" size="14" placeholder="?">(text_tokens)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>HuggingFace transformers</h2>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">通过 transformers 用 CLIPModel</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">transformers</span> <span class="tok-k">import</span> CLIPProcessor, CLIPModel
+
+model     = CLIPModel.from_pretrained(<span class="tok-s">"openai/clip-vit-base-patch32"</span>)
+processor = CLIPProcessor.from_pretrained(<span class="tok-s">"openai/clip-vit-base-patch32"</span>)
+
+inputs = processor(text=[<span class="tok-s">"a cat"</span>, <span class="tok-s">"a dog"</span>],
+                   images=img, return_tensors=<span class="tok-s">"pt"</span>, padding=<span class="tok-k">True</span>)
+out    = model(**inputs)
+
+logits_per_image = out.logits_per_image     <span class="tok-c"># [batch, n_classes]</span>
+probs            = logits_per_image.softmax(dim=<span class="tok-n">-1</span>)</code></pre>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> 加载 HF CLIP —— 模型类是什么?</div>
+    <pre class="exercise">from transformers import <input class="blank" data-answer="CLIPModel" size="12" placeholder="?">, CLIPProcessor</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> 把 HF logits 转成各类别的概率分布:</div>
+    <pre class="exercise">probs = out.logits_per_image.<input class="blank" data-answer="softmax" size="10" placeholder="?">(dim=-1)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>open_clip 与 OpenAI 权重对比:</strong>open_clip 团队在 LAION-2B 上训练了
+    更强得多的 checkpoint(<code style="color: var(--tag)">laion2b_s34b_b79k</code>
+    是常用的一个)。新项目里,优先用它们,而不是 2021 年的原始权重。
+  </div>
+</section>
+
+<!-- ========================= BOSS ========================= -->
+<section class="tab-section" id="tab-boss">
+  <h1>Boss — 一气呵成写出 CLIP forward</h1>
+  <p class="lead">
+    期末考:这段代码里每个空格都是 CLIP forward + loss 的一部分。当所有空格都变绿,
+    页面会模拟训练一个 4×4 CLIP batch,你会看到相似度矩阵在对角线上变锐。
+  </p>
+
+  <div class="project-card">
+    <h3>补全 CLIP 训练步</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      11 个空格。全绿后点 <em>Train</em>。
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
+
+<span class="tok-c"># --- 两个编码器前向 -------------------------------------------</span>
+image_features = model.<input class="blank" data-answer="encode_image" size="14" placeholder="?">(images)        <span class="tok-c"># [N, d]</span>
+text_features  = model.<input class="blank" data-answer="encode_text" size="14" placeholder="?">(texts)          <span class="tok-c"># [N, d]</span>
+
+<span class="tok-c"># --- L2 归一化,使点积成为余弦相似度 -------------------------</span>
+image_features = image_features / image_features.<input class="blank" data-answer="norm" size="6" placeholder="?">(dim=-1, keepdim=True)
+text_features  = text_features  / text_features.<input class="blank" data-answer="norm" size="6" placeholder="?">(dim=-1, keepdim=True)
+
+<span class="tok-c"># --- 构建 N × N 相似度 logits --------------------------------</span>
+logit_scale = model.logit_scale.<input class="blank" data-answer="exp" size="5" placeholder="?">()                 <span class="tok-c"># τ = exp(t)</span>
+logits_per_image = logit_scale * image_features @ text_features.<input class="blank" data-answer="T|t()" size="4" placeholder="?">
+logits_per_text  = logits_per_image.<input class="blank" data-answer="T|t()" size="4" placeholder="?">
+
+<span class="tok-c"># --- 对角目标的对称交叉熵 ------------------------------------</span>
+N      = images.shape[0]
+labels = torch.<input class="blank" data-answer="arange" size="8" placeholder="?">(N, device=images.device)
+loss_i = F.cross_entropy(logits_per_image, labels)
+loss_t = F.cross_entropy(logits_per_text,  labels)
+loss   = (loss_i + <input class="blank" data-answer="loss_t|loss_text" size="9" placeholder="?">) / 2
+
+<span class="tok-c"># --- 标准 PyTorch 训练步 -------------------------------------</span>
+optimizer.zero_grad()
+loss.<input class="blank" data-answer="backward" size="10" placeholder="?">()
+optimizer.<input class="blank" data-answer="step" size="6" placeholder="?">()</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">Check All</button>
+      <button class="btn ghost" id="trainBossBtn" onclick="trainBoss()" disabled>▶ Train</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="canvas-card">
+      <h3>训练损失</h3>
+      <canvas id="bossLossCanvas" width="500" height="220"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        epoch <span id="bossEpoch" style="color: var(--accent); font-weight: 700;">—</span>
+        · loss <span id="bossLoss" style="color: var(--accent); font-weight: 700;">—</span>
+        · acc <span id="bossAcc" style="color: var(--accent-2); font-weight: 700;">—</span>
+      </div>
+    </div>
+    <div class="canvas-card">
+      <h3>4×4 相似度矩阵在对角线上锐化</h3>
+      <canvas id="bossSimCanvas" width="500" height="220"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        青色 = 正样本(对角线) · 品红 = 负样本 · 越亮 = logit 越高
+      </div>
+    </div>
+  </div>
+
+  <div class="note magenta" id="bossDone" style="display:none; border-left-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">训练完成!</strong>对角线锁定了。
+    真实 CLIP 在 ~256 张 V100 上对 4 亿对样本跑 32 个 epoch 的就是这个循环。
+    和普通 PyTorch 模型一样的五行魔法 —— 只是损失更有意思。
+  </div>
+
+  <h2>下一步去哪</h2>
+  <p class="lead">
+    用一个 LAION-2B 的 checkpoint 在自己的照片库上试 <code style="color: var(--tag)">open_clip</code>。
+    用 <code style="color: var(--tag)">faiss</code> + 图像 embedding 在 100 行以内做一个
+    个人图像搜索引擎。然后去读
+    <strong>SigLIP</strong>(用 sigmoid loss 替代 softmax)和 <strong>EVA-CLIP</strong>
+    (大规模放大)。你现在已经能跟上之后所有论文了。
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>键盘快捷键</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>跳到下一个空格</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>检查当前练习</td></tr>
+      <tr><td><kbd>?</kbd></td><td>显示此帮助</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>切换标签页</td></tr>
+      <tr><td><kbd>↑</kbd>/<kbd>↓</kbd></td><td>微调相似度矩阵格子</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>关闭遮罩</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      点击任意位置关闭。
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">浏览器模拟数学</strong> —— 损失、softmax、
+  以及 boss 训练曲线都是在玩具数据上的真实数值,而非真实 CLIP。
+  用 <code style="color: var(--accent);">pip install open_clip_torch</code>
+  跑同样的代码就能用真实权重。<br><br>
+  <a href="basicai.html">basicai.html</a> 的姊妹篇 · ◐◑ image · text · one space
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  // 每个 drill 都有自己的空格;final code 每个空格也算一个
+  let count = 0;
+  document.querySelectorAll('[data-drill]').forEach(d => {
+    count += d.querySelectorAll('.blank').length;
+  });
+  count += document.querySelectorAll('#finalCode .blank').length;
+  return count;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正确 —— ' + newlySolved + ' 个对了,继续。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答案已隐藏 —— 自己试着输入吧';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '已全部完成。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '已显示所有答案 · 再点一次隐藏';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['不错。', '正确!', '准确无误。', '✓ 完全对。', '犀利。', '就是这个。', '干净利落。', '已嵌入。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['不太对 —— 再试试。', '差一点。看下提示?', '快了。检查拼写。', '红了。再来一次。', '偏离对角线了。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('本节完成! 🎉  +' + drills.length + ' 个练习');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '全绿!点 Train。';
+    document.getElementById('trainBossBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + ' 个对。修复红色的。';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#38bdf8','#ec4899','#a855f7','#fbbf24','#4ade80','#67e8f9','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '已复制!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '复制'; }, 1300);
+  });
+}
+
+// ============== SIMILARITY MATRIX (interactive) ==============
+const N_SIM = 4;
+let simLogits = [
+  [2.5, 0.4, 0.6, 0.2],
+  [0.5, 2.3, 0.3, 0.4],
+  [0.7, 0.2, 2.6, 0.5],
+  [0.3, 0.5, 0.4, 2.2],
+];
+
+function softmaxRow(arr) {
+  const m = Math.max(...arr);
+  const exps = arr.map(v => Math.exp(v - m));
+  const Z = exps.reduce((a, b) => a + b, 0);
+  return exps.map(v => v / Z);
+}
+
+function computeContrastiveLoss(L) {
+  // image -> text: 行 CE 在对角线上
+  let li = 0, lt = 0, accI = 0, accT = 0;
+  for (let i = 0; i < N_SIM; i++) {
+    const row = L[i];
+    const sm = softmaxRow(row);
+    li -= Math.log(Math.max(1e-12, sm[i]));
+    let am = 0;
+    for (let j = 1; j < N_SIM; j++) if (row[j] > row[am]) am = j;
+    if (am === i) accI++;
+  }
+  for (let j = 0; j < N_SIM; j++) {
+    const col = L.map(r => r[j]);
+    const sm = softmaxRow(col);
+    lt -= Math.log(Math.max(1e-12, sm[j]));
+    let am = 0;
+    for (let i = 1; i < N_SIM; i++) if (col[i] > col[am]) am = i;
+    if (am === j) accT++;
+  }
+  li /= N_SIM; lt /= N_SIM;
+  return { li, lt, total: (li + lt) / 2, accI: accI / N_SIM, accT: accT / N_SIM };
+}
+
+function colorForLogit(v) {
+  // -3 .. 3 → gradient between magenta (low) and blue (high)
+  const t = Math.max(0, Math.min(1, (v + 3) / 6));
+  const r = Math.round(236 + (56 - 236) * t);
+  const g = Math.round(72  + (189 - 72) * t);
+  const b = Math.round(153 + (248 - 153) * t);
+  const a = 0.18 + 0.55 * t;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+function renderSim() {
+  const tds = document.querySelectorAll('#simMatrix td[data-i]');
+  tds.forEach(td => {
+    const i = +td.dataset.i, j = +td.dataset.j;
+    const v = simLogits[i][j];
+    td.innerHTML = '';
+    td.style.background = colorForLogit(v);
+    td.style.cursor = 'pointer';
+    const txt = document.createElement('div');
+    txt.style.color = '#fff';
+    txt.style.fontWeight = '700';
+    txt.style.fontFamily = 'ui-monospace, monospace';
+    txt.style.fontSize = '13px';
+    txt.style.padding = '14px 0';
+    txt.textContent = v.toFixed(2);
+    td.appendChild(txt);
+  });
+
+  const r = computeContrastiveLoss(simLogits);
+  document.getElementById('lossI').textContent = r.li.toFixed(3);
+  document.getElementById('lossT').textContent = r.lt.toFixed(3);
+  document.getElementById('lossTotal').textContent = r.total.toFixed(3);
+  document.getElementById('accI').textContent = (r.accI * 100).toFixed(0) + '%';
+  document.getElementById('accT').textContent = (r.accT * 100).toFixed(0) + '%';
+}
+
+let simSelected = null;
+function setupSim() {
+  const tds = document.querySelectorAll('#simMatrix td[data-i]');
+  tds.forEach(td => {
+    td.tabIndex = 0;
+    td.addEventListener('click', () => {
+      tds.forEach(o => o.style.outline = '');
+      td.style.outline = '2px solid #fff';
+      simSelected = [+td.dataset.i, +td.dataset.j];
+      td.focus();
+    });
+    td.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const i = +td.dataset.i, j = +td.dataset.j;
+      simLogits[i][j] = Math.max(-3, Math.min(5, simLogits[i][j] + (e.deltaY > 0 ? -0.15 : 0.15)));
+      renderSim();
+    }, { passive: false });
+  });
+  document.addEventListener('keydown', (e) => {
+    if (!simSelected) return;
+    const active = document.querySelector('section.tab-section.active');
+    if (!active || active.id !== 'tab-contrastive') return;
+    if (e.target.tagName === 'INPUT') return;
+    const [i, j] = simSelected;
+    if (e.key === 'ArrowUp')   { simLogits[i][j] = Math.min(5, simLogits[i][j] + 0.2); renderSim(); e.preventDefault(); }
+    if (e.key === 'ArrowDown') { simLogits[i][j] = Math.max(-3, simLogits[i][j] - 0.2); renderSim(); e.preventDefault(); }
+  });
+}
+
+function presetSim(kind) {
+  if (kind === 'random') {
+    for (let i = 0; i < N_SIM; i++)
+      for (let j = 0; j < N_SIM; j++)
+        simLogits[i][j] = (Math.random() - 0.4) * 3;
+  } else if (kind === 'untrained') {
+    for (let i = 0; i < N_SIM; i++)
+      for (let j = 0; j < N_SIM; j++)
+        simLogits[i][j] = (Math.random() - 0.5) * 0.4;
+  } else if (kind === 'trained') {
+    for (let i = 0; i < N_SIM; i++) {
+      for (let j = 0; j < N_SIM; j++) {
+        simLogits[i][j] = (i === j ? 3.5 : 0.0) + (Math.random() - 0.5) * 0.3;
+      }
+    }
+  } else if (kind === 'worst') {
+    for (let i = 0; i < N_SIM; i++) {
+      for (let j = 0; j < N_SIM; j++) {
+        simLogits[i][j] = (i === j ? -2.5 : 2.5) + (Math.random() - 0.5) * 0.2;
+      }
+    }
+  }
+  renderSim();
+}
+
+renderSim();
+setupSim();
+
+// ============== TEMPERATURE BARS ==============
+const tempSimsBase = [0.30, 0.10, 0.27, 0.18];
+function updateTempBars() {
+  const t = +document.getElementById('tempT').value;
+  const tau = Math.exp(t);
+  document.getElementById('tempTval').textContent = t.toFixed(2);
+  document.getElementById('tempTau').textContent = tau.toFixed(1);
+  const logits = tempSimsBase.map(s => s * tau);
+  const sm = softmaxRow(logits);
+  const max = Math.max(...sm);
+  for (let i = 0; i < 4; i++) {
+    const fill = document.querySelector(`#softmaxBars [data-bar="${i}"]`);
+    const valEl = document.querySelector(`#softmaxBars [data-val="${i}"]`);
+    fill.style.width = (sm[i] * 100) + '%';
+    valEl.textContent = (sm[i] * 100).toFixed(1) + '%';
+    valEl.style.color = (sm[i] === max) ? 'var(--accent-2)' : 'var(--accent)';
+  }
+}
+const tempT = document.getElementById('tempT');
+if (tempT) {
+  tempT.addEventListener('input', updateTempBars);
+  updateTempBars();
+}
+
+// ============== ZERO-SHOT DEMO ==============
+// 用于卡通展示的虚假 "embedding" + 描述相似度
+const ZS_DATA = {
+  dog:    { embed: [0.62, 0.31, -0.18, 0.44, -0.05, 0.53],
+            sims: [0.78, 0.18, 0.23, 0.15, 0.42, 0.19, 0.11, 0.31] },
+  cat:    { embed: [0.58, -0.22, 0.41, 0.19, 0.27, -0.12],
+            sims: [0.21, 0.81, 0.27, 0.13, 0.38, 0.16, 0.10, 0.22] },
+  car:    { embed: [-0.31, 0.55, 0.40, -0.22, 0.18, 0.07],
+            sims: [0.14, 0.13, 0.09, 0.86, 0.11, 0.18, 0.62, 0.28] },
+  pizza:  { embed: [0.18, 0.46, -0.39, 0.05, 0.61, -0.17],
+            sims: [0.11, 0.16, 0.10, 0.12, 0.22, 0.84, 0.13, 0.19] },
+  rocket: { embed: [-0.15, -0.41, 0.28, 0.55, -0.20, 0.49],
+            sims: [0.16, 0.08, 0.14, 0.31, 0.09, 0.12, 0.79, 0.21] },
+  violin: { embed: [0.43, 0.02, 0.51, -0.34, 0.16, 0.27],
+            sims: [0.18, 0.13, 0.21, 0.10, 0.09, 0.14, 0.16, 0.83] },
+};
+const ZS_EMOJI = {
+  dog: '🐶', cat: '🐱', car: '🚗', pizza: '🍕', rocket: '🚀', violin: '🎻'
+};
+const ZS_CAPS = [
+  ['a photo of a dog',     '🐶'],
+  ['a photo of a cat',     '🐱'],
+  ['a photo of a wolf',    '🐺'],
+  ['a photo of a car',     '🚗'],
+  ['a slice of pizza',     '🍕'],
+  ['a delicious meal',     '🍝'],
+  ['a rocket launch',      '🚀'],
+  ['a violin solo',        '🎻'],
+];
+
+let zsCurrent = 'dog';
+function renderZeroShot() {
+  const data = ZS_DATA[zsCurrent];
+  document.getElementById('zsImage').textContent = ZS_EMOJI[zsCurrent];
+  document.getElementById('zsEmbed').textContent = '[' +
+    data.embed.map(v => (v >= 0 ? ' ' : '') + v.toFixed(2)).join(', ') + ', …]';
+  // 对显示的描述相似度做 softmax(用 tau=20 卡通缩放)
+  const tau = 20;
+  const logits = data.sims.map(s => s * tau);
+  const sm = softmaxRow(logits);
+  const sortedIdx = sm
+    .map((v, i) => [v, i])
+    .sort((a, b) => b[0] - a[0])
+    .map(p => p[1]);
+  const top = sortedIdx[0];
+  const container = document.getElementById('zsCaptions');
+  container.innerHTML = '';
+  // 按概率降序展示
+  sortedIdx.forEach(idx => {
+    const [cap, em] = ZS_CAPS[idx];
+    const row = document.createElement('div');
+    row.className = 'zs-cap-row';
+    row.innerHTML = `
+      <div class="cap ${idx === top ? 'top' : ''}">${em}  <span style="opacity:0.85">"${cap}"</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width: ${(sm[idx] * 100).toFixed(1)}%"></div></div>
+      <div class="pct">${(sm[idx] * 100).toFixed(1)}%</div>
+    `;
+    container.appendChild(row);
+  });
+}
+document.querySelectorAll('#zsThumbs .zs-thumb').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('#zsThumbs .zs-thumb').forEach(o => o.classList.remove('active'));
+    t.classList.add('active');
+    zsCurrent = t.dataset.img;
+    renderZeroShot();
+  });
+});
+renderZeroShot();
+
+// ============== BOSS SIMULATION ==============
+const bossLossCanvas = document.getElementById('bossLossCanvas');
+const bossSimCanvas  = document.getElementById('bossSimCanvas');
+let bossEpoch = 0, bossHistory = [], bossTimer = null;
+const bossN = 4;
+
+// 初始化随机相似度矩阵(未训练)
+let bossSim = Array.from({ length: bossN }, () =>
+  Array.from({ length: bossN }, () => (Math.random() - 0.5) * 0.6));
+
+function drawBossLoss() {
+  if (!bossLossCanvas) return;
+  const ctx = bossLossCanvas.getContext('2d');
+  const W = bossLossCanvas.width, H = bossLossCanvas.height;
+  ctx.fillStyle = '#070b15';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(139, 148, 179, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#8b94b3';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('loss', 4, 12);
+  ctx.fillText(Math.log(bossN).toFixed(2), 4, H * 0.5 + 4);
+
+  if (bossHistory.length < 2) return;
+  const maxLoss = Math.log(bossN) * 1.2;
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#38bdf8');
+  grad.addColorStop(1, '#ec4899');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 6;
+  ctx.beginPath();
+  bossHistory.forEach((l, i) => {
+    const x = 30 + (W - 30) * i / 200;
+    const y = (H - 16) * (1 - Math.min(l, maxLoss) / maxLoss);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawBossSim() {
+  if (!bossSimCanvas) return;
+  const ctx = bossSimCanvas.getContext('2d');
+  const W = bossSimCanvas.width, H = bossSimCanvas.height;
+  ctx.fillStyle = '#070b15';
+  ctx.fillRect(0, 0, W, H);
+
+  const cell = Math.min((W - 80) / bossN, (H - 40) / bossN);
+  const startX = (W - cell * bossN) / 2 + 20;
+  const startY = (H - cell * bossN) / 2;
+
+  // labels
+  ctx.fillStyle = '#8b94b3';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('text →', startX + cell * bossN / 2 - 14, startY - 6);
+  ctx.save();
+  ctx.translate(startX - 30, startY + cell * bossN / 2 + 12);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('image →', 0, 0);
+  ctx.restore();
+
+  for (let i = 0; i < bossN; i++) {
+    for (let j = 0; j < bossN; j++) {
+      const v = bossSim[i][j];
+      // map -3..6 → 0..1
+      const t = Math.max(0, Math.min(1, (v + 3) / 9));
+      const r = Math.round(236 + (56 - 236) * t);
+      const g = Math.round(72  + (189 - 72) * t);
+      const b = Math.round(153 + (248 - 153) * t);
+      const a = 0.2 + 0.7 * t;
+      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a})`;
+      ctx.fillRect(startX + j * cell, startY + i * cell, cell - 2, cell - 2);
+      if (i === j) {
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(startX + j * cell + 1, startY + i * cell + 1, cell - 4, cell - 4);
+      }
+    }
+  }
+}
+
+function trainBoss() {
+  if (bossTimer) return;
+  bossHistory = []; bossEpoch = 0;
+  document.getElementById('bossDone').style.display = 'none';
+  document.getElementById('trainBossBtn').disabled = true;
+  document.getElementById('trainBossBtn').textContent = '训练中...';
+  // 重置相似度为噪声
+  bossSim = Array.from({ length: bossN }, () =>
+    Array.from({ length: bossN }, () => (Math.random() - 0.5) * 0.6));
+
+  const totalEpochs = 200;
+  bossTimer = setInterval(() => {
+    bossEpoch++;
+    // 逐渐把对角线推高,非对角线推到小的负值
+    const k = 0.04;
+    for (let i = 0; i < bossN; i++) {
+      for (let j = 0; j < bossN; j++) {
+        const target = (i === j) ? 5.5 : -0.5;
+        bossSim[i][j] += (target - bossSim[i][j]) * k + (Math.random() - 0.5) * 0.06;
+      }
+    }
+    const r = computeContrastiveLoss(bossSim);
+    bossHistory.push(r.total);
+    document.getElementById('bossEpoch').textContent = bossEpoch;
+    document.getElementById('bossLoss').textContent = r.total.toFixed(3);
+    document.getElementById('bossAcc').textContent = (((r.accI + r.accT) / 2) * 100).toFixed(0) + '%';
+    drawBossLoss();
+    drawBossSim();
+    if (bossEpoch >= totalEpochs) {
+      clearInterval(bossTimer); bossTimer = null;
+      document.getElementById('bossDone').style.display = '';
+      document.getElementById('trainBossBtn').textContent = '✓ 已训练';
+      burstConfetti();
+      showToast('CLIP forward 锁定 🎉  对角线准确率 100%');
+    }
+  }, 30);
+}
+
+drawBossLoss();
+drawBossSim();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'arch','3':'contrastive','4':'temp','5':'zeroshot','6':'code','7':'boss' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

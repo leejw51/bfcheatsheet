@@ -1,0 +1,2170 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mac에서 MLX / PyTorch / Python — 인터랙티브 드릴</title>
+<style>
+  :root {
+    --bg: #0a0e14;
+    --panel: #121821;
+    --panel-2: #1a212c;
+    --border: #2a3340;
+    --text: #e8eef5;
+    --muted: #8a96a8;
+    --accent: #5ac8fa;       /* Apple aqua */
+    --accent-2: #c0c8d2;      /* silver */
+    --accent-warm: #a8d8ff;
+    --code-bg: #060a10;
+    --keyword: #ff7b9c;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #6c7a8c;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --mlx: #5ac8fa;
+    --pyt: #ee8b4c;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, #0e1622 0%, var(--bg) 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15202c 0%, #0a0e14 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo {
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(120deg, #fff 0%, var(--accent) 60%, var(--accent-2) 100%);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+  .logo .apple {
+    color: var(--accent-2);
+    -webkit-text-fill-color: var(--accent-2);
+    font-size: 22px;
+    filter: drop-shadow(0 0 6px rgba(90, 200, 250, 0.5));
+  }
+  .badge {
+    background: linear-gradient(135deg, var(--accent), #4aa8d6);
+    color: #04121b;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    box-shadow: 0 0 10px rgba(90, 200, 250, 0.35);
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(90, 200, 250, 0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(90, 200, 250, 0.12);
+    border-color: rgba(90, 200, 250, 0.4);
+    box-shadow: inset 0 0 12px rgba(90, 200, 250, 0.08);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 {
+    font-size: 30px; margin: 0 0 8px;
+    letter-spacing: -0.5px;
+    background: linear-gradient(120deg, #fff 0%, var(--accent-2) 80%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+    letter-spacing: -0.2px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    border-radius: 2px;
+    box-shadow: 0 0 8px rgba(90, 200, 250, 0.4);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: linear-gradient(135deg, var(--accent), #3aa9d8);
+    color: #04121b;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #04121b; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(90, 200, 250, 0.25);
+    background: rgba(90, 200, 250, 0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: linear-gradient(135deg, var(--accent), #3aa9d8);
+    color: #04121b;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+    box-shadow: 0 0 12px rgba(90, 200, 250, 0.18);
+  }
+  .btn:hover { filter: brightness(1.1); box-shadow: 0 0 16px rgba(90, 200, 250, 0.35); }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(90, 200, 250, 0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  }
+  @media (max-width: 900px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* Comparison table */
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13.5px;
+    background: var(--panel);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table.compare th, table.compare td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+  table.compare thead th {
+    background: var(--panel-2);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+  }
+  table.compare thead th.mlx-col { color: var(--mlx); }
+  table.compare thead th.pyt-col { color: var(--pyt); }
+  table.compare tbody tr:last-child td { border-bottom: none; }
+  table.compare td.label { color: var(--muted); font-weight: 600; width: 22%; }
+  table.compare td code {
+    font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+    color: var(--tag);
+  }
+
+  .tag-mlx, .tag-pyt {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 800;
+    font-family: ui-monospace, monospace;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .tag-mlx { background: rgba(90, 200, 250, 0.15); color: var(--mlx); }
+  .tag-pyt { background: rgba(238, 139, 76, 0.15); color: var(--pyt); }
+
+  /* Mac chip diagram */
+  .chip-card {
+    background:
+      radial-gradient(ellipse at top right, rgba(90, 200, 250, 0.08), transparent 60%),
+      var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .chip-card h3 {
+    margin: 0 0 12px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .chip-svg {
+    display: block;
+    width: 100%;
+    max-width: 720px;
+    height: auto;
+    margin: 0 auto;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  /* Project card */
+  .project-card {
+    background: linear-gradient(135deg, rgba(90,200,250,0.08), rgba(192,200,210,0.02));
+    border: 1px solid rgba(90, 200, 250, 0.4);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 16px 0;
+  }
+  .project-card h3 {
+    color: var(--accent); margin: 0 0 6px; font-size: 16px;
+  }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(90, 200, 250, 0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .pill {
+    display: inline-block;
+    background: rgba(90, 200, 250, 0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
+  .pill.silver { background: rgba(192,200,210,0.12); color: var(--accent-2); }
+  .pill.warm { background: rgba(238, 139, 76, 0.15); color: var(--pyt); }
+
+  /* Tip list */
+  .tip-row {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .tip-row:last-child { border-bottom: none; }
+  .tip-row .icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #3aa9d8);
+    color: #04121b;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 13px;
+    box-shadow: 0 0 10px rgba(90, 200, 250, 0.3);
+  }
+  .tip-row .body strong { color: var(--text); }
+  .tip-row .body { font-size: 13.5px; color: var(--muted); }
+  .tip-row .body code { color: var(--tag); font-family: ui-monospace, monospace; font-size: 12.5px; }
+
+  .row-flex {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="apple"></span> Mac ML <span class="badge">MLX · MPS · Python</span>
+    </div>
+    <div class="progress-bar-outer" title="전체 진행도">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="완료한 연습 문제">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="연속 정답">
+      <span class="flame-mini"></span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 환영</button>
+    <button data-tab="python">2. Python 설정</button>
+    <button data-tab="mps">3. PyTorch + MPS</button>
+    <button data-tab="mlx">4. MLX 입문</button>
+    <button data-tab="compare">5. MLX vs PyTorch</button>
+    <button data-tab="mlxlm">6. mlx-lm</button>
+    <button data-tab="perf">7. 성능 팁</button>
+    <button data-tab="drills">8. 드릴</button>
+    <button data-tab="project">9. 미니 프로젝트</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>Mac을 ML 워크스테이션으로</h1>
+  <p class="lead">
+    Apple Silicon(M1/M2/M3/M4)은 진지한 ML 머신입니다. IDE를 돌리는 같은 칩이 트랜스포머를 학습시키고,
+    LoRA를 파인튜닝하고, 7B 파라미터 모델을 로컬에서 서빙할 수 있습니다 — GPU 대여도, <code>nvidia-smi</code>도
+    필요 없습니다. 이 페이지는 필요한 도구 셋을 타이핑으로 가르칩니다:
+    <span class="pill silver">arm64 Python</span>
+    <span class="pill">MPS가 적용된 PyTorch</span>
+    <span class="pill">MLX</span>.
+  </p>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><div class="card-title">통합 메모리</div></div>
+      <div class="card-body">
+        Apple Silicon에서는 CPU와 GPU가 같은 RAM을 공유합니다. <code>cuda</code> 복사도,
+        <code>.to(device)</code> 병목도 없습니다. 16 GB에 들어가는 모델은 PyTorch (MPS)에서든
+        MLX에서든 그냥 <em>실행</em>됩니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Mac에서의 PyTorch</div></div>
+      <div class="card-body">
+        <strong>MPS</strong> (Metal Performance Shaders) 백엔드가 적용된 풀 PyTorch.
+        다른 곳과 같은 API — <code>cuda</code>를 <code>mps</code>로 바꾸면 끝.
+        대부분의 op가 동작; 드물게 CPU로 폴백됩니다.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">MLX</div></div>
+      <div class="card-body">
+        Apple의 어레이 프레임워크로, Apple Silicon을 위해 처음부터 만들어졌습니다.
+        NumPy 같은, 기본적으로 lazy, 자동 미분, 네이티브 LLM 도구들. 더 작고, 더 빠르고,
+        Mac 네이티브.
+      </div>
+    </div>
+  </div>
+
+  <h2>얻게 될 것들</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="tip-row"><div class="icon">1</div><div class="body"><strong>깔끔한 arm64 Python.</strong> 네이티브 검증 완료, 가상 환경 안에서 ML 패키지 설치 준비 끝.</div></div>
+      <div class="tip-row"><div class="icon">2</div><div class="body"><strong>GPU 위의 PyTorch.</strong> 정확한 <code>device = torch.device("mps" if ...)</code> 주문.</div></div>
+      <div class="tip-row"><div class="icon">3</div><div class="body"><strong>MLX 헬로월드.</strong> <code>mx.value_and_grad</code>와 <code>mx.eval</code>을 올바르게 쓰는 선형 회귀.</div></div>
+      <div class="tip-row"><div class="icon">4</div><div class="body"><strong>로컬 LLM.</strong> <code>mlx_lm.generate</code> 명령 한 줄이면 터미널에서 7B 모델과 채팅.</div></div>
+      <div class="tip-row"><div class="icon">5</div><div class="body"><strong>판단 기준.</strong> 나란히 비교 표: MLX vs PyTorch, 언제 무엇을 쓸지.</div></div>
+    </div>
+  </div>
+
+  <h2>Mac ML 스택 한눈에</h2>
+  <div class="chip-card">
+    <h3>chip → frameworks → workloads</h3>
+    <svg class="chip-svg" viewBox="0 0 720 280" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="chipGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#5ac8fa" stop-opacity="0.3"/>
+          <stop offset="1" stop-color="#c0c8d2" stop-opacity="0.05"/>
+        </linearGradient>
+        <linearGradient id="mlxGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#5ac8fa" stop-opacity="0.6"/>
+          <stop offset="1" stop-color="#5ac8fa" stop-opacity="0.15"/>
+        </linearGradient>
+        <linearGradient id="pytGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ee8b4c" stop-opacity="0.6"/>
+          <stop offset="1" stop-color="#ee8b4c" stop-opacity="0.15"/>
+        </linearGradient>
+      </defs>
+      <!-- chip -->
+      <rect x="280" y="20" width="160" height="80" rx="12" fill="url(#chipGrad)" stroke="#5ac8fa" stroke-width="1.5"/>
+      <text x="360" y="50" text-anchor="middle" fill="#e8eef5" font-size="13" font-weight="700" font-family="ui-monospace, monospace">Apple Silicon</text>
+      <text x="360" y="68" text-anchor="middle" fill="#8a96a8" font-size="11" font-family="ui-monospace, monospace">CPU + GPU + Neural Engine</text>
+      <text x="360" y="86" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">unified memory</text>
+      <!-- branches -->
+      <line x1="350" y1="100" x2="180" y2="150" stroke="#5ac8fa" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <line x1="370" y1="100" x2="540" y2="150" stroke="#ee8b4c" stroke-width="1.5" stroke-dasharray="3 3"/>
+      <!-- MLX framework -->
+      <rect x="80" y="150" width="200" height="50" rx="10" fill="url(#mlxGrad)" stroke="#5ac8fa"/>
+      <text x="180" y="175" text-anchor="middle" fill="#5ac8fa" font-size="14" font-weight="800" font-family="ui-monospace, monospace">MLX</text>
+      <text x="180" y="192" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">native · lazy · NumPy-like</text>
+      <!-- PyTorch framework -->
+      <rect x="440" y="150" width="200" height="50" rx="10" fill="url(#pytGrad)" stroke="#ee8b4c"/>
+      <text x="540" y="175" text-anchor="middle" fill="#ee8b4c" font-size="14" font-weight="800" font-family="ui-monospace, monospace">PyTorch (MPS)</text>
+      <text x="540" y="192" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">universal · cross-platform</text>
+      <!-- workloads -->
+      <line x1="180" y1="200" x2="180" y2="225" stroke="#5ac8fa" stroke-width="1"/>
+      <line x1="540" y1="200" x2="540" y2="225" stroke="#ee8b4c" stroke-width="1"/>
+      <text x="180" y="245" text-anchor="middle" fill="#e8eef5" font-size="11.5" font-family="ui-monospace, monospace">mlx_lm · LoRA · custom kernels</text>
+      <text x="180" y="261" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">research · LLM serving on Mac</text>
+      <text x="540" y="245" text-anchor="middle" fill="#e8eef5" font-size="11.5" font-family="ui-monospace, monospace">torchvision · HuggingFace · diffusers</text>
+      <text x="540" y="261" text-anchor="middle" fill="#8a96a8" font-size="10" font-family="ui-monospace, monospace">port from CUDA · existing code</text>
+    </svg>
+  </div>
+
+  <div class="note">
+    <strong>이 페이지 사용법:</strong> 각 섹션을 읽고 <span class="pill">빈칸</span>에
+    직접 타이핑하세요 (Tab으로 다음 칸 이동, Enter로 확인). 정답을 찍으면 점수가 오르고,
+    연속 정답 카운터와 마지막 미니 프로젝트가 브라우저에서 MLX 스타일 학습 루프를 돌립니다.
+  </div>
+</section>
+
+<!-- ========================= PYTHON ========================= -->
+<section class="tab-section" id="tab-python">
+  <h1>Mac에서 Python (arm64)</h1>
+  <p class="lead">
+    Mac ML에서 가장 큰 고통의 원천은 실수로 Rosetta 2 아래에서 <strong>x86_64</strong> Python을
+    쓰는 것입니다 — GPU 가속이 되어야 할 휠이 조용히 에뮬레이션된 x86에서 돌아갑니다.
+    <code>arm64</code>를 검증하고, venv 안에서 작업하세요.
+  </p>
+
+  <h2>Python 받는 세 가지 방법 — 하나만 고르세요</h2>
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="pill silver">권장</span> uv</div></div>
+      <div class="card-body">
+        Rust 기반, 빠름, pip + pyenv + venv를 한꺼번에 대체. 바이너리 하나.
+        <pre class="code"><code>brew install uv
+uv python install <span class="tok-n">3.11</span>
+uv venv .venv
+<span class="tok-k">source</span> .venv/bin/activate</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">pyenv</div></div>
+      <div class="card-body">
+        프로젝트별로 여러 Python 버전을 관리하는 클래식한 방법.
+        <pre class="code"><code>brew install pyenv
+pyenv install <span class="tok-n">3.11</span>
+pyenv local <span class="tok-n">3.11</span>
+python -m venv .venv</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">python.org</div></div>
+      <div class="card-body">
+        python.org에서 universal2 인스톨러를 받으세요. 단순, Homebrew 없이도 가능.
+        <pre class="code"><code><span class="tok-c"># 인스톨러 실행 후</span>
+python3 -m venv .venv
+<span class="tok-k">source</span> .venv/bin/activate
+python --version</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h2>arm64 검증 — 절대 건너뛰지 마세요</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">진실을 알려주는 두 가지 검사</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 1. 셸 아키텍처</span>
+arch
+<span class="tok-c"># 기대값: arm64   (i386이 아니어야 함)</span>
+
+<span class="tok-c"># 2. python 자체 보고</span>
+python -c <span class="tok-s">"import platform; print(platform.machine())"</span>
+<span class="tok-c"># 기대값: arm64</span>
+
+<span class="tok-c"># 3. 어쨌든 어떤 python인가?</span>
+which python
+file $(which python)
+<span class="tok-c"># 기대값: ...arm64</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong><code>x86_64</code>나 <code>i386</code>이라면</strong>: 터미널 앱이 Rosetta 아래에서
+    실행 중입니다. Finder에서 터미널 우클릭 → 정보 보기 → "Rosetta로 열기" 체크 해제하세요.
+    또는 새 터미널/iTerm을 설치하세요.
+  </div>
+
+  <h2>venv 의식</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">항상 venv 안에서 작업하세요</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 생성</span>
+python -m venv .venv
+
+<span class="tok-c"># 활성화 (zsh / bash)</span>
+<span class="tok-k">source</span> .venv/bin/activate
+
+<span class="tok-c"># 설치</span>
+pip install --upgrade pip
+pip install torch numpy mlx
+
+<span class="tok-c"># 끝나면 비활성화</span>
+deactivate</code></pre>
+  </div>
+
+  <h2>실습</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Python이 네이티브 arm64로 실행되는지 확인.</div>
+    <pre class="exercise">python -c "import platform; print(platform.<input class="blank" data-answer="machine" size="9" placeholder="?">())"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> <code>.venv</code>에 만든 venv를 활성화 (zsh/bash):</div>
+    <pre class="exercise">source .venv/bin/<input class="blank" data-answer="activate" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> <code>.venv</code>에 가상 환경 생성:</div>
+    <pre class="exercise">python -m <input class="blank" data-answer="venv" size="6" placeholder="?"> .venv</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= PYTORCH MPS ========================= -->
+<section class="tab-section" id="tab-mps">
+  <h1>PyTorch + MPS — Mac의 GPU</h1>
+  <p class="lead">
+    PyTorch 1.12(2022년 5월) 이후, <strong>MPS</strong> 백엔드가 Apple의 Metal Performance Shaders로
+    텐서 op을 통합 GPU에서 실행합니다. 같은 PyTorch API, Mac 버전 디바이스.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">설치</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># Mac용 일반 pytorch 휠은 mps가 활성화되어 있습니다</span>
+pip install torch torchvision
+
+<span class="tok-c"># nightly가 보통 mps 커버리지가 더 좋습니다</span>
+pip install --pre torch torchvision \
+    --index-url https://download.pytorch.org/whl/nightly/cpu</code></pre>
+  </div>
+
+  <h2>디바이스 댄스</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">최적 디바이스를 고르는 이식 가능한 코드</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+
+<span class="tok-c"># Mac (mps), Linux (cuda), CPU 전용 머신 모두에서 동작</span>
+device = torch.device(
+    <span class="tok-s">"mps"</span>  <span class="tok-k">if</span> torch.backends.mps.is_available() <span class="tok-k">else</span>
+    <span class="tok-s">"cuda"</span> <span class="tok-k">if</span> torch.cuda.is_available()        <span class="tok-k">else</span>
+    <span class="tok-s">"cpu"</span>
+)
+
+x = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>).to(device)
+W = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>).to(device)
+y = x @ W                         <span class="tok-c"># Apple GPU에서 실행</span>
+<span class="tok-f">print</span>(y.device)                  <span class="tok-c"># mps:0</span></code></pre>
+  </div>
+
+  <h2>CPU 폴백 비상구</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">MPS에 아직 구현되지 않은 op이 있을 때</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># Python 시작 전에 export (또는 torch import 전에 Python 안에서 설정)</span>
+<span class="tok-k">export</span> PYTORCH_ENABLE_MPS_FALLBACK=<span class="tok-n">1</span>
+
+<span class="tok-c"># 또는 코드에서:</span>
+<span class="tok-k">import</span> <span class="tok-t">os</span>
+os.environ[<span class="tok-s">"PYTORCH_ENABLE_MPS_FALLBACK"</span>] = <span class="tok-s">"1"</span>
+<span class="tok-k">import</span> <span class="tok-t">torch</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong>이게 하는 일:</strong> PyTorch가 아직 MPS로 포팅되지 않은 op을 만나면, 크래시 대신
+    조용히 CPU로 폴백합니다. 느려지지만, 코드는 끝까지 돌아갑니다. PyTorch 2.x에서는
+    대부분의 일반 op이 동작합니다 — 폴백은 드뭅니다.
+  </div>
+
+  <h2>작은 엔드투엔드 예제</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">노이즈로 학습되는 1-레이어 MLP, GPU에서</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+<span class="tok-k">import</span> <span class="tok-t">torch.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+
+device = torch.device(<span class="tok-s">"mps"</span> <span class="tok-k">if</span> torch.backends.mps.is_available() <span class="tok-k">else</span> <span class="tok-s">"cpu"</span>)
+
+X = torch.randn(<span class="tok-n">256</span>, <span class="tok-n">8</span>, device=device)
+y = torch.randn(<span class="tok-n">256</span>, <span class="tok-n">1</span>, device=device)
+
+model = nn.Sequential(
+    nn.Linear(<span class="tok-n">8</span>, <span class="tok-n">32</span>), nn.ReLU(),
+    nn.Linear(<span class="tok-n">32</span>, <span class="tok-n">1</span>),
+).to(device)
+
+opt = torch.optim.Adam(model.parameters(), lr=<span class="tok-n">1e-3</span>)
+loss_fn = nn.MSELoss()
+
+<span class="tok-k">for</span> step <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">200</span>):
+    pred = model(X)
+    loss = loss_fn(pred, y)
+    opt.zero_grad(); loss.backward(); opt.step()
+
+<span class="tok-f">print</span>(<span class="tok-s">"final loss"</span>, loss.item())</code></pre>
+  </div>
+
+  <h2>실습</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> Mac에서 Apple GPU를 고르고, 아니면 CPU로 폴백. 디바이스 문자열을 쓰세요.</div>
+    <pre class="exercise">device = torch.device("<input class="blank" data-answer="mps" size="5" placeholder="?">" if torch.backends.mps.is_available() else "cpu")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 미지원 MPS op을 CPU로 폴백시키는 환경 변수:</div>
+    <pre class="exercise">export <input class="blank" data-answer="PYTORCH_ENABLE_MPS_FALLBACK" size="32" placeholder="?">=1</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Mac GPU 가용성을 확인하는 PyTorch 네임스페이스:</div>
+    <pre class="exercise">if torch.backends.<input class="blank" data-answer="mps" size="5" placeholder="?">.is_available():
+    print("Apple GPU ready")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> 텐서를 선택한 디바이스로 옮기기:</div>
+    <pre class="exercise">x = torch.randn(64, 64).<input class="blank" data-answer="to" size="4" placeholder="?">(device)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MLX ========================= -->
+<section class="tab-section" id="tab-mlx">
+  <h1>MLX — Apple의 어레이 프레임워크</h1>
+  <p class="lead">
+    <strong>MLX</strong>는 Apple Silicon에서 머신러닝을 위한 Apple의 리서치 프레임워크입니다.
+    NumPy + JAX의 만남에 PyTorch 같은 ergonomics를 더한 느낌. lazy하고, 자동 미분을 지원하며,
+    통합 메모리를 네이티브로 활용합니다. Mac을 만드는 팀이 Mac을 위해 설계.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">설치</div>
+        <button class="copy-btn" onclick="copyCode(this)">복사</button>
+      </div>
+      <pre class="code"><code><span class="tok-c"># 코어 어레이 라이브러리</span>
+pip install mlx
+
+<span class="tok-c"># LLM 헬퍼 (mlx_lm)</span>
+pip install mlx-lm</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">항상 쓰게 될 import</div>
+        <button class="copy-btn" onclick="copyCode(this)">복사</button>
+      </div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <span class="tok-t">mx</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.nn</span>   <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.optimizers</span> <span class="tok-k">as</span> <span class="tok-t">optim</span></code></pre>
+    </div>
+  </div>
+
+  <h2>꼭 내재화해야 할 세 가지 아이디어</h2>
+  <div class="card">
+    <div class="card-body">
+      <div class="tip-row">
+        <div class="icon">L</div>
+        <div class="body">
+          <strong>기본적으로 lazy.</strong> <code>mx</code> op은 그래프를 만듭니다.
+          <code>mx.eval(x)</code>를 호출하거나 값을 읽기 전(예: <code>print</code>,
+          <code>numpy()</code>)에는 아무것도 계산되지 않습니다. 이로써 MLX가 fuse + 스케줄.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">U</div>
+        <div class="body">
+          <strong>"디바이스"가 아닌 통합 메모리.</strong> <code>.to(device)</code>가 없습니다.
+          어레이는 공유 메모리에 살고, op은 자동으로 CPU나 GPU에서 실행됩니다.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">A</div>
+        <div class="body">
+          <strong>Autograd는 functional.</strong> <code>mx.grad(fn)</code> 또는
+          <code>mx.value_and_grad(fn)</code>를 쓰세요 — 그래디언트를 반환하는 함수를 돌려줍니다.
+          <code>.backward()</code>는 없습니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>헬로월드: MLX로 선형 회귀</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">y = 2x + 1을 autograd로, 25줄에</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <span class="tok-t">mx</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.nn</span>   <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.optimizers</span> <span class="tok-k">as</span> <span class="tok-t">optim</span>
+
+<span class="tok-c"># 합성 데이터: y = 2x + 1 + noise</span>
+mx.random.seed(<span class="tok-n">0</span>)
+X = mx.random.normal((<span class="tok-n">100</span>, <span class="tok-n">1</span>))
+y = <span class="tok-n">2.0</span> * X + <span class="tok-n">1.0</span> + <span class="tok-n">0.1</span> * mx.random.normal((<span class="tok-n">100</span>, <span class="tok-n">1</span>))
+
+<span class="tok-c"># 모델 = Linear 한 레이어</span>
+model = nn.Linear(<span class="tok-n">1</span>, <span class="tok-n">1</span>)
+
+<span class="tok-k">def</span> <span class="tok-f">loss_fn</span>(model, X, y):
+    pred = model(X)
+    <span class="tok-k">return</span> mx.mean((pred - y) ** <span class="tok-n">2</span>)
+
+loss_and_grad = nn.value_and_grad(model, loss_fn)
+opt = optim.SGD(learning_rate=<span class="tok-n">0.1</span>)
+
+<span class="tok-k">for</span> step <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">200</span>):
+    loss, grads = loss_and_grad(model, X, y)
+    opt.update(model, grads)
+    mx.eval(model.parameters(), opt.state)   <span class="tok-c"># 계산 강제</span>
+
+<span class="tok-f">print</span>(model.weight.item(), model.bias.item())   <span class="tok-c"># ≈ 2.0, 1.0</span></code></pre>
+  </div>
+
+  <div class="note">
+    <strong><code>mx.eval</code> 트릭:</strong> MLX는 lazy하기 때문에, 그래디언트는 요청하기
+    전까지 실제로 계산되지 않습니다. 학습 스텝마다 한 번
+    <code>mx.eval(model.parameters(), opt.state)</code>를 호출해서 materialize하세요 —
+    그렇지 않으면 그래프가 계속 자랍니다.
+  </div>
+
+  <h2>실습</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> MLX core 모듈의 관습적 별칭:</div>
+    <pre class="exercise">import mlx.core as <input class="blank" data-answer="mx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> lazy 그래프를 실제로 계산하도록 강제:</div>
+    <pre class="exercise">y = mx.matmul(A, B)
+mx.<input class="blank" data-answer="eval" size="6" placeholder="?">(y)   # 이제 y가 materialize됨</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 첫 인자에 대한 <code>loss_fn</code>의 그래디언트를 반환하는 함수를 만들기:</div>
+    <pre class="exercise">grad_fn = mx.<input class="blank" data-answer="grad" size="6" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 한 번의 호출로 손실 <em>과</em> 그래디언트를 모두 받기:</div>
+    <pre class="exercise">loss_and_grad = mx.<input class="blank" data-answer="value_and_grad" size="16" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= COMPARE ========================= -->
+<section class="tab-section" id="tab-compare">
+  <h1>MLX vs PyTorch — 어떤 걸 언제 쓰나</h1>
+  <p class="lead">
+    Apple Silicon에서 둘 다 훌륭합니다. 겹치는 부분이 많습니다. 결정 기준을 정리합니다.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th></th>
+        <th class="mlx-col">MLX</th>
+        <th class="pyt-col">PyTorch (MPS)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="label">설계 대상</td>
+        <td><span class="tag-mlx">apple silicon</span> Mac 전용, 네이티브</td>
+        <td><span class="tag-pyt">universal</span> Mac · Linux · Windows · CUDA</td>
+      </tr>
+      <tr>
+        <td class="label">API 스타일</td>
+        <td>NumPy + functional autograd (JAX 같은)</td>
+        <td>NumPy + <code>nn.Module</code> + <code>.backward()</code></td>
+      </tr>
+      <tr>
+        <td class="label">실행</td>
+        <td>Lazy — <code>mx.eval()</code>로 materialize</td>
+        <td>Eager (기본); <code>torch.compile</code>은 옵트인</td>
+      </tr>
+      <tr>
+        <td class="label">메모리 모델</td>
+        <td>통합 — 디바이스 댄스 없음</td>
+        <td>디바이스 명시 — <code>.to("mps")</code></td>
+      </tr>
+      <tr>
+        <td class="label">Op 커버리지</td>
+        <td>작은 라이브러리 — 빠르게 성장 중</td>
+        <td>거대함 — 거의 모든 게 동작 (일부 MPS 갭)</td>
+      </tr>
+      <tr>
+        <td class="label">LLM 서빙</td>
+        <td><code>mlx_lm</code> — 양자화, LoRA, generate, 서버</td>
+        <td><code>transformers</code> + <code>accelerate</code> 사용</td>
+      </tr>
+      <tr>
+        <td class="label">생태계</td>
+        <td>젊음 — HF의 <code>mlx-community</code>, 도구가 늘어남</td>
+        <td>거대함 — torchvision, HuggingFace, lightning 등</td>
+      </tr>
+      <tr>
+        <td class="label">M 시리즈 성능</td>
+        <td>대체로 가장 빠름 (네이티브 + lazy fusion)</td>
+        <td>훌륭함, 무거운 CNN op에서는 더 빠를 때도 있음</td>
+      </tr>
+      <tr>
+        <td class="label">디버깅</td>
+        <td>Lazy라 print가 까다로움 — <code>eval</code> 호출</td>
+        <td>Eager — 어디서든 print, 그냥 동작</td>
+      </tr>
+      <tr>
+        <td class="label">언제 쓸까</td>
+        <td>로컬 LLM 작업, Mac 타깃 리서치, Apple 최고 성능</td>
+        <td>CUDA 코드 포팅, 기존 HF 모델 사용, 크로스 플랫폼</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-mlx">MLX</span> — 이럴 때 선택…</div></div>
+      <div class="card-body">
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.9;">
+          <li>Llama 급 LLM을 로컬에서 실행</li>
+          <li>노트북에서 LoRA 파인튜닝</li>
+          <li>JAX 스타일 functional 코드를 좋아함</li>
+          <li>프로젝트가 Mac 전용 — CUDA 타깃 없음</li>
+          <li>의존성 최소 + 빠른 시작 시간</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-pyt">PyTorch</span> — 이럴 때 선택…</div></div>
+      <div class="card-body">
+        <ul style="margin: 0; padding-left: 20px; line-height: 1.9;">
+          <li>CUDA에서 기존 PyTorch 코드를 포팅</li>
+          <li><code>torchvision</code> / <code>diffusers</code> / <code>transformers</code>가 필요</li>
+          <li>나중에 Linux GPU에 배포 예정</li>
+          <li>가장 큰 커뮤니티 / 문서 / Stack Overflow가 필요</li>
+          <li>특수 레이어가 필요 (예: 복잡한 spectral op)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2>같은 작업, 두 프레임워크</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-mlx">MLX</span> matmul</div></div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <span class="tok-t">mx</span>
+
+A = mx.random.normal((<span class="tok-n">1024</span>, <span class="tok-n">1024</span>))
+B = mx.random.normal((<span class="tok-n">1024</span>, <span class="tok-n">1024</span>))
+C = A @ B
+mx.eval(C)
+<span class="tok-f">print</span>(C.shape)</code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title"><span class="tag-pyt">PyTorch</span> matmul</div></div>
+      <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch</span>
+
+dev = <span class="tok-s">"mps"</span> <span class="tok-k">if</span> torch.backends.mps.is_available() <span class="tok-k">else</span> <span class="tok-s">"cpu"</span>
+A = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>, device=dev)
+B = torch.randn(<span class="tok-n">1024</span>, <span class="tok-n">1024</span>, device=dev)
+C = A @ B
+<span class="tok-f">print</span>(C.shape)</code></pre>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>솔직한 답변:</strong> Mac 초보자에겐 보통 정답이 "둘 다 쓰세요"입니다.
+    PyTorch로 시작(모든 게 문서화되어 있으니), LLM에서 Mac 최고 성능을 원할 때 MLX를 꺼내세요.
+  </div>
+</section>
+
+<!-- ========================= MLX-LM ========================= -->
+<section class="tab-section" id="tab-mlxlm">
+  <h1>mlx-lm — 명령 한 줄로 로컬 LLM</h1>
+  <p class="lead">
+    <code>mlx-lm</code>은 바로 실행 가능한 LLM 스크립트를 제공하는 동반 패키지입니다:
+    추론용 <code>generate</code>, 파인튜닝용 <code>lora</code>,
+    OpenAI 호환 HTTP API용 <code>server</code>. Hugging Face의
+    <a href="https://huggingface.co/mlx-community" style="color: var(--accent);">mlx-community</a>
+    조직에서 미리 변환·양자화된 수백 개의 모델을 호스팅합니다.
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">설치</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>pip install mlx-lm</code></pre>
+  </div>
+
+  <h2>아무 mlx-community 모델에서 생성</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">일회성 CLI</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># 처음 실행 시 다운로드 + 캐시</span>
+python -m mlx_lm.generate \
+    --model mlx-community/Llama-3.2-3B-Instruct-4bit \
+    --prompt <span class="tok-s">"Explain unified memory in one sentence."</span> \
+    --max-tokens <span class="tok-n">200</span></code></pre>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">Python에서</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> <span class="tok-t">mlx_lm</span> <span class="tok-k">import</span> load, generate
+
+model, tokenizer = load(<span class="tok-s">"mlx-community/Llama-3.2-3B-Instruct-4bit"</span>)
+
+response = generate(
+    model, tokenizer,
+    prompt=<span class="tok-s">"Write a haiku about Apple Silicon."</span>,
+    max_tokens=<span class="tok-n">100</span>,
+)
+<span class="tok-f">print</span>(response)</code></pre>
+  </div>
+
+  <h2>LoRA로 파인튜닝</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">jsonl 준비, lora 실행</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-c"># data/train.jsonl — 한 줄에 하나의 {"text": "..."}</span>
+
+python -m mlx_lm.lora \
+    --model mlx-community/Mistral-7B-Instruct-v0.3-4bit \
+    --train \
+    --data ./data \
+    --iters <span class="tok-n">600</span> \
+    --batch-size <span class="tok-n">4</span> \
+    --lora-layers <span class="tok-n">8</span></code></pre>
+  </div>
+
+  <h2>OpenAI 호환 서버</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">아무 OpenAI 클라이언트에 드롭인</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code>python -m mlx_lm.server \
+    --model mlx-community/Llama-3.2-3B-Instruct-4bit \
+    --port <span class="tok-n">8080</span>
+
+<span class="tok-c"># 다른 곳에서:</span>
+curl http://localhost:8080/v1/chat/completions \
+    -H <span class="tok-s">"Content-Type: application/json"</span> \
+    -d <span class="tok-s">'{"messages":[{"role":"user","content":"hi"}]}'</span></code></pre>
+  </div>
+
+  <h2>실습</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> CLI 한 번으로 모델에서 텍스트 생성:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="generate" size="10" placeholder="?"> --model mlx-community/Llama-3.2-3B-Instruct-4bit --prompt "hi"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> mlx-lm CLI로 LoRA 파인튜닝 실행:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="lora" size="6" placeholder="?"> --model mlx-community/Mistral-7B-Instruct-v0.3-4bit --train --data ./data</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> Python에서 모델과 토크나이저 로드 (mlx_lm에서):</div>
+    <pre class="exercise">from mlx_lm import <input class="blank" data-answer="load" size="6" placeholder="?">, generate
+model, tokenizer = load("mlx-community/Llama-3.2-3B-Instruct-4bit")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note">
+    <strong>팁:</strong> 대부분의 <code>mlx-community</code> 모델 이름 끝의 <code>-4bit</code> 접미사는
+    4비트 양자화를 뜻합니다. 4비트의 7B 모델은 8 GB RAM에 무난히 들어가고
+    M1/M2/M3에서 사용 가능한 속도로 동작합니다.
+  </div>
+</section>
+
+<!-- ========================= PERFORMANCE ========================= -->
+<section class="tab-section" id="tab-perf">
+  <h1>Mac ML 성능 팁</h1>
+  <p class="lead">
+    빠른 Mac ML과 느린 Mac ML을 가르는 건 몇 가지 습관입니다. 대부분 통합 메모리를 존중하고
+    불필요한 작업을 피하는 데 관한 것입니다.
+  </p>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="tip-row">
+        <div class="icon">1</div>
+        <div class="body">
+          <strong>처음부터 끝까지 arm64.</strong> Rosetta 의존성 하나가 체인을 오염시킵니다.
+          <code>file $(which python)</code>은 arm64를 보고해야 합니다. <code>brew --prefix</code>도
+          마찬가지로 (<code>/usr/local</code>이 아니라 <code>/opt/homebrew</code>여야 함).
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">2</div>
+        <div class="body">
+          <strong>최신 PyTorch 고정.</strong> MPS 지원은 매 릴리스마다 좋아집니다. PyTorch
+          <code>2.3+</code>를 노리세요. nightly 빌드는 stable에 아직 없는 op 커버리지를 가질 때가 많습니다.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">3</div>
+        <div class="body">
+          <strong><code>mx.eval</code>을 배치하세요.</strong> 매 op마다 호출하지 말고 — 학습 스텝마다
+          한 번씩, materialize가 필요한 것에:
+          <code>mx.eval(model.parameters(), opt.state)</code>.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">4</div>
+        <div class="body">
+          <strong>추론용으로 양자화.</strong> 4비트는 메모리를 약 4배 줄이고 채팅 품질에는 거의 영향이 없습니다.
+          MLX와 PyTorch (Mac에서 제한적인 bitsandbytes를 통해) 모두 지원합니다.
+          가장 쉬운 길: <code>mlx-community</code>의 <code>-4bit</code> 모델을 받기.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">5</div>
+        <div class="body">
+          <strong>통합 메모리를 살피세요.</strong> Mac은 CPU와 GPU가 RAM을 공유합니다.
+          64 GB Mac은 70B 정도의 4비트 모델을 돌릴 수 있고, 8 GB Mac은 3B 4비트에 가깝습니다.
+          활성 상태 → 메모리 탭을 친구로.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">6</div>
+        <div class="body">
+          <strong>lazy 그래프와 싸우지 마세요.</strong> MLX에서는 주기적인 <code>eval</code> 없이
+          루프 안에서 Python 측 상태를 누적(예: <code>losses.append(loss)</code>)하면 그래프가
+          폭증합니다. <code>append</code> 전에 <code>mx.eval(loss)</code>.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">7</div>
+        <div class="body">
+          <strong>CPU↔MPS 왕복을 피하세요.</strong> PyTorch에서 <code>.to("cpu")</code>나
+          <code>.numpy()</code>를 쓸 때마다 비용이 듭니다. 학습 스텝 전체를 디바이스 위에서 돌리고,
+          경계(로깅, 체크포인팅)에서만 materialize 하세요.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">8</div>
+        <div class="body">
+          <strong>실수 타입이 중요합니다.</strong> MLX는 기본 float32; <code>mx.float16</code>과
+          <code>mx.bfloat16</code>은 메모리를 대략 절반으로 줄이고 추론 속도를 자주 올립니다.
+          PyTorch: <code>torch.set_default_dtype(torch.float16)</code> 또는 autocast.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">9</div>
+        <div class="body">
+          <strong><code>torch.compile</code>은 선택적으로.</strong> MPS에서는 도움이 될 수도, 해가 될 수도
+          있습니다 — 측정하세요. 안쪽 forward pass만 감싸고 바깥 학습 루프는 그냥 Python으로 두세요.
+        </div>
+      </div>
+      <div class="tip-row">
+        <div class="icon">10</div>
+        <div class="body">
+          <strong>전원에 꽂으세요.</strong> Apple Silicon은 배터리에서 성능을 낮춥니다 — 성능 코어가
+          throttle되고, GPU 클록이 떨어집니다. 벤치마크는 전원 연결 + 고성능 프로파일.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>흔한 함정</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">"내 MPS 코드가 inf / nan을 출력해요"</div></div>
+      <div class="card-body">
+        일부 op(특히 오래된 PyTorch + 복잡한 spectral op)은 CUDA에서는 괜찮지만 MPS에서 오버플로우합니다.
+        <code>PYTORCH_ENABLE_MPS_FALLBACK=1</code>과 더 작은 학습률을 시도하세요.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">"MLX가 기대보다 느려요"</div></div>
+      <div class="card-body">
+        거의 항상: <code>mx.eval</code> 누락. 미니배치 op마다나 끝까지 절대 안 부르는 것이 아니라,
+        스텝마다 한 번 materialize하는지 확인하세요.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">"pip install torch가 실패해요"</div></div>
+      <div class="card-body">
+        Rosetta 아래의 x86_64 Python을 쓰고 있습니다. arm64 Python(uv / pyenv / python.org 인스톨러)으로
+        전환하고 <code>file $(which python)</code>으로 검증하세요.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">"내 LLM이 멈추거나 OOM이에요"</div></div>
+      <div class="card-body">
+        4비트 양자화, max-tokens / 컨텍스트 길이 줄이기, 또는 더 작은 모델(7B 대신 3B)을 고르세요.
+        통합 메모리는 시스템의 다른 모든 것과 공유됩니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>드릴 — 치트 타이핑</h1>
+  <p class="lead">
+    모든 섹션에서 추출한 잡다한 드릴. Tab으로 빈칸 이동, Enter로 확인, 힌트는 드릴의 모든
+    빈칸을 공개(다시 클릭하면 숨김). 힌트 없이 풀면 연속 정답 보너스.
+  </p>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> python 인터프리터가 네이티브 arm64인지 확인:</div>
+    <pre class="exercise">python -c "import platform; print(platform.<input class="blank" data-answer="machine" size="9" placeholder="?">())"
+# 기대값: arm64</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> MPS가 가능하면 MPS, 아니면 CPU:</div>
+    <pre class="exercise">device = torch.device("<input class="blank" data-answer="mps" size="5" placeholder="?">" if torch.backends.mps.is_available() else "cpu")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> 미지원 MPS op의 CPU 폴백 활성화:</div>
+    <pre class="exercise"><input class="blank" data-answer="PYTORCH_ENABLE_MPS_FALLBACK" size="32" placeholder="?">=1 python train.py</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">18</span> 표준 MLX import 별칭:</div>
+    <pre class="exercise">import mlx.core as <input class="blank" data-answer="mx" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">19</span> <code>loss_fn</code>의 그래디언트를 반환하는 함수 만들기:</div>
+    <pre class="exercise">grad_fn = mx.<input class="blank" data-answer="grad" size="6" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">20</span> 손실과 그래디언트를 함께 받기:</div>
+    <pre class="exercise">loss_and_grad = mx.<input class="blank" data-answer="value_and_grad" size="16" placeholder="?">(loss_fn)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">21</span> lazy MLX 어레이 materialize:</div>
+    <pre class="exercise">mx.<input class="blank" data-answer="eval" size="6" placeholder="?">(x)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">22</span> mlx-lm CLI로 모델에서 텍스트 생성:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="generate" size="10" placeholder="?"> --model ... --prompt "hi"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">23</span> mlx-lm CLI로 LoRA 파인튜닝 실행:</div>
+    <pre class="exercise">python -m mlx_lm.<input class="blank" data-answer="lora" size="6" placeholder="?"> --model ... --train</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">24</span> macOS에서 venv 활성화 (zsh/bash):</div>
+    <pre class="exercise">source .venv/bin/<input class="blank" data-answer="activate" size="10" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">25</span> 두 빈칸 — 풀 PyTorch 디바이스 선택:</div>
+    <pre class="exercise">device = torch.<input class="blank" data-answer="device" size="8" placeholder="?">("<input class="blank" data-answer="mps" size="5" placeholder="?">" if torch.backends.mps.is_available() else "cpu")</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">26</span> MLX 코어 라이브러리 설치:</div>
+    <pre class="exercise"><input class="blank" data-answer="pip" size="5" placeholder="?"> install mlx</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</section>
+
+<!-- ========================= MINI PROJECT ========================= -->
+<section class="tab-section" id="tab-project">
+  <h1>미니 프로젝트 — 풀 MLX 학습 스크립트</h1>
+  <p class="lead">
+    빈칸을 채워 노이즈가 섞인 이차 함수를 학습하는 작은 MLP의 자기 완결적 MLX 프로그램을 완성하세요.
+    모두 초록이 되면 <em>모델 학습</em>을 클릭하세요. 페이지가 손실 곡선이 내려가는 것을
+    시뮬레이션합니다 — Mac에서 이 코드를 돌릴 때 보게 될 같은 곡선입니다.
+  </p>
+
+  <div class="project-card">
+    <h3>프로그램 완성하기</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 14px;">
+      10개 빈칸. 모두 초록일 때 <em>모델 학습</em>을 누르세요.
+    </p>
+    <pre class="exercise" id="finalCode" style="line-height: 1.85;"><span class="tok-c"># mlx_quadratic.py — Apple Silicon에서 y = x^2 + noise 학습</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.core</span> <span class="tok-k">as</span> <input class="blank" data-answer="mx" size="4" placeholder="?">
+<span class="tok-k">import</span> <span class="tok-t">mlx.nn</span> <span class="tok-k">as</span> <span class="tok-t">nn</span>
+<span class="tok-k">import</span> <span class="tok-t">mlx.optimizers</span> <span class="tok-k">as</span> <span class="tok-t">optim</span>
+
+<span class="tok-c"># --- 데이터 ---</span>
+mx.random.seed(<span class="tok-n">42</span>)
+X = mx.random.uniform(low=-<span class="tok-n">1</span>, high=<span class="tok-n">1</span>, shape=(<span class="tok-n">256</span>, <span class="tok-n">1</span>))
+Y = X ** <span class="tok-n">2</span> + <span class="tok-n">0.05</span> * mx.random.normal((<span class="tok-n">256</span>, <span class="tok-n">1</span>))
+
+<span class="tok-c"># --- 모델 ---</span>
+<span class="tok-k">class</span> <span class="tok-f">MLP</span>(nn.Module):
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self):
+        <span class="tok-f">super</span>().__init__()
+        self.l1 = nn.Linear(<input class="blank" data-answer="1" size="3" placeholder="?">, 32)
+        self.l2 = nn.Linear(32, 32)
+        self.l3 = nn.Linear(32, <input class="blank" data-answer="1" size="3" placeholder="?">)
+
+    <span class="tok-k">def</span> <span class="tok-f">__call__</span>(self, x):
+        x = nn.relu(self.l1(x))
+        x = nn.relu(self.l2(x))
+        <span class="tok-k">return</span> self.<input class="blank" data-answer="l3" size="4" placeholder="?">(x)
+
+model = MLP()
+
+<span class="tok-c"># --- 손실 + autograd ---</span>
+<span class="tok-k">def</span> <span class="tok-f">loss_fn</span>(model, X, Y):
+    <span class="tok-k">return</span> mx.mean((model(X) - Y) ** <span class="tok-n">2</span>)
+
+loss_and_grad = nn.<input class="blank" data-answer="value_and_grad" size="16" placeholder="?">(model, loss_fn)
+opt = optim.<input class="blank" data-answer="Adam" size="6" placeholder="?">(learning_rate=<span class="tok-n">3e-3</span>)
+
+<span class="tok-c"># --- 학습 루프 ---</span>
+<span class="tok-k">for</span> step <span class="tok-k">in</span> <span class="tok-f">range</span>(<span class="tok-n">500</span>):
+    loss, grads = loss_and_grad(model, X, Y)
+    opt.<input class="blank" data-answer="update" size="8" placeholder="?">(model, grads)
+    mx.<input class="blank" data-answer="eval" size="6" placeholder="?">(model.parameters(), opt.state)
+    <span class="tok-k">if</span> step % <span class="tok-n">50</span> == <span class="tok-n">0</span>:
+        <span class="tok-f">print</span>(f<span class="tok-s">"step {step:4d}  loss {loss.item():.4f}"</span>)
+
+<span class="tok-c"># --- 가중치 저장 ---</span>
+mx.<input class="blank" data-answer="save_safetensors|savez" size="16" placeholder="?">(<span class="tok-s">"model.safetensors"</span>, dict(<span class="tok-f">tree_flatten</span>(model.parameters())))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkFinal()">전체 확인</button>
+      <button class="btn ghost" id="trainProjectBtn" onclick="trainProject()" disabled>▶ 모델 학습</button>
+      <span id="finalFeedback" style="font-size: 13px; margin-left: 8px;"></span>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="chip-card">
+      <h3>학습 손실 (실시간)</h3>
+      <canvas id="projLossCanvas" width="500" height="220" style="display:block; width:100%;background:var(--code-bg);border-radius:8px;border:1px solid var(--border);"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        step <span id="projEpoch" style="color: var(--accent); font-weight: 700;">—</span>
+        · loss <span id="projLoss" style="color: var(--accent); font-weight: 700;">—</span>
+        · grad-norm <span id="projAcc" style="color: var(--good); font-weight: 700;">—</span>
+      </div>
+    </div>
+    <div class="chip-card">
+      <h3>예측 vs 실측</h3>
+      <canvas id="projScatterCanvas" width="500" height="220" style="display:block; width:100%;background:var(--code-bg);border-radius:8px;border:1px solid var(--border);"></canvas>
+      <div style="font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 6px;">
+        하늘색 = 모델 예측 · 은색 = 노이즈 학습 데이터 · 진한 곡선 = y = x²
+      </div>
+    </div>
+  </div>
+
+  <div class="note" id="projDone" style="display:none; border-color: var(--good); background: rgba(74,222,128,0.08);">
+    <strong style="color: var(--good);">학습 완료.</strong>
+    같은 코드를 <code>mlx_quadratic.py</code>에 저장하면 어떤 M1/M2/M3/M4 Mac에서도 몇 초 만에
+    엔드투엔드로 실행됩니다. 레이어를 더 추가하거나, <code>mlx.data</code>를 통해 데이터셋을
+    MNIST로 바꾸거나, <code>mlx-lm</code>으로 LLM 파인튜닝까지 같은 골격으로 확장하세요.
+  </div>
+
+  <h2>다음은?</h2>
+  <p class="lead">
+    여러분 머신에서 이 실제 연습을 시도해 보세요: 데이터셋을 MNIST(<code>mlx-data</code> 사용)로 바꾸고,
+    손실을 <code>nn.losses.cross_entropy</code>로, 출력 차원을 10으로. 학습 루프는 한 줄도 다르지
+    않습니다. Mac ML에 어서 오세요.
+  </p>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>키보드 단축키</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로 이동</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 드릴 확인</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>9</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>오버레이 닫기</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      아무 곳이나 클릭하면 닫힙니다.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">학습은 브라우저에서 시뮬레이션됩니다</strong> — 여기 손실 곡선은
+  실제 MLX 실행이 아니라 그럴듯한 수학(exp 감쇠 + 노이즈)입니다. 같은 스크립트를 M 시리즈 Mac의
+  <code style="color: var(--accent);">pip install mlx</code>가 있는 Python에 넣으면 실제로 학습됩니다.<br><br>
+  <a href="basicai.html">basicai.html</a>의 동반 페이지 · Apple Silicon · MLX · MPS
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  let n = 0;
+  document.querySelectorAll('[data-drill]').forEach(d => {
+    n += d.querySelectorAll('.blank').length;
+  });
+  n += document.querySelectorAll('#finalCode .blank').length;
+  return n;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속 가세요.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '답이 숨겨졌어요 — 직접 입력해 보세요';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '모두 풀었어요.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '모든 답 공개됨 · 다시 클릭하면 숨겨집니다';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답.', '정확합니다.', '바로 그거.', '예리해요.', '그거예요.', '깔끔!', '실리콘처럼 빨라요.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아쉬워요 — 다시 시도하세요.', '거의요. 힌트를 볼까요?', '거의 맞았어요. 철자를 확인하세요.', '빨강. 한 번 더.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      } else if (e.target.closest('#finalCode')) {
+        checkFinal();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('섹션 완료 · +' + drills.length + '개 드릴');
+    // mark tab
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== FINAL PROJECT ==============
+function checkFinal() {
+  const blanks = document.querySelectorAll('#finalCode .blank');
+  const fb = document.getElementById('finalFeedback');
+  let okCount = 0;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong');
+    if (ok) {
+      b.classList.add('correct');
+      if (b.dataset.solved !== '1') {
+        b.dataset.solved = '1'; b.disabled = true;
+        solved++; streak++;
+      }
+      okCount++;
+    } else {
+      b.classList.add('wrong');
+    }
+  });
+  updateProgress();
+  if (okCount === blanks.length) {
+    fb.style.color = 'var(--good)';
+    fb.textContent = '모두 초록 — 모델 학습을 클릭하세요.';
+    document.getElementById('trainProjectBtn').disabled = false;
+    burstConfetti();
+  } else {
+    fb.style.color = 'var(--bad)';
+    fb.textContent = okCount + '/' + blanks.length + '개 정답. 빨간 부분을 고치세요.';
+    streak = 0; updateProgress();
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#5ac8fa','#a8d8ff','#c0c8d2','#4ade80','#79c0ff','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '복사됨!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '복사'; }, 1300);
+  });
+}
+
+// ============== PROJECT TRAINING ANIMATION ==============
+const projLossCanvas = document.getElementById('projLossCanvas');
+const projScatterCanvas = document.getElementById('projScatterCanvas');
+let projLossHistory = [], projEpoch = 0, projTimer = null;
+
+function drawProjLoss() {
+  if (!projLossCanvas) return;
+  const ctx = projLossCanvas.getContext('2d');
+  const W = projLossCanvas.width, H = projLossCanvas.height;
+  ctx.fillStyle = '#060a10';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(138, 150, 168, 0.15)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const y = H * i / 5;
+    ctx.beginPath(); ctx.moveTo(30, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  ctx.fillStyle = '#8a96a8';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText('loss', 4, 12);
+  ctx.fillText('step', W - 26, H - 4);
+
+  if (projLossHistory.length < 2) return;
+  const maxLoss = 0.6;
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#5ac8fa');
+  grad.addColorStop(1, '#c0c8d2');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#5ac8fa'; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  projLossHistory.forEach((l, i) => {
+    const x = 30 + (W - 30) * i / 200;
+    const y = (H - 16) * (1 - Math.min(l, maxLoss) / maxLoss);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // last point
+  const last = projLossHistory[projLossHistory.length - 1];
+  const lx = 30 + (W - 30) * (projLossHistory.length - 1) / 200;
+  const ly = (H - 16) * (1 - Math.min(last, maxLoss) / maxLoss);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawProjScatter(progress) {
+  if (!projScatterCanvas) return;
+  const ctx = projScatterCanvas.getContext('2d');
+  const W = projScatterCanvas.width, H = projScatterCanvas.height;
+  ctx.fillStyle = '#060a10';
+  ctx.fillRect(0, 0, W, H);
+
+  // map x in [-1, 1] → [0, W], y in [-0.2, 1.2] → bottom→top
+  function toPx(x, y) {
+    return [(x + 1) / 2 * W, H - (y + 0.2) / 1.4 * H];
+  }
+
+  // grid
+  ctx.strokeStyle = 'rgba(138, 150, 168, 0.15)';
+  ctx.lineWidth = 1;
+  for (let gx = -1; gx <= 1; gx += 0.5) {
+    const [px, _] = toPx(gx, 0);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+  }
+  for (let gy = 0; gy <= 1; gy += 0.5) {
+    const [_, py] = toPx(0, gy);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(W, py); ctx.stroke();
+  }
+
+  // truth curve y = x^2
+  ctx.strokeStyle = '#3aa9d8';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  for (let x = -1; x <= 1.001; x += 0.01) {
+    const y = x * x;
+    const [px, py] = toPx(x, y);
+    if (x === -1) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // training points
+  const seed = 42;
+  const rand = mulberry32(seed);
+  for (let i = 0; i < 70; i++) {
+    const x = rand() * 2 - 1;
+    const y = x * x + (rand() - 0.5) * 0.1;
+    const [px, py] = toPx(x, y);
+    ctx.fillStyle = 'rgba(192, 200, 210, 0.55)';
+    ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // model prediction curve — morphs from flat (0.5) to y=x^2 with progress
+  ctx.strokeStyle = '#5ac8fa';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#5ac8fa'; ctx.shadowBlur = 10;
+  ctx.beginPath();
+  for (let x = -1; x <= 1.001; x += 0.01) {
+    const truth = x * x;
+    const init = 0.5 + 0.05 * Math.sin(x * 4);  // wavy init
+    const y = init + (truth - init) * progress;
+    const [px, py] = toPx(x, y);
+    if (x === -1) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = a;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function trainProject() {
+  if (projTimer) return;
+  projLossHistory = []; projEpoch = 0;
+  document.getElementById('projDone').style.display = 'none';
+  const totalEpochs = 200;
+  document.getElementById('trainProjectBtn').disabled = true;
+  document.getElementById('trainProjectBtn').textContent = '학습 중...';
+  projTimer = setInterval(() => {
+    const base = 0.55 * Math.exp(-projEpoch / 30) + 0.012;
+    const noise = (Math.random() - 0.45) * 0.05 * Math.exp(-projEpoch / 50);
+    const l = Math.max(0.005, base + noise);
+    projLossHistory.push(l);
+    projEpoch++;
+    const progress = Math.min(1, projEpoch / 90);
+    const gnorm = Math.max(0.01, 1.5 * Math.exp(-projEpoch / 35) + 0.02);
+    document.getElementById('projEpoch').textContent = projEpoch;
+    document.getElementById('projLoss').textContent = l.toFixed(4);
+    document.getElementById('projAcc').textContent = gnorm.toFixed(3);
+    drawProjLoss();
+    drawProjScatter(progress);
+    if (projEpoch >= totalEpochs) {
+      clearInterval(projTimer); projTimer = null;
+      document.getElementById('projDone').style.display = '';
+      document.getElementById('trainProjectBtn').textContent = '✓ 학습됨';
+      burstConfetti();
+      showToast('이차함수 학습됨 · 최종 손실 ' + l.toFixed(4));
+    }
+  }, 30);
+}
+
+drawProjScatter(0);
+drawProjLoss();
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  // ignore if typing in a blank or input
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = {
+    '1':'welcome','2':'python','3':'mps','4':'mlx',
+    '5':'compare','6':'mlxlm','7':'perf','8':'drills','9':'project'
+  };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

@@ -1,0 +1,2893 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>토크나이저 · 트랜스포머의 혀</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #08080f;
+    --bg-2: #11111c;
+    --bg-3: #161623;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --ink-soft: #c8c2b3;
+    --border: rgba(244, 240, 230, 0.08);
+    --border-2: rgba(244, 240, 230, 0.16);
+    --grid: rgba(244, 240, 230, 0.035);
+
+    --accent: #f472b6;          /* pink */
+    --accent-2: #a78bfa;         /* violet */
+    --accent-3: #22d3ee;         /* cyan — used for shapes */
+    --accent-glow: rgba(244,114,182,0.45);
+    --accent-2-glow: rgba(167,139,250,0.45);
+
+    --text: var(--ink);
+    --muted: var(--ink-dim);
+    --panel: var(--bg-2);
+    --panel-2: var(--bg-3);
+
+    --code-bg: #050509;
+    --keyword: #ff7b72;
+    --string:  #3affb8;
+    --number:  #ffd23a;
+    --comment: #6b6555;
+    --fn:      #f4f0e6;
+    --tag:     #79c0ff;
+    --good:    #3affb8;
+    --bad:     #ff5e5e;
+    --warn:    #ffd23a;
+
+    /* per-token chip palette */
+    --tok-1: #f472b6;
+    --tok-2: #a78bfa;
+    --tok-3: #22d3ee;
+    --tok-4: #3affb8;
+    --tok-5: #ffd23a;
+    --tok-6: #ff7b72;
+    --tok-7: #38bdf8;
+    --tok-8: #c084fc;
+
+    --serif: 'Fraunces', Georgia, serif;
+    --mono:  'JetBrains Mono', ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  *, *::before, *::after { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-weight: 400;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 60% at 100% 0%, rgba(244,114,182,0.12), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 0% 100%, rgba(167,139,250,0.10), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 50% 50%, rgba(34,211,238,0.04), transparent 70%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    background-attachment: fixed, fixed, fixed, fixed, fixed;
+  }
+
+  /* film grain */
+  .grain {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    opacity: 0.045;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* drifting particle field — game-like ambient feel */
+  .floaters {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 1;
+    overflow: hidden;
+  }
+  .floaters span {
+    position: absolute;
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px currentColor, 0 0 16px currentColor;
+    opacity: 0.0;
+    animation: drift 22s linear infinite;
+  }
+  @keyframes drift {
+    0%   { opacity: 0; transform: translateY(20vh) translateX(0); }
+    10%  { opacity: 0.4; }
+    90%  { opacity: 0.4; }
+    100% { opacity: 0; transform: translateY(-110vh) translateX(40px); }
+  }
+
+  /* ============== STICKY TOP ============== */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(8, 8, 15, 0.85);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border-bottom: 1px solid var(--border);
+  }
+
+  header {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 16px 32px;
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto;
+    align-items: center;
+    gap: 20px;
+  }
+  @media (max-width: 900px) {
+    header { grid-template-columns: 1fr; gap: 12px; padding: 14px 18px; }
+  }
+
+  .logo {
+    display: flex; align-items: baseline; gap: 10px;
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+  }
+  .logo .spark {
+    font-size: 24px;
+    color: var(--accent);
+    filter: drop-shadow(0 0 12px var(--accent));
+    animation: sparkPulse 3s ease-in-out infinite;
+    transform-origin: center;
+  }
+  @keyframes sparkPulse {
+    0%, 100% { filter: drop-shadow(0 0 8px var(--accent));  transform: rotate(-4deg); }
+    50%      { filter: drop-shadow(0 0 18px var(--accent)); transform: rotate(4deg) scale(1.1); }
+  }
+  .logo em {
+    font-style: italic; font-weight: 900; color: var(--accent);
+    font-variation-settings: "opsz" 144;
+  }
+  .badge {
+    font-family: var(--mono); font-weight: 700;
+    font-size: 9.5px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--accent);
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-left: 4px;
+  }
+
+  .progress-bar-outer {
+    position: relative;
+    height: 3px;
+    background: rgba(244,240,230,0.08);
+    overflow: hidden;
+    min-width: 180px;
+  }
+  .progress-bar-inner {
+    position: absolute; inset: 0 auto 0 0;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+    background-size: 200% 100%;
+    box-shadow: 0 0 14px var(--accent-glow);
+    transition: width 0.7s cubic-bezier(.2,.8,.2,1);
+    animation: shimmer 4s linear infinite;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 0% 0%; }
+    100% { background-position: 200% 0%; }
+  }
+  .progress-bar-inner::after {
+    content: '';
+    position: absolute; inset: -2px 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+    transform: translateX(-100%);
+    animation: sweep 2.4s ease-in-out infinite;
+  }
+  @keyframes sweep {
+    0%, 30%   { transform: translateX(-100%); }
+    70%, 100% { transform: translateX(100%); }
+  }
+
+  .stat {
+    display: flex; align-items: baseline; gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+  }
+  .stat .num {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-variation-settings: "opsz" 144;
+    font-size: 22px;
+    color: var(--ink);
+    font-feature-settings: "tnum";
+    line-height: 1;
+  }
+  .stat .num#scoreNum { color: var(--accent); font-weight: 900; font-style: italic; }
+  .stat .lbl {
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.22em;
+    font-size: 9px;
+    color: var(--ink-dim);
+  }
+
+  .streak {
+    display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 14px;
+    color: var(--ink-dim);
+  }
+  .streak .flame-mini {
+    font-size: 18px;
+    filter: drop-shadow(0 0 6px var(--accent));
+    animation: flicker 1.4s ease-in-out infinite;
+  }
+  @keyframes flicker {
+    0%, 100% { transform: scale(1) rotate(-2deg); filter: drop-shadow(0 0 6px var(--accent)); }
+    50%      { transform: scale(1.15) rotate(3deg); filter: drop-shadow(0 0 14px var(--accent-2)); }
+  }
+  .streak .num {
+    font-family: var(--serif); font-style: italic; font-weight: 900;
+    color: var(--accent); font-size: 22px; line-height: 1;
+    font-variation-settings: "opsz" 144;
+  }
+
+  /* ============== TABS ============== */
+  nav.tabs {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 24px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    border-top: 1px solid var(--border);
+    scrollbar-width: none;
+  }
+  nav.tabs::-webkit-scrollbar { display: none; }
+  nav.tabs button {
+    -webkit-appearance: none; appearance: none;
+    background: transparent;
+    color: var(--ink-dim);
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+  }
+  nav.tabs button:hover {
+    color: var(--ink);
+    background: rgba(244,114,182,0.04);
+  }
+  nav.tabs button.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+  nav.tabs button.active::before {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -2px;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 12px var(--accent-glow);
+    animation: tabSlide 0.32s cubic-bezier(.2,.8,.2,1);
+  }
+  @keyframes tabSlide {
+    from { transform: scaleX(0.3); opacity: 0; }
+    to   { transform: scaleX(1);   opacity: 1; }
+  }
+  nav.tabs button .check {
+    color: var(--good);
+    margin-left: 8px;
+    font-weight: 700;
+    text-shadow: 0 0 8px var(--good);
+    animation: pop 240ms ease;
+  }
+
+  /* ============== MAIN ============== */
+  main {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 56px 32px 100px;
+    position: relative;
+    z-index: 2;
+  }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: sectionEnter 0.4s cubic-bezier(.2,.8,.2,1); }
+  @keyframes sectionEnter {
+    from { opacity: 0; transform: translateY(14px); filter: blur(4px); }
+    to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+  }
+
+  /* ============== TYPOGRAPHY ============== */
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    color: var(--accent);
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 36px; height: 1px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(40px, 6.5vw, 92px);
+    line-height: 0.95;
+    letter-spacing: -0.035em;
+    margin: 0 0 22px;
+    color: var(--ink);
+  }
+  h1 em {
+    font-style: italic;
+    font-weight: 900;
+    color: var(--accent);
+    font-variation-settings: "opsz" 144;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 56px 0 28px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-weight: 700;
+    background: none;
+    box-shadow: none;
+    width: auto; height: auto;
+    border-radius: 0;
+    display: inline;
+    font-size: 13px;
+  }
+  h2::before {
+    content: none;
+  }
+  h2::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  h3 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+    margin: 0 0 14px;
+  }
+
+  h4 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--ink);
+    margin: 0;
+  }
+
+  p, li, td {
+    font-family: var(--serif);
+    font-weight: 400;
+    color: var(--ink-soft);
+    font-size: 16.5px;
+    line-height: 1.6;
+  }
+  p.lead {
+    font-size: 19px;
+    line-height: 1.55;
+    color: var(--ink-dim);
+    font-weight: 300;
+    max-width: 820px;
+    margin: 0 0 28px;
+  }
+  p.lead strong, p.lead b {
+    color: var(--ink);
+    font-weight: 600;
+    font-style: italic;
+  }
+  p.lead em { font-style: italic; color: var(--accent); }
+
+  code, kbd, pre {
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  p code, li code {
+    background: rgba(244,114,182,0.10);
+    color: var(--accent);
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-size: 0.86em;
+  }
+
+  /* ============== PANELS / CARDS ============== */
+  .card,
+  .canvas-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0;
+    margin: 18px 0;
+    position: relative;
+    transition: border-color 0.25s, transform 0.25s;
+  }
+  .canvas-card { padding: 28px 30px; }
+  .card-head {
+    padding: 18px 24px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(244,114,182,0.04), transparent);
+  }
+  .card-title {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--ink-dim);
+  }
+  .card-body {
+    padding: 22px 24px;
+    color: var(--ink-soft);
+    font-size: 15.5px;
+  }
+  .card-body p { margin: 0 0 10px; font-size: 15.5px; }
+  .card-body p:last-child { margin-bottom: 0; }
+  .card-body ul { margin: 4px 0 4px 18px; padding: 0; }
+  .card-body ul li { margin: 4px 0; font-size: 15px; color: var(--ink-soft); }
+  .card-body em { font-style: italic; color: var(--ink); }
+
+  /* corner accent decoration on canvas-card and card */
+  .canvas-card::before,
+  .card::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    width: 22px; height: 22px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+    pointer-events: none;
+  }
+  .canvas-card::after,
+  .card::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 22px; height: 22px;
+    border-bottom: 2px solid var(--accent-2);
+    border-right: 2px solid var(--accent-2);
+    pointer-events: none;
+  }
+  .canvas-card:hover,
+  .card:hover {
+    border-color: var(--border-2);
+    transform: translateY(-1px);
+  }
+  .canvas-card h3 {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 22px;
+    color: var(--ink);
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .canvas-card h3::before {
+    content: '';
+    width: 3px; height: 22px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 8px var(--accent-glow);
+    border-radius: 1px;
+  }
+
+  /* ============== CODE ============== */
+  pre.code {
+    margin: 12px 0;
+    padding: 18px 22px;
+    background: var(--code-bg);
+    border-left: 2px solid var(--accent);
+    border-radius: 0;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--ink-soft);
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* ============== DRILL ============== */
+  .drill {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    border-radius: 0;
+    padding: 22px 26px;
+    margin: 16px 0;
+    position: relative;
+    transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
+  }
+  .drill::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 0% 0%, rgba(244,114,182,0.06), transparent 50%);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .drill:hover::before { opacity: 1; }
+  .drill:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 30px rgba(244,114,182,0.15);
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(58,255,184,0.06), transparent 60%);
+  }
+  .drill.solved::after {
+    content: '✓';
+    position: absolute;
+    top: 18px; right: 22px;
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 900;
+    font-size: 26px;
+    color: var(--good);
+    text-shadow: 0 0 18px rgba(58,255,184,0.6);
+    animation: pop 320ms ease;
+  }
+  .drill .prompt {
+    font-family: var(--serif);
+    font-size: 16.5px;
+    line-height: 1.5;
+    color: var(--ink);
+    margin-bottom: 14px;
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 0;
+    width: auto; height: auto;
+    padding: 2px 8px;
+    letter-spacing: 0.1em;
+    flex-shrink: 0;
+  }
+  .drill.solved .prompt .num {
+    color: var(--good);
+    border-color: var(--good);
+  }
+  .drill pre.exercise {
+    margin: 8px 0;
+    padding: 14px 18px;
+    background: var(--code-bg);
+    border-radius: 0;
+    border-left: 1px solid var(--border-2);
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.95;
+    overflow-x: auto;
+    color: var(--ink-soft);
+  }
+  .blank {
+    display: inline-block;
+    min-width: 64px; max-width: 240px;
+    padding: 3px 10px;
+    background: rgba(244,114,182,0.08);
+    border: 1px solid var(--accent);
+    border-radius: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    outline: none;
+    text-align: center;
+    transition: all 0.18s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(244,114,182,0.18), 0 0 18px rgba(244,114,182,0.3);
+    background: rgba(244,114,182,0.14);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(58,255,184,0.10);
+    animation: pop 240ms cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 0 16px rgba(58,255,184,0.4);
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    background: rgba(255,94,94,0.10);
+    animation: shake 320ms cubic-bezier(.36,.07,.19,.97);
+  }
+  @keyframes pop {
+    0%   { transform: scale(1); }
+    50%  { transform: scale(1.18); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%      { transform: translateX(-5px) rotate(-1deg); }
+    40%      { transform: translateX(5px) rotate(1deg); }
+    60%      { transform: translateX(-4px); }
+    80%      { transform: translateX(4px); }
+  }
+  .drill .controls {
+    display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap;
+  }
+
+  /* ============== BUTTONS ============== */
+  .btn {
+    background: var(--accent);
+    color: #15050d;
+    border: 1px solid var(--accent);
+    border-radius: 0;
+    padding: 10px 22px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.12s, box-shadow 0.18s, color 0.18s;
+    box-shadow: 0 0 0 0 transparent;
+  }
+  .btn:hover {
+    box-shadow: 0 0 24px var(--accent-glow), inset 0 0 12px rgba(255,255,255,0.2);
+    transform: translateY(-1px);
+  }
+  .btn::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+    transform: translateX(-100%);
+    transition: transform 0.5s;
+  }
+  .btn:hover::before { transform: translateX(100%); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn.ghost {
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid var(--border-2);
+  }
+  .btn.ghost:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 16px var(--accent-glow);
+  }
+  .btn.tiny {
+    padding: 6px 12px;
+    font-size: 9.5px;
+    letter-spacing: 0.2em;
+  }
+
+  /* ============== FEEDBACK ============== */
+  .feedback {
+    margin-top: 12px; min-height: 18px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--ink-dim);
+    letter-spacing: 0.04em;
+  }
+  .feedback.good {
+    color: var(--good);
+    text-shadow: 0 0 8px rgba(58,255,184,0.4);
+  }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--ink-dim); font-style: italic; }
+
+  /* ============== NOTES ============== */
+  .note {
+    background: rgba(244,114,182,0.06);
+    border-left: 2px solid var(--accent);
+    padding: 16px 22px;
+    border-radius: 0;
+    font-family: var(--serif);
+    font-size: 15.5px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+    margin: 18px 0;
+  }
+  .note strong { color: var(--accent); font-weight: 600; font-style: italic; }
+  .note.warn { background: rgba(255,210,58,0.06); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+  .note.info { background: rgba(56,189,248,0.06); border-left-color: var(--tag); }
+  .note.info strong { color: var(--tag); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); margin: 16px 0; }
+  .grid-2 > * { background: var(--bg-2); margin: 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); margin: 16px 0; }
+  .grid-3 > * { background: var(--bg-2); margin: 0; }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  /* ============== LIVE SANDBOX ============== */
+  .sandbox-input {
+    width: 100%;
+    background: var(--code-bg);
+    color: var(--ink);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    padding: 14px 18px;
+    font-family: var(--mono);
+    font-size: 14.5px;
+    line-height: 1.55;
+    outline: none;
+    resize: vertical;
+    min-height: 70px;
+    transition: border-color 0.18s, box-shadow 0.18s;
+  }
+  .sandbox-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 22px rgba(244,114,182,0.18);
+  }
+
+  .sandbox-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .sandbox-row .label {
+    font-family: var(--mono); font-size: 9.5px;
+    color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.28em;
+    min-width: 120px;
+    font-weight: 500;
+  }
+
+  /* segmented toggle */
+  .segmented {
+    display: inline-flex; gap: 0;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    padding: 0;
+  }
+  .segmented button {
+    -webkit-appearance: none; appearance: none;
+    background: transparent; color: var(--ink-dim);
+    border: none;
+    border-right: 1px solid var(--border);
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    transition: all 0.18s;
+  }
+  .segmented button:last-child { border-right: none; }
+  .segmented button.active {
+    background: var(--accent); color: #15050d;
+    box-shadow: inset 0 0 16px rgba(255,255,255,0.2);
+  }
+  .segmented button:hover:not(.active) { color: var(--ink); background: rgba(244,114,182,0.06); }
+
+  /* token rendering */
+  .token-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    padding: 16px;
+    background: var(--code-bg);
+    border-radius: 0;
+    border: 1px solid var(--border-2);
+    min-height: 56px;
+    align-items: center;
+  }
+  .token-row.empty::before {
+    content: "(type something above)";
+    color: var(--ink-dim); font-style: italic;
+    font-family: var(--serif);
+    font-size: 14px;
+  }
+  .token-chip {
+    display: inline-flex; flex-direction: column; align-items: center;
+    background: var(--bg-3);
+    border: 1px solid var(--c, var(--accent));
+    border-radius: 2px;
+    padding: 5px 10px 4px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--c, var(--accent));
+    line-height: 1.2;
+    cursor: default;
+    position: relative;
+    box-shadow: 0 0 0 0 transparent;
+    animation: tokIn 360ms cubic-bezier(.2,.8,.2,1) backwards;
+    transition: transform 0.2s cubic-bezier(.2,.8,.2,1), box-shadow 0.2s;
+  }
+  .token-chip:nth-child(2)  { animation-delay: 30ms;  }
+  .token-chip:nth-child(3)  { animation-delay: 60ms;  }
+  .token-chip:nth-child(4)  { animation-delay: 90ms;  }
+  .token-chip:nth-child(5)  { animation-delay: 120ms; }
+  .token-chip:nth-child(6)  { animation-delay: 150ms; }
+  .token-chip:nth-child(7)  { animation-delay: 180ms; }
+  .token-chip:nth-child(8)  { animation-delay: 210ms; }
+  .token-chip:nth-child(9)  { animation-delay: 240ms; }
+  .token-chip:nth-child(10) { animation-delay: 270ms; }
+  .token-chip:nth-child(n+11) { animation-delay: 300ms; }
+  .token-chip:hover {
+    transform: translateY(-3px) scale(1.06);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--c, var(--accent)) 70%, transparent);
+    z-index: 5;
+  }
+  .token-chip .glyph {
+    font-weight: 700;
+    font-size: 13.5px;
+    white-space: pre;
+  }
+  .token-chip .id {
+    font-size: 9.5px;
+    color: var(--ink-dim);
+    margin-top: 2px;
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+  .token-chip.special {
+    background: rgba(255,210,58,0.10);
+    border-color: var(--warn);
+    color: var(--warn);
+  }
+  @keyframes tokIn {
+    0%   { opacity: 0; transform: translateY(-12px) scale(0.7) rotate(-6deg); }
+    60%  { opacity: 1; transform: translateY(2px)   scale(1.08) rotate(2deg); }
+    100% { opacity: 1; transform: translateY(0)     scale(1)   rotate(0); }
+  }
+
+  .pill {
+    display: inline-block;
+    background: rgba(244,114,182,0.12);
+    color: var(--accent);
+    padding: 4px 12px;
+    border: 1px solid rgba(244,114,182,0.3);
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    margin-right: 6px;
+    transition: transform 0.15s;
+  }
+  .pill:hover { transform: scale(1.05); }
+  .pill.violet { background: rgba(167,139,250,0.12); color: var(--accent-2); border-color: rgba(167,139,250,0.3); }
+  .pill.cyan   { background: rgba(34,211,238,0.12);  color: var(--accent-3); border-color: rgba(34,211,238,0.3); }
+  .pill.green  { background: rgba(58,255,184,0.12);  color: var(--good); border-color: rgba(58,255,184,0.3); }
+  .pill.warn   { background: rgba(255,210,58,0.12);  color: var(--warn); border-color: rgba(255,210,58,0.3); }
+  .pill.red    { background: rgba(255,94,94,0.12);   color: var(--bad);  border-color: rgba(255,94,94,0.3); }
+
+  .stat-line {
+    display: flex; gap: 22px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--ink-dim);
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .stat-line span b {
+    color: var(--accent);
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 900;
+    font-size: 18px;
+    font-variation-settings: "opsz" 144;
+  }
+
+  /* tensor matrix display */
+  .tensor-grid {
+    display: inline-grid;
+    grid-auto-rows: 22px;
+    gap: 2px;
+    padding: 10px;
+    background: var(--code-bg);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+  .tensor-grid .row { display: flex; gap: 2px; }
+  .tensor-grid .cell {
+    width: 32px; height: 22px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--bg-3);
+    border-radius: 0;
+    color: var(--ink);
+  }
+  .tensor-grid .cell.empty { background: rgba(255,255,255,0.02); color: var(--ink-dim); }
+
+  /* flow pipeline */
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin: 24px 0;
+  }
+  .flow-step {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 18px;
+    padding: 22px 26px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    position: relative;
+    transition: transform 0.25s, border-color 0.25s, background 0.25s;
+  }
+  .flow-step:hover {
+    transform: translateX(4px);
+    border-color: var(--accent);
+    background: linear-gradient(90deg, rgba(244,114,182,0.04), var(--bg-2));
+  }
+  .flow-step .num {
+    width: 48px; height: 48px;
+    border-radius: 0;
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 900;
+    font-size: 24px;
+    font-variation-settings: "opsz" 144;
+    box-shadow: none;
+    transition: box-shadow 0.25s, color 0.25s;
+  }
+  .flow-step:hover .num {
+    box-shadow: 0 0 18px var(--accent-glow);
+    color: var(--ink);
+    background: var(--accent);
+  }
+  .flow-step h4 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 600;
+  }
+  .flow-step p {
+    margin: 0 0 8px;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
+  .flow-step .shape {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent-2);
+    background: rgba(167,139,250,0.08);
+    padding: 4px 10px;
+    display: inline-block;
+    border-left: 2px solid var(--accent-2);
+  }
+  .flow-step::after {
+    content: "↓";
+    position: absolute;
+    left: 35px; bottom: -16px;
+    color: var(--accent);
+    font-size: 16px;
+    font-weight: 800;
+    text-shadow: 0 0 8px var(--accent-glow);
+    font-family: var(--mono);
+  }
+  .flow-step:last-child::after { display: none; }
+
+  /* embedding heatmap */
+  .heatmap {
+    display: grid;
+    gap: 1px;
+    padding: 10px;
+    background: var(--code-bg);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    overflow-x: auto;
+  }
+  .heatmap-row { display: flex; gap: 1px; align-items: center; }
+  .heatmap-row .row-label {
+    width: 84px; min-width: 84px;
+    font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-dim);
+    text-align: right; padding-right: 10px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    letter-spacing: 0.04em;
+  }
+  .heatmap-cell {
+    width: 14px; height: 14px;
+    border-radius: 0;
+    transition: transform 0.2s;
+  }
+  .heatmap-cell:hover { transform: scale(1.6); z-index: 2; position: relative; }
+
+  /* ============== GAME BAR ============== */
+  .game-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr) auto;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    margin: 18px 0;
+    overflow: hidden;
+  }
+  .game-bar > * {
+    background: var(--bg-2);
+    padding: 18px 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .game-bar b {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 900;
+    font-variation-settings: "opsz" 144;
+    font-size: 26px;
+    color: var(--ink);
+  }
+  .game-bar .score {
+    color: var(--accent); font-family: var(--serif);
+    font-style: italic; font-weight: 900;
+    font-size: 24px; padding: 10px 22px;
+    background: linear-gradient(135deg, rgba(244,114,182,0.1), transparent);
+    text-transform: none; letter-spacing: -0.01em;
+  }
+  .game-bar .lives b { color: var(--accent); }
+  @media (max-width: 800px) {
+    .game-bar { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* attention mask sparkline */
+  .mask-row {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    padding: 12px;
+    background: var(--code-bg);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    font-family: var(--mono); font-size: 11px;
+  }
+  .mask-cell {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(58,255,184,0.10);
+    border: 1px solid rgba(58,255,184,0.3);
+    border-radius: 0;
+    color: var(--good);
+    font-weight: 700;
+    transition: transform 0.15s;
+  }
+  .mask-cell:hover { transform: scale(1.15); }
+  .mask-cell.zero {
+    color: var(--ink-dim);
+    background: rgba(255,255,255,0.02);
+    border-color: var(--border-2);
+  }
+
+  /* ============== FOOTER ============== */
+  footer {
+    max-width: 1320px;
+    margin: 80px auto 0;
+    padding: 32px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-align: center;
+    letter-spacing: 0.05em;
+    line-height: 1.7;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--accent);
+  }
+  footer a:hover { color: var(--accent-2); border-bottom-color: var(--accent-2); }
+  footer strong { color: var(--ink); font-style: italic; font-family: var(--serif); font-weight: 600; }
+
+  /* confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent; border: none;
+  }
+
+  /* help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(8, 8, 15, 0.85);
+    backdrop-filter: blur(10px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  #help-overlay .help-content {
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    padding: 32px 36px;
+    max-width: 480px; width: 100%;
+    position: relative;
+  }
+  #help-overlay .help-content::before,
+  #help-overlay .help-content::after {
+    content: '';
+    position: absolute;
+    width: 24px; height: 24px;
+  }
+  #help-overlay .help-content::before {
+    top: -1px; left: -1px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+  }
+  #help-overlay .help-content::after {
+    bottom: -1px; right: -1px;
+    border-bottom: 2px solid var(--accent-2);
+    border-right: 2px solid var(--accent-2);
+  }
+  #help-overlay h3 {
+    margin: 0 0 18px;
+    color: var(--accent);
+    font-family: var(--serif);
+    font-style: italic; font-weight: 900;
+    font-size: 28px;
+  }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  #help-overlay td {
+    padding: 8px 0;
+    font-family: var(--serif);
+    color: var(--ink-soft);
+  }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    margin-right: 6px;
+  }
+
+  /* toast */
+  .toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--bg-2);
+    border: 1px solid var(--accent);
+    color: var(--ink);
+    padding: 12px 22px;
+    border-radius: 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.6), 0 0 24px var(--accent-glow);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.4s cubic-bezier(.2,.8,.2,1);
+    z-index: 150;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast::before {
+    content: '';
+    position: absolute;
+    top: -1px; left: -1px;
+    width: 14px; height: 14px;
+    border-top: 2px solid var(--accent);
+    border-left: 2px solid var(--accent);
+  }
+  .toast::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; right: -1px;
+    width: 14px; height: 14px;
+    border-bottom: 2px solid var(--accent-2);
+    border-right: 2px solid var(--accent-2);
+  }
+
+  .copy-btn {
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid var(--border-2);
+    border-radius: 0;
+    padding: 4px 10px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .copy-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+  }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* tokenization comparison table */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    margin: 8px 0;
+  }
+  .compare-grid > * {
+    background: var(--bg-2);
+    padding: 14px 18px;
+  }
+  .compare-grid .name {
+    font-family: var(--mono);
+    color: var(--accent-2);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+  }
+  .compare-grid .row-out {
+    background: var(--code-bg);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    overflow-x: auto;
+    white-space: nowrap;
+    color: var(--ink-soft);
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* underline space marker */
+  .space-mark {
+    color: var(--accent-2);
+    opacity: 0.7;
+    font-weight: 700;
+  }
+
+  /* hero / welcome decoration */
+  .hero-deco {
+    position: relative;
+    margin-bottom: 48px;
+  }
+  .hero-deco::before {
+    content: '✂';
+    position: absolute;
+    top: -10px; right: 20px;
+    font-size: 84px;
+    color: var(--accent);
+    opacity: 0.08;
+    font-family: var(--serif);
+    pointer-events: none;
+    animation: hover 4s ease-in-out infinite;
+  }
+  @keyframes hover {
+    0%, 100% { transform: translateY(0) rotate(-8deg); }
+    50%      { transform: translateY(-10px) rotate(-12deg); }
+  }
+
+  @media (max-width: 720px) {
+    main { padding: 32px 18px 80px; }
+    nav.tabs { padding: 0 12px; }
+    header { padding: 12px 14px; }
+    .canvas-card { padding: 22px 18px; }
+    .drill { padding: 18px; }
+    .flow-step { grid-template-columns: 50px 1fr; padding: 18px; }
+    h1 { font-size: 44px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+    .floaters { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="grain"></div>
+<div class="floaters" aria-hidden="true">
+  <span style="left:  6%; animation-delay:  0s;   background: var(--accent);"></span>
+  <span style="left: 14%; animation-delay:  4s;   background: var(--accent-2);"></span>
+  <span style="left: 22%; animation-delay:  9s;   background: var(--accent-3);"></span>
+  <span style="left: 31%; animation-delay:  2s;   background: var(--accent);"></span>
+  <span style="left: 39%; animation-delay: 14s;   background: var(--accent-2);"></span>
+  <span style="left: 47%; animation-delay:  6s;   background: var(--accent);"></span>
+  <span style="left: 55%; animation-delay: 11s;   background: var(--accent-3);"></span>
+  <span style="left: 63%; animation-delay:  3s;   background: var(--accent-2);"></span>
+  <span style="left: 71%; animation-delay: 17s;   background: var(--accent);"></span>
+  <span style="left: 79%; animation-delay:  8s;   background: var(--accent-3);"></span>
+  <span style="left: 87%; animation-delay: 13s;   background: var(--accent-2);"></span>
+  <span style="left: 94%; animation-delay:  1s;   background: var(--accent);"></span>
+</div>
+
+<div class="sticky-top">
+  <header>
+    <a href="index.html" class="logo" title="모든 치트시트로 돌아가기" style="text-decoration:none; color:inherit;">
+      <span class="spark">✂</span>
+      <span>토크<em>나이저</em></span>
+      <span class="badge">타이핑으로 배우기</span>
+    </a>
+    <div class="progress-bar-outer" title="전체 진행도">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="완료한 연습">
+      <span class="num" id="scoreNum">0</span>
+      <span style="color:var(--ink-dim); font-family:var(--mono);">/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">해결</span>
+    </div>
+    <div class="streak" title="연속 정답">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()" title="키보드 단축키">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome"><span style="color:var(--accent);">01</span>&nbsp;&nbsp;무엇인가</button>
+    <button data-tab="how"><span style="color:var(--accent);">02</span>&nbsp;&nbsp;작동 원리</button>
+    <button data-tab="live"><span style="color:var(--accent);">03</span>&nbsp;&nbsp;라이브 샌드박스</button>
+    <button data-tab="flow"><span style="color:var(--accent);">04</span>&nbsp;&nbsp;텐서 흐름</button>
+    <button data-tab="algos"><span style="color:var(--accent);">05</span>&nbsp;&nbsp;BPE · WP · SP</button>
+    <button data-tab="game"><span style="color:var(--accent);">06</span>&nbsp;&nbsp;토큰 헌트</button>
+    <button data-tab="drills"><span style="color:var(--accent);">07</span>&nbsp;&nbsp;연습</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= 1. WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 01 · 모든 트랜스포머의 혀</div>
+    <h1>문자열 <em>입력</em>,<br>정수 <em>출력</em>.</h1>
+    <p class="lead">
+      모델은 문자를 읽지 않습니다. 단어도 읽지 않습니다. 모델이 읽는 것은 <strong>정수</strong>입니다.
+      토크나이저는 원시 텍스트를 트랜스포머가 실제로 소비하는 정수 언어로 번역하고,
+      모델이 생성한 정수를 다시 사람이 읽을 수 있는 텍스트로 되돌리는 작은 프로그램입니다.
+      이게 없으면 GPT, BERT, LLaMA, Claude — 전부 침묵합니다.
+    </p>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">한 문장으로</div></div>
+      <div class="card-body">
+        토크나이저는 텍스트를 고정된 <em>어휘(vocabulary)</em> 안의 <em>토큰</em>으로 쪼개고
+        그 정수 ID를 내보내는 함수 $T : \text{string} \to \mathbb{Z}^n$ 입니다.
+        <em>디토크나이저(detokenizer)</em> $T^{-1}$ 는 그 반대를 합니다.
+        <pre class="code" style="margin-top:10px;"><code>"hello world"
+       │
+       ▼  encode
+[ 31373, 995 ]      <span class="tok-c"># 두 개의 토큰, GPT-2 vocab</span>
+       │
+       ▼  decode
+"hello world"</code></pre>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">왜 그냥 단어를 쓰면 안 될까?</div></div>
+      <div class="card-body">
+        <ul style="margin: 0 0 0 18px; padding: 0; color: var(--muted); font-size: 13.5px;">
+          <li><b style="color:var(--text)">어휘 폭발.</b> 영어만 해도 단어 형태가 100만 개 이상 — 임베딩 테이블 행이 100만 줄 필요해집니다.</li>
+          <li><b style="color:var(--text)">미등록 단어.</b> 오타나 신조어는 <code>&lt;UNK&gt;</code>가 되고 모델은 눈을 감습니다.</li>
+          <li><b style="color:var(--text)">형태론.</b> "running" / "runner" / "runs"는 어근을 공유하지만 모델은 그걸 보지 못합니다.</li>
+          <li><b style="color:var(--text)">언어들.</b> 중국어는 띄어쓰기가 없습니다. 터키어는 형태소를 붙입니다. 공백 분리는 실패합니다.</li>
+        </ul>
+        <div style="margin-top:10px; font-size:13px;">
+          서브워드 토크나이저는 이 네 가지를 모두 해결합니다 — 약 3만~20만 개의 작은 조각으로 어떤 문자열이든 조합으로 덮을 수 있습니다.
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">만나게 될 세 가지 계열</div></div>
+      <div class="card-body" style="font-size: 13.5px;">
+        <p style="margin:0 0 8px;"><span class="pill">BPE</span> Byte-Pair Encoding — 가장 빈번한 인접 쌍을 반복해서 병합합니다. <em>GPT-2/3/4, LLaMA, Mistral.</em></p>
+        <p style="margin:0 0 8px;"><span class="pill violet">WordPiece</span> BPE와 비슷하지만 코퍼스 우도(likelihood)를 최대화하는 병합을 고릅니다. <em>BERT, DistilBERT, ELECTRA.</em></p>
+        <p style="margin:0;"><span class="pill cyan">SentencePiece</span> 공백을 일반 문자(<code>▁</code>)처럼 다룹니다. 언어 비종속적이고 Unigram 또는 BPE를 감싸는 형태. <em>T5, ALBERT, LLaMA.</em></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">다음에 오는 것</div></div>
+      <div class="card-body">
+        토큰은 <em>토큰 ID</em>가 되고, 그게 <em>임베딩</em>이 되고, 결국
+        <span class="pill">[batch, seq_len, d_model]</span> 모양의 텐서가 됩니다.
+        트랜스포머의 나머지 모든 부분 — 어텐션, FFN, 출력 프로젝션 — 은 단지 그 텐서의 변환일 뿐입니다.
+        토크나이즈만 제대로 하면, 나머지는 행렬 곱셈입니다.
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">01</span>&nbsp;큰 그림</h2>
+  <div class="canvas-card">
+    <svg viewBox="0 0 920 230" style="width:100%; height:auto; max-height:260px; background:var(--code-bg); border:1px solid var(--border); border-radius:8px;">
+      <defs>
+        <linearGradient id="grad1" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#f472b6"/>
+          <stop offset="100%" stop-color="#a78bfa"/>
+        </linearGradient>
+        <filter id="glow1"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+
+      <!-- box 1: text -->
+      <rect x="20" y="80" width="150" height="70" rx="8" fill="#182338" stroke="#f472b6" stroke-width="2"/>
+      <text x="95" y="110" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" fill="#e6f1ff">"hello world"</text>
+      <text x="95" y="170" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" fill="#8aa1bd">원시 텍스트</text>
+
+      <!-- arrow 1 -->
+      <line x1="172" y1="115" x2="218" y2="115" stroke="url(#grad1)" stroke-width="2"/>
+      <polygon points="218,110 230,115 218,120" fill="#a78bfa"/>
+      <text x="200" y="100" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#a78bfa">tokenize</text>
+
+      <!-- box 2: tokens -->
+      <rect x="232" y="80" width="180" height="70" rx="8" fill="#182338" stroke="#a78bfa" stroke-width="2"/>
+      <text x="322" y="105" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12" fill="#e6f1ff">["hello", " world"]</text>
+      <text x="322" y="125" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" fill="#22d3ee">[31373, 995]</text>
+      <text x="322" y="170" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" fill="#8aa1bd">토큰 · ID</text>
+
+      <!-- arrow 2 -->
+      <line x1="414" y1="115" x2="460" y2="115" stroke="url(#grad1)" stroke-width="2"/>
+      <polygon points="460,110 472,115 460,120" fill="#22d3ee"/>
+      <text x="442" y="100" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#22d3ee">embed</text>
+
+      <!-- box 3: embedding -->
+      <rect x="474" y="60" width="180" height="110" rx="8" fill="#182338" stroke="#22d3ee" stroke-width="2"/>
+      <g font-family="ui-monospace,monospace" font-size="10" fill="#e6f1ff">
+        <text x="564" y="85" text-anchor="middle">[ 0.12, -0.4, ..., 0.7 ]</text>
+        <text x="564" y="105" text-anchor="middle">[ -0.3,  0.8, ..., 0.0 ]</text>
+        <text x="564" y="125" text-anchor="middle" fill="#a78bfa">shape: [B=1, T=2, D=768]</text>
+      </g>
+      <text x="564" y="190" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" fill="#8aa1bd">임베딩 텐서</text>
+
+      <!-- arrow 3 -->
+      <line x1="656" y1="115" x2="702" y2="115" stroke="url(#grad1)" stroke-width="2"/>
+      <polygon points="702,110 714,115 702,120" fill="#4ade80"/>
+      <text x="680" y="100" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10" fill="#4ade80">transformer</text>
+
+      <!-- box 4: -->
+      <rect x="716" y="80" width="180" height="70" rx="8" fill="#182338" stroke="#4ade80" stroke-width="2" filter="url(#glow1)"/>
+      <text x="806" y="118" text-anchor="middle" font-family="ui-monospace,monospace" font-size="13" fill="#4ade80">attention &amp; FFN</text>
+      <text x="806" y="170" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" fill="#8aa1bd">GPT/BERT의 나머지</text>
+    </svg>
+  </div>
+
+  <div class="note">
+    <strong>이 페이지 사용법:</strong> 탭을 순서대로 따라가세요. 탭&nbsp;3은 라이브
+    샌드박스 — 아무 문장이나 입력하면 토큰, ID, 마스크, 텐서가 되는 과정을 볼 수 있습니다. 탭&nbsp;6은
+    작은 게임. 탭&nbsp;7은 타이핑 드릴. <kbd>?</kbd>를 눌러 단축키를 확인하세요.
+  </div>
+</section>
+
+<!-- ========================= 2. HOW IT WORKS ========================= -->
+<section class="tab-section" id="tab-how">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 02 · 모든 토크나이저가 거치는 다섯 단계</div>
+    <h1>토크나이저는<br><em>실제로</em> 어떻게 작동할까.</h1>
+    <p class="lead">
+      현대의 모든 토크나이저는 결국 같은 다섯 가지 일을 어떤 순서로든 합니다:
+      <em>정규화(normalize)</em>, <em>사전 분할(pre-tokenize)</em>, <em>학습된 병합 테이블로 서브워드로 쪼개기</em>,
+      <em>각 조각을 ID로 매핑하기</em>, <em>특수 토큰 추가</em>. 각 단계를 평이한 한국어로 풀어봅니다.
+    </p>
+  </div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <span class="num">1</span>
+      <div>
+        <h4>정규화 (Normalize)</h4>
+        <p>소문자화 / NFC 유니코드 정규화 / 악센트 제거 — 모델마다 다릅니다. GPT-2는 거의 아무것도 하지 않습니다. BERT-uncased는 공격적으로 소문자화합니다.</p>
+        <div class="shape">"Hèllo!" → "hello!"  (BERT-uncased)</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">2</span>
+      <div>
+        <h4>사전 분할 (Pre-tokenize)</h4>
+        <p>병합 단계가 단어 경계를 넘지 않도록 공백과 구두점에서 먼저 자릅니다. GPT-2는 정규식을 사용합니다. SentencePiece는 사전 분할을 <em>하지 않고</em> 공백을 포함한 원시 바이트 위에서 동작합니다.</p>
+        <div class="shape">"hello world!" → ["hello", " world", "!"]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">3</span>
+      <div>
+        <h4>병합 / vocab 테이블 적용</h4>
+        <p>학습 시점에 (느린 단계로) 서브워드 조각의 어휘를 학습합니다. 추론 시에는 각 사전 토큰을 알고 있는 가장 긴 조각으로 쪼갭니다.</p>
+        <div class="shape">"tokenization" → ["token", "ization"]   (BPE)</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">4</span>
+      <div>
+        <h4>조각 → 정수 ID 매핑</h4>
+        <p>어휘는 <code>str → int</code> 사전입니다. 각 조각은 임베딩 테이블의 행 인덱스가 됩니다.</p>
+        <div class="shape">["token", "ization"] → [30001, 1634]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">5</span>
+      <div>
+        <h4>특수 토큰 추가 &amp; 패딩</h4>
+        <p>BERT는 앞에 <code>[CLS]</code>를, 끝에 <code>[SEP]</code>를 붙입니다. GPT 계열은 보통 아무것도 안 붙입니다. 배치 입력은 <code>&lt;pad&gt;</code> id로 공통 길이까지 패딩되고, <em>어텐션 마스크</em>가 어떤 위치가 실제 토큰인지 기록합니다.</p>
+        <div class="shape">[101, 30001, 1634, 102, 0, 0]   mask: [1, 1, 1, 1, 0, 0]</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">02</span>&nbsp;60초 만에 BPE — 병합 단계</h2>
+  <p class="lead">
+    Byte-Pair Encoding은 <em>학습 중</em>에 코퍼스에서 가장 빈번한 인접 심볼 쌍을 반복적으로 찾아서
+    그 둘을 이어 붙인 것을 새 심볼로 추가하는 방식으로 어휘를 만듭니다. $V$번의 병합을 돌리면
+    <em>~초기 바이트 + $V$</em> 크기의 어휘가 나옵니다.
+  </p>
+  <div class="card">
+    <div class="card-head"><div class="card-title">아주 작은 예제</div></div>
+    <div class="card-body">
+      코퍼스 <code>"low low low lower newer"</code>로 시작해서 단어 경계 마커
+      <code>▁</code>와 함께 문자 단위로 쪼갭니다:
+      <pre class="code"><code><span class="tok-c"># step 0 — 바이트</span>
+▁ l o w   ▁ l o w   ▁ l o w   ▁ l o w e r   ▁ n e w e r
+
+<span class="tok-c"># 가장 빈번한 쌍 = (l, o)  →  "lo"로 병합</span>
+▁ <span class="tok-s">lo</span> w   ▁ <span class="tok-s">lo</span> w   ▁ <span class="tok-s">lo</span> w   ▁ <span class="tok-s">lo</span> w e r   ▁ n e w e r
+
+<span class="tok-c"># 가장 빈번한 쌍 = (lo, w)  →  "low"로 병합</span>
+▁ <span class="tok-s">low</span>   ▁ <span class="tok-s">low</span>   ▁ <span class="tok-s">low</span>   ▁ <span class="tok-s">low</span> e r   ▁ n e w e r
+
+<span class="tok-c"># 가장 빈번한 쌍 = (e, r)  →  "er"로 병합</span>
+▁ low   ▁ low   ▁ low   ▁ low <span class="tok-s">er</span>   ▁ n e w <span class="tok-s">er</span>
+
+<span class="tok-c"># 최종 vocab에 포함: ▁, l, o, w, e, r, n, lo, low, er, ...</span></code></pre>
+      <div class="note info">
+        <strong>추론</strong>은 <em>같은</em> 병합 리스트를 순서대로 따라가며 여전히 적용 가능한 병합을
+        모두 적용합니다. 그래서 BPE는 결정적이고 무손실입니다 — 어떤 바이트 시퀀스에도 고유한 토큰화가 존재합니다.
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">03</span>&nbsp;토크나이즈를 머릿속으로 읽기</h2>
+  <p class="lead">
+    GPT-2 출력을 한참 보다 보면 보이는 신호 몇 가지:
+  </p>
+  <ul style="margin: 0 0 18px 18px; color: var(--muted); font-size: 13.5px;">
+    <li><b style="color:var(--text)">앞 공백이 중요합니다.</b> 문자열 맨 앞의 <code>"hello"</code>는 문장 중간의 <code>" hello"</code>와 다른 토큰입니다. GPT-2는 바이트 레벨 vocab에서 앞 공백을 <code>Ġ</code>로 표시하기까지 합니다.</li>
+    <li><b style="color:var(--text)">흔한 단어 → 토큰 1개.</b> "the", "and", "is"는 단일 토큰입니다.</li>
+    <li><b style="color:var(--text)">길거나 희귀한 단어 → 여러 토큰.</b> "tokenization"은 쪼개지고, "antidisestablishmentarianism"은 진짜로 잘게 쪼개집니다.</li>
+    <li><b style="color:var(--text)">숫자와 이모지</b>는 잘게 잘립니다 — <code>"2024"</code>는 토크나이저에 따라 1, 2, 또는 4개 토큰이 될 수 있습니다.</li>
+    <li><b style="color:var(--text)">비라틴 문자</b>는 byte-level BPE에서 <em>바이트 토큰</em>이 됩니다: 3바이트짜리 UTF-8 코드포인트는 토큰 3개입니다. SentencePiece를 해당 언어로 학습시키면 이 문제를 피할 수 있습니다.</li>
+  </ul>
+</section>
+
+<!-- ========================= 3. LIVE SANDBOX ========================= -->
+<section class="tab-section" id="tab-live">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 03 · 키보드와 모델이 만나는 곳</div>
+    <h1>문장을 입력하면,<br><em>토크나이즈</em>되는 걸 볼 수 있습니다.</h1>
+    <p class="lead">
+      아래에 입력해 보세요. 페이지가 텍스트를 동시에 세 가지 방식으로 쪼갭니다 — 문자 단위, 단어 단위,
+      그리고 브라우저 안에서 돌아가는 작은 BPE 스타일 서브워드 토크나이저로 — 그리고 토큰, ID,
+      어텐션 마스크, 결과 텐서 모양을 보여줍니다. 모든 칩은 토큰 ID로 색이 지정되니까
+      같은 토큰은 어디서나 같은 색입니다.
+    </p>
+  </div>
+
+  <div class="canvas-card">
+    <h3>✂ 텍스트</h3>
+    <textarea id="liveText" class="sandbox-input" rows="2" spellcheck="false">토크나이즈 재밌네! Hello world 🌟</textarea>
+
+    <div class="sandbox-row" style="margin-top: 12px;">
+      <span class="label">scheme</span>
+      <div class="segmented" id="schemeToggle">
+        <button class="active" data-scheme="bpe">BPE 유사 (서브워드)</button>
+        <button data-scheme="word">공백 분리</button>
+        <button data-scheme="char">문자 단위</button>
+        <button data-scheme="byte">바이트</button>
+      </div>
+      <label style="display:inline-flex; align-items:center; gap:6px; color:var(--muted); font-size:13px; margin-left:8px;">
+        <input type="checkbox" id="addSpecials" checked>
+        <code style="color:var(--warn);">[CLS]</code> / <code style="color:var(--warn);">[SEP]</code> 추가
+      </label>
+    </div>
+
+    <div class="sandbox-row">
+      <span class="label">tokens</span>
+      <div class="token-row" id="tokenRow"></div>
+    </div>
+
+    <div class="sandbox-row">
+      <span class="label">token ids</span>
+      <pre class="code" id="idsOut" style="flex:1; margin: 0;">[]</pre>
+    </div>
+
+    <div class="sandbox-row">
+      <span class="label">attention mask</span>
+      <div class="mask-row" id="maskRow"></div>
+    </div>
+
+    <div class="sandbox-row">
+      <span class="label">tensor shape</span>
+      <span class="pill" id="shapeBatched">input_ids: [B=1, T=0]</span>
+      <span class="pill violet" id="shapeEmbed">embeddings: [B=1, T=0, D=768]</span>
+      <span class="pill cyan" id="shapeMask">attention_mask: [B=1, T=0]</span>
+    </div>
+
+    <div class="stat-line" style="margin-top: 6px;">
+      <span>문자 수: <b id="statChars">0</b></span>
+      <span>토큰 수: <b id="statTokens">0</b></span>
+      <span>문자 / 토큰: <b id="statRatio">0.00</b></span>
+      <span>vocab miss (unk): <b id="statUnk">0</b></span>
+    </div>
+  </div>
+
+  <div class="canvas-card">
+    <h3>📦 임베딩 텐서 (미리보기)</h3>
+    <p style="margin: 0 0 10px; color: var(--muted); font-size: 13px;">
+      아래 각 행은 토큰 하나의 임베딩 벡터입니다 — D=768 중 첫 24차원을
+      히트맵으로 보여줍니다. 같은 ID ⇒ 동일한 행, 임베딩 테이블은 룩업이니까요.
+    </p>
+    <div class="heatmap" id="embedHeat"></div>
+  </div>
+
+  <div class="note info">
+    <strong>브라우저 토크나이저에 대하여:</strong> "BPE 유사" 모드에서는 영어 일반 바이그램으로 학습된 작은 병합 테이블(약 150개 병합)을 사용합니다.
+    GPT-4의 10만 조각짜리 인코더와 <em>같지는</em> 않지만 — 작동 메커니즘은 진짜입니다:
+    가장 긴 병합이 이깁니다, 앞 공백은 의미가 있고, 알 수 없는 바이트는 바이트 단위 토큰으로 폴백합니다.
+  </div>
+</section>
+
+<!-- ========================= 4. TENSOR FLOW ========================= -->
+<section class="tab-section" id="tab-flow">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 04 · 텐서가 어디서 오는가</div>
+    <h1>문자열에서 <em>로짓</em>까지<br>여덟 개의 모양으로.</h1>
+    <p class="lead">
+      같은 문장 — <code>"Hello, world!"</code> — 을 가지고 문자열에서 로짓까지 정확히 어떤 모양들을 거치는지 추적해 봅시다.
+      <span class="pill">B</span> = batch, <span class="pill violet">T</span> =
+      sequence length, <span class="pill cyan">D</span> = hidden size, <span class="pill green">V</span> = vocab size.
+    </p>
+  </div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <span class="num">1</span>
+      <div>
+        <h4>원시 문자열</h4>
+        <p><code>"Hello, world!"</code></p>
+        <div class="shape">shape: 스칼라 (아직 텐서 아님)</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">2</span>
+      <div>
+        <h4>토크나이즈 → ID 리스트</h4>
+        <p><code>[15496, 11, 995, 0]</code> (GPT-2 BPE, 4 토큰)</p>
+        <div class="shape">shape: [T=4]   dtype: int64</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">3</span>
+      <div>
+        <h4>배치 + 패딩</h4>
+        <p>두 문장을 배치로 쌓고, ID 0으로 T=6까지 패딩:<br>
+        <code>[[15496, 11, 995, 0, 0, 0],<br>&nbsp;[15496, 11, 5440, 16085, 0, 0]]</code></p>
+        <div class="shape">input_ids: [B=2, T=6]   attention_mask: [B=2, T=6]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">4</span>
+      <div>
+        <h4>임베딩 룩업</h4>
+        <p><code>x = embed[input_ids]</code> — [V × D] 테이블에서 ID마다 한 행씩.</p>
+        <div class="shape">x: [B=2, T=6, D=768]   embed: [V=50257, D=768]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">5</span>
+      <div>
+        <h4>+ 위치 임베딩</h4>
+        <p>[T × D] 테이블을 더합니다 (RoPE는 대신 Q/K를 회전시킵니다). 이제 위치가 의미를 갖습니다.</p>
+        <div class="shape">x: [B=2, T=6, D=768]   pos: [T=6, D=768]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">6</span>
+      <div>
+        <h4>L개의 트랜스포머 블록</h4>
+        <p>각 블록은 모양을 유지합니다. 내부에서 어텐션이 잠시 <code>scores: [B, H, T, T]</code>를 만듭니다.</p>
+        <div class="shape">x 유지: [B=2, T=6, D=768]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">7</span>
+      <div>
+        <h4>출력 헤드 → 로짓</h4>
+        <p><code>logits = x @ embed.T</code> — 모든 위치에서 vocab 토큰마다 점수 한 개씩.</p>
+        <div class="shape">logits: [B=2, T=6, V=50257]</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <span class="num">8</span>
+      <div>
+        <h4>softmax → 다음 토큰 ID</h4>
+        <p><code>argmax(logits[:, -1, :], dim=-1)</code>가 다음 ID를 고르고, 토크나이저가 그걸 다시 텍스트로 바꿉니다.</p>
+        <div class="shape">next_id: [B=2]   T⁻¹로 "decoded text"</div>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">04</span>&nbsp;같은 흐름을, PyTorch로</h2>
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">HuggingFace로 처음부터 끝까지</div>
+      <button class="copy-btn" onclick="copyCode(this)">복사</button>
+    </div>
+    <pre class="code"><code><span class="tok-k">from</span> transformers <span class="tok-k">import</span> AutoTokenizer, AutoModelForCausalLM
+<span class="tok-k">import</span> torch
+
+tok   = AutoTokenizer.from_pretrained(<span class="tok-s">"gpt2"</span>)
+model = AutoModelForCausalLM.from_pretrained(<span class="tok-s">"gpt2"</span>)
+
+<span class="tok-c"># 1. encode → int64 텐서 dict</span>
+batch = tok([<span class="tok-s">"Hello, world!"</span>, <span class="tok-s">"Hello, friends, again"</span>],
+            padding=<span class="tok-k">True</span>, return_tensors=<span class="tok-s">"pt"</span>)
+<span class="tok-f">print</span>(batch.input_ids.shape)        <span class="tok-c"># torch.Size([2, 6])</span>
+<span class="tok-f">print</span>(batch.attention_mask.shape)   <span class="tok-c"># torch.Size([2, 6])</span>
+
+<span class="tok-c"># 2. forward — 임베딩 + 트랜스포머 블록</span>
+out = model(**batch)
+<span class="tok-f">print</span>(out.logits.shape)            <span class="tok-c"># torch.Size([2, 6, 50257])</span>
+
+<span class="tok-c"># 3. greedy 다음 토큰 = vocab 축에서 argmax</span>
+next_id = out.logits[:, -<span class="tok-n">1</span>, :].argmax(dim=-<span class="tok-n">1</span>)
+<span class="tok-f">print</span>(tok.batch_decode(next_id.unsqueeze(-<span class="tok-n">1</span>)))</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>대략적인 메모리 견적.</strong> 8k 컨텍스트, 배치 1, fp16 추론은 레이어당 활성값에
+    <em>대략</em> $T \times D \times 2$ 바이트가 필요하고, 거기에 $2 \times L \times T \times D \times 2$
+    바이트의 KV 캐시가 추가됩니다. LLaMA-7B는 T=8192에서 KV 캐시만 <code>~512 MB</code> —
+    토크나이저의 압축률이 직접적으로 결정하는 예산입니다.
+  </div>
+</section>
+
+<!-- ========================= 5. ALGORITHMS ========================= -->
+<section class="tab-section" id="tab-algos">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 05 · 서브워드의 세 가족</div>
+    <h1>BPE · WordPiece · <em>SentencePiece</em>.</h1>
+    <p class="lead">
+      셋 다 서브워드 토큰을 만들고, 셋 다 빈도 통계에서 출발하지만, 병합 규칙과 공백을 다루는 방식은 다릅니다.
+      문자열을 입력해서 각각이 어떻게 쪼개는지 보세요.
+    </p>
+  </div>
+
+  <div class="canvas-card">
+    <h3>🔬 입력에 대해 비교</h3>
+    <input id="cmpText" class="sandbox-input" value="Tokenization is unbelievable!" style="font-size:13.5px;">
+
+    <div class="compare-grid" style="margin-top: 14px;">
+      <div class="name">BPE</div>
+      <div class="row-out" id="cmpBpe"></div>
+
+      <div class="name">WordPiece</div>
+      <div class="row-out" id="cmpWp"></div>
+
+      <div class="name">SentencePiece</div>
+      <div class="row-out" id="cmpSp"></div>
+
+      <div class="name">공백 분리</div>
+      <div class="row-out" id="cmpWs"></div>
+
+      <div class="name">문자 단위</div>
+      <div class="row-out" id="cmpCh"></div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-head"><div class="card-title">BPE — 빈도 기반 병합</div></div>
+      <div class="card-body" style="font-size:13.5px;">
+        <p>가장 빈번한 인접 쌍을 골라 병합, 반복. 추론은 같은 병합을 순서대로 적용합니다. 탐욕적이고 무손실입니다.</p>
+        <p><b>사용 모델:</b> GPT-2/3/4, RoBERTa, LLaMA, Mistral, Qwen.</p>
+        <p><b>특징:</b> 앞 공백이 토큰의 일부입니다 (<code>Ġ</code> 또는 <code>▁</code>로 출력).</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">WordPiece — 우도 기반 병합</div></div>
+      <div class="card-body" style="font-size:13.5px;">
+        <p>BPE와 비슷하지만, 병합 규칙이 단순 빈도 대신 코퍼스 로그 우도를 최대화합니다.
+        이어지는 조각은 앞에 <code>##</code>가 붙습니다.</p>
+        <p><b>사용 모델:</b> BERT, DistilBERT, ELECTRA, MobileBERT.</p>
+        <p><b>특징:</b> <code>"playing" → ["play", "##ing"]</code></p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">SentencePiece — 바이트는 신성하다</div></div>
+      <div class="card-body" style="font-size:13.5px;">
+        <p>공백을 진짜 문자(<code>▁</code> = U+2581)로 다루고, 사전 분할 없이 원시 텍스트 위에서 직접 학습합니다. Unigram-LM이나 BPE를 감쌀 수 있습니다.</p>
+        <p><b>사용 모델:</b> T5, ALBERT, XLNet, mT5, LLaMA.</p>
+        <p><b>특징:</b> <code>▁hello</code>, <code>▁world</code> 같은 토큰.</p>
+      </div>
+    </div>
+  </div>
+
+  <h2><span class="num">05</span>&nbsp;잘못 골랐을 때 무엇이 달라지나?</h2>
+  <ul style="margin: 0 0 18px 18px; color: var(--muted); font-size: 13.5px;">
+    <li><b style="color:var(--text)">토크나이저 불일치는 조용하고 치명적입니다.</b> BPE로 학습하고 WordPiece로 추론하면 — 모든 임베딩 룩업이 잘못됩니다. 모델은 그래도 돌아가고 출력은 헛소리입니다.</li>
+    <li><b style="color:var(--text)">런타임에 토큰 추가</b>는 가능합니다 (예: 채팅 템플릿용). 하지만 <em>임베딩 테이블 크기를 맞춰야</em> 합니다. 그 단계를 까먹으면 새 ID에서 크래시 납니다.</li>
+    <li><b style="color:var(--text)">언어가 다르면, 청구서도 다릅니다.</b> 한국어를 GPT-2 BPE로 처리하면 영어 대비 약 3배의 토큰이 듭니다. 한국어 학습 SentencePiece에서는 약 1배. 같은 모델, 다른 비용.</li>
+  </ul>
+</section>
+
+<!-- ========================= 6. GAME ========================= -->
+<section class="tab-section" id="tab-game">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 06 · 토크나이저 감각을 갈고닦기</div>
+    <h1>토큰 <em>헌트</em>.<br>다섯 라운드, 하나의 연속 정답 기록.</h1>
+    <p class="lead">
+      매 라운드마다 문장 하나가 나오고, 그 문장이 BPE 유사 토크나이저로 몇 개의 토큰이 될지 맞히면 됩니다.
+      ±1은 좋은 추정, 정확하면 훌륭한 추정. 연속 기록을 쌓아 보세요. 많이 할수록 "토크나이저 감각"이
+      좋아지고 — 컨텍스트 윈도우와 추론 비용을 가늠할 때 그 직관은 실제로 유용합니다.
+    </p>
+  </div>
+
+  <div class="game-bar">
+    <span class="score" id="gameScore">점수: 0</span>
+    <span>라운드 <b id="gameRound">1</b> / 5</span>
+    <span class="lives">연속: 🔥 <b id="gameStreak">0</b></span>
+    <span style="color:var(--muted)">최고: <b id="gameBest">—</b></span>
+    <button class="btn ghost tiny" onclick="resetGame()" style="margin-left:auto">↻ 리셋</button>
+  </div>
+
+  <div class="canvas-card" id="gameCard">
+    <h3>라운드 <span id="gameRoundN">1</span></h3>
+    <pre class="code" id="gamePrompt" style="font-size: 14px; line-height: 1.7;">로딩 중…</pre>
+    <div class="sandbox-row" style="margin-top: 8px;">
+      <span class="label">예측</span>
+      <input id="gameGuess" type="number" min="1" max="200" class="sandbox-input"
+             style="max-width: 130px; min-height: 38px; padding: 6px 10px; text-align: center; font-size: 16px;">
+      <button class="btn" onclick="submitGuess()">제출</button>
+      <button class="btn ghost tiny" onclick="skipGame()">건너뛰기 →</button>
+    </div>
+    <div class="feedback" id="gameFb"></div>
+    <div id="gameReveal" style="display:none; margin-top: 14px;">
+      <div class="sandbox-row"><span class="label">실제</span>
+        <div class="token-row" id="gameTokens"></div></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>팁:</strong> 흔한 짧은 영어 단어 ≈ 1 토큰. 길거나 희귀한 단어는 쪼개집니다.
+    앞 공백은 다음 토큰의 일부입니다. 구두점은 보통 자기 토큰. 이모지와 비-ASCII는
+    byte-level BPE에서 보통 토큰 2~4개입니다.
+  </div>
+</section>
+
+<!-- ========================= 7. DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <div class="hero-deco">
+    <div class="eyebrow">Chapter 07 · 답을 입력하세요</div>
+    <h1>열두 개의 드릴.<br><em>체크마크</em>를 따 보세요.</h1>
+    <p class="lead">
+      어휘 메커닉, 특수 토큰, ID, 모양, BPE 병합 규칙을 다룹니다.
+      <kbd style="background:var(--code-bg);border:1px solid var(--border-2);padding:2px 8px;color:var(--accent);font-family:var(--mono);">Tab</kbd>으로 빈칸 이동
+      · <kbd style="background:var(--code-bg);border:1px solid var(--border-2);padding:2px 8px;color:var(--accent);font-family:var(--mono);">Enter</kbd>로 정답 확인
+      · 힌트 버튼은 미해결 빈칸을 모두 보여줍니다 (토글).
+    </p>
+  </div>
+
+  <h2><span class="num">A</span>&nbsp;핵심 아이디어</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 토크나이저는 문자열을 정수 ID 리스트로 매핑합니다. 이 ID들을 토큰 …(이)라고 부릅니다.</div>
+    <pre class="exercise">encode("hi") → [<input class="blank" data-answer="ids|IDs|id|integers" size="6" placeholder="?">]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> 토크나이저가 내보낼 수 있는 모든 알려진 조각의 집합을 …(이)라고 부릅니다.</div>
+    <pre class="exercise">len(tokenizer.<input class="blank" data-answer="vocab|vocabulary|get_vocab" size="10" placeholder="?">)   # → 예: GPT-2의 경우 50257</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> 반대 방향 — ID를 다시 텍스트로 — 을 … (이)라고 합니다.</div>
+    <pre class="exercise">tokenizer.<input class="blank" data-answer="decode" size="7" placeholder="?">([15496, 11, 995])  # → "Hello, world"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2><span class="num">B</span>&nbsp;특수 토큰 &amp; 마스크</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> BERT는 모든 입력의 맨 앞에 특수 토큰 하나를 붙이고, 이를 문장 단위 요약으로 사용합니다.</div>
+    <pre class="exercise">[<input class="blank" data-answer="CLS|[CLS]|cls" size="6" placeholder="?">] tokens... [SEP]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> 패딩된 위치는 0으로 된 …(을)를 통해 어텐션이 무시합니다.</div>
+    <pre class="exercise">attention_<input class="blank" data-answer="mask" size="6" placeholder="?"> = [1, 1, 1, 0, 0]   # 마지막 둘은 패딩</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2><span class="num">C</span>&nbsp;모양 &amp; 흐름</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> 두 문장을 길이 6으로 패딩해 인코딩하면 <code>input_ids</code> 텐서의 shape는 …</div>
+    <pre class="exercise">input_ids.shape == (<input class="blank" data-answer="2" size="3" placeholder="?">, <input class="blank" data-answer="6" size="3" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> [B, T] 모양의 ID 텐서로 임베딩을 룩업하면 [B, T, …] 모양의 텐서가 나옵니다.</div>
+    <pre class="exercise">x = embed[input_ids]              # x.shape == (B, T, <input class="blank" data-answer="D|d_model|d|hidden|hidden_size" size="8" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 출력 프로젝션은 hidden state를 모든 어휘 토큰에 대한 점수로 변환합니다.</div>
+    <pre class="exercise">logits = x @ embed.T              # logits.shape == (B, T, <input class="blank" data-answer="V|vocab|vocab_size" size="7" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2><span class="num">D</span>&nbsp;BPE와 친구들</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> BPE 학습은 가장 … 인접 심볼 쌍을 반복적으로 병합합니다.</div>
+    <pre class="exercise">while merges &lt; V:
+    pair = argmax_<input class="blank" data-answer="frequent|frequency|freq|common" size="10" placeholder="?">(adjacent_pairs(corpus))
+    corpus = merge(pair, corpus)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> WordPiece는 "이것은 이전 조각의 연속"임을 접두사로 표시합니다.</div>
+    <pre class="exercise">"playing" → ["play", "<input class="blank" data-answer="##ing|##" size="7" placeholder="?">"]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> SentencePiece는 공백을 단일 가시 문자, U+2581 … (으)로 인코딩합니다.</div>
+    <pre class="exercise">"hello world" → ["<input class="blank" data-answer="▁hello|_hello" size="9" placeholder="?">", "▁world"]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 빠른 HuggingFace 왕복: encode 후 decode.</div>
+    <pre class="exercise">tok = AutoTokenizer.from_pretrained("gpt2")
+ids = tok.<input class="blank" data-answer="encode" size="7" placeholder="?">("hi there")
+text = tok.<input class="blank" data-answer="decode" size="7" placeholder="?">(ids)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">정답 확인</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>열두 개 다 풀었나요?</strong> 이제 토크나이즈된 출력을 읽고, 모양을 예측하고, 같은 문자열이
+    모델마다 왜 다른 토큰 수를 갖는지 설명할 수 있습니다. 다음 정거장 —
+    상자들 안에서 일어나는 일을 보려면
+    <a href="transformers.html" style="color: var(--accent);">transformers.html</a>로.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>키보드 단축키</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로 이동</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 드릴 정답 확인</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>오버레이 닫기</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      아무 곳이나 클릭하면 닫힙니다.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong>브라우저 토크나이저</strong> —
+  BPE 유사 샌드박스는 작은 병합 테이블 위에서 브라우저 안에서 돌아갑니다. 정수 ID와 텐서 모양은
+  실제 흐름과 일치합니다.
+  <br>
+  <a href="index.html">← 모든 치트시트</a>
+  &nbsp;·&nbsp;
+  <a href="transformers.html">transformers.html</a>의 동반자
+  &nbsp;·&nbsp;
+  ✂ 토큰은 혀다
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속!';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '답 숨김 — 직접 입력해 보세요';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '모두 완료.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '모든 답 공개 · 다시 누르면 숨김';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답!', '딱 맞아요.', '✓ 정확.', '예리해요.', '바로 그거.', '깔끔.', '토크나이저가 인정합니다.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아직 아니에요 — 다시 시도.', '아쉬워요. 힌트 볼까요?', '거의 다 왔어요. 철자 확인.', '땡. 한 번 더.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('섹션 완료! 🎉  +' + drills.length + ' 해결');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#f472b6','#a78bfa','#22d3ee','#4ade80','#fbbf24','#38bdf8','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '복사됨!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '복사'; }, 1300);
+  });
+}
+
+// ============== HELP ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'how','3':'live','4':'flow','5':'algos','6':'game','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// =====================================================================
+// LIVE TOKENIZER — a tiny BPE-like engine in pure JS
+// =====================================================================
+
+// hand-picked merges trained-by-eye on common english bigrams.
+// Order matters: earlier merges are applied first.
+const MERGES = [
+  ['t','h'], ['Ġ','t'], ['Ġ','a'], ['i','n'], ['e','r'], ['o','n'],
+  ['Ġt','he'], ['re','Ġ'], ['e','n'], ['Ġ','o'], ['Ġ','s'], ['Ġ','w'],
+  ['a','t'], ['e','d'], ['o','r'], ['Ġ','b'], ['Ġ','c'], ['i','t'],
+  ['i','s'], ['o','u'], ['a','l'], ['a','r'], ['Ġt','o'], ['Ġo','f'],
+  ['Ġ','f'], ['Ġ','i'], ['Ġ','m'], ['Ġ','d'], ['Ġ','p'], ['Ġ','h'],
+  ['s','t'], ['a','n'], ['Ġa','nd'], ['Ġ','n'], ['Ġ','l'], ['Ġ','e'],
+  ['l','e'], ['o','m'], ['e','s'], ['o','w'], ['e','l'], ['l','d'],
+  ['Ġt','h'], ['Ġh','e'], ['Ġs','t'], ['Ġh','el'], ['Ġh','ello'],
+  ['Ġw','o'], ['Ġw','or'], ['Ġw','orld'], ['Ġw','o'], ['o','o'],
+  ['Ġf','un'], ['Ġi','s'], ['Ġi','n'], ['Ġo','n'], ['Ġu','n'],
+  ['Ġb','el'], ['Ġu','nb'], ['Ġu','nbel'], ['i','ev'], ['ie','v'],
+  ['Ġu','nbeliev'], ['ab','le'], ['Ġu','nbelievable'], ['t','i'],
+  ['ti','on'], ['z','a'], ['Ġt','oken'], ['oken','i'], ['Ġt','okenization'],
+  ['Ġ','q'], ['Ġ','y'], ['Ġ','r'], ['ent','en'], ['s','en'],
+  ['Ġs','en'], ['Ġs','enten'], ['Ġs','entence'], ['Ġp','l'],
+  ['Ġp','la'], ['Ġp','lay'], ['Ġp','lay'], ['Ġp','laying'],
+  ['ing',''], ['Ġp','laying'], ['Ġc','at'], ['Ġd','og'], ['Ġh','i'],
+  ['Ġth','ere'], ['Ġa','ge'], ['Ġm','an'], ['Ġh','ouse'], ['Ġf','or'],
+  ['Ġl','o'], ['Ġl','ow'], ['Ġl','ower'], ['Ġn','ew'], ['Ġn','ewer'],
+  ['s','ome'], ['Ġs','ome'], ['Ġs','omething'], ['e','xt'],
+  ['Ġt','ext'], ['Ġc','ode'], ['Ġm','od'], ['Ġm','odel'],
+  ['Ġh','ome'], ['Ġl','ar'], ['Ġl','arge'], ['Ġs','m'], ['Ġs','mall'],
+  ['Ġf','ast'], ['Ġs','low'], ['Ġs','low'],
+  ['Ġp','i'], ['Ġp','ie'], ['Ġp','iece'], ['Ġp','ieces'],
+];
+// build a quick lookup for merge rank
+const MERGE_RANK = new Map();
+MERGES.forEach((m, i) => MERGE_RANK.set(m[0] + ' ' + m[1], i));
+
+// pseudo-deterministic id assignment: hash(token) mod 50000 + 1000
+// (so the same token always gets the same id; shows that the map is a dictionary lookup)
+function hashId(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 50000) + 1000;
+}
+
+// reserve nice ids for special tokens
+const SPECIAL_IDS = { '[CLS]': 101, '[SEP]': 102, '[PAD]': 0, '[UNK]': 100 };
+
+// Pre-tokenize: split on whitespace boundaries, attach leading space using Ġ marker.
+function preTokenize(text) {
+  if (!text) return [];
+  const out = [];
+  // walk and group: spaces+word, or punctuation, or stand-alone non-whitespace runs
+  const re = /(\s*)(\S+?)([!?.,;:"'`)\]}]+|$)/g;
+  // simpler: split by whitespace runs, keep them as part of next token
+  let buf = '';
+  let pieces = [];
+  // Easier path: scan char-by-char and start new piece on space/word boundary
+  let cur = '';
+  let prevSpace = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (/\s/.test(ch)) {
+      if (cur) { pieces.push(cur); cur = ''; }
+      // mark next non-space as having a leading space
+      cur = 'Ġ';
+      prevSpace = true;
+    } else if (/[!?.,;:"'`()\[\]{}]/.test(ch)) {
+      if (cur && cur !== 'Ġ') { pieces.push(cur); cur = ''; }
+      pieces.push((prevSpace ? 'Ġ' : '') + ch);
+      cur = '';
+      prevSpace = false;
+    } else {
+      cur += ch;
+      prevSpace = false;
+    }
+  }
+  if (cur) pieces.push(cur);
+  return pieces.filter(p => p && p !== 'Ġ');
+}
+
+// BPE merge a single pre-token: split into chars and apply merges.
+function bpeEncode(piece) {
+  if (!piece) return [];
+  // start as array of single chars (preserving Ġ as one symbol)
+  let parts;
+  if (piece.startsWith('Ġ')) {
+    parts = ['Ġ', ...piece.slice(1).split('')];
+  } else {
+    parts = piece.split('');
+  }
+  // for non-ascii, fall back: keep as-is per char (effectively byte tokens for our model)
+  // iterate: find lowest-rank pair and merge; stop when none
+  while (parts.length > 1) {
+    let bestRank = Infinity, bestIdx = -1;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const key = parts[i] + ' ' + parts[i + 1];
+      const r = MERGE_RANK.get(key);
+      if (r !== undefined && r < bestRank) { bestRank = r; bestIdx = i; }
+    }
+    if (bestIdx < 0) break;
+    parts = [
+      ...parts.slice(0, bestIdx),
+      parts[bestIdx] + parts[bestIdx + 1],
+      ...parts.slice(bestIdx + 2),
+    ];
+  }
+  return parts;
+}
+
+// Public encoders for the various schemes
+function encodeBPE(text) {
+  const pieces = preTokenize(text);
+  const out = [];
+  for (const p of pieces) {
+    const subs = bpeEncode(p);
+    for (const s of subs) out.push(s);
+  }
+  return out;
+}
+function encodeWord(text) {
+  return text.split(/(\s+)/).filter(s => s.length > 0).map(s => s.replace(/ /g, 'Ġ').replace(/\t/g, '\\t').replace(/\n/g, '\\n'));
+}
+function encodeChar(text) {
+  // characters with whitespace shown explicitly
+  return [...text].map(c => /\s/.test(c) ? '·' : c);
+}
+function encodeByte(text) {
+  const enc = new TextEncoder();
+  return [...enc.encode(text)].map(b => '0x' + b.toString(16).padStart(2, '0').toUpperCase());
+}
+
+// pretty: Ġ → ·, &nbsp markers
+function pretty(s) {
+  if (s === undefined || s === null) return '';
+  return s
+    .replace(/Ġ/g, '<span class="space-mark">·</span>')
+    .replace(/▁/g, '<span class="space-mark">▁</span>')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// pick a chip color from the id palette, deterministically
+function chipColor(id) {
+  const palette = ['var(--tok-1)','var(--tok-2)','var(--tok-3)','var(--tok-4)','var(--tok-5)','var(--tok-6)','var(--tok-7)','var(--tok-8)'];
+  return palette[id % palette.length];
+}
+
+// ============== RENDER LIVE SANDBOX ==============
+const liveText  = document.getElementById('liveText');
+const tokenRow  = document.getElementById('tokenRow');
+const idsOut    = document.getElementById('idsOut');
+const maskRow   = document.getElementById('maskRow');
+const shapeBatched = document.getElementById('shapeBatched');
+const shapeEmbed   = document.getElementById('shapeEmbed');
+const shapeMask    = document.getElementById('shapeMask');
+const statChars  = document.getElementById('statChars');
+const statTokens = document.getElementById('statTokens');
+const statRatio  = document.getElementById('statRatio');
+const statUnk    = document.getElementById('statUnk');
+const embedHeat  = document.getElementById('embedHeat');
+const addSpecials = document.getElementById('addSpecials');
+const schemeBtns = document.querySelectorAll('#schemeToggle button');
+let scheme = 'bpe';
+
+schemeBtns.forEach(b => {
+  b.addEventListener('click', () => {
+    schemeBtns.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    scheme = b.dataset.scheme;
+    renderLive();
+  });
+});
+liveText.addEventListener('input', renderLive);
+addSpecials.addEventListener('change', renderLive);
+
+function tokenize(text) {
+  if (scheme === 'word') return encodeWord(text);
+  if (scheme === 'char') return encodeChar(text);
+  if (scheme === 'byte') return encodeByte(text);
+  return encodeBPE(text);
+}
+
+function renderLive() {
+  const text = liveText.value;
+  let toks = tokenize(text);
+  let unkCount = 0;
+
+  // attach specials
+  const useSpecials = addSpecials.checked;
+  const display = useSpecials ? ['[CLS]', ...toks, '[SEP]'] : toks;
+
+  // ids
+  const ids = display.map(t => {
+    if (SPECIAL_IDS[t] !== undefined) return SPECIAL_IDS[t];
+    // approximate "unk" — non-ascii in BPE counts as miss
+    if (scheme === 'bpe' && /[^\x00-\x7F]/.test(t.replace('Ġ',''))) unkCount++;
+    return hashId(t);
+  });
+
+  // tokens
+  tokenRow.classList.toggle('empty', display.length === 0);
+  tokenRow.innerHTML = display.map((t, i) => {
+    const id = ids[i];
+    const isSpecial = SPECIAL_IDS[t] !== undefined;
+    const cls = isSpecial ? 'token-chip special' : 'token-chip';
+    const c = chipColor(id);
+    return `<span class="${cls}" style="--c:${c};" title="위치 ${i} · id ${id}">
+      <span class="glyph">${pretty(t) || '∅'}</span>
+      <span class="id">id ${id}</span>
+    </span>`;
+  }).join('');
+
+  // ids row
+  idsOut.textContent = '[' + ids.join(', ') + ']';
+
+  // mask
+  maskRow.innerHTML = display.map((t, i) => {
+    const isPad = t === '[PAD]';
+    return `<span class="mask-cell ${isPad ? 'zero' : ''}">${isPad ? 0 : 1}</span>`;
+  }).join('');
+
+  // shapes
+  const T = display.length;
+  shapeBatched.textContent = `input_ids: [B=1, T=${T}]`;
+  shapeEmbed.textContent   = `embeddings: [B=1, T=${T}, D=768]`;
+  shapeMask.textContent    = `attention_mask: [B=1, T=${T}]`;
+
+  // stats
+  statChars.textContent = text.length;
+  statTokens.textContent = toks.length;
+  statRatio.textContent = toks.length === 0 ? '0.00' : (text.length / toks.length).toFixed(2);
+  statUnk.textContent = unkCount;
+
+  // embed heatmap (first 24 dims of D=768) — deterministic from id
+  embedHeat.innerHTML = display.slice(0, 16).map((t, i) => {
+    const id = ids[i];
+    const cells = [];
+    for (let d = 0; d < 24; d++) {
+      const v = pseudoEmbed(id, d); // -1..1
+      const r = Math.round(244 + (v < 0 ? -50 : 0) * Math.abs(v));
+      const g = Math.round(114 + 100 * v);
+      const b = Math.round(182 - 80 * v);
+      const alpha = 0.25 + Math.abs(v) * 0.75;
+      const bg = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
+      cells.push(`<div class="heatmap-cell" style="background:${bg}" title="dim ${d}: ${v.toFixed(2)}"></div>`);
+    }
+    const labelTxt = (t.length > 9 ? t.slice(0, 8) + '…' : t).replace(/Ġ/g, '·');
+    const safe = labelTxt.replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<div class="heatmap-row">
+      <div class="row-label" title="id ${id}">${safe} #${id}</div>
+      ${cells.join('')}
+    </div>`;
+  }).join('');
+}
+
+// pseudo-deterministic embedding: stable hash → value in [-1, 1]
+function pseudoEmbed(id, d) {
+  const x = Math.sin(id * 12.9898 + d * 78.233) * 43758.5453;
+  return ((x - Math.floor(x)) * 2 - 1);
+}
+
+renderLive();
+
+// =====================================================================
+// COMPARE (tab 5)
+// =====================================================================
+const cmpText = document.getElementById('cmpText');
+const cmpBpe = document.getElementById('cmpBpe');
+const cmpWp  = document.getElementById('cmpWp');
+const cmpSp  = document.getElementById('cmpSp');
+const cmpWs  = document.getElementById('cmpWs');
+const cmpCh  = document.getElementById('cmpCh');
+
+function renderCompare() {
+  const t = cmpText.value;
+  const bpe = encodeBPE(t);
+  cmpBpe.innerHTML = renderChips(bpe);
+
+  // WordPiece-like: take BPE tokens, but represent word-internal pieces with ##
+  const wp = wordPieceLike(t);
+  cmpWp.innerHTML = renderChips(wp);
+
+  // SentencePiece-like: replace Ġ with ▁
+  const sp = bpe.map(s => s.replace(/^Ġ/, '▁'));
+  // also prepend ▁ to the first token so leading whitespace is consistent
+  if (sp.length && !sp[0].startsWith('▁')) sp[0] = '▁' + sp[0];
+  cmpSp.innerHTML = renderChips(sp);
+
+  cmpWs.innerHTML = renderChips(encodeWord(t));
+  cmpCh.innerHTML = renderChips(encodeChar(t));
+}
+
+// crude WordPiece simulation: walk bpe tokens; first token of a word stays plain,
+// later subword pieces of the same word get ## prefix.
+function wordPieceLike(text) {
+  const bpe = encodeBPE(text);
+  return bpe.map((tok, i) => {
+    if (tok.startsWith('Ġ')) return tok.slice(1);          // start of word — plain
+    if (i === 0) return tok;                                // first token at start
+    if (/^[!?.,;:"'`()\[\]{}]+$/.test(tok)) return tok;     // punctuation
+    return '##' + tok;
+  });
+}
+
+function renderChips(tokens) {
+  if (!tokens.length) return '<span style="color:var(--muted)">—</span>';
+  return tokens.map(t => {
+    const id = hashId(t);
+    const c = chipColor(id);
+    return `<span class="token-chip" style="--c:${c}; padding: 2px 7px; font-size:12px;">
+      <span class="glyph">${pretty(t)}</span>
+    </span>`;
+  }).join(' ');
+}
+
+cmpText.addEventListener('input', renderCompare);
+renderCompare();
+
+// =====================================================================
+// TOKEN HUNT GAME (tab 6)
+// =====================================================================
+const PROMPTS = [
+  "Hello, world!",
+  "The quick brown fox jumps over the lazy dog.",
+  "Tokenization is fun!",
+  "I love unbelievable sentences.",
+  "GPT-2 has a 50,257-token vocabulary.",
+  "antidisestablishmentarianism",
+  "안녕 world 🌟",
+  "for i in range(10): print(i)",
+  "The cat sat on the mat.",
+  "She sells seashells by the seashore.",
+  "Newer, lower, higher.",
+  "to be, or not to be",
+  "12345 + 67890 = 80235",
+  "hello hello hello",
+  "I'm playing a long game.",
+];
+
+let game = {
+  round: 1,
+  score: 0,
+  streak: 0,
+  best: parseInt(localStorage.getItem('tokenHuntBest') || '0', 10),
+  prompts: [],
+  current: null,
+  finished: false,
+};
+
+const gameRound  = document.getElementById('gameRound');
+const gameRoundN = document.getElementById('gameRoundN');
+const gameScore  = document.getElementById('gameScore');
+const gameStreak = document.getElementById('gameStreak');
+const gameBest   = document.getElementById('gameBest');
+const gamePrompt = document.getElementById('gamePrompt');
+const gameGuess  = document.getElementById('gameGuess');
+const gameFb     = document.getElementById('gameFb');
+const gameReveal = document.getElementById('gameReveal');
+const gameTokens = document.getElementById('gameTokens');
+
+function pickPrompts() {
+  const pool = [...PROMPTS];
+  const out = [];
+  while (out.length < 5 && pool.length) {
+    const i = Math.floor(Math.random() * pool.length);
+    out.push(pool.splice(i, 1)[0]);
+  }
+  return out;
+}
+
+function resetGame() {
+  game.round = 1;
+  game.score = 0;
+  game.streak = 0;
+  game.prompts = pickPrompts();
+  game.finished = false;
+  setRound();
+  refreshGameBar();
+}
+
+function setRound() {
+  game.current = game.prompts[game.round - 1];
+  gamePrompt.textContent = '"' + game.current + '"';
+  gameRound.textContent = game.round;
+  gameRoundN.textContent = game.round;
+  gameGuess.value = '';
+  gameFb.className = 'feedback hint';
+  gameFb.textContent = 'BPE 유사 토크나이저로 몇 개의 토큰? (특수 토큰 제외)';
+  gameReveal.style.display = 'none';
+  gameGuess.focus();
+}
+
+function refreshGameBar() {
+  gameScore.textContent = '점수: ' + game.score;
+  gameStreak.textContent = game.streak;
+  gameBest.textContent = game.best || '—';
+}
+
+function submitGuess() {
+  if (game.finished) return;
+  const guess = parseInt(gameGuess.value, 10);
+  if (isNaN(guess) || guess < 1) {
+    gameFb.className = 'feedback bad';
+    gameFb.textContent = '먼저 양수를 입력하세요.';
+    return;
+  }
+  const actual = encodeBPE(game.current).length;
+  const diff = Math.abs(guess - actual);
+
+  // reveal
+  gameReveal.style.display = 'block';
+  const toks = encodeBPE(game.current);
+  gameTokens.innerHTML = toks.map(t => {
+    const id = hashId(t);
+    const c = chipColor(id);
+    return `<span class="token-chip" style="--c:${c};">
+      <span class="glyph">${pretty(t)}</span>
+      <span class="id">id ${id}</span>
+    </span>`;
+  }).join('');
+
+  // score
+  let earned = 0, msg = '';
+  if (diff === 0) { earned = 10; msg = `🎯 정확! 실제: ${actual}.`; game.streak++; }
+  else if (diff === 1) { earned = 6; msg = `아쉽게 빗나감 — 실제 ${actual}, 답한 값 ${guess}.`; game.streak++; }
+  else if (diff <= 3) { earned = 3; msg = `근접 — 실제 ${actual}, ${diff}만큼 차이.`; game.streak = 0; }
+  else { earned = 0; msg = `실제 ${actual} — ${diff}만큼 차이.`; game.streak = 0; }
+
+  game.score += earned + game.streak;
+  gameFb.className = earned >= 6 ? 'feedback good' : (earned > 0 ? 'feedback hint' : 'feedback bad');
+  gameFb.textContent = msg + (earned > 0 ? ` +${earned}` : '') + (game.streak > 0 ? `  🔥${game.streak}` : '');
+  if (earned >= 6) sparkle(gameFb);
+
+  refreshGameBar();
+
+  // next round or finish
+  if (game.round >= 5) {
+    game.finished = true;
+    setTimeout(() => {
+      const final = game.score;
+      if (final > game.best) {
+        game.best = final;
+        try { localStorage.setItem('tokenHuntBest', String(final)); } catch(e) {}
+        refreshGameBar();
+        showToast(`최고 기록: ${final} 🏆`);
+        burstConfetti();
+      } else {
+        showToast(`게임 종료 — 최종 점수 ${final}. ↻로 다시 플레이.`);
+      }
+      gameFb.textContent += `   ·   최종 점수: ${final}`;
+    }, 600);
+    return;
+  }
+  setTimeout(() => {
+    game.round++;
+    setRound();
+  }, 1500);
+}
+
+function skipGame() {
+  if (game.finished) return;
+  game.streak = 0;
+  if (game.round >= 5) { game.finished = true; return; }
+  game.round++;
+  setRound();
+  refreshGameBar();
+}
+
+gameGuess.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); submitGuess(); }
+});
+
+resetGame();
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

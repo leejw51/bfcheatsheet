@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Positional Encoding — Interactive Drill</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #818cf8;        /* indigo */
+    --accent-2: #e879f9;      /* fuchsia */
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(129,140,248,0.08), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15203a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .badge {
+    background: var(--accent); color: #001018;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(129,140,248,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(129,140,248,0.12);
+    border-color: rgba(129,140,248,0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #001018;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 220px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(129,140,248,0.25);
+    background: rgba(129,140,248,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #001018;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(129,140,248,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(129,140,248,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+
+  .grid-2 {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .grid-3 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  @media (max-width: 900px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 70px; color: var(--muted); }
+  .slider-row input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border);
+    outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(129,140,248,0.6);
+    cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(129,140,248,0.6);
+    cursor: pointer;
+  }
+  .slider-row .val {
+    min-width: 64px; text-align: right;
+    color: var(--accent); font-weight: 700;
+  }
+
+  .neuron-svg {
+    width: 100%; height: auto; max-height: 280px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  /* dataset toggle */
+  .dataset-toggle {
+    display: inline-flex; gap: 4px; margin-bottom: 10px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px;
+  }
+  .dataset-toggle button {
+    background: transparent; color: var(--muted);
+    border: none; padding: 6px 14px;
+    border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 12px; font-weight: 700;
+    transition: all 0.15s;
+  }
+  .dataset-toggle button.active {
+    background: var(--accent); color: #001018;
+    box-shadow: 0 0 10px rgba(129,140,248,0.3);
+  }
+
+  .truth-table {
+    width: 100%; border-collapse: collapse;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .truth-table th, .truth-table td {
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .truth-table th {
+    background: var(--panel-2); color: var(--accent);
+    font-weight: 700;
+  }
+  .truth-table td.zero { color: var(--bad); }
+  .truth-table td.one { color: var(--good); }
+  .truth-table td.left { text-align: left; }
+
+  .pill {
+    display: inline-block;
+    background: rgba(129,140,248,0.15);
+    color: var(--accent);
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red  { background: rgba(248,113,113,0.15); color: var(--bad); }
+
+  /* heatmap colormap legend */
+  .cmap-legend {
+    display: flex; align-items: center; gap: 8px;
+    font-family: ui-monospace, monospace; font-size: 11px;
+    color: var(--muted); margin-top: 10px;
+  }
+  .cmap-bar {
+    height: 12px; width: 200px; border-radius: 4px;
+    border: 1px solid var(--border);
+    background: linear-gradient(90deg, #818cf8, #08101e 50%, #e879f9);
+  }
+
+  /* Confetti */
+  #confetti-canvas {
+    position: fixed; inset: 0;
+    pointer-events: none; z-index: 100;
+    background: transparent;
+    border: none;
+  }
+
+  /* Help overlay */
+  #help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(40px);
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(129,140,248,0.3);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    z-index: 150;
+  }
+  .toast.show {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+  }
+
+  footer {
+    text-align: center; color: var(--muted);
+    font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border);
+    margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .scene-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 900px) { .scene-row { grid-template-columns: 1fr; } }
+
+  .stat-line {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    font-family: ui-monospace, monospace; font-size: 12.5px;
+    color: var(--muted); margin-top: 6px;
+  }
+  .stat-line span b { color: var(--accent); }
+
+  .copy-btn {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  .step-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .step-card .step-num {
+    display: inline-block;
+    width: 22px; height: 22px;
+    background: var(--accent); color: #001018;
+    border-radius: 50%; text-align: center; line-height: 22px;
+    font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 {
+    margin: 0 0 6px; font-size: 14px; color: var(--text);
+    display: flex; align-items: center;
+  }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code {
+    color: var(--tag); font-family: ui-monospace, monospace;
+    font-size: 12.5px;
+  }
+
+  .activation-formula {
+    text-align: center; padding: 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    font-size: 16px;
+    margin: 12px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">⚡</span> Positional Encoding <span class="badge">Type to Learn</span>
+    </div>
+    <div class="progress-bar-outer" title="overall progress">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="exercises completed">
+      <span class="num" id="scoreNum">0</span>
+      <span>/</span>
+      <span class="num" id="scoreTot">0</span>
+      <span class="lbl">solved</span>
+    </div>
+    <div class="streak" title="streak">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. Why position?</button>
+    <button data-tab="formula">2. The formula</button>
+    <button data-tab="heatmap">3. Heatmap lab</button>
+    <button data-tab="add">4. Add, don't concat</button>
+    <button data-tab="relative">5. Relative position</button>
+    <button data-tab="variants">6. Variants</button>
+    <button data-tab="drills">7. Practice</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>Positional Encoding — teaching attention about order</h1>
+  <p class="lead">
+    Self-attention computes a weighted average over <em>all</em> tokens at once. It has
+    <strong>no built-in notion of order</strong>: permute the input tokens and the outputs just
+    permute the same way (it is <em>permutation-equivariant</em>). So <code>"the cat sat"</code>
+    and <code>"sat cat the"</code> look identical to raw attention — a pure <strong>bag of
+    words</strong>. Positional encoding fixes this by adding a position-dependent signal to each
+    token embedding <em>before</em> attention ever runs.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">the problem</div></div>
+      <div class="card-body">
+        Attention scores depend only on <em>which</em> tokens are present, not <em>where</em> they
+        sit. Reorder the words and every attention weight follows along unchanged. Without extra
+        information the model literally cannot tell a sentence from its shuffle.
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">the fix</div></div>
+      <div class="card-body">
+        Build a matrix $PE \in \mathbb{R}^{T \times D}$ where row $pos$ is a unique fingerprint for
+        position $pos$. <strong>Add</strong> it to the token embeddings. Now identical words at
+        different positions get different vectors, and attention can learn to use order.
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>RNNs get order for free</strong> — they read tokens one at a time, so step number
+    <em>is</em> position. Transformers process every position <em>in parallel</em> for speed, so
+    order is lost and must be injected explicitly. Positional encoding is the price of
+    parallelism.
+  </div>
+
+  <h2>Where it sits in the pipeline</h2>
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <p style="margin: 0 0 8px;">Shapes move like this (broadcast <span class="pill">PE</span> over the batch):</p>
+    <div style="font-family: ui-monospace, monospace; font-size: 13px; line-height: 2;">
+      <span class="pill">token ids [B, T]</span> →
+      <span class="pill">embed [B, T, D]</span> +
+      <span class="pill">PE[:T] [T, D]</span> →
+      <span class="pill green">X [B, T, D]</span>
+    </div>
+    <p style="margin: 10px 0 0; color: var(--muted); font-size: 13px;">
+      $B$ = batch, $T$ = sequence length, $D$ = $d_{model}$ (embedding size). The encoding is added
+      <em>once</em>, right at the input, then attention and the rest of the stack run as usual.
+    </p>
+  </div>
+
+  <div class="note">
+    <strong>How to use this page:</strong> walk the tabs in order. Tab 3 draws the encoding as a
+    live heatmap, tab 5 shows the relative-position trick, tab 7 has all the drills — type into the
+    <span class="pill">blanks</span>, hit <em>Check</em>. Press <kbd>?</kbd> for shortcuts.
+  </div>
+</section>
+
+<!-- ========================= FORMULA ========================= -->
+<section class="tab-section" id="tab-formula">
+  <h1>The Sinusoidal Formula — Vaswani et al. 2017</h1>
+  <p class="lead">
+    The original Transformer uses a fixed (non-learned) encoding built from sines and cosines of
+    geometrically-spaced frequencies. Each position gets a vector of length $d_{model}$; each
+    dimension pair oscillates at its own rate.
+  </p>
+
+  <div class="activation-formula">
+    $$PE_{(pos,\,2i)} = \sin\!\left(\frac{pos}{10000^{\,2i/d_{model}}}\right), \qquad
+      PE_{(pos,\,2i+1)} = \cos\!\left(\frac{pos}{10000^{\,2i/d_{model}}}\right)$$
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">what each symbol means</div></div>
+    <div class="card-body">
+      <ul style="margin: 0; color: var(--muted);">
+        <li><span class="pill">pos</span> token position — the <strong>row</strong> of the matrix (0, 1, 2, …).</li>
+        <li><span class="pill">i</span> index of the dimension <strong>pair</strong>, $i = 0 \dots d_{model}/2 - 1$.</li>
+        <li><span class="pill">d_model</span> embedding size $D$ — the number of columns.</li>
+        <li><span class="pill">10000</span> the base constant that sets the slowest wavelength.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Why sin and cos, paired by frequency</h2>
+  <p class="lead">
+    Even dimensions use $\sin$, odd dimensions use $\cos$. Each pair $(2i,\,2i+1)$ shares a single
+    angular frequency $\omega_i = 1/10000^{\,2i/d_{model}}$. The wavelengths form a
+    <strong>geometric progression</strong>, from $2\pi$ at $i=0$ (fast wiggle) up to about
+    $2\pi \cdot 10000$ at the last pair (barely moves). Low dimensions are like the second hand of a
+    clock; high dimensions are like the hour hand — together they pinpoint a position the way a
+    binary counter uses bits of different significance.
+  </p>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">building PE in PyTorch</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="exercise">pos = torch.arange(seq_len).unsqueeze(1)                  # [T, 1]
+i2  = torch.arange(0, d_model, 2)                          # [D/2]
+div = torch.exp(-math.log(10000.0) * i2 / d_model)         # 1 / 10000^(2i/D)
+pe = torch.zeros(seq_len, d_model)                         # [T, D]
+pe[:, 0::2] = torch.sin(pos * div)                         # even dims
+pe[:, 1::2] = torch.cos(pos * div)                         # odd dims</pre>
+  </div>
+
+  <div class="note">
+    <strong>The exp / log trick:</strong> computing $10000^{2i/d}$ directly overflows for large
+    exponents, so the code rewrites it as $\exp(-\log(10000)\cdot 2i/d)$ — the same number, computed
+    stably. The result <code>div</code> holds the $D/2$ frequencies $\omega_i$.
+  </div>
+</section>
+
+<!-- ========================= HEATMAP LAB ========================= -->
+<section class="tab-section" id="tab-heatmap">
+  <h1>Heatmap Lab — see the encoding</h1>
+  <p class="lead">
+    This is the encoding, drawn. Rows are positions (top = 0), columns are dimensions
+    (left = 0). Color shows the sin/cos value in $[-1, 1]$. Slide <code>d_model</code>,
+    <code>seq_len</code>, and the <code>base</code> to watch the frequency stripes change.
+  </p>
+
+  <div class="canvas-card">
+    <h3>positional-encoding matrix $PE \in \mathbb{R}^{T \times D}$</h3>
+    <div class="scene-row">
+      <div>
+        <canvas id="peCanvas" width="520" height="420"></canvas>
+        <div class="cmap-legend">
+          <span>−1</span>
+          <span class="cmap-bar"></span>
+          <span>+1</span>
+          <span style="margin-left:8px;">(indigo = negative · fuchsia = positive)</span>
+        </div>
+      </div>
+      <div>
+        <div class="slider-row">
+          <label>seq_len T</label>
+          <input type="range" id="seqLen" min="8" max="64" step="1" value="32">
+          <span class="val" id="seqLenV">32</span>
+        </div>
+        <div class="slider-row">
+          <label>d_model D</label>
+          <input type="range" id="dModel" min="8" max="128" step="2" value="64">
+          <span class="val" id="dModelV">64</span>
+        </div>
+        <div class="slider-row">
+          <label>base</label>
+          <input type="range" id="peBase" min="100" max="10000" step="100" value="10000">
+          <span class="val" id="peBaseV">10000</span>
+        </div>
+        <div class="stat-line" style="margin-top:14px;">
+          <span>shape · <b id="peShape">[32, 64]</b></span>
+        </div>
+        <div class="note" style="margin-top: 14px; font-size: 12.5px;">
+          <strong>Read the stripes:</strong> the <em>leftmost</em> columns (low $i$) oscillate fast
+          as you scan <em>down</em> the rows; the <em>rightmost</em> columns barely change. That
+          geometric spread of frequencies lets the model resolve both fine and coarse position at
+          once. Lower the <code>base</code> and the whole frequency range compresses — the slow
+          columns start moving too.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= ADD ========================= -->
+<section class="tab-section" id="tab-add">
+  <h1>Add, Don't Concatenate</h1>
+  <p class="lead">
+    The input to the first layer is <code>X = TokenEmbedding(ids) + PE[:T]</code>. That plus sign is
+    a literal <strong>element-wise addition</strong>, not a concatenation. Same dimensionality $D$,
+    zero extra parameters — and in high-dimensional space the network easily learns to separate the
+    "content + position" sum back into its parts. A dropout layer usually follows.
+  </p>
+
+  <div class="card-body" style="background: var(--panel); border: 1px solid var(--border); border-radius: 10px;">
+    <div style="font-family: ui-monospace, monospace; font-size: 13px; line-height: 2;">
+      <span class="pill">emb [B, T, D]</span> +
+      <span class="pill">pe[:T] [T, D]</span> →
+      <span class="pill">broadcast over B</span> →
+      <span class="pill green">X [B, T, D]</span>
+    </div>
+    <p style="margin: 10px 0 0; color: var(--muted); font-size: 13px;">
+      Concatenation would double the width to $2D$ and demand new weights everywhere downstream.
+      Addition keeps the width fixed and free.
+    </p>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <div class="card-title">the forward step, in code</div>
+      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+    </div>
+    <pre class="exercise">x = self.embed(ids) * math.sqrt(d_model)   # [B, T, D]
+x = x + self.pe[:, :T]                       # add positional encoding
+x = self.dropout(x)</pre>
+  </div>
+
+  <div class="note">
+    <strong>Why scale by $\sqrt{d_{model}}$?</strong> It boosts the token embedding so its magnitude
+    is comparable to the unit-scale sinusoids — otherwise the position signal would drown out the
+    content.
+  </div>
+
+  <h2>Watch the sum form</h2>
+  <div class="canvas-card">
+    <h3>token emb + PE[pos] = input · $D = 32$</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      Top strip = a fixed (deterministic) token embedding. Middle = the positional vector for the
+      chosen position. Bottom = their element-wise sum. Move the slider — the content stays, the
+      position ripple slides.
+    </p>
+    <canvas id="addCanvas" width="560" height="220"></canvas>
+    <div class="slider-row" style="margin-top:12px;">
+      <label>position</label>
+      <input type="range" id="posPick" min="0" max="31" step="1" value="4">
+      <span class="val" id="posPickV">4</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= RELATIVE ========================= -->
+<section class="tab-section" id="tab-relative">
+  <h1>Relative Position — why sinusoids?</h1>
+  <p class="lead">
+    Here is the headline property. For any fixed offset $k$, the vector $PE_{pos+k}$ is a fixed
+    <strong>linear (rotation)</strong> function of $PE_{pos}$ — each frequency pair just rotates by a
+    constant angle $\omega_i k$ that does <em>not</em> depend on $pos$. So attention can learn a
+    single, position-independent transform that means "look $k$ steps back," capturing
+    <strong>relative</strong> position. It also lets the model extrapolate to sequences longer than
+    any it saw in training.
+  </p>
+
+  <div class="activation-formula" style="font-size: 14px;">
+    $\begin{bmatrix} PE_{pos+k,\,2i} \\ PE_{pos+k,\,2i+1} \end{bmatrix} =
+      \begin{bmatrix} \cos\omega_i k & \sin\omega_i k \\ -\sin\omega_i k & \cos\omega_i k \end{bmatrix}
+      \begin{bmatrix} PE_{pos,\,2i} \\ PE_{pos,\,2i+1} \end{bmatrix}$
+  </div>
+
+  <div class="canvas-card">
+    <h3>cosine similarity of $PE_{q}$ to every position · $D = 64$, base 10000</h3>
+    <p style="color: var(--muted); font-size: 13px; margin: 0 0 10px;">
+      Pick a query position $q$. The curve plots $\cos\text{-sim}\big(PE_q,\,PE_p\big)$ for every
+      position $p$. The dashed line marks $q$.
+    </p>
+    <canvas id="simCanvas" width="560" height="300"></canvas>
+    <div class="slider-row" style="margin-top:12px;">
+      <label>seq_len</label>
+      <input type="range" id="seqLen2" min="16" max="64" step="1" value="48">
+      <span class="val" id="seqLen2V">48</span>
+    </div>
+    <div class="slider-row">
+      <label>query pos</label>
+      <input type="range" id="queryPos" min="0" max="47" step="1" value="24">
+      <span class="val" id="queryPosV">24</span>
+    </div>
+    <div class="note" style="margin-top: 14px; font-size: 12.5px;">
+      <strong>Shift-invariance:</strong> the curve always <em>peaks at</em> $p = q$ and decays
+      smoothly on both sides. Crucially its <em>shape</em> depends only on the offset
+      $(p - q)$, not on where $q$ sits in the sequence — slide $q$ and the bump simply translates.
+      That offset-only dependence is the relative-position signal attention can exploit.
+    </div>
+  </div>
+</section>
+
+<!-- ========================= VARIANTS ========================= -->
+<section class="tab-section" id="tab-variants">
+  <h1>Variants — Beyond Sinusoidal</h1>
+  <p class="lead">
+    The 2017 sinusoid is one of several ways to inject order. The big modern families differ on
+    <em>where</em> they act (added to the embedding vs. inside attention) and whether they encode
+    absolute or relative position.
+  </p>
+
+  <table class="truth-table" style="text-align:left;">
+    <tr>
+      <th style="text-align:left;">method</th>
+      <th style="text-align:left;">how it works</th>
+      <th style="text-align:left;">used by</th>
+    </tr>
+    <tr>
+      <td class="left"><strong>Sinusoidal (fixed)</strong></td>
+      <td class="left">Sin/cos table added to the embedding. No parameters, extrapolates to longer sequences.</td>
+      <td class="left">original Transformer</td>
+    </tr>
+    <tr>
+      <td class="left"><strong>Learned absolute</strong></td>
+      <td class="left"><code>nn.Embedding(max_len, d_model)</code> — a trainable row per position, added to the embedding. Capped at <code>max_len</code>; learns task-specific positions.</td>
+      <td class="left">BERT, GPT-2</td>
+    </tr>
+    <tr>
+      <td class="left"><strong>RoPE (rotary)</strong></td>
+      <td class="left">Rotates the <em>query</em> and <em>key</em> vectors by position-dependent angles <em>inside attention</em> (multiplicative, applied to Q/K — not the embedding). Excellent relative behavior.</td>
+      <td class="left">LLaMA, GPT-NeoX</td>
+    </tr>
+    <tr>
+      <td class="left"><strong>ALiBi</strong></td>
+      <td class="left">Adds a distance-proportional bias straight onto the attention scores. No position vectors at all; strong length extrapolation.</td>
+      <td class="left">BLOOM, MPT</td>
+    </tr>
+  </table>
+
+  <div class="note warn">
+    <strong>The key axis:</strong> <em>absolute</em> methods (sinusoidal, learned) add a vector to
+    the embedding <em>before</em> attention. <em>Relative / rotary</em> methods (RoPE, ALiBi) act
+    <em>inside</em> attention — on the Q/K vectors or directly on the scores — so they encode the
+    distance between tokens rather than their absolute index.
+  </div>
+
+  <div class="grid-3">
+    <div class="step-card">
+      <h4><span class="step-num">+</span>added to embedding</h4>
+      <p>Sinusoidal &amp; learned absolute. One vector per position, summed in at the input.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">×</span>rotates Q / K</h4>
+      <p>RoPE. Position becomes a rotation applied inside each attention head.</p>
+    </div>
+    <div class="step-card">
+      <h4><span class="step-num">Δ</span>biases scores</h4>
+      <p>ALiBi. A penalty proportional to token distance, added to the raw attention logits.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>Practice — type the encoding</h1>
+  <p class="lead">
+    Type the answers. <kbd>Enter</kbd> checks · <kbd>Hint</kbd> reveals all unsolved blanks (toggle)
+    · <kbd>Tab</kbd> moves between blanks.
+  </p>
+
+  <h2>The formula</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> Even dimensions use which trig function?</div>
+    <pre class="exercise">PE(pos, 2i) = <input class="blank" data-answer="sin" size="5" placeholder="?">(pos / 10000^(2i/d))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> Odd dimensions use which trig function?</div>
+    <pre class="exercise">PE(pos, 2i+1) = <input class="blank" data-answer="cos" size="5" placeholder="?">(pos / 10000^(2i/d))</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Without positions, attention sees the sentence as a ____ of words.</div>
+    <pre class="exercise">no_order_means = "<input class="blank" data-answer="bag|set" size="6" placeholder="?"> of words"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> How do we combine the embedding and PE? (one word)</div>
+    <pre class="exercise">x = tok_emb + pe[:T]   # we <input class="blank" data-answer="add" size="6" placeholder="?"> , not concatenate</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>The PyTorch build</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> The base constant in the frequency term.</div>
+    <pre class="exercise">div = torch.exp(-math.log(<input class="blank" data-answer="10000" size="7" placeholder="?">) * i2 / d_model)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Which torch function builds the positions tensor 0..T-1?</div>
+    <pre class="exercise">pos = torch.<input class="blank" data-answer="arange" size="8" placeholder="?">(seq_len).unsqueeze(1)   # [T, 1]</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> Fill both slice assignments — even dims, then odd dims.</div>
+    <pre class="exercise">pe[:, 0::2] = torch.<input class="blank" data-answer="sin" size="5" placeholder="?">(pos * div)   # even
+pe[:, 1::2] = torch.<input class="blank" data-answer="cos" size="5" placeholder="?">(pos * div)   # odd</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Shapes &amp; properties</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> PE sliced to the sequence has shape [T, ____].</div>
+    <pre class="exercise">pe[:T].shape == (T, <input class="blank" data-answer="d_model|D|d" size="8" placeholder="?">)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> PE(pos+k) is a ______ (rotation) transform of PE(pos).</div>
+    <pre class="exercise">PE(pos + k) == <input class="blank" data-answer="linear|rotation|rotational" size="9" placeholder="?"> @ PE(pos)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>Variants</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> The learned-absolute variant uses which layer? (BERT / GPT-2)</div>
+    <pre class="exercise">pos_emb = nn.<input class="blank" data-answer="Embedding" size="10" placeholder="?">(max_len, d_model)</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> RoPE injects position by ________ the query and key vectors.</div>
+    <pre class="exercise">rope = "<input class="blank" data-answer="rotating|rotation|rotate" size="9" placeholder="?"> Q and K"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top: 24px;">
+    <strong>Solved all eleven?</strong> You now know how order gets into a Transformer — fixed
+    sinusoids, learned tables, and the rotary / bias families that act inside attention.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
+      Click anywhere to dismiss.
+    </p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">Browser-side simulation</strong> — the heatmap, sum, and
+  cosine-similarity labs all recompute the real sinusoidal encoding in JavaScript. No server, no
+  Python. <a href="index.html">← all cheatsheets</a> · ⚡ teaching attention about order
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'in position.', '✓ exactly.', 'sharp.', "that's the one.", 'aligned.', 'order restored.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'out of position. once more.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#818cf8','#a78bfa','#e879f9','#4ade80','#fbbf24','#d2a8ff','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== POSITIONAL-ENCODING MATH ==============
+// PE(pos, 2i)   = sin(pos / base^(2i/d))
+// PE(pos, 2i+1) = cos(pos / base^(2i/d))
+function peValue(pos, dim, dModel, base) {
+  const pair = Math.floor(dim / 2);           // i
+  const omega = 1 / Math.pow(base, (2 * pair) / dModel);
+  const angle = pos * omega;
+  return (dim % 2 === 0) ? Math.sin(angle) : Math.cos(angle);
+}
+
+// full row vector PE[pos] of length dModel
+function peVector(pos, dModel, base) {
+  const v = new Array(dModel);
+  for (let d = 0; d < dModel; d++) v[d] = peValue(pos, d, dModel, base);
+  return v;
+}
+
+// diverging colormap: v<0 -> indigo, v>0 -> fuchsia, ~0 -> dark
+function divColor(v) {
+  const a = Math.min(1, Math.abs(v));
+  if (v >= 0) return `rgba(232,121,249,${a})`;   // fuchsia
+  return `rgba(129,140,248,${a})`;               // indigo
+}
+
+// ============== HEATMAP LAB ==============
+const peCanvas = document.getElementById('peCanvas');
+function drawHeatmap() {
+  if (!peCanvas) return;
+  const ctx = peCanvas.getContext('2d');
+  const W = peCanvas.width, H = peCanvas.height;
+  const T = +document.getElementById('seqLen').value;
+  let D = +document.getElementById('dModel').value;
+  D = D - (D % 2);                               // clamp to even
+  const base = +document.getElementById('peBase').value;
+
+  document.getElementById('seqLenV').textContent = T;
+  document.getElementById('dModelV').textContent = D;
+  document.getElementById('peBaseV').textContent = base;
+  document.getElementById('peShape').textContent = `[${T}, ${D}]`;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  // leave a margin for axis labels
+  const padL = 28, padB = 22, padT = 6, padR = 6;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const cw = plotW / D, ch = plotH / T;
+
+  for (let r = 0; r < T; r++) {                  // rows = positions
+    for (let c = 0; c < D; c++) {                // cols = dims
+      const v = peValue(r, c, D, base);
+      ctx.fillStyle = divColor(v);
+      ctx.fillRect(padL + c * cw, padT + r * ch, Math.ceil(cw), Math.ceil(ch));
+    }
+  }
+
+  // axis labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('dimension →', padL + plotW / 2, H - 6);
+  ctx.save();
+  ctx.translate(11, padT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('position →', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+['seqLen','dModel','peBase'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawHeatmap);
+});
+
+// ============== ADD SANDBOX ==============
+// deterministic pseudo-random token embedding (D = 32)
+function seededTokenEmb(d) {
+  const v = new Array(d);
+  for (let k = 0; k < d; k++) {
+    // deterministic, in ~[-1, 1]
+    const s = Math.sin((k + 1) * 12.9898) * 43758.5453;
+    v[k] = (s - Math.floor(s)) * 2 - 1;
+  }
+  return v;
+}
+const ADD_D = 32, ADD_BASE = 10000;
+const addEmb = seededTokenEmb(ADD_D);
+const addCanvas = document.getElementById('addCanvas');
+function drawAdd() {
+  if (!addCanvas) return;
+  const ctx = addCanvas.getContext('2d');
+  const W = addCanvas.width, H = addCanvas.height;
+  const pos = +document.getElementById('posPick').value;
+  document.getElementById('posPickV').textContent = pos;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const pe = peVector(pos, ADD_D, ADD_BASE);
+  const sum = addEmb.map((e, k) => Math.max(-1, Math.min(1, e + pe[k])));
+  const rows = [
+    { label: 'token emb',  data: addEmb },
+    { label: '+ PE[pos]',  data: pe },
+    { label: '= input',    data: sum }
+  ];
+
+  const padL = 92, padR = 8;
+  const stripW = W - padL - padR;
+  const cw = stripW / ADD_D;
+  const stripH = 44, gap = 18;
+  const top = 14;
+
+  ctx.font = '12px ui-monospace, monospace';
+  rows.forEach((row, ri) => {
+    const y = top + ri * (stripH + gap);
+    for (let k = 0; k < ADD_D; k++) {
+      ctx.fillStyle = divColor(row.data[k]);
+      ctx.fillRect(padL + k * cw, y, Math.ceil(cw), stripH);
+    }
+    // border
+    ctx.strokeStyle = 'rgba(40,52,73,0.9)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(padL, y, stripW, stripH);
+    // label
+    ctx.fillStyle = ri === 2 ? '#e6f1ff' : '#8aa1bd';
+    ctx.textAlign = 'right';
+    ctx.fillText(row.label, padL - 10, y + stripH / 2 + 4);
+  });
+  ctx.textAlign = 'left';
+}
+const posPickEl = document.getElementById('posPick');
+if (posPickEl) posPickEl.addEventListener('input', drawAdd);
+
+// ============== RELATIVE / COSINE-SIM SANDBOX ==============
+const SIM_D = 64, SIM_BASE = 10000;
+function cosSim(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  for (let k = 0; k < a.length; k++) { dot += a[k] * b[k]; na += a[k] * a[k]; nb += b[k] * b[k]; }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom === 0 ? 0 : dot / denom;
+}
+const simCanvas = document.getElementById('simCanvas');
+function drawSim() {
+  if (!simCanvas) return;
+  const ctx = simCanvas.getContext('2d');
+  const W = simCanvas.width, H = simCanvas.height;
+  const T = +document.getElementById('seqLen2').value;
+  // keep query slider in range of T
+  const qSlider = document.getElementById('queryPos');
+  qSlider.max = T - 1;
+  let q = +qSlider.value;
+  if (q > T - 1) { q = T - 1; qSlider.value = q; }
+  document.getElementById('seqLen2V').textContent = T;
+  document.getElementById('queryPosV').textContent = q;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const padL = 40, padR = 12, padT = 12, padB = 28;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  // y maps cos in [-1,1] to plot
+  function px(p) { return padL + (T <= 1 ? 0 : (p / (T - 1)) * plotW); }
+  function py(c) { return padT + (1 - (c + 1) / 2) * plotH; }
+
+  // grid + zero axis
+  ctx.strokeStyle = 'rgba(138,161,189,0.18)';
+  ctx.lineWidth = 1;
+  [-1, -0.5, 0, 0.5, 1].forEach(c => {
+    const y = py(c);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+    ctx.fillStyle = '#8aa1bd';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(c.toFixed(1), padL - 6, y + 3);
+  });
+  // zero axis emphasis
+  ctx.strokeStyle = 'rgba(138,161,189,0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(padL, py(0)); ctx.lineTo(padL + plotW, py(0)); ctx.stroke();
+
+  const qv = peVector(q, SIM_D, SIM_BASE);
+
+  // query position marker
+  ctx.strokeStyle = 'rgba(251,191,36,0.7)';
+  ctx.setLineDash([6, 5]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(px(q), padT); ctx.lineTo(px(q), padT + plotH); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // bars + line
+  ctx.fillStyle = 'rgba(129,140,248,0.35)';
+  for (let p = 0; p < T; p++) {
+    const c = cosSim(qv, peVector(p, SIM_D, SIM_BASE));
+    const x = px(p), y = py(c);
+    const y0 = py(0);
+    ctx.fillRect(x - 1.5, Math.min(y, y0), 3, Math.abs(y - y0));
+  }
+  ctx.strokeStyle = '#e879f9';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#e879f9';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  for (let p = 0; p < T; p++) {
+    const c = cosSim(qv, peVector(p, SIM_D, SIM_BASE));
+    const x = px(p), y = py(c);
+    if (p === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // peak dot at q
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath(); ctx.arc(px(q), py(1), 5, 0, Math.PI * 2); ctx.fill();
+
+  // axis labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('position p →', padL + plotW / 2, H - 6);
+  ctx.textAlign = 'left';
+  ctx.fillText('cos-sim', padL + 2, padT + 10);
+}
+['seqLen2','queryPos'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawSim);
+});
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'formula','3':'heatmap','4':'add','5':'relative','6':'variants','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+drawHeatmap();
+drawAdd();
+drawSim();
+updateProgress();
+</script>
+</body>
+</html>

@@ -397,6 +397,11 @@
     min-width: 60px; display: flex; align-items: center; justify-content: center;
     font-size: 26px; color: var(--zc); padding: 0; font-family: ui-monospace, monospace;
   }
+  .cnode.add {
+    border-color: var(--good); border-radius: 50%; width: 60px; height: 60px;
+    min-width: 60px; display: flex; align-items: center; justify-content: center;
+    font-size: 30px; color: var(--good); padding: 0; font-family: ui-monospace, monospace;
+  }
   .clink {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     min-width: 108px; padding: 0 6px;
@@ -557,9 +562,10 @@
     <button class="active" data-tab="welcome">1. 大きな考え方</button>
     <button data-tab="ripple">2. なぜ掛け算なのか</button>
     <button data-tab="split">3. 分岐</button>
-    <button data-tab="matrix">4. 行列</button>
-    <button data-tab="softmax">5. dz はどこから来るのか</button>
-    <button data-tab="drills">6. 練習</button>
+    <button data-tab="add">4. 足し算ゲート</button>
+    <button data-tab="matrix">5. 行列</button>
+    <button data-tab="softmax">6. dz はどこから来るのか</button>
+    <button data-tab="drills">7. 練習</button>
   </nav>
 </div>
 
@@ -572,7 +578,7 @@
     バックプロパゲーションは、1 つのルールを何度も適用するだけです。損失の <em>何か</em> に対する勾配を
     求めるには、損失からそこへ戻る経路をたどり、途中で
     <strong>局所微分を掛け合わせる</strong> だけ。その積こそが <em>連鎖律</em> です。
-    このページの残りは、その 1 つの考え方を 5 つの角度から見たものにすぎません。
+    このページの残りは、その 1 つの考え方を 6 つの角度から見たものにすぎません。
   </p>
 
   <div class="grid-2">
@@ -616,6 +622,13 @@
     </div>
   </div>
 
+  <div class="note green">
+    <strong>ゲートは 2 種類しかありません。</strong> バックプロパゲーションがやることは
+    <em>足す</em> ことと <em>掛ける</em> ことだけ — <em>掛け算</em> は勾配をもう一方の入力で
+    スケールし、<em>足し算</em> はそれをそのままコピーして通すだけです。タブ&nbsp;4 がその足し算ゲートで、
+    どの層 (matmul、バイアス、残差) もこの 2 つから組み立てられています。
+  </div>
+
   <h2>順伝播は計算し、逆伝播は責任を割り当てる</h2>
   <div class="canvas-card">
     <p style="margin:0 0 6px; color:var(--muted); font-size:13px;">
@@ -640,15 +653,16 @@
     <div class="note grad">
       <strong>このページの旅:</strong> タブ 2 ではルールが <em>なぜ</em> 掛け算になるのか、タブ 3 では
       <em>なぜ</em> <code style="color:var(--dwc)">dW</code> と
-      <code style="color:var(--dxc)">dX</code> に分岐するのかを示します。タブ 4 ではそれを行列に持ち上げ、
-      タブ 5 では出発点の勾配 <code style="color:var(--dzc)">dz = P − Y</code> が実際にどこから来るのかを
+      <code style="color:var(--dxc)">dX</code> に分岐するのかを示します。タブ 4 では <em>足し算</em>
+      ゲート (勾配がそのままコピーされるだけ) を対比し、タブ 5 ではそれを行列に持ち上げ、タブ 6 では
+      出発点の勾配 <code style="color:var(--dzc)">dz = P − Y</code> が実際にどこから来るのかを
       導出します。
     </div>
   </div>
 
   <div class="note">
     <strong>このページの使い方:</strong> タブを順番にたどってください。各タブにはライブのサンドボックスがあり、
-    スライダーをドラッグしたり行列を編集したりすると、勾配が即座に再計算されます。タブ 6 にはドリルがあります:
+    スライダーをドラッグしたり行列を編集したりすると、勾配が即座に再計算されます。タブ 7 にはドリルがあります:
     <span class="pill">空欄</span> に入力して <em>Check</em>。<kbd>?</kbd> でショートカット表示。
   </div>
 </section>
@@ -806,6 +820,115 @@
   </div>
 </section>
 
+<!-- ========================= ADD ========================= -->
+<section class="tab-section" id="tab-add">
+  <h1>足し算ゲート — 勾配はただ <em>コピー</em> されるだけ</h1>
+  <p class="lead">
+    掛け算ゲートは各枝を <em>もう一方</em> の入力でスケールしていました。<strong>足し算</strong> ゲート
+    $z = x + w$ はもっと単純です: 局所微分は両方とも <code>1</code> なので、上流勾配
+    <code style="color:var(--dzc)">dz</code> は <strong>そのまま</strong> 通り抜けます — 同じ値が
+    すべての入力にコピーされるのです。スケールもなく、順伝播から何もキャッシュしません。
+  </p>
+
+  <div class="formula big" style="margin-bottom:14px;">
+    ∂z/∂x = <b style="color:var(--good)">1</b>,&nbsp;&nbsp; ∂z/∂w = <b style="color:var(--good)">1</b>
+    &nbsp;&nbsp;⇒&nbsp;&nbsp;
+    <span style="color:var(--dxc)">dx</span> = dz·1 = <span style="color:var(--dzc)">dz</span>,&nbsp;&nbsp;
+    <span style="color:var(--dwc)">dw</span> = dz·1 = <span style="color:var(--dzc)">dz</span>
+  </div>
+
+  <div class="canvas-card">
+    <h3>足し算ゲート — 順伝播と逆伝播を一緒に</h3>
+    <p style="margin:0 0 10px; color:var(--muted); font-size:13px;">
+      スライダーをドラッグしてください。順伝播の値は右へ流れ (<span style="color:var(--zc)">オレンジ</span>)、
+      勾配は左へ流れて両方の入力に <b>コピー</b> されます (<span style="color:var(--dzc)">赤</span>)。
+      <b style="color:var(--dxc)">dx</b> と <b style="color:var(--dwc)">dw</b> を見てください — それらは
+      <code>dz</code> だけを追い、x や w を動かしても決して変わりません。
+    </p>
+
+    <div class="chain">
+      <div class="branch">
+        <div class="brow">
+          <div class="cnode x" style="min-width:110px;">
+            <div class="t">x</div><div class="v" id="ad_x">2.0</div>
+            <div class="d" id="ad_dx" style="color:var(--dxc)">dx = ?</div>
+          </div>
+          <span class="clink" style="min-width:96px;"><span class="op" id="ad_opx" style="color:var(--dxc)">dz × 1</span></span>
+        </div>
+        <div class="brow">
+          <div class="cnode w" style="min-width:110px;">
+            <div class="t">w</div><div class="v" id="ad_w">3.0</div>
+            <div class="d" id="ad_dw" style="color:var(--dwc)">dw = ?</div>
+          </div>
+          <span class="clink" style="min-width:96px;"><span class="op" id="ad_opw" style="color:var(--dwc)">dz × 1</span></span>
+        </div>
+      </div>
+      <div class="cnode add">+</div>
+      <div class="clink">
+        <span class="op">z = x+w</span><span class="ar">→</span><span class="rip" id="ad_eze">z</span>
+      </div>
+      <div class="cnode z">
+        <div class="t">z</div><div class="v" id="ad_z">5.0</div>
+        <div class="d" id="ad_dz" style="color:var(--dzc)">dz = 1.0</div>
+      </div>
+    </div>
+
+    <div class="slider-row"><label style="color:var(--xc)">x</label><input type="range" id="adx" min="-4" max="4" step="0.1" value="2"><span class="val" id="adx_v">2.0</span></div>
+    <div class="slider-row"><label style="color:var(--wc)">w</label><input type="range" id="adw" min="-4" max="4" step="0.1" value="3"><span class="val" id="adw_v">3.0</span></div>
+    <div class="slider-row"><label style="color:var(--dzc)">dz (上から)</label><input type="range" id="addz" min="-2" max="2" step="0.1" value="1"><span class="val" id="addz_v">1.0</span></div>
+
+    <div class="formula" style="margin-top:14px;">
+      <span style="color:var(--dxc)">dx</span> = dz = <span id="ad_fdx"></span>
+      &nbsp;&nbsp;&nbsp;|&nbsp;&nbsp;&nbsp;
+      <span style="color:var(--dwc)">dw</span> = dz = <span id="ad_fdw"></span>
+    </div>
+    <div class="note grad" id="ad_live"></div>
+  </div>
+
+  <h2>足し算 vs 掛け算 — ゲートはこの 2 つだけ</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title" style="color:var(--good)">足し算 → コピー</div></div>
+      <div class="card-body">
+        $z = x + w$。局所的な傾きは両方とも <code>1</code> なので、
+        <code style="color:var(--dxc)">dx</code> = <code style="color:var(--dwc)">dw</code> =
+        <code style="color:var(--dzc)">dz</code>。勾配は <strong>変わらずブロードキャスト</strong> されて
+        すべての入力に届きます — スケールなし、転置なし、順伝播から覚えておくものは何もありません。
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title" style="color:var(--zc)">掛け算 → スケール</div></div>
+      <div class="card-body">
+        $z = x \cdot w$。各枝は <em>もう一方</em> の入力でスケールされます:
+        <code style="color:var(--dxc)">dx = dz·w</code>、
+        <code style="color:var(--dwc)">dw = dz·x</code>。出てくるものは、順伝播でキャッシュした値に依存します。
+      </div>
+    </div>
+  </div>
+
+  <div class="note green">
+    <strong>これで道具箱はすべてそろいました。</strong> バックプロパゲーションがやることは <em>足す</em>
+    ことと <em>掛ける</em> ことだけ。どの層もこの 2 つのゲートから組み立てられています: 線形層
+    <code>Z = X@W + b</code> は <em>掛け算</em> (matmul) のあとに <em>足し算</em> (バイアス) であり、
+    <em>残差</em> 接続 <code>y = x + f(x)</code> は純粋な足し算です。
+  </div>
+
+  <h2>なぜ残差接続はこれほどよく学習するのか</h2>
+  <p class="lead">
+    スキップ接続 <code>y = x + f(x)</code> は足し算ゲートなので、逆伝播では勾配が両方の枝へコピーされます:
+    <code style="color:var(--dzc)">dz</code> の完全なコピーが <code>f</code> に入り、<em>同一</em> の完全な
+    コピーがそのまま <code>x</code> に届きます。その 2 つ目のコピーが <strong>勾配のハイウェイ</strong> です
+    — <code>f</code> を通る勾配がゼロ近くまで縮んでしまっても、深い層まで減衰せずに届きます。
+  </p>
+  <div class="note">
+    <code>x</code> は <code>y = x + f(x)</code> の中に <em>2 回</em> 現れる (生のまま 1 回、<code>f</code> の
+    中で 1 回) ので、その 2 つの勾配コピーは <strong>足し合わされます</strong>:
+    <code style="color:var(--dxc)">dx = dz + (dz routed back through f)</code>。最初の項がハイウェイ
+    — <code>f</code> が何をしようとも生き残る、上流勾配のきれいでスケールされていないコピーです。
+    これこそが、深いトランスフォーマーが学習可能であり続ける理由のすべてです。
+  </div>
+</section>
+
 <!-- ========================= MATRIX ========================= -->
 <section class="tab-section" id="tab-matrix">
   <h1>行列 — 転置は形を合わせるだけ</h1>
@@ -838,7 +961,7 @@
     <p style="margin:0 0 10px; color:var(--muted); font-size:13px;">
       2 トークン (N=2)、E=3 特徴、L=2 出力。青い <span style="color:var(--xc)">X</span>、
       紫の <span style="color:var(--wc)">W</span>、赤い <span style="color:var(--dzc)">dZ</span>
-      のセルを編集してみてください。<code>dZ</code> はタブ 5 から来る <code>P − Y</code> だと考えてください。
+      のセルを編集してみてください。<code>dZ</code> はタブ 6 から来る <code>P − Y</code> だと考えてください。
     </p>
 
     <div class="mrow">
@@ -978,7 +1101,7 @@
     <strong>なぜこんなに美しいのか:</strong> softmax の <code>1/pᵢ</code> と交差エントロピーの
     <code>pᵢ</code> がちょうど約分されます。すべての <code>exp</code> / <code>log</code> が消え、
     「予測 − ターゲット」だけが残ります。そのきれいな <code style="color:var(--dzc)">dz</code> が、
-    タブ 2〜4 のすべての連鎖の出発点です。
+    タブ 2〜5 のすべての連鎖の出発点です。
   </div>
 </section>
 
@@ -986,7 +1109,7 @@
 <section class="tab-section" id="tab-drills">
   <h1>練習 — 連鎖律を打ち込もう</h1>
   <p class="lead">
-    物語全体にわたる 15 個のドリル: スカラーゲート、分岐、行列、そして softmax+CE。
+    物語全体にわたる 21 個のドリル: スカラーゲート、分岐、足し算ゲート、行列、そして softmax+CE。
     Tab で空欄間を移動 · Enter でチェック · Hint で未解決の空欄をすべて表示 (トグル)。
   </p>
 
@@ -1064,10 +1187,72 @@
     <div class="feedback"></div>
   </div>
 
+  <h2>足し算ゲート · z = x + w</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> <code>z = x + w</code> の <code>x</code> に関する局所微分。</div>
+    <pre class="exercise">dz/dx = <input class="blank" data-answer="1|1.0|one" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> <code>z = x + w</code> の <code>w</code> に関する局所微分。</div>
+    <pre class="exercise">dz/dw = <input class="blank" data-answer="1|1.0|one" size="4" placeholder="?"></pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 足し算ゲートでの連鎖律: 上流の <code>dz</code> × 局所微分 — つまり <code>dx</code> は <code>dz</code> そのものに等しい。</div>
+    <pre class="exercise">dx = dz * <input class="blank" data-answer="1|1.0|one" size="4" placeholder="?">   # = dz</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 一語で: 足し算ノードでは上流勾配はスケールされず、ただ各入力に ___ されるだけ。</div>
+    <pre class="exercise">add_backward = "<input class="blank" data-answer="copied|copy|copied unchanged|broadcast" size="10" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> バックプロパゲーションの道具箱は 2 つの演算だけ。掛け算は勾配をスケールし、もう一方はそれをコピーする。</div>
+    <pre class="exercise">other_op = "<input class="blank" data-answer="add|addition|plus|+" size="6" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 残差 <code>y = x + f(x)</code>: スキップ経路に沿って <code>x</code> に届く勾配は、上流のきれいなコピー (2 文字)。</div>
+    <pre class="exercise">skip_grad = "<input class="blank" data-answer="dz|dy|upstream" size="4" placeholder="?">"</pre>
+    <div class="controls">
+      <button class="btn" onclick="checkDrill(this)">Check</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+
   <h2>行列 · Z = X @ W</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">8</span> 線形層の順伝播。</div>
+    <div class="prompt"><span class="num">14</span> 線形層の順伝播。</div>
     <pre class="exercise">Z = X @ <input class="blank" data-answer="W|w" size="4" placeholder="?"></pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1077,7 +1262,7 @@
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">9</span> 重みの勾配 — 「もう一方の入力」を転置して左に置く。</div>
+    <div class="prompt"><span class="num">15</span> 重みの勾配 — 「もう一方の入力」を転置して左に置く。</div>
     <pre class="exercise">dW = <input class="blank" data-answer="X.T|Xᵀ|X^T|XT|X.t|transpose(X)" size="6" placeholder="?"> @ dZ</pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1087,7 +1272,7 @@
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">10</span> 入力の勾配 — もう一方の入力を転置して右に置く。</div>
+    <div class="prompt"><span class="num">16</span> 入力の勾配 — もう一方の入力を転置して右に置く。</div>
     <pre class="exercise">dX = dZ @ <input class="blank" data-answer="W.T|Wᵀ|W^T|WT|W.t|transpose(W)" size="6" placeholder="?"></pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1097,7 +1282,7 @@
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">11</span> 勾配は常に、微分する対象と同じ形で出てくる。<code>dW</code> はどの行列と一致する?</div>
+    <div class="prompt"><span class="num">17</span> 勾配は常に、微分する対象と同じ形で出てくる。<code>dW</code> はどの行列と一致する?</div>
     <pre class="exercise">dW.shape == <input class="blank" data-answer="W|w" size="4" placeholder="?">.shape</pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1107,7 +1292,7 @@
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">12</span> そして <code>dX</code> はどの行列の形と一致する — 下の層へ流れるものは?</div>
+    <div class="prompt"><span class="num">18</span> そして <code>dX</code> はどの行列の形と一致する — 下の層へ流れるものは?</div>
     <pre class="exercise">dX.shape == <input class="blank" data-answer="X|x" size="4" placeholder="?">.shape</pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1119,7 +1304,7 @@
   <h2>Softmax + 交差エントロピー</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">13</span> ロジットに関する softmax+CE の勾配 — このページの目玉となる恒等式。</div>
+    <div class="prompt"><span class="num">19</span> ロジットに関する softmax+CE の勾配 — このページの目玉となる恒等式。</div>
     <pre class="exercise">dZ = P - <input class="blank" data-answer="Y|y" size="4" placeholder="?"></pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1129,7 +1314,7 @@
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">14</span> 全クラスにわたる勾配の合計はこの数になる (常に釣り合う)。</div>
+    <div class="prompt"><span class="num">20</span> 全クラスにわたる勾配の合計はこの数になる (常に釣り合う)。</div>
     <pre class="exercise">sum(P - Y) == <input class="blank" data-answer="0|0.0" size="4" placeholder="?"></pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1139,7 +1324,7 @@
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">15</span> 1 トークンの交差エントロピー損失 — どのクラスの確率の負の対数?</div>
+    <div class="prompt"><span class="num">21</span> 1 トークンの交差エントロピー損失 — どのクラスの確率の負の対数?</div>
     <pre class="exercise">loss = -np.log(P[<input class="blank" data-answer="target|y|correct|label" size="8" placeholder="?">])</pre>
     <div class="controls">
       <button class="btn" onclick="checkDrill(this)">Check</button>
@@ -1149,9 +1334,10 @@
   </div>
 
   <div class="note" style="margin-top: 24px;">
-    <strong>15 問すべて正解?</strong> これであなたはどんな逆伝播も読めます:
-    <code style="color:var(--dzc)">dz = P − Y</code> から始め、ノードの入力にコピーし、各コピーに
-    もう一方の入力 (行列なら転置) を掛けるだけ。これがネットワーク全体に積み重なる様子は
+    <strong>21 問すべて正解?</strong> これであなたはどんな逆伝播も読めます:
+    <code style="color:var(--dzc)">dz = P − Y</code> から始め、ノードの入力にコピーし、掛け算では各コピーに
+    もう一方の入力 (行列なら転置) を掛け、足し算ではそのまま変えずに通すだけ。これがネットワーク全体に
+    積み重なる様子は
     <a href="basicai.html" style="color: var(--accent);">basicai.html</a> で、出発点をもう一度見たいなら
     <a href="softmax-ce.html" style="color: var(--accent);">softmax-ce.html</a> で確認できます。
   </div>
@@ -1169,7 +1355,7 @@
       <tr><td><kbd>Tab</kbd></td><td>次の空欄へジャンプ</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>現在のドリルをチェック</td></tr>
       <tr><td><kbd>?</kbd></td><td>このヘルプ</td></tr>
-      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>タブ切替</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>タブ切替</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>オーバーレイを閉じる</td></tr>
     </table>
     <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">どこかをクリックで閉じます。</p>
@@ -1460,7 +1646,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') hideHelp();
   if (inField) return;
   if (e.key === '?') { e.preventDefault(); showHelp(); }
-  const tabKeys = { '1':'welcome','2':'ripple','3':'split','4':'matrix','5':'softmax','6':'drills' };
+  const tabKeys = { '1':'welcome','2':'ripple','3':'split','4':'add','5':'matrix','6':'softmax','7':'drills' };
   if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
 });
 
@@ -1532,7 +1718,37 @@ function renderSplit() {
 }
 ['spx', 'spw', 'spdz'].forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderSplit); });
 
-// ---------- Tab 4: matrices ----------
+// ---------- Tab 4: add ----------
+function renderAdd() {
+  const x = +$('adx').value, w = +$('adw').value, dz = +$('addz').value;
+  const z = x + w, dx = dz, dw = dz;
+
+  $('adx_v').textContent = x.toFixed(1);
+  $('adw_v').textContent = w.toFixed(1);
+  $('addz_v').textContent = dz.toFixed(1);
+
+  $('ad_x').textContent = x.toFixed(1);
+  $('ad_w').textContent = w.toFixed(1);
+  $('ad_z').textContent = z.toFixed(2);
+  $('ad_eze').textContent = 'z = ' + z.toFixed(1);
+  $('ad_dz').textContent = 'dz = ' + dz.toFixed(1);
+  $('ad_dx').textContent = 'dx = ' + sgn(dx);
+  $('ad_dw').textContent = 'dw = ' + sgn(dw);
+  $('ad_opx').textContent = 'dz × 1 = ' + dz.toFixed(1);
+  $('ad_opw').textContent = 'dz × 1 = ' + dz.toFixed(1);
+
+  $('ad_fdx').innerHTML = `<b style="color:var(--dxc)">${sgn(dx)}</b>`;
+  $('ad_fdw').innerHTML = `<b style="color:var(--dwc)">${sgn(dw)}</b>`;
+
+  $('ad_live').innerHTML =
+    `1 つの <code>dz = ${dz.toFixed(1)}</code> が到着し、そのままコピーされて通ります: ` +
+    `<b style="color:var(--dxc)">dx = ${sgn(dx)}</b> と <b style="color:var(--dwc)">dw = ${sgn(dw)}</b> は ` +
+    `どちらも dz に等しい。ここで <b style="color:var(--xc)">x</b> や <b style="color:var(--wc)">w</b> を動かしてみてください — ` +
+    `z は変わるのに、dx と dw は変わりません。足し算ゲートは決して勾配をスケールしません。`;
+}
+['adx', 'adw', 'addz'].forEach(id => { const el = $(id); if (el) el.addEventListener('input', renderAdd); });
+
+// ---------- Tab 5: matrices ----------
 const MX = [[1, 0.5, -0.5], [0.2, -1, 0.3]];        // 2x3
 const MW = [[0.8, -0.3], [0.1, 0.4], [-0.4, 0.6]];  // 3x2
 const MdZ = [[0.3, -0.3], [-0.6, 0.6]];             // 2x2
@@ -1574,7 +1790,7 @@ function buildMatrix() {
   renderMatrix();
 }
 
-// ---------- Tab 5: softmax + cross-entropy ----------
+// ---------- Tab 6: softmax + cross-entropy ----------
 const SM_NAMES = ['cat', 'dog', 'fish', 'bird', 'tree'];
 let SM_logits = [2.0, 1.0, 0.1, -0.5, 0.3];
 let SM_target = 0;
@@ -1644,6 +1860,7 @@ function renderSM() {
 // ============== INIT ==============
 renderRipple();
 renderSplit();
+renderAdd();
 buildMatrix();
 buildSM();
 renderSM();

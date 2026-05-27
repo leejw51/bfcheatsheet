@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bfgpt — 單檔 GPT · 互動演練</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: #121a2b;
+    --panel-2: #182338;
+    --border: #283449;
+    --text: #e6f1ff;
+    --muted: #8aa1bd;
+    --accent: #4fe0b0;        /* phosphor teal — bfgpt's house color */
+    --accent-2: #6ef2c4;
+    --code-bg: #08101e;
+    --keyword: #ff7b72;
+    --string: #a5d6ff;
+    --number: #d2a8ff;
+    --comment: #7d8fa6;
+    --fn: #d2a8ff;
+    --tag: #79c0ff;
+    --good: #4ade80;
+    --bad: #f87171;
+    --warn: #fbbf24;
+    --amber: #f0b541;
+    --magenta: #f06ba8;
+    --indigo: #7c8cf8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(ellipse at top, rgba(79,224,176,0.08), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+  header {
+    background: linear-gradient(135deg, #15203a 0%, #0b1220 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .logo .mono { font-family: ui-monospace, monospace; }
+  .badge {
+    background: var(--accent); color: #001018;
+    padding: 3px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .stat {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
+  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+
+  .progress-bar-outer {
+    flex: 1; min-width: 180px; height: 8px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 999px; overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    box-shadow: 0 0 12px rgba(79,224,176,0.6);
+  }
+  .streak {
+    display: flex; align-items: center; gap: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+  .streak .flame-mini { font-size: 16px; }
+
+  nav.tabs {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 24px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  nav.tabs button {
+    background: transparent; color: var(--muted);
+    border: 1px solid transparent;
+    padding: 8px 14px; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+    transition: all 0.15s;
+    -webkit-appearance: none; appearance: none; font-family: inherit;
+  }
+  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button.active {
+    color: var(--accent);
+    background: rgba(79,224,176,0.12);
+    border-color: rgba(79,224,176,0.4);
+  }
+  nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
+
+  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: fade 0.25s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  h1 { font-size: 28px; margin: 0 0 8px; }
+  h2 {
+    font-size: 18px; margin: 28px 0 12px;
+    color: var(--accent); display: flex; align-items: center; gap: 8px;
+  }
+  h2::before {
+    content: ""; width: 4px; height: 18px;
+    background: var(--accent); border-radius: 2px;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+  code.inline { font-family: ui-monospace, monospace; color: var(--tag); font-size: 0.92em; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0;
+  }
+  .card-head {
+    padding: 12px 14px;
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel-2);
+  }
+  .card-title { font-weight: 700; font-size: 14px; }
+  .card-title .loc { color: var(--muted); font-weight: 500; font-family: ui-monospace, monospace; font-size: 11px; margin-left: 8px; }
+  .card-body { padding: 14px; }
+
+  pre.code {
+    margin: 8px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.8px; line-height: 1.65;
+  }
+  .tok-k { color: var(--keyword); }
+  .tok-s { color: var(--string); }
+  .tok-n { color: var(--number); }
+  .tok-c { color: var(--comment); font-style: italic; }
+  .tok-f { color: var(--fn); }
+  .tok-t { color: var(--tag); }
+
+  /* Drill */
+  .drill {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .drill.solved {
+    border-left-color: var(--good);
+    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+  }
+  .drill .prompt {
+    font-size: 14px; color: var(--text); margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .drill .prompt .num {
+    background: var(--accent); color: #001018;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; flex-shrink: 0;
+  }
+  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill pre.exercise {
+    margin: 6px 0;
+    padding: 12px 14px;
+    background: var(--code-bg);
+    border-radius: 6px;
+    font-family: ui-monospace, monospace;
+    font-size: 13px; line-height: 1.85;
+    overflow-x: auto;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 70px; max-width: 240px;
+    padding: 2px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--accent);
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    outline: none;
+    text-align: center;
+    transition: all 0.15s;
+  }
+  .blank:focus {
+    box-shadow: 0 0 0 3px rgba(79,224,176,0.25);
+    background: rgba(79,224,176,0.05);
+  }
+  .blank.correct {
+    border-color: var(--good); color: var(--good);
+    background: rgba(74, 222, 128, 0.08);
+    animation: pop 220ms ease-out;
+  }
+  .blank.wrong {
+    border-color: var(--bad); color: var(--bad);
+    animation: shake 240ms ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    50% { transform: translateX(4px); }
+    75% { transform: translateX(-2px); }
+  }
+  .drill .controls {
+    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
+  }
+  .btn {
+    background: var(--accent); color: #001018;
+    border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    font-family: inherit;
+  }
+  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(79,224,176,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+
+  .feedback {
+    margin-top: 8px; font-size: 13px; min-height: 18px;
+  }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--muted); font-style: italic; }
+
+  .note {
+    background: rgba(79,224,176,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    font-size: 13.5px;
+    margin: 14px 0;
+  }
+  .note strong { color: var(--accent); }
+  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn strong { color: var(--warn); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  .canvas-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  .canvas-card h3 {
+    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .slider-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 8px 0;
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+  }
+  .slider-row label { min-width: 124px; color: var(--muted); }
+  .slider-row label b { color: var(--text); }
+  .slider-row input[type="range"] {
+    flex: 1; -webkit-appearance: none; appearance: none;
+    height: 6px; background: var(--panel-2);
+    border-radius: 999px; border: 1px solid var(--border); outline: none;
+  }
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px rgba(79,224,176,0.6); cursor: pointer;
+  }
+  .slider-row input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px; border: none; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 8px rgba(79,224,176,0.6); cursor: pointer;
+  }
+  .slider-row .val { min-width: 70px; text-align: right; color: var(--accent); font-weight: 700; }
+  .slider-row.warnme label, .slider-row.warnme .val { color: var(--bad); }
+
+  /* derived stat boxes */
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
+  @media (max-width: 760px) { .stat-grid { grid-template-columns: 1fr 1fr; } }
+  .stat-box {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .stat-box .k { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat-box .v { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; font-size: 22px; margin-top: 4px; }
+  .stat-box .sub { color: var(--muted); font-size: 11px; font-family: ui-monospace, monospace; margin-top: 4px; }
+  .stat-box.flash .v { animation: flashv 0.5s ease; }
+  @keyframes flashv { 0% { color: #fff; text-shadow: 0 0 12px var(--accent); } 100% { color: var(--accent); } }
+
+  /* architecture stack */
+  .stack { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 8px 0; }
+  .stack .layer {
+    width: 100%; max-width: 460px; text-align: center;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; font-family: ui-monospace, monospace; font-size: 12.5px;
+  }
+  .stack .layer.block { background: rgba(79,224,176,0.10); border-color: rgba(79,224,176,0.4); }
+  .stack .layer .shape { color: var(--muted); font-size: 11px; }
+  .stack .arrow { color: var(--muted); font-size: 16px; line-height: 1.2; }
+  .stack .sub { font-size: 11.5px; color: var(--muted); padding: 4px 0; }
+
+  /* tokenizer sandbox */
+  textarea.sand {
+    width: 100%; min-height: 64px; resize: vertical;
+    background: var(--code-bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px; font-family: ui-monospace, monospace; font-size: 13px; outline: none;
+  }
+  textarea.sand:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,224,176,0.18); }
+  .vocab-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .vocab-cell {
+    font-family: ui-monospace, monospace; font-size: 11px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 6px;
+  }
+  .vocab-cell .id { color: var(--muted); }
+  .vocab-cell .ch { color: var(--accent); font-weight: 700; }
+  .tok-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .tok-chip {
+    font-family: ui-monospace, monospace; font-size: 12px;
+    background: rgba(79,224,176,0.12); border: 1px solid rgba(79,224,176,0.4);
+    border-radius: 5px; padding: 2px 7px; color: var(--text);
+  }
+  .tok-chip .cid { color: var(--accent); font-weight: 700; }
+
+  /* sampling studio bar chart */
+  .bars { display: flex; align-items: flex-end; gap: 10px; height: 170px; padding: 8px 4px 0; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .bar {
+    width: 100%; min-height: 2px;
+    background: linear-gradient(180deg, var(--accent-2), var(--accent));
+    border-radius: 4px 4px 0 0; transition: height 0.3s ease, opacity 0.3s, box-shadow 0.2s;
+  }
+  .bar.muted { opacity: 0.18; background: var(--muted); }
+  .bar.picked { box-shadow: 0 0 14px var(--accent); }
+  .bar-pct { font-size: 10px; color: var(--muted); font-family: ui-monospace, monospace; margin-bottom: 4px; }
+  .bar-label { font-family: ui-monospace, monospace; font-size: 13px; color: var(--text); margin-top: 6px; }
+
+  .pill {
+    display: inline-block;
+    background: rgba(79,224,176,0.15);
+    color: var(--accent);
+    padding: 1px 8px; border-radius: 999px;
+    font-size: 11px; font-family: ui-monospace, monospace; font-weight: 700; margin-right: 6px;
+  }
+  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
+  .pill.warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill.red  { background: rgba(248,113,113,0.15); color: var(--bad); }
+  .pill.amber { background: rgba(240,181,65,0.15); color: var(--amber); }
+
+  /* terminal */
+  .term {
+    background: #05080f; border: 1px solid var(--border); border-radius: 10px;
+    font-family: ui-monospace, monospace; font-size: 12.8px; overflow: hidden; margin: 14px 0;
+  }
+  .term .bar-top { background: var(--panel-2); padding: 7px 12px; display: flex; gap: 7px; align-items: center; border-bottom: 1px solid var(--border); }
+  .term .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .term .dot.r { background: #ff5f57; } .term .dot.y { background: #febc2e; } .term .dot.g { background: #28c840; }
+  .term .bar-top .ttl { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .term .body { padding: 12px 14px; line-height: 1.7; white-space: pre-wrap; }
+  .term .pr { color: var(--accent); } .term .cmd { color: var(--text); } .term .out { color: var(--muted); }
+
+  .step-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .step-card .step-num {
+    display: inline-block; width: 22px; height: 22px;
+    background: var(--accent); color: #001018; border-radius: 50%;
+    text-align: center; line-height: 22px; font-weight: 800; font-size: 12px; margin-right: 6px;
+  }
+  .step-card h4 { margin: 0 0 6px; font-size: 14px; color: var(--text); display: flex; align-items: center; }
+  .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .step-card code { color: var(--tag); font-family: ui-monospace, monospace; font-size: 12.5px; }
+
+  table.tbl { width: 100%; border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  table.tbl th, table.tbl td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+  table.tbl th { background: var(--panel-2); color: var(--accent); font-weight: 700; }
+  table.tbl td.c { color: var(--accent); }
+
+  .formula { text-align: center; padding: 14px; background: var(--code-bg); border-radius: 8px; font-size: 15px; margin: 12px 0; }
+
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 100; background: transparent; border: none; }
+
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 200; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay .help-content {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px 28px; max-width: 480px; width: 100%;
+  }
+  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 6px 0; }
+  #help-overlay kbd {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 8px; font-family: ui-monospace, monospace; font-size: 12px; color: var(--accent);
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(40px);
+    background: var(--panel); border: 1px solid var(--accent); color: var(--text);
+    padding: 10px 18px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(79,224,176,0.3);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 150;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px; padding: 30px 20px;
+    border-top: 1px solid var(--border); margin-top: 30px;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  .copy-btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.05ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo">
+      <span class="spark">⚡</span> <span class="mono">bfgpt</span> <span class="badge">打字學習</span>
+    </div>
+    <div class="progress-bar-outer" title="整體進度">
+      <div class="progress-bar-inner" id="progressBar"></div>
+    </div>
+    <div class="stat" title="已完成的練習">
+      <span class="num" id="scoreNum">0</span><span>/</span><span class="num" id="scoreTot">0</span>
+      <span class="lbl">已解</span>
+    </div>
+    <div class="streak" title="連勝">
+      <span class="flame-mini">🔥</span>
+      <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
+    </div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome">1. 是什麼?</button>
+    <button data-tab="pipeline">2. 流程</button>
+    <button data-tab="tokenizer">3. 分詞器</button>
+    <button data-tab="arch">4. 架構</button>
+    <button data-tab="code">5. 程式碼</button>
+    <button data-tab="generate">6. 生成</button>
+    <button data-tab="drills">7. 練習</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <h1>bfgpt — <em>單一檔案</em>的迷你 GPT</h1>
+  <p class="lead">
+    <span class="mono" style="color:var(--accent)">bfgpt</span> 是一個可以在一個下午讀完、
+    並在筆電上訓練的迷你 GPT。一個約 <strong>800 行</strong>的 Python 檔案涵蓋一切——
+    模型、資料準備、訓練和取樣——僅有 <strong>兩個依賴</strong>
+    (<code class="inline">torch</code> + <code class="inline">numpy</code>)。它是
+    <a href="https://github.com/karpathy/nanoGPT" style="color:var(--accent)">Karpathy
+    nanoGPT</a> 的精煉移植版，去掉了 GPT-2 下載路徑。分詞採字元層級，
+    無需下載任何分詞器——詞彙表直接從你的文字中建立。
+  </p>
+
+  <div class="grid-3">
+    <div class="card"><div class="card-head"><div class="card-title">自給自足</div></div>
+      <div class="card-body">模型 + 資料準備 + 訓練 + 取樣，全在一個 <code class="inline">bfgpt.py</code> 中。檢查點甚至內嵌了自己的分詞器，取樣不需要任何其他東西。</div></div>
+    <div class="card"><div class="card-head"><div class="card-title">兩個依賴</div></div>
+      <div class="card-body">只需 <code class="inline">torch</code> 和 <code class="inline">numpy</code>。沒有 <code class="inline">transformers</code>，沒有 <code class="inline">tiktoken</code>，無需學習任何框架。</div></div>
+    <div class="card"><div class="card-head"><div class="card-title">隨處可跑</div></div>
+      <div class="card-body"><code class="inline">--device auto</code> 自動解析 <span class="pill">cuda</span>→<span class="pill">mps</span>→<span class="pill">cpu</span>。預設值在 CPU 上即可執行。</div></div>
+    <div class="card"><div class="card-head"><div class="card-title">字元分詞器</div></div>
+      <div class="card-body"><code class="inline">sorted(set(text))</code> <em>就是</em>詞彙表。tiny-shakespeare 有 <strong>65</strong> 個唯一字元。</div></div>
+    <div class="card"><div class="card-head"><div class="card-title">JSONL 輸入</div></div>
+      <div class="card-body">每行一筆 <code class="inline">{"text": "..."}</code>。用 <code class="inline">--text-field</code> 指向不同欄位。</div></div>
+    <div class="card"><div class="card-head"><div class="card-title">~0.8M 參數</div></div>
+      <div class="card-body">4 層 / 4 頭 / 128 寬的模型，<code class="inline">block_size=64</code>。幾分鐘內就能產生莎士比亞風格的文字。</div></div>
+  </div>
+
+  <h2>三個指令搞定一切</h2>
+  <div class="term">
+    <div class="bar-top"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="ttl">~/bfgpt</span></div>
+    <div class="body"><span class="pr">$</span> <span class="cmd">make download</span>   <span class="out"># fetch tiny-shakespeare, tokenize → data/</span>
+<span class="pr">$</span> <span class="cmd">make train</span>      <span class="out"># learn → out/ckpt.pt  (a few minutes on CPU)</span>
+<span class="pr">$</span> <span class="cmd">make sample</span>     <span class="out"># generate Shakespearean babble</span></div>
+  </div>
+
+  <div class="note">
+    <strong>如何使用本頁：</strong>按順序瀏覽各分頁。第 3 頁會對你輸入的文字進行分詞；
+    第 4 頁有即時超參數滑桿；第 6 頁是取樣工作室。第 7 頁是練習室——
+    在 <span class="pill">空格</span> 中輸入並點擊 <em>Check</em>。按 <kbd>?</kbd> 查看快捷鍵。
+  </div>
+</section>
+
+<!-- ========================= PIPELINE ========================= -->
+<section class="tab-section" id="tab-pipeline">
+  <h1>流程 — 從原始文字到生成文字</h1>
+  <p class="lead">
+    五個步驟帶你從 <code class="inline">data.jsonl</code> 檔案到生成的莎士比亞文字。
+    每個 <code class="inline">make</code> 目標對應一個 <code class="inline">bfgpt.py</code> 子命令。
+  </p>
+
+  <div class="stack" style="max-width:620px; margin:0 auto;">
+    <div class="layer">📄 <b>data.jsonl</b> <span class="shape">— {"text": "..."} 每行一筆</span></div>
+    <div class="arrow">↓ &nbsp;<span class="pill amber">prepare</span></div>
+    <div class="layer block">🔢 <b>train.bin · val.bin · meta.pkl</b> <span class="shape">— uint16 token ids + 分詞器</span></div>
+    <div class="arrow">↓ &nbsp;<span class="pill amber">train</span></div>
+    <div class="layer block">🧠 <b>out/ckpt.pt</b> <span class="shape">— 權重 + 內嵌分詞器 + 設定</span></div>
+    <div class="arrow">↓ &nbsp;<span class="pill amber">sample / chat</span></div>
+    <div class="layer">✨ <b>新文字</b> <span class="shape">— "ROMEO: ..."</span></div>
+  </div>
+
+  <h2>五個子命令</h2>
+  <div class="card"><div class="card-body" style="padding:0;">
+    <table class="tbl">
+      <tr><th>指令</th><th>功能</th><th>主要旗標</th></tr>
+      <tr><td class="c">prepare</td><td>JSONL → 訓練/驗證 <code class="inline">.bin</code> + <code class="inline">meta.pkl</code></td><td>--download · --text-field · --val-split</td></tr>
+      <tr><td class="c">train</td><td>訓練迷你 GPT，儲存 <code class="inline">out/ckpt.pt</code></td><td>--device · --max-iters · --init-from resume</td></tr>
+      <tr><td class="c">sample</td><td>從檢查點生成 N 個補全結果</td><td>--prompt · --temperature · --top-k · --num-samples</td></tr>
+      <tr><td class="c">chat</td><td>互動式 REPL，模型常駐記憶體</td><td>--max-new-tokens（輸入 :q 退出）</td></tr>
+      <tr><td class="c">show</td><td>印出資料集與檢查點資訊</td><td>--data-dir · --out-dir</td></tr>
+    </table>
+  </div></div>
+
+  <h2><span class="mono">prepare</span> 實際寫入什麼</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">cmd_prepare<span class="loc">bfgpt.py:340</span></div><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="code"><code><span class="tok-c"># 2) read documents and join them into one stream</span>
+texts = _read_jsonl_texts(args.input, args.text_field)
+data  = <span class="tok-s">"\n\n"</span>.join(texts)
+
+<span class="tok-c"># 3) build the character vocabulary</span>
+tok = CharTokenizer.from_text(data)
+
+<span class="tok-c"># 4) split, encode, write uint16 token ids</span>
+n     = <span class="tok-f">len</span>(data)
+n_val = <span class="tok-f">int</span>(n * args.val_split)        <span class="tok-c"># default 10% held out</span>
+train_ids = np.array(tok.encode(data[:n - n_val]), dtype=np.<span class="tok-t">uint16</span>)
+val_ids   = np.array(tok.encode(data[n - n_val:]), dtype=np.<span class="tok-t">uint16</span>)
+train_ids.tofile(<span class="tok-s">'data/train.bin'</span>)
+val_ids.tofile(<span class="tok-s">'data/val.bin'</span>)
+
+<span class="tok-c"># 5) save the tokenizer so train/sample can rebuild it</span>
+pickle.dump(tok.as_meta(), <span class="tok-f">open</span>(<span class="tok-s">'data/meta.pkl'</span>, <span class="tok-s">'wb'</span>))</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>tiny-shakespeare 數字：</strong>9,206 份文件 · 1,115,394 個字元 · 詞彙量 65 ·
+    1,003,854 訓練 token · 111,540 驗證 token。訓練 2,000 次迭代後，模型的驗證損失約達
+    <span class="pill">1.62</span>。
+  </div>
+
+  <div class="note warn">
+    <strong>安全提醒：</strong><code class="inline">ckpt.pt</code> 和 <code class="inline">meta.pkl</code>
+    是使用 <code class="inline">weights_only=False</code> 載入的 Python pickle——只載入你訓練過或信任的檢查點。
+    Pickle 反序列化可能執行任意程式碼。
+  </div>
+</section>
+
+<!-- ========================= TOKENIZER ========================= -->
+<section class="tab-section" id="tab-tokenizer">
+  <h1>分詞器 — 你的文字<em>就是</em>詞彙表</h1>
+  <p class="lead">
+    沒有下載的分詞器，沒有 BPE 合併，沒有 50,257 個 token 的表格。bfgpt 取你語料庫中
+    <strong>唯一字元的排序集合</strong>並編號。這個映射
+    (<code class="inline">stoi</code> / <code class="inline">itos</code>) 就是完整的分詞器，
+    儲存在 <code class="inline">meta.pkl</code> 中。在下方輸入文字，觀察模型所看到的
+    <code class="inline">encode → ids → decode</code> 完整來回轉換。
+  </p>
+
+  <div class="canvas-card">
+    <h3>字元分詞器沙盒</h3>
+    <textarea class="sand" id="tokInput" spellcheck="false">To be, or not to be.</textarea>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+      <span class="pill">vocab_size <b id="tkVocab" style="color:var(--accent)">0</b></span>
+      <span class="pill">characters <b id="tkChars" style="color:var(--accent)">0</b></span>
+      <span class="pill">tokens <b id="tkToks" style="color:var(--accent)">0</b></span>
+      <span class="pill amber">dtype uint16</span>
+    </div>
+
+    <div style="margin-top:14px; color:var(--muted); font-size:12px;">詞彙表 — <code class="inline">id:char</code> (␣ 空格 · ⏎ 換行)</div>
+    <div class="vocab-grid" id="tkVocabGrid"></div>
+
+    <div style="margin-top:14px; color:var(--muted); font-size:12px;">encode → token ids</div>
+    <div class="tok-row" id="tkEncRow"></div>
+
+    <div style="margin-top:14px; color:var(--muted); font-size:12px;">decode(ids) → 來回轉換</div>
+    <pre class="code" id="tkDecode" style="margin-top:6px;"></pre>
+  </div>
+
+  <h2>CharTokenizer — 完整類別</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">CharTokenizer<span class="loc">bfgpt.py:247</span></div><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">CharTokenizer</span>:
+    <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, stoi, itos):
+        self.stoi = stoi
+        self.itos = itos
+        self.vocab_size = <span class="tok-f">len</span>(stoi)
+
+    <span class="tok-t">@classmethod</span>
+    <span class="tok-k">def</span> <span class="tok-f">from_text</span>(cls, text):
+        chars = <span class="tok-f">sorted</span>(<span class="tok-f">set</span>(text))            <span class="tok-c"># the vocabulary</span>
+        stoi  = {ch: i <span class="tok-k">for</span> i, ch <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(chars)}
+        itos  = {i: ch <span class="tok-k">for</span> i, ch <span class="tok-k">in</span> <span class="tok-f">enumerate</span>(chars)}
+        <span class="tok-k">return</span> cls(stoi, itos)
+
+    <span class="tok-k">def</span> <span class="tok-f">encode</span>(self, s):
+        <span class="tok-k">return</span> [self.stoi[c] <span class="tok-k">for</span> c <span class="tok-k">in</span> s]   <span class="tok-c"># str -> list[int]</span>
+
+    <span class="tok-k">def</span> <span class="tok-f">decode</span>(self, ids):
+        <span class="tok-k">return</span> <span class="tok-s">''</span>.join(self.itos[<span class="tok-f">int</span>(i)] <span class="tok-k">for</span> i <span class="tok-k">in</span> ids)</code></pre>
+  </div>
+
+  <div class="note">
+    <strong>這樣做的好處：</strong>你的資料字母表決定了詞彙量大小，id 放在
+    2 位元組的 <code class="inline">uint16</code> 中，嵌入表也很小。代價是序列較長
+    （每個字元一個 token），因此上下文視窗 <code class="inline">block_size</code> 計的是
+    <em>字元</em>，而非單詞。
+  </div>
+</section>
+
+<!-- ========================= ARCHITECTURE ========================= -->
+<section class="tab-section" id="tab-arch">
+  <h1>架構 — Transformer 內部</h1>
+  <p class="lead">
+    七個旋鈕（<code class="inline">GPTConfig</code>）定義了整個模型。拖動滑桿，觀察參數量、
+    注意力形狀、FLOPs 和啟動記憶體的變化。預設值給出約 0.8M 參數的迷你 GPT。
+  </p>
+
+  <div class="canvas-card">
+    <h3>即時超參數</h3>
+    <div class="grid-2">
+      <div>
+        <div class="slider-row" id="rowB"><label><b>batch_size</b> · B</label><input type="range" id="cB" min="1" max="64" step="1" value="32"><span class="val" id="vB">32</span></div>
+        <div class="slider-row" id="rowT"><label><b>block_size</b> · T</label><input type="range" id="cT" min="8" max="512" step="8" value="64"><span class="val" id="vT">64</span></div>
+        <div class="slider-row" id="rowC"><label><b>n_embd</b> · C</label><input type="range" id="cC" min="32" max="768" step="32" value="128"><span class="val" id="vC">128</span></div>
+        <div class="slider-row" id="rowL"><label><b>n_layer</b></label><input type="range" id="cL" min="1" max="12" step="1" value="4"><span class="val" id="vL">4</span></div>
+        <div class="slider-row" id="rowH"><label><b>n_head</b></label><input type="range" id="cH" min="1" max="16" step="1" value="4"><span class="val" id="vH">4</span></div>
+        <div class="slider-row" id="rowV"><label><b>vocab_size</b> · V</label><input type="range" id="cV" min="16" max="1024" step="1" value="65"><span class="val" id="vV">65</span></div>
+        <div id="archWarn" style="display:none; color:var(--bad); font-size:12px; font-family:ui-monospace,monospace; margin-top:6px;">⚠ n_embd (C) 必須能被 n_head (H) 整除</div>
+        <button class="btn ghost tiny" id="archReset" style="margin-top:10px;">重設為預設值</button>
+      </div>
+      <div>
+        <div class="stat-grid">
+          <div class="stat-box" id="boxParams"><div class="k">參數量</div><div class="v" id="oParams">0.80M</div><div class="sub" id="oParamsSub">emb + blocks + ln_f</div></div>
+          <div class="stat-box" id="boxHead"><div class="k">head_dim × heads</div><div class="v" id="oHead">32 × 4</div><div class="sub">C / n_head</div></div>
+          <div class="stat-box" id="boxAttn"><div class="k">注意力矩陣</div><div class="v" id="oAttn" style="font-size:15px;">(32,4,64,64)</div><div class="sub">(B, n_head, T, T) — 對 T 二次方</div></div>
+          <div class="stat-box" id="boxFlops"><div class="k">前向 FLOPs / token</div><div class="v" id="oFlops">3.0M</div><div class="sub">≈ 2·params + 4·L·H·T·hd</div></div>
+          <div class="stat-box" id="boxTok"><div class="k">tokens / batch</div><div class="v" id="oTok">2,048</div><div class="sub">B × T (CE 目標)</div></div>
+          <div class="stat-box" id="boxMem"><div class="k">啟動記憶體</div><div class="v" id="oMem">8.4 MB</div><div class="sub">≈ B·T·C·L·12·4 bytes</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>由上而下的堆疊</h2>
+  <div class="stack">
+    <div class="layer">idx <span class="shape">(B, T) — token ids</span></div>
+    <div class="arrow">↓</div>
+    <div class="layer">wte(idx) + wpe(pos) <span class="shape">→ (B, T, C) — token + 位置嵌入</span></div>
+    <div class="arrow">↓</div>
+    <div class="layer block">Block × n_layer <span class="shape">— ln_1 → CausalSelfAttention → ln_2 → MLP，各自殘差</span></div>
+    <div class="arrow">↓</div>
+    <div class="layer">ln_f <span class="shape">→ (B, T, C) — 最終 LayerNorm</span></div>
+    <div class="arrow">↓</div>
+    <div class="layer">lm_head <span class="shape">→ (B, T, V) — 詞彙表上的 logits</span></div>
+  </div>
+
+  <h2>七個旋鈕（GPTConfig 預設值）</h2>
+  <div class="card"><div class="card-body" style="padding:0;">
+    <table class="tbl">
+      <tr><th>欄位</th><th>預設值</th><th>含義</th></tr>
+      <tr><td class="c">block_size</td><td>64</td><td>上下文長度（每個視窗的字元數）</td></tr>
+      <tr><td class="c">vocab_size</td><td>65</td><td>唯一字元數；由資料覆蓋</td></tr>
+      <tr><td class="c">n_layer</td><td>4</td><td>堆疊的 Transformer 區塊數</td></tr>
+      <tr><td class="c">n_head</td><td>4</td><td>注意力頭數（必須整除 n_embd）</td></tr>
+      <tr><td class="c">n_embd</td><td>128</td><td>嵌入 / 殘差寬度 (C)</td></tr>
+      <tr><td class="c">dropout</td><td>0.1</td><td>正規化</td></tr>
+      <tr><td class="c">bias</td><td>False</td><td>關閉 = 稍快且稍好</td></tr>
+    </table>
+  </div></div>
+
+  <h2>讓它運作的六個技巧</h2>
+  <div class="grid-3">
+    <div class="step-card"><h4>權重共享</h4><p><code>wte.weight = lm_head.weight</code> — 輸入嵌入和輸出投影共用同一個矩陣。</p></div>
+    <div class="step-card"><h4>前正規化</h4><p><code>x + f(LN(x))</code> — 在每個子層<em>之前</em>正規化，而非之後。</p></div>
+    <div class="step-card"><h4>因果遮罩</h4><p>位置 <code>t</code> 只能關注 <code>≤ t</code> 的位置；未來被遮罩為 −∞。</p></div>
+    <div class="step-card"><h4>Flash Attention</h4><p>當 PyTorch ≥ 2.0 支援時，使用融合的 <code>scaled_dot_product_attention</code>。</p></div>
+    <div class="step-card"><h4>縮放初始化</h4><p>殘差投影以 <code>std = 0.02 / √(2·n_layer)</code> 初始化。</p></div>
+    <div class="step-card"><h4>選擇性衰減</h4><p>權重衰減只作用於二維張量；偏置和 LayerNorm 跳過。</p></div>
+  </div>
+</section>
+
+<!-- ========================= THE CODE ========================= -->
+<section class="tab-section" id="tab-code">
+  <h1>程式碼 — 逐段解析</h1>
+  <p class="lead">
+    模型由四個小類別組成。以下是從 <code class="inline">bfgpt.py</code> 中摘錄的關鍵片段。
+  </p>
+
+  <h2>CausalSelfAttention — Q、K、V 一次矩陣乘法</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">CausalSelfAttention.forward<span class="loc">bfgpt.py:80</span></div><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+    B, T, C = x.size()
+    q, k, v = self.c_attn(x).split(self.n_embd, dim=<span class="tok-n">2</span>)   <span class="tok-c"># one matmul, split 3 ways</span>
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)  <span class="tok-c"># (B, nh, T, hs)</span>
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)
+
+    <span class="tok-k">if</span> self.flash:
+        y = F.scaled_dot_product_attention(q, k, v, is_causal=<span class="tok-k">True</span>)
+    <span class="tok-k">else</span>:
+        att = (q @ k.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)) * (<span class="tok-n">1.0</span> / math.sqrt(k.size(-<span class="tok-n">1</span>)))
+        att = att.masked_fill(self.bias[:, :, :T, :T] == <span class="tok-n">0</span>, <span class="tok-f">float</span>(<span class="tok-s">'-inf'</span>))
+        att = F.softmax(att, dim=-<span class="tok-n">1</span>)
+        y = att @ v
+    y = y.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous().view(B, T, C)
+    <span class="tok-k">return</span> self.resid_dropout(self.c_proj(y))</code></pre>
+  </div>
+  <div class="note"><strong>核心概念：</strong>因果遮罩（或 <code class="inline">is_causal=True</code>）使這成為一個<em>解碼器</em>——每個位置只用過去來預測下一個位置。</div>
+
+  <h2>MLP 與 Block — 逐位置前饋網路與殘差三明治</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">MLP<span class="loc">bfgpt.py:103</span></div></div>
+      <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+    <span class="tok-k">return</span> self.dropout(
+        self.c_proj(
+          self.gelu(
+            self.c_fc(x))))
+<span class="tok-c"># c_fc:  C -> 4C  (expand)</span>
+<span class="tok-c"># gelu:  nonlinearity</span>
+<span class="tok-c"># c_proj: 4C -> C  (project)</span></code></pre>
+    </div>
+    <div class="card">
+      <div class="card-head"><div class="card-title">Block（前正規化）<span class="loc">bfgpt.py:125</span></div></div>
+      <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
+    x = x + self.attn(self.ln_1(x))
+    x = x + self.mlp(self.ln_2(x))
+    <span class="tok-k">return</span> x
+
+<span class="tok-c"># attention mixes across positions;</span>
+<span class="tok-c"># the MLP thinks per-position.</span>
+<span class="tok-c"># residual + (sublayer of LN(x)).</span></code></pre>
+    </div>
+  </div>
+  <div class="note"><strong>參數的位置：</strong>MLP 有 <span class="pill">8·C²</span> 個權重，而注意力有 <span class="pill">4·C²</span>——模型的大部分是前饋網路。</div>
+
+  <h2>GPT.forward — 訓練分支與推論分支</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">GPT.forward<span class="loc">bfgpt.py:183</span></div><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, idx, targets=<span class="tok-k">None</span>):
+    b, t = idx.size()
+    pos = torch.arange(<span class="tok-n">0</span>, t, device=idx.device)
+
+    tok_emb = self.transformer.wte(idx)   <span class="tok-c"># (b, t, n_embd)</span>
+    pos_emb = self.transformer.wpe(pos)   <span class="tok-c"># (t, n_embd)</span>
+    x = self.transformer.drop(tok_emb + pos_emb)
+    <span class="tok-k">for</span> block <span class="tok-k">in</span> self.transformer.h:
+        x = block(x)
+    x = self.transformer.ln_f(x)
+
+    <span class="tok-k">if</span> targets <span class="tok-k">is not</span> <span class="tok-k">None</span>:                 <span class="tok-c"># --- training ---</span>
+        logits = self.lm_head(x)
+        loss = F.cross_entropy(logits.view(-<span class="tok-n">1</span>, logits.size(-<span class="tok-n">1</span>)),
+                               targets.view(-<span class="tok-n">1</span>), ignore_index=-<span class="tok-n">1</span>)
+    <span class="tok-k">else</span>:                                  <span class="tok-c"># --- inference ---</span>
+        logits = self.lm_head(x[:, [-<span class="tok-n">1</span>], :])  <span class="tok-c"># last position only</span>
+        loss = <span class="tok-k">None</span>
+    <span class="tok-k">return</span> logits, loss</code></pre>
+  </div>
+  <div class="note"><strong>同一個 forward 的兩面：</strong>有 <code class="inline">targets</code> 時，它計算<em>每個</em>位置的損失（並行訓練）；沒有時，它只處理<em>最後</em>一個位置的 logits——取樣只需這些。</div>
+
+  <h2>讀取批次 — 目標是輸入向後移一位</h2>
+  <div class="card">
+    <div class="card-head"><div class="card-title">get_batch<span class="loc">bfgpt.py:441</span></div><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">get_batch</span>(split):
+    data = np.memmap(path, dtype=np.<span class="tok-t">uint16</span>, mode=<span class="tok-s">'r'</span>)  <span class="tok-c"># re-open each call</span>
+    ix = torch.randint(<span class="tok-f">len</span>(data) - block_size - <span class="tok-n">1</span>, (batch_size,))
+    x = torch.stack([torch.from_numpy(data[i     : i +     block_size]) <span class="tok-k">for</span> i <span class="tok-k">in</span> ix])
+    y = torch.stack([torch.from_numpy(data[i + <span class="tok-n">1</span> : i + <span class="tok-n">1</span> + block_size]) <span class="tok-k">for</span> i <span class="tok-k">in</span> ix])
+    <span class="tok-k">return</span> x.to(device), y.to(device)</code></pre>
+  </div>
+
+  <h2>學習率排程 — 預熱後餘弦衰減</h2>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head"><div class="card-title">get_lr<span class="loc">bfgpt.py:516</span></div></div>
+      <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">get_lr</span>(it):
+    <span class="tok-k">if</span> it &lt; warmup_iters:           <span class="tok-c"># linear warmup</span>
+        <span class="tok-k">return</span> lr * (it+<span class="tok-n">1</span>) / (warmup_iters+<span class="tok-n">1</span>)
+    <span class="tok-k">if</span> it &gt; lr_decay_iters:         <span class="tok-c"># floor</span>
+        <span class="tok-k">return</span> min_lr
+    ratio = (it - warmup_iters) / (lr_decay_iters - warmup_iters)
+    coeff = <span class="tok-n">0.5</span> * (<span class="tok-n">1.0</span> + math.cos(math.pi * ratio))  <span class="tok-c"># cosine</span>
+    <span class="tok-k">return</span> min_lr + coeff * (lr - min_lr)</code></pre>
+    </div>
+    <div class="card-body" style="background:var(--panel); border:1px solid var(--border); border-radius:10px;">
+      <p style="margin:0 0 6px;">線性升温 <span class="pill">100</span> 次迭代至峰值
+      <code class="inline">learning_rate = 1e-3</code>，然後餘弦滑降至
+      <code class="inline">min_lr = 1e-4</code>，共 <span class="pill">2,000</span> 次迭代。</p>
+      <div class="formula">$\eta_t = \eta_{\min} + \tfrac{1}{2}\,(1+\cos\pi r)\,(\eta_{\max}-\eta_{\min})$</div>
+      <p style="margin:0; color:var(--muted); font-size:13px;">每步還要：前向 → 反向 → 梯度裁剪至 1.0 → AdamW 步驟 → <code class="inline">zero_grad</code>。下一批次在反向傳播<em>期間</em>預取，以重疊 H2D 複製。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= GENERATE ========================= -->
+<section class="tab-section" id="tab-generate">
+  <h1>生成 — 逐 token 產生</h1>
+  <p class="lead">
+    取樣是自回歸式的：預測下一個字元，附加它，把整個序列送回去，重複。
+    當序列超過 <code class="inline">block_size</code> 後，從左側裁剪，使上下文視窗向前滑動。
+  </p>
+
+  <div class="card">
+    <div class="card-head"><div class="card-title">GPT.generate<span class="loc">bfgpt.py:226</span></div><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="code"><code><span class="tok-t">@torch.no_grad()</span>
+<span class="tok-k">def</span> <span class="tok-f">generate</span>(self, idx, max_new_tokens, temperature=<span class="tok-n">1.0</span>, top_k=<span class="tok-k">None</span>):
+    <span class="tok-k">for</span> _ <span class="tok-k">in</span> <span class="tok-f">range</span>(max_new_tokens):
+        idx_cond = idx <span class="tok-k">if</span> idx.size(<span class="tok-n">1</span>) &lt;= self.config.block_size \
+                   <span class="tok-k">else</span> idx[:, -self.config.block_size:]   <span class="tok-c"># crop to context</span>
+        logits, _ = self(idx_cond)
+        logits = logits[:, -<span class="tok-n">1</span>, :] / temperature           <span class="tok-c"># 1. reshape distribution</span>
+        <span class="tok-k">if</span> top_k <span class="tok-k">is not</span> <span class="tok-k">None</span>:
+            v, _ = torch.topk(logits, <span class="tok-f">min</span>(top_k, logits.size(-<span class="tok-n">1</span>)))
+            logits[logits &lt; v[:, [-<span class="tok-n">1</span>]]] = -<span class="tok-f">float</span>(<span class="tok-s">'Inf'</span>)   <span class="tok-c"># 2. keep top-k</span>
+        probs = F.softmax(logits, dim=-<span class="tok-n">1</span>)               <span class="tok-c"># 3. to probabilities</span>
+        idx_next = torch.multinomial(probs, num_samples=<span class="tok-n">1</span>)  <span class="tok-c"># 4. draw one</span>
+        idx = torch.cat((idx, idx_next), dim=<span class="tok-n">1</span>)           <span class="tok-c"># 5. append &amp; repeat</span>
+    <span class="tok-k">return</span> idx</code></pre>
+  </div>
+
+  <div class="canvas-card">
+    <h3>取樣工作室 — 提示詞 "ROMEO" 之後</h3>
+    <p style="color:var(--muted); font-size:13px; margin:0 0 12px;">
+      模型對每個可能的下一個字元輸出一個 logit。<code class="inline">generate()</code>
+      除以 <strong>temperature</strong>，保留 <strong>top-k</strong>，softmax 後抽樣。
+      移動旋鈕，感受分佈的變化。
+    </p>
+    <div class="grid-2">
+      <div>
+        <div class="bars" id="sampBars"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;">
+          <button class="btn" onclick="sampleOnce()">取樣 1 個字元</button>
+          <button class="btn ghost" onclick="sampleMany()">自動 ×24</button>
+          <button class="btn ghost" onclick="clearSamp()">清除</button>
+        </div>
+        <div id="sampOut" style="font-family:ui-monospace,monospace; font-size:13px; color:var(--accent); margin-top:10px; min-height:18px;"></div>
+        <div id="sampHist" style="font-family:ui-monospace,monospace; font-size:14px; color:var(--text); margin-top:6px; word-break:break-all;"></div>
+      </div>
+      <div>
+        <div class="slider-row"><label>temperature</label><input type="range" id="sTemp" min="0.1" max="1.6" step="0.05" value="0.8"><span class="val" id="sTempV">0.80</span></div>
+        <div style="color:var(--muted); font-size:11.5px; margin:-2px 0 12px;">→0.1 = 貪婪且銳利 · →1.6 = 隨機且平坦</div>
+        <div class="slider-row"><label>top-k</label><input type="range" id="sTopk" min="1" max="8" step="1" value="8"><span class="val" id="sTopkV">8</span></div>
+        <div style="color:var(--muted); font-size:11.5px; margin:-2px 0 12px;">只保留最可能的 k 個；其餘清零（灰色柱）</div>
+        <div class="note" style="margin-top:6px;"><strong>玩具詞彙：</strong>8 個字元，手動設定的基礎 logits。真實模型對全部 65 個字元使用同樣的四個步驟。</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>sample 與 chat 的差異</h2>
+  <div class="grid-2">
+    <div class="card"><div class="card-head"><div class="card-title">cmd_sample<span class="loc">bfgpt.py:620</span></div></div>
+      <div class="card-body">編碼提示詞 → <code class="inline">generate()</code> → 解碼 → 印出，執行 <code class="inline">--num-samples</code> 次。<code class="inline">FILE:path</code> 從磁碟讀取提示詞；空提示詞以詞彙字元 0 作為種子。</div></div>
+    <div class="card"><div class="card-head"><div class="card-title">cmd_chat<span class="loc">bfgpt.py:643</span></div></div>
+      <div class="card-body">相同的迴圈包裹在 REPL 中——模型常駐記憶體，每次對話跳過重新載入。輸入 <code class="inline">:q</code>、<code class="inline">exit</code> 或 Ctrl-D 退出。</div></div>
+  </div>
+
+  <div class="note">
+    <strong>自給自足的檢查點：</strong><code class="inline">_load_for_inference</code> 從
+    <code class="inline">model_args</code> 重建模型，從內嵌的 <code class="inline">meta</code> 重建分詞器——
+    因此 <code class="inline">sample</code> 和 <code class="inline">chat</code>
+    只需 <code class="inline">ckpt.pt</code>，不需要其他任何東西。
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <h1>練習 — 打出這台機器</h1>
+  <p class="lead">
+    十七道練習涵蓋整個檔案：分詞器、模型、生成、訓練與 CLI。
+    Tab 在空格間移動 · Enter 檢查 · Hint 顯示所有未解空格（切換）。
+  </p>
+
+  <h2>分詞器與資料</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">1</span> 詞彙表是排序後去重的字元。填入去重呼叫。</div>
+    <pre class="exercise">chars = sorted(<input class="blank" data-answer="set" size="6" placeholder="?">(text))</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">2</span> <code>encode</code> 透過哪個字典將每個字元對應到其 id？</div>
+    <pre class="exercise">def encode(self, s):
+    return [self.<input class="blank" data-answer="stoi" size="6" placeholder="?">[c] for c in s]</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">3</span> Token id 寫入哪種 NumPy 資料型別（每個 2 位元組）？</div>
+    <pre class="exercise">train_ids = np.array(tok.encode(train_data), dtype=np.<input class="blank" data-answer="uint16" size="7" placeholder="?">)</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">4</span> 文件以哪個分隔符號串成一個串流？</div>
+    <pre class="exercise">data = "<input class="blank" data-answer="\n\n|\\n\\n" size="6" placeholder="?">".join(texts)</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>模型</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">5</span> Block 是前正規化：在注意力之前正規化。填入正規化層。</div>
+    <pre class="exercise">def forward(self, x):
+    x = x + self.attn(self.<input class="blank" data-answer="ln_1" size="6" placeholder="?">(x))
+    x = x + self.mlp(self.ln_2(x))
+    return x</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">6</span> Q、K 和 V 來自一次矩陣乘法，然後沿 dim 2 三等分。</div>
+    <pre class="exercise">q, k, v = self.c_attn(x).<input class="blank" data-answer="split" size="7" placeholder="?">(self.n_embd, dim=2)</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">7</span> MLP 在投影回去之前將寬度擴展幾倍？</div>
+    <pre class="exercise">self.c_fc = nn.Linear(config.n_embd, <input class="blank" data-answer="4" size="3" placeholder="?"> * config.n_embd, bias=config.bias)</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">8</span> 權重共享——token 嵌入與哪一層共用矩陣？</div>
+    <pre class="exercise"># weight tying between token embedding and output projection
+self.transformer.wte.weight = self.<input class="blank" data-answer="lm_head" size="8" placeholder="?">.weight</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">9</span> 推論時，forward 只計算哪個位置的 logits？（Python 索引）</div>
+    <pre class="exercise"># inference: only the final position
+logits = self.lm_head(x[:, <input class="blank" data-answer="[-1]|-1" size="6" placeholder="?">, :])
+loss = None</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>生成與取樣</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">10</span> 隨著序列增長，從左側裁剪至最後幾個什麼？</div>
+    <pre class="exercise">idx_cond = idx if idx.size(1) &lt;= self.config.block_size \
+           else idx[:, -self.config.<input class="blank" data-answer="block_size" size="11" placeholder="?">:]</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">11</span> 將 logits 除以哪個旋鈕來改變分佈形狀？</div>
+    <pre class="exercise">logits = logits[:, -1, :] / <input class="blank" data-answer="temperature|temp" size="12" placeholder="?"></pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">12</span> 從機率分佈中抽取一個 token id。使用哪個 torch 函數？</div>
+    <pre class="exercise">probs = F.softmax(logits, dim=-1)
+idx_next = torch.<input class="blank" data-answer="multinomial" size="12" placeholder="?">(probs, num_samples=1)</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>訓練</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">13</span> 目標是輸入向後移一位。填入偏移量。</div>
+    <pre class="exercise">x = data[i      : i + block_size]
+y = data[i + <input class="blank" data-answer="1" size="3" placeholder="?"> : i + 1 + block_size]</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">14</span> 訓練損失是對 logits 和目標使用哪個函數？</div>
+    <pre class="exercise">loss = F.<input class="blank" data-answer="cross_entropy" size="13" placeholder="?">(logits.view(-1, logits.size(-1)), targets.view(-1))</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">15</span> 預熱後，學習率遵循餘弦曲線。填入三角函數呼叫。</div>
+    <pre class="exercise">coeff = 0.5 * (1.0 + math.<input class="blank" data-answer="cos" size="5" placeholder="?">(math.pi * ratio))
+return min_lr + coeff * (learning_rate - min_lr)</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2>CLI</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">16</span> 標準三步驟工作流程——填入中間步驟。</div>
+    <pre class="exercise">make download &amp;&amp; make <input class="blank" data-answer="train" size="7" placeholder="?"> &amp;&amp; make sample</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="num">17</span> <code>--device auto</code> 按優先順序解析：cuda → ? → cpu。</div>
+    <pre class="exercise">def resolve_device(name):
+    if torch.cuda.is_available(): return 'cuda'
+    if torch.backends.<input class="blank" data-answer="mps" size="5" placeholder="?">.is_available(): return 'mps'
+    return 'cpu'</pre>
+    <div class="controls"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note" style="margin-top:24px;">
+    <strong>十七題全部完成了嗎？</strong>現在你可以閱讀 <code class="inline">bfgpt.py</code> 的每一行。
+    前往 <a href="https://github.com/leejw51/bfgpt" style="color:var(--accent)">github.com/leejw51/bfgpt</a>
+    取得真正的程式碼，並執行 <code class="inline">make download &amp;&amp; make train &amp;&amp; make sample</code>。
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>鍵盤快捷鍵</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>跳到下一個空格</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>檢查當前練習</td></tr>
+      <tr><td><kbd>?</kbd></td><td>顯示這個說明</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>7</kbd></td><td>切換分頁</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>關閉浮層</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">點擊任何地方關閉。</p>
+  </div>
+</div>
+
+<footer>
+  <strong style="color: var(--accent);">完全在瀏覽器端執行</strong> — 分詞器沙盒、超參數計算
+  和取樣工作室均在你的瀏覽器中以 JavaScript 運行。
+  <a href="https://github.com/leejw51/bfgpt">bfgpt</a> 的學習夥伴 · 單一檔案的輕量裝置端 GPT。
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+function countDrills() { return document.querySelectorAll('.blank').length; }
+document.getElementById('scoreTot').textContent = totalDrills;
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1'; b.disabled = true; newlySolved++;
+    }
+  });
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good'; fb.textContent = randomGood();
+    if (newlySolved > 0) { solved += newlySolved; streak += newlySolved; sparkle(drill); updateProgress(); checkSectionComplete(); }
+  } else if (newlySolved > 0) {
+    solved += newlySolved; streak += newlySolved;
+    fb.className = 'feedback good'; fb.textContent = '部分正確 — 答對 ' + newlySolved + ' 個，繼續加油。';
+    updateProgress();
+  } else {
+    streak = 0; fb.className = 'feedback bad'; fb.textContent = randomBad(); updateProgress();
+  }
+}
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = ''; b.classList.remove('correct', 'wrong'); b.disabled = false;
+        b.dataset.revealed = ''; b.dataset.solved = ''; solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved'); drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint'; fb.textContent = '答案已隱藏 — 試著自己打出來';
+    updateProgress(); return;
+  }
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want; b.classList.remove('wrong'); b.classList.add('correct');
+    b.dataset.solved = '1'; b.dataset.revealed = '1'; b.disabled = true; revealedCount++;
+  });
+  if (revealedCount === 0) { fb.className = 'feedback hint'; fb.textContent = '全部完成。'; return; }
+  solved += revealedCount; streak = 0; drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) { drill.classList.add('solved'); sparkle(drill); }
+  fb.className = 'feedback hint'; fb.textContent = '所有答案已顯示 · 再次點擊可隱藏';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+function randomGood() {
+  const m = ['不錯。', '正確！', '一針見血。', '✓ 正是如此。', '銳利。', '就是這個。', '乾淨利落。', 'bfgpt 認可。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['還沒對 — 再試一次。', '差一點。要看看提示嗎？', '快了。檢查拼字。', '紅燈。再試一次。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) { const checkBtn = drill.querySelector('.btn:not(.ghost)'); if (checkBtn) checkBtn.click(); }
+    }
+  }
+});
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('區段完成！🎉  +' + drills.length + ' 已解');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span'); c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `position: fixed; left: ${rect.left + rect.width / 2}px; top: ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%; background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90; box-shadow: 0 0 10px var(--accent);`;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200, dy = -Math.random() * 80 - 40;
+    s.animate([{ transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }],
+      { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() { confCanvas.width = window.innerWidth; confCanvas.height = window.innerHeight; }
+sizeConf(); window.addEventListener('resize', sizeConf);
+let particles = [];
+function burstConfetti() {
+  const colors = ['#4fe0b0','#6ef2c4','#a5f3eb','#f0b541','#f06ba8','#7c8cf8','#ffffff'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({ x: window.innerWidth / 2 + (Math.random() - 0.5) * 80, y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 12 - 4, g: 0.32,
+      size: Math.random() * 5 + 3, color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 0.4, life: 120 + Math.random() * 40 });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      confCtx.save(); confCtx.translate(p.x, p.y); confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color; confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size); confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame); else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.classList.add('copied'); btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== TOKENIZER SANDBOX ==============
+function showChar(ch) {
+  if (ch === ' ') return '␣';
+  if (ch === '\n') return '⏎';
+  if (ch === '\t') return '⇥';
+  return ch;
+}
+function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function updateTokenizer() {
+  const input = document.getElementById('tokInput');
+  if (!input) return;
+  const text = input.value;
+  const vocab = [...new Set(text)].sort();
+  const stoi = {}; vocab.forEach((c, i) => stoi[c] = i);
+
+  document.getElementById('tkVocab').textContent = vocab.length;
+  document.getElementById('tkChars').textContent = text.length;
+  document.getElementById('tkToks').textContent = text.length;
+
+  const grid = document.getElementById('tkVocabGrid');
+  grid.innerHTML = '';
+  vocab.forEach((c, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'vocab-cell';
+    cell.innerHTML = `<span class="id">${i}:</span><span class="ch">${escHtml(showChar(c))}</span>`;
+    grid.appendChild(cell);
+  });
+
+  const encRow = document.getElementById('tkEncRow');
+  encRow.innerHTML = '';
+  const ids = [...text].map(c => stoi[c]);
+  [...text].forEach((c, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'tok-chip';
+    chip.innerHTML = `${escHtml(showChar(c))} <span class="cid">${ids[i]}</span>`;
+    encRow.appendChild(chip);
+  });
+
+  const itos = {}; vocab.forEach((c, i) => itos[i] = c);
+  const decoded = ids.map(i => itos[i]).join('');
+  document.getElementById('tkDecode').textContent =
+    'ids  = [' + ids.join(', ') + ']\n' +
+    'text = ' + JSON.stringify(decoded) + (decoded === text ? '   ✓ 完整來回轉換' : '');
+}
+const tokInputEl = document.getElementById('tokInput');
+if (tokInputEl) { tokInputEl.addEventListener('input', updateTokenizer); updateTokenizer(); }
+
+// ============== ARCHITECTURE STATS ==============
+const ARCH_DEFAULT = { B: 32, T: 64, C: 128, L: 4, H: 4, V: 65 };
+function fmtNum(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'G';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return String(Math.round(n));
+}
+function flash(boxId) {
+  const el = document.getElementById(boxId);
+  if (!el) return;
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+function updateArch() {
+  const B = +document.getElementById('cB').value;
+  const T = +document.getElementById('cT').value;
+  const C = +document.getElementById('cC').value;
+  const L = +document.getElementById('cL').value;
+  const H = +document.getElementById('cH').value;
+  const V = +document.getElementById('cV').value;
+  document.getElementById('vB').textContent = B;
+  document.getElementById('vT').textContent = T;
+  document.getElementById('vC').textContent = C;
+  document.getElementById('vL').textContent = L;
+  document.getElementById('vH').textContent = H;
+  document.getElementById('vV').textContent = V.toLocaleString();
+
+  const divisible = (C % H === 0);
+  document.getElementById('archWarn').style.display = divisible ? 'none' : 'block';
+  document.getElementById('rowC').classList.toggle('warnme', !divisible);
+  document.getElementById('rowH').classList.toggle('warnme', !divisible);
+
+  // parameters
+  const embTok = V * C, embPos = T * C, perBlock = 12 * C * C + 2 * C;
+  const blocks = perBlock * L, lnF = C;
+  const total = embTok + embPos + blocks + lnF;
+  document.getElementById('oParams').textContent = fmtNum(total);
+  document.getElementById('oParamsSub').textContent =
+    `emb ${fmtNum(embTok + embPos)} · blocks ${fmtNum(blocks)} · per blk≈12·C²`;
+
+  // head dim
+  const headDim = divisible ? (C / H) : NaN;
+  document.getElementById('oHead').textContent = divisible ? `${headDim} × ${H}` : `✗ × ${H}`;
+
+  // attn shape
+  document.getElementById('oAttn').textContent = `(${B}, ${H}, ${T}, ${T})`;
+
+  // flops/token
+  const flops = 2 * total + 4 * L * H * T * (divisible ? headDim : C / H);
+  document.getElementById('oFlops').textContent = fmtNum(flops);
+
+  // tokens/batch
+  document.getElementById('oTok').textContent = (B * T).toLocaleString();
+
+  // activation memory
+  const bytes = B * T * C * 12 * L * 4;
+  document.getElementById('oMem').textContent = (bytes / 1e6).toFixed(1) + ' MB';
+
+  ['boxParams','boxHead','boxAttn','boxFlops','boxTok','boxMem'].forEach(flash);
+}
+['cB','cT','cC','cL','cH','cV'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateArch);
+});
+const archResetBtn = document.getElementById('archReset');
+if (archResetBtn) archResetBtn.addEventListener('click', () => {
+  document.getElementById('cB').value = ARCH_DEFAULT.B;
+  document.getElementById('cT').value = ARCH_DEFAULT.T;
+  document.getElementById('cC').value = ARCH_DEFAULT.C;
+  document.getElementById('cL').value = ARCH_DEFAULT.L;
+  document.getElementById('cH').value = ARCH_DEFAULT.H;
+  document.getElementById('cV').value = ARCH_DEFAULT.V;
+  updateArch();
+});
+if (document.getElementById('cB')) updateArch();
+
+// ============== SAMPLING STUDIO ==============
+const SAMP_VOCAB = [':', '\\n', ' ', 'E', 'O', 'T', ',', 'W'];
+const SAMP_BASE = [3.4, 2.6, 2.1, 1.4, 1.1, 0.9, 0.6, 0.2];
+let sampHistory = '';
+function sampProbs() {
+  const temp = +document.getElementById('sTemp').value;
+  const topk = +document.getElementById('sTopk').value;
+  // scale by temperature
+  let logits = SAMP_BASE.map(l => l / temp);
+  // top-k mask: keep the k largest, set the rest to -inf
+  const sorted = [...logits].sort((a, b) => b - a);
+  const cutoff = sorted[Math.min(topk, logits.length) - 1];
+  const kept = logits.map(l => l >= cutoff - 1e-9);
+  logits = logits.map((l, i) => kept[i] ? l : -Infinity);
+  // softmax
+  const mx = Math.max(...logits.filter(isFinite));
+  const exps = logits.map(l => isFinite(l) ? Math.exp(l - mx) : 0);
+  const sum = exps.reduce((a, b) => a + b, 0);
+  const probs = exps.map(e => e / sum);
+  return { probs, kept };
+}
+function renderSampBars(pickedIdx) {
+  const { probs, kept } = sampProbs();
+  const wrap = document.getElementById('sampBars');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const maxP = Math.max(...probs);
+  probs.forEach((p, i) => {
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    const pct = document.createElement('div'); pct.className = 'bar-pct';
+    pct.textContent = (p * 100).toFixed(0) + '%';
+    const bar = document.createElement('div'); bar.className = 'bar';
+    if (!kept[i]) bar.classList.add('muted');
+    if (i === pickedIdx) bar.classList.add('picked');
+    bar.style.height = (maxP > 0 ? (p / maxP) * 130 : 0) + 'px';
+    const lab = document.createElement('div'); lab.className = 'bar-label';
+    lab.textContent = SAMP_VOCAB[i];
+    col.appendChild(pct); col.appendChild(bar); col.appendChild(lab);
+    wrap.appendChild(col);
+  });
+}
+function drawSample() {
+  const { probs } = sampProbs();
+  let r = Math.random(), acc = 0, idx = 0;
+  for (let i = 0; i < probs.length; i++) { acc += probs[i]; if (r <= acc) { idx = i; break; } }
+  return { idx, p: probs[idx] };
+}
+function sampleOnce() {
+  const { idx, p } = drawSample();
+  renderSampBars(idx);
+  const ch = SAMP_VOCAB[idx];
+  document.getElementById('sampOut').textContent = `抽到 '${ch}' — id ${idx}, p=${(p * 100).toFixed(0)}%`;
+  sampHistory += (ch === '\\n' ? '⏎' : ch);
+  document.getElementById('sampHist').textContent = 'ROMEO' + sampHistory;
+}
+function sampleMany() {
+  let i = 0;
+  const iv = setInterval(() => { sampleOnce(); if (++i >= 24) clearInterval(iv); }, 80);
+}
+function clearSamp() {
+  sampHistory = '';
+  document.getElementById('sampHist').textContent = '';
+  document.getElementById('sampOut').textContent = '';
+  renderSampBars(-1);
+}
+['sTemp', 'sTopk'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', () => {
+    document.getElementById('sTempV').textContent = (+document.getElementById('sTemp').value).toFixed(2);
+    document.getElementById('sTopkV').textContent = document.getElementById('sTopk').value;
+    renderSampBars(-1);
+  });
+});
+if (document.getElementById('sampBars')) renderSampBars(-1);
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'pipeline','3':'tokenizer','4':'arch','5':'code','6':'generate','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+updateProgress();
+</script>
+</body>
+</html>

@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>输入嵌入 · 查找表是如何训练的</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --bg-3: #1a1a26;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --ink-faint: #5a564e;
+    --line: rgba(255, 240, 220, 0.09);
+    --line-soft: rgba(255, 240, 220, 0.05);
+    --grid: rgba(255, 240, 220, 0.035);
+    --accent: #2dd4bf;          /* teal */
+    --accent-2: #f0abfc;        /* fuchsia */
+    --good: #a3e635;            /* lime */
+    --bad: #fb7185;             /* rose */
+    --warn: #fbbf24;
+    --code-bg: #08101e;
+    --serif: 'Fraunces', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at 80% -10%, rgba(45, 212, 191, 0.12), transparent 55%),
+      radial-gradient(ellipse at 0% 110%, rgba(240, 171, 252, 0.06), transparent 50%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection { background: var(--accent); color: #050510; }
+
+  /* ============ STICKY TOP ============ */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 80;
+    background: rgba(10, 10, 15, 0.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 16px 32px; max-width: 1280px; margin: 0 auto;
+  }
+  .brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.32em;
+    text-transform: uppercase; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .brand .mark { color: var(--accent); font-size: 13px; filter: drop-shadow(0 0 6px var(--accent)); }
+  .brand b { font-weight: 700; }
+  .progress-bar-outer {
+    flex: 1; min-width: 140px; height: 2px;
+    background: rgba(255, 240, 220, 0.12); position: relative; overflow: hidden;
+  }
+  .progress-bar-inner {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 16px var(--accent);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--ink-dim); display: flex; align-items: baseline; gap: 5px; white-space: nowrap;
+  }
+  .stat .num { font-family: var(--serif); font-weight: 600; font-size: 22px; color: var(--ink); font-feature-settings: "tnum"; }
+  .stat .num#scoreNum { color: var(--accent); }
+  .stat .lbl { text-transform: uppercase; font-size: 9px; letter-spacing: 0.22em; }
+  .streak { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 5px; }
+  .streak .num { font-family: var(--serif); font-weight: 600; color: var(--accent-2); font-size: 18px; }
+  .help-btn {
+    font-family: var(--mono); font-size: 13px; width: 30px; height: 30px;
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--line); cursor: pointer; transition: all 0.15s;
+  }
+  .help-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  nav.tabs {
+    display: flex; gap: 2px; flex-wrap: wrap;
+    padding: 0 32px; max-width: 1280px; margin: 0 auto;
+    border-top: 1px solid var(--line-soft);
+  }
+  nav.tabs button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 14px 15px; cursor: pointer; transition: all 0.18s;
+  }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .tnum { color: var(--ink-faint); margin-right: 7px; transition: color 0.18s; }
+  nav.tabs button.active .tnum { color: var(--accent-2); }
+  nav.tabs button .check { color: var(--good); margin-left: 7px; }
+
+  /* ============ LAYOUT ============ */
+  main { max-width: 1280px; margin: 0 auto; padding: 56px 32px 120px; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: rise 0.45s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--accent); display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ''; width: 34px; height: 1px; background: var(--accent); }
+
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-size: clamp(44px, 7vw, 96px);
+    line-height: 0.94; letter-spacing: -0.035em; margin-bottom: 26px; max-width: 16ch;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+
+  .lede {
+    font-size: clamp(16px, 1.9vw, 20px); max-width: 720px; line-height: 1.55;
+    color: var(--ink-dim); font-weight: 300; margin-bottom: 8px;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .lede em { font-style: italic; color: var(--ink); }
+  .lede code, p code, li code { font-family: var(--mono); font-size: 0.88em; color: var(--accent-2); background: var(--code-bg); padding: 1px 6px; border-radius: 2px; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--ink-dim);
+    display: flex; align-items: center; gap: 16px; margin: 56px 0 28px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  h3 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 24px; margin-bottom: 12px; letter-spacing: -0.01em; }
+  p { color: var(--ink-dim); max-width: 720px; margin-bottom: 14px; }
+  p strong, .ink { color: var(--ink); font-weight: 600; }
+  p em { font-style: italic; color: var(--ink); }
+  ul { color: var(--ink-dim); margin: 0; padding-left: 0; list-style: none; }
+  ul li { margin: 9px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- panel w/ corner brackets ---------- */
+  .panel { background: var(--bg-2); border: 1px solid var(--line); padding: 32px; margin: 22px 0; position: relative; }
+  .panel.tight { padding: 22px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 22px; height: 22px; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .panel-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* ---------- idea cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 26px 0; }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 820px) { .cards, .cards.three { grid-template-columns: 1fr; } }
+  .idea { background: var(--bg-2); padding: 28px 26px; position: relative; }
+  .idea .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .idea h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 21px; margin-bottom: 10px; }
+  .idea p { font-size: 14px; margin: 0; }
+  .idea code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+
+  /* ---------- shape pills ---------- */
+  .shapes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0; font-family: var(--mono); }
+  .pill {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em;
+    background: var(--bg-3); border: 1px solid var(--line); color: var(--ink);
+    padding: 5px 11px; border-radius: 2px; white-space: nowrap;
+  }
+  .pill b { color: var(--accent); font-weight: 700; }
+  .pill.out b { color: var(--good); }
+  .pill.dim { color: var(--ink-dim); }
+  .shapes .to { color: var(--ink-faint); font-family: var(--serif); font-style: italic; font-size: 20px; }
+  .shapes .plus { color: var(--accent); font-family: var(--serif); font-size: 22px; }
+  .shapes .times { color: var(--accent-2); font-family: var(--serif); font-size: 22px; }
+
+  /* ---------- flow row (training cycle) ---------- */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 24px 0; }
+  .flow .step {
+    flex: 1; min-width: 150px; background: var(--bg-2); border: 1px solid var(--line);
+    padding: 18px 16px; position: relative;
+  }
+  .flow .step + .step { border-left: none; }
+  .flow .step .sn { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; }
+  .flow .step h4 { font-family: var(--serif); font-style: italic; font-size: 18px; font-weight: 600; margin: 6px 0; }
+  .flow .step p { font-size: 12.5px; margin: 0; color: var(--ink-dim); }
+  .flow .arr { display: flex; align-items: center; color: var(--accent-2); font-size: 20px; padding: 0 4px; }
+  @media (max-width: 760px) { .flow { flex-direction: column; } .flow .arr { transform: rotate(90deg); padding: 4px 0; } }
+
+  /* ---------- note ---------- */
+  .note {
+    border-left: 2px solid var(--accent); background: rgba(45, 212, 191, 0.07);
+    padding: 14px 20px; margin: 22px 0; font-size: 14px; color: var(--ink-dim); max-width: 820px;
+  }
+  .note strong { color: var(--accent); }
+  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+  .note.mint { border-left-color: var(--good); background: rgba(163, 230, 53, 0.05); }
+  .note.mint strong { color: var(--good); }
+  .note.warn { border-left-color: var(--warn); background: rgba(251, 191, 36, 0.06); }
+  .note.warn strong { color: var(--warn); }
+
+  /* ---------- formula panel ---------- */
+  .formula-panel {
+    background: var(--code-bg); border: 1px solid var(--line);
+    padding: 26px 28px; margin: 20px 0; text-align: center; overflow-x: auto;
+  }
+  .katex { color: var(--ink); }
+  .katex-display { margin: 14px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+  /* ---------- lab (canvas + controls) ---------- */
+  .lab { display: grid; grid-template-columns: 1.25fr 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 860px) { .lab { grid-template-columns: 1fr; gap: 22px; } }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg); border: 1px solid var(--line);
+  }
+  .cmap-legend { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10px; color: var(--ink-dim); margin-top: 12px; flex-wrap: wrap; }
+  .cmap-bar { height: 10px; flex: 1; min-width: 140px; max-width: 230px; border: 1px solid var(--line); background: linear-gradient(90deg, #2dd4bf, #08101e 50%, #f0abfc); }
+
+  .ctrl { margin-bottom: 22px; }
+  .ctrl-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .ctrl-name { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--ink-dim); }
+  .ctrl-val { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--ink); font-feature-settings: "tnum"; line-height: 1; }
+  .ctrl-val.word { font-style: italic; font-size: 26px; color: var(--accent); }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 2px;
+    background: rgba(255, 240, 220, 0.15); outline: none; cursor: pointer; margin: 4px 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent);
+    cursor: pointer; border-radius: 0; box-shadow: 0 0 0 1px var(--bg), 0 0 18px var(--accent); transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25) rotate(45deg); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; background: var(--accent); border: none; cursor: pointer;
+    box-shadow: 0 0 0 1px var(--bg), 0 0 18px var(--accent);
+  }
+  .ctrl-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em; margin-top: 6px; }
+  .lab-readout { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+  .lab-readout b { color: var(--accent); }
+
+  /* ---------- token chips (training batch) ---------- */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+  .chip {
+    font-family: var(--mono); font-size: 12px; padding: 4px 9px;
+    background: var(--bg-3); border: 1px solid var(--accent); color: var(--ink); border-radius: 2px;
+  }
+  .chip b { color: var(--accent); }
+
+  /* ---------- similarity ranking list ---------- */
+  .simlist { font-family: var(--mono); font-size: 12px; margin-top: 16px; }
+  .simlist .row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .simlist .nm { width: 56px; color: var(--ink); }
+  .simlist .track { flex: 1; height: 9px; background: var(--bg-3); border: 1px solid var(--line); position: relative; }
+  .simlist .fill { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  .simlist .sv { width: 48px; text-align: right; color: var(--ink-dim); }
+
+  /* ---------- variants compare ---------- */
+  .vcompare { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 900px) { .vcompare { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .vcompare { grid-template-columns: 1fr; } }
+  .vcol { background: var(--bg-2); padding: 24px 20px; }
+  .vcol .vh { font-family: var(--serif); font-style: italic; font-size: 22px; font-weight: 600; margin-bottom: 3px; }
+  .vcol .vsub { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+  .vrow { margin: 12px 0; }
+  .vrow .vk { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 3px; }
+  .vrow .vv { font-size: 13.5px; color: var(--ink); line-height: 1.45; }
+  .vrow .vv code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); background: var(--code-bg); padding: 1px 5px; }
+  .vrow .vv em { font-style: italic; color: var(--accent); }
+
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .mini-grid { grid-template-columns: 1fr; } }
+  .mini { background: var(--bg-2); padding: 22px 20px; }
+  .mini .op { font-family: var(--serif); font-size: 34px; font-weight: 300; color: var(--accent); line-height: 1; }
+  .mini h4 { font-family: var(--serif); font-style: italic; font-size: 18px; font-weight: 600; margin: 8px 0 8px; }
+  .mini p { font-size: 13px; margin: 0; }
+
+  /* ---------- code ---------- */
+  pre.code, pre.exercise {
+    background: var(--code-bg); border-left: 2px solid var(--accent);
+    padding: 20px 24px; font-family: var(--mono); font-size: 13px; line-height: 1.85;
+    overflow-x: auto; margin: 0; color: var(--ink-dim);
+  }
+  pre.exercise { font-size: 14px; line-height: 2.15; }
+  .kw { color: #f0abfc; } .fn { color: #5eead4; } .st { color: #fbbf24; } .nm2 { color: #f4f0e6; }
+  .cm { color: var(--ink-faint); font-style: italic; }
+  .copy-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* ============ DRILLS ============ */
+  .drill {
+    background: var(--bg-2); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    padding: 22px 24px; margin: 16px 0; transition: border-color 0.2s;
+  }
+  .drill.solved { border-left-color: var(--good); background: linear-gradient(100deg, rgba(163,230,53,0.05), transparent 60%); }
+  .drill .prompt { font-size: 16px; color: var(--ink); margin-bottom: 14px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .drill .prompt .pn { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: 0 0 auto; }
+  .drill.solved .prompt .pn { color: var(--good); }
+  .drill .prompt code { font-family: var(--mono); font-size: 14px; color: var(--accent-2); }
+  pre.exercise .blank, .drill .blank {
+    display: inline-block; min-width: 64px; max-width: 260px; padding: 3px 10px;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--accent);
+    font-family: var(--mono); font-size: 14px; text-align: center; outline: none; border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .blank:focus { box-shadow: 0 0 0 2px rgba(45,212,191,0.3); background: rgba(45,212,191,0.06); }
+  .blank.correct { border-color: var(--good); color: var(--good); background: rgba(163,230,53,0.08); animation: pop 220ms ease-out; }
+  .blank.wrong { border-color: var(--bad); color: var(--bad); animation: shake 240ms ease-in-out; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.13)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .controls-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+    background: var(--accent); color: #050510; border: none; padding: 9px 18px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  .btn:hover { filter: brightness(1.12); box-shadow: 0 0 18px rgba(45,212,191,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink-dim); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .feedback { margin-top: 12px; font-size: 13px; min-height: 16px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); } .feedback.bad { color: var(--bad); } .feedback.hint { color: var(--ink-faint); font-style: italic; }
+
+  /* ============ CONFETTI / TOAST / HELP ============ */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; background: transparent; border: none; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(48px);
+    background: var(--bg-2); border: 1px solid var(--accent); color: var(--ink);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 12px 22px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 22px rgba(45,212,191,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 160;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,5,8,0.78); backdrop-filter: blur(6px);
+    z-index: 210; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: rise 0.25s ease; }
+  #help-overlay .help-content { background: var(--bg-2); border: 1px solid var(--line); padding: 34px 38px; max-width: 460px; width: 100%; position: relative; }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  #help-overlay h3 { color: var(--accent); font-style: italic; margin-bottom: 16px; }
+  #help-overlay table { width: 100%; font-family: var(--mono); font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--ink-dim); }
+  kbd { font-family: var(--mono); background: var(--code-bg); border: 1px solid var(--line); padding: 2px 9px; color: var(--accent); font-size: 12px; }
+
+  footer {
+    max-width: 1280px; margin: 70px auto 0; padding: 28px 32px 50px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.04em;
+  }
+  footer a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="brand"><span class="mark">◆</span> <b>EMBEDDING</b></div>
+    <div class="progress-bar-outer" title="总体进度"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat" title="已解题数"><span class="num" id="scoreNum">0</span><span style="color:var(--ink-faint)">/</span><span class="num" id="scoreTot">0</span><span class="lbl">已解</span></div>
+    <div class="streak" title="连击">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="help-btn" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome"><span class="tnum">01</span>为什么</button>
+    <button data-tab="table"><span class="tnum">02</span>查找表</button>
+    <button data-tab="lookup"><span class="tnum">03</span>查找实验</button>
+    <button data-tab="train"><span class="tnum">04</span>训练</button>
+    <button data-tab="semantic"><span class="tnum">05</span>语义</button>
+    <button data-tab="tie"><span class="tnum">06</span>权重共享</button>
+    <button data-tab="drills"><span class="tnum">07</span>练习</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <div class="eyebrow">Attention Is All You Need · 输入层</div>
+  <h1>输入嵌入如何<em>学习</em></h1>
+  <p class="lede">
+    分词器将 <code>[464, 3797, 3332]</code> 这样的整数列表交给模型。<strong>输入嵌入</strong>把每个 ID 转换为大小为 $d_{model}$ 的稠密向量。它并非手工设计——它是一个普通的权重矩阵，<em>从随机噪声出发，由反向传播训练</em>，与其他所有参数完全一样。本指南跟随
+    <a href="https://nlp.seas.harvard.edu/2018/04/03/attention.html">The Annotated Transformer</a>，精确展示该表是如何构建、输入和学习的。
+  </p>
+
+  <h2 class="sec"><span class="num">01</span> 一句话核心思想</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">它是什么</div>
+      <h4>可学习的查找</h4>
+      <p>矩阵 $E \in \mathbb{R}^{V \times D}$ — 词表中每个词元对应一个可训练的<em>行</em>。词元的嵌入就是按索引取出的那一行。</p>
+    </div>
+    <div class="idea">
+      <div class="k">如何学习</div>
+      <h4>梯度下降</h4>
+      <p>各行初始化为随机值（Xavier 初始化）。每次训练步，损失梯度只更新批次中出现过的行。重复数百万次后，几何结构自然浮现。</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>"我们使用<em>可学习</em>嵌入。"</strong> 论文明确指出：输入和输出词元嵌入并非固定——它们是权重。没有单独的"嵌入训练"阶段；该表与注意力层和前馈层在同一语言/翻译损失下联合优化。
+  </div>
+
+  <h2 class="sec"><span class="num">01·b</span> 它在哪里</h2>
+  <div class="panel">
+    <div class="panel-label">形状 · 嵌入层新增特征轴 D</div>
+    <div class="shapes">
+      <span class="pill dim">词元 ID <b>[B, T]</b></span>
+      <span class="to">→</span>
+      <span class="pill">嵌入 × √D <b>[B, T, D]</b></span>
+      <span class="plus">+</span>
+      <span class="pill">PE[:T] <b>[T, D]</b></span>
+      <span class="to">→</span>
+      <span class="pill out">编码器 <b>[B, T, D]</b></span>
+    </div>
+    <p style="margin:18px 0 0; font-size:14px;">
+      $B$ = 批大小，$T$ = 序列长度，$D = d_{model}$（基础模型为 512）。分词器生成 <code>[B, T]</code> 的 ID；嵌入层为每个 ID 查询 <code>D</code> 维向量并缩放；然后
+      <a href="positional-encoding.html">位置编码</a>补充顺序信息。
+    </p>
+  </div>
+
+  <div class="note mint">
+    <strong>如何使用本页：</strong>按标签页 <span class="ink">01 → 07</span> 依次浏览。标签 03 展示查找表和查找过程；<span class="ink">标签 04 是核心</span>——前向传播 → 损失 → 反向传播循环，附带实时"训练一步"沙盒；标签 05 展示涌现的语义；标签 07 计分。按 <kbd>?</kbd> 查看快捷键。
+  </div>
+</section>
+
+<!-- ========================= THE TABLE ========================= -->
+<section class="tab-section" id="tab-table">
+  <div class="eyebrow">嵌入模块</div>
+  <h1>每个词元对应一个可训练的<em>行</em></h1>
+  <p class="lede">
+    在 Annotated Transformer 中，嵌入是一个封装了 <code>nn.Embedding</code> 的小模块。前向传播是行查找，然后乘以 $\sqrt{d_{model}}$ 进行缩放。权重矩阵是这里唯一需要学习的部分。
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">Embeddings 类 · 原文 <button class="copy-btn" onclick="copyCode(this)">复制</button></div>
+    <pre class="exercise"><span class="kw">class</span> <span class="fn">Embeddings</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, vocab):
+        super(Embeddings, self).__init__()
+        self.lut = nn.<span class="fn">Embedding</span>(vocab, d_model)   <span class="cm"># 权重: [V, D]</span>
+        self.d_model = d_model
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="kw">return</span> self.lut(x) * math.<span class="fn">sqrt</span>(self.d_model)</pre>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">各符号含义</div>
+    <ul>
+      <li><span class="pill">vocab · V</span> &nbsp;词表大小 — <strong>行</strong>数。（<code>nn.Embedding</code> 的第一个参数。）</li>
+      <li><span class="pill">d_model · D</span> &nbsp;嵌入宽度 — 基础 Transformer 中为 <code>512</code>。</li>
+      <li><span class="pill">lut</span> &nbsp;可训练权重矩阵 <code>[V, D]</code> — 字面意义上的"查找表"。</li>
+      <li><span class="pill">x</span> &nbsp;形状为 <code>[B, T]</code> 的整数词元 ID；输出为 <code>[B, T, D]</code>。</li>
+    </ul>
+  </div>
+
+  <div class="note warn">
+    <strong>为什么乘以 √d_model？</strong> 论文说：<em>"在嵌入层，我们将权重乘以 √d_model。"</em> 这样可以放大嵌入，使其幅度与接下来叠加的单位尺度位置编码相当——否则位置信息会淹没内容信息。当 <code>D = 512</code> 时，该因子为 <code>√512 ≈ 22.6</code>。
+  </div>
+
+  <div class="note">
+    <strong>它往往是最大的层。</strong> 参数量恰好是 <code>V × D</code>。32k 词表、<code>D = 512</code> 时约为 <strong>16.4M</strong> 个权重——全部集中在这一张表里，全部由梯度下降学习。
+  </div>
+</section>
+
+<!-- ========================= LOOKUP LAB ========================= -->
+<section class="tab-section" id="tab-lookup">
+  <div class="eyebrow">观察查找过程</div>
+  <h1>查找<em>实验</em></h1>
+  <p class="lede">
+    在训练介入之前，先看看这张表<em>是什么</em>。每一<em>行</em>是一个词元的向量；每一<em>列</em>是一个维度；颜色代表数值。拖动 <code>token id</code>——对应行高亮，并在下方作为流向后续层的 <code>D</code> 维向量展示。查找是纯粹的索引：<code>E[id]</code>，无需任何运算。
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">嵌入矩阵 · E ∈ ℝ^(V×D) · 选中行 = E[id]</div>
+    <div class="lab">
+      <div>
+        <canvas id="embCanvas" width="520" height="440"></canvas>
+        <div class="cmap-legend">
+          <span>−1</span><span class="cmap-bar"></span><span>+1</span>
+          <span style="margin-left:6px;">青色 = 负值 · 紫色 = 正值</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">vocab_size · V</span><span class="ctrl-val" id="vocabV">16</span></div>
+          <input type="range" id="vocab" min="6" max="40" step="1" value="16">
+          <div class="ctrl-meta">词元数量（行数）</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">d_model · D</span><span class="ctrl-val" id="dModelV">48</span></div>
+          <input type="range" id="dModel" min="8" max="96" step="2" value="48">
+          <div class="ctrl-meta">嵌入宽度（列数）</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">token id</span><span class="ctrl-val" id="tokIdV">5</span></div>
+          <input type="range" id="tokId" min="0" max="15" step="1" value="5">
+          <div class="ctrl-meta">要查找的行</div>
+        </div>
+        <div class="lab-readout">表 <b id="embShape">[16, 48]</b> &nbsp;·&nbsp; 输出 <b id="embOut">[48]</b></div>
+        <div class="note" style="margin-top:16px; font-size:12.5px;">
+          <strong>纯粹的索引：</strong>改变 <code>id</code> 只是将高亮移到另一行——矩阵本身不动。训练是<em>相反</em>的过程：<code>id</code> 保持不变，而行的<em>数值</em>发生偏移。那是标签 04 的内容。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= TRAINING ========================= -->
+<section class="tab-section" id="tab-train">
+  <div class="eyebrow">核心 · 行是如何学习的</div>
+  <h1>训练<em>查找表</em></h1>
+  <p class="lede">
+    嵌入层没有特殊的训练流程——它随模型的正常循环一起训练。批次前向传播到损失；<code>loss.backward()</code> 将梯度反传到<em>所有</em>权重，包括被查找的嵌入行；优化器更新。关键在于，<strong>只有批次中出现的行才会获得梯度</strong>——更新是稀疏的。
+  </p>
+
+  <h2 class="sec"><span class="num">04·a</span> 端到端一次训练步</h2>
+  <div class="flow">
+    <div class="step"><div class="sn">1 · 前向</div><h4>查找行</h4><p><code>x = E[ids] · √D</code>，加上位置信息，经堆栈得到隐状态。</p></div>
+    <div class="arr">→</div>
+    <div class="step"><div class="sn">2 · 损失</div><h4>评分</h4><p>生成器 → log-softmax → 标签平滑 <code>KLDivLoss</code> 对比真实下一词元。</p></div>
+    <div class="arr">→</div>
+    <div class="step"><div class="sn">3 · 反向</div><h4>追责各行</h4><p><code>loss.backward()</code> — 梯度仅流向 <code>E</code> 中被使用的行。</p></div>
+    <div class="arr">→</div>
+    <div class="step"><div class="sn">4 · 步进</div><h4>微调并重复</h4><p>Adam（Noam 调度）更新权重；<code>zero_grad()</code>；下一批。</p></div>
+  </div>
+
+  <h2 class="sec"><span class="num">04·b</span> 为什么更新是稀疏的</h2>
+  <p class="lede">
+    因为查找等价于 one-hot 矩阵乘法，$e_{id} = \mathbf{1}_{id}^{\top} E$，梯度对表的贡献<strong>除第 <code>id</code> 行外均为零</strong>。每个被查找的词元接收传入的梯度，累积到自身所在行，并在批次内对出现次数求和。
+  </p>
+  <div class="formula-panel">
+    $$\frac{\partial L}{\partial E_{j}} \;=\; \sum_{t\,:\,ids_t = j} \frac{\partial L}{\partial e_{t}}
+      \qquad\Longrightarrow\qquad \frac{\partial L}{\partial E_{j}} = 0 \;\text{ 对未使用的行 } j$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">稀疏更新沙盒 · 只有批次中的行会移动</div>
+    <p style="font-size:13.5px; margin:0 0 14px;">
+      这个批次是一个短句。其词元（附行 ID）是唯一会收到梯度的行。反复点击<em>训练步</em>：高亮行可见地漂移，而<em>冻结</em>行始终不变——这就是嵌入层稀疏梯度的直观体现。
+    </p>
+    <div class="chips" id="batchChips"></div>
+    <div class="lab">
+      <div>
+        <canvas id="trainCanvas" width="520" height="420"></canvas>
+        <div class="cmap-legend">
+          <span>−1</span><span class="cmap-bar"></span><span>+1</span>
+          <span style="margin-left:6px;">边框 = 批次内（获得 ∇） · 暗淡 = 冻结</span>
+        </div>
+      </div>
+      <div>
+        <div class="lab-readout" style="font-size:18px; margin-bottom:4px;">步数 <b id="stepN">0</b></div>
+        <div class="ctrl-meta" style="margin-bottom:18px;">本次运行触及的行：<span id="touched">0</span> / 16</div>
+        <div class="controls-row" style="margin-top:0;">
+          <button class="btn" onclick="trainStep()">训练步</button>
+          <button class="btn ghost" onclick="trainRun()">运行 ×20</button>
+          <button class="btn ghost" onclick="trainReset()">重置</button>
+        </div>
+        <div class="note mint" style="margin-top:18px; font-size:12.5px;">
+          真实训练会在海量语料上执行<em>数百万</em>步。高频词元（如 <code>the</code>）被频繁更新；罕见词元因很少出现在批次中，移动缓慢。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sec"><span class="num">04·c</span> 驱动训练的损失与优化器</h2>
+  <div class="panel">
+    <div class="panel-label">标签平滑损失 · 反向传播 · 步进 <button class="copy-btn" onclick="copyCode(this)">复制</button></div>
+    <pre class="exercise"><span class="cm"># 目标分布经平滑处理：真实词元获得置信度，其余词元均分 ε</span>
+criterion = LabelSmoothing(size=V, padding_idx=0, smoothing=<span class="st">0.1</span>)   <span class="cm"># 内部使用 KLDivLoss</span>
+
+<span class="kw">def</span> <span class="fn">step</span>(out, targets, norm):
+    log_probs = generator(out)                 <span class="cm"># Linear → log_softmax  [.., V]</span>
+    loss = criterion(log_probs, targets) / norm
+    loss.<span class="fn">backward</span>()                          <span class="cm"># ∇ 流向 E 中被使用的行</span>
+    opt.<span class="fn">step</span>()                                <span class="cm"># Noam 调度的 Adam 更新</span>
+    opt.optimizer.<span class="fn">zero_grad</span>()                 <span class="cm"># 清空梯度，准备下一批</span>
+    <span class="kw">return</span> loss</pre>
+  </div>
+
+  <div class="formula-panel">
+    $$lrate = d_{model}^{-0.5}\cdot \min\!\big(step^{-0.5},\; step\cdot warmup^{-1.5}\big)$$
+  </div>
+
+  <div class="mini-grid">
+    <div class="mini"><div class="op">∇</div><h4>反向传播</h4><p><code>loss.backward()</code> 向 <code>E</code> 中每个被查找的行存入梯度。</p></div>
+    <div class="mini"><div class="op">A</div><h4>Adam</h4><p><code>betas=(0.9, 0.98)</code>，<code>eps=1e-9</code>，学习率完全由调度器驱动。</p></div>
+    <div class="mini"><div class="op">↗</div><h4>预热 4000 步</h4><p>学习率在 4000 步内爬升，随后按 <code>1/√step</code> 衰减——早期更新温和。</p></div>
+  </div>
+
+  <div class="note">
+    <strong>初始化很重要。</strong> 在第 1 步之前，所有维度大于 1 的权重——包括嵌入表——均以 <code>nn.init.xavier_uniform(p)</code> 初始化。因此各行从微小的随机向量出发；标签 05 中展示的所有结构都是<em>从这里学习</em>来的。
+  </div>
+</section>
+
+<!-- ========================= SEMANTIC ========================= -->
+<section class="tab-section" id="tab-semantic">
+  <div class="eyebrow">训练产生的结果</div>
+  <h1>意义化为<em>几何</em></h1>
+  <p class="lede">
+    经过足够多的步骤，扮演相似角色的词元已被推向相近的行——因为准确预测会奖励这种结构。两行之间的<strong>余弦相似度</strong>现在衡量模型认为它们有多相似，且方向具有含义（著名的 <code>king − man + woman ≈ queen</code>）。选择一个查询词元，观察其邻居如何高亮。
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">一个已训练的玩具嵌入空间 · 与查询词元的余弦相似度</div>
+    <p style="font-size:13.5px; margin:0 0 16px;">
+      每个点是一个词元的向量（投影到 2D）。选中的查询词元发光；连线延伸至其他词元，越相似越亮。右侧列表按余弦相似度从高到低排序。
+    </p>
+    <div class="lab">
+      <div><canvas id="semCanvas" width="560" height="380"></canvas></div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">查询词元</span><span class="ctrl-val word" id="queryV">king</span></div>
+          <input type="range" id="query" min="0" max="11" step="1" value="0">
+          <div class="ctrl-meta">拖动选择词语</div>
+        </div>
+        <div class="simlist" id="simList"></div>
+        <div class="note mint" style="margin-top:16px; font-size:12.5px;">
+          同簇词语得分接近 <code>+1</code>；不相关的簇趋向 <code>0</code> 甚至<em>负值</em>。这些都不是手工编码的——查找表完全通过标签 04 的预测损失得到这一结构。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>未训练 = 噪声。</strong> 在 <code>xavier_uniform</code> 初始化时，各行随机分布，此图将是一团无形的云。word2vec 和 GloVe 用专门的目标函数学习这样的空间；Transformer 的嵌入层则作为下一词元预测的副产品，自然达到同等结构。
+  </div>
+</section>
+
+<!-- ========================= SHARING / TYING ========================= -->
+<section class="tab-section" id="tab-tie">
+  <div class="eyebrow">一个矩阵，三项职责</div>
+  <h1>共享<em>权重</em></h1>
+  <p class="lede">
+    论文更进一步：输入嵌入、输出（目标）嵌入以及 softmax 前的线性层，<strong>共享同一权重矩阵</strong>。训练其中一个等于同时训练三个——参数更少，且输入/输出几何保持一致。
+  </p>
+
+  <div class="note">
+    <strong>原文：</strong> <em>"我们在两个嵌入层和 softmax 前的线性变换之间共享同一权重矩阵。"</em> logits 为 <code>h @ E.T</code>——字面含义是"该隐状态沿每个词元行的投影有多大？"
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">输出侧 · Generator <button class="copy-btn" onclick="copyCode(this)">复制</button></div>
+    <pre class="exercise"><span class="kw">class</span> <span class="fn">Generator</span>(nn.Module):
+    <span class="cm"># "定义标准的线性 + softmax 生成步骤。"</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, vocab):
+        super(Generator, self).__init__()
+        self.proj = nn.<span class="fn">Linear</span>(d_model, vocab)   <span class="cm"># 权重: [V, D] — 绑定到 E</span>
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="kw">return</span> F.<span class="fn">log_softmax</span>(self.proj(x), dim=-<span class="st">1</span>)</pre>
+  </div>
+
+  <div class="vcompare">
+    <div class="vcol">
+      <div class="vh">源嵌入</div>
+      <div class="vsub">词元 → 向量</div>
+      <div class="vrow"><span class="vk">op</span><div class="vv"><em>行查找</em> <code>E[ids]·√D</code></div></div>
+      <div class="vrow"><span class="vk">out</span><div class="vv"><code>[B, T, D]</code></div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">目标嵌入</div>
+      <div class="vsub">共享 E</div>
+      <div class="vrow"><span class="vk">op</span><div class="vv">对解码器输入做同样查找</div></div>
+      <div class="vrow"><span class="vk">weight</span><div class="vv"><code>= E</code>（共享）</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">Softmax 前</div>
+      <div class="vsub">向量 → 词元</div>
+      <div class="vrow"><span class="vk">op</span><div class="vv"><code>h @ E.T</code> → logits</div></div>
+      <div class="vrow"><span class="vk">out</span><div class="vv"><code>[B, T, V]</code></div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">梯度</div>
+      <div class="vsub">同时更新</div>
+      <div class="vrow"><span class="vk">why</span><div class="vv">三次使用 → 一个矩阵获得<em>三份</em>梯度贡献</div></div>
+      <div class="vrow"><span class="vk">perk</span><div class="vv">节省 <code>V·D</code> 个参数，通常也提升质量</div></div>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>下一站：</strong>嵌入层的输出经缩放后与
+    <a href="positional-encoding.html">位置编码 →</a> 相加，然后进入第一个注意力块。这就是顺序信息进入模型的方式。
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <div class="eyebrow">输入答案 · 赢得连击</div>
+  <h1><em>练习</em></h1>
+  <p class="lede">
+    <kbd>Enter</kbd> 检查 · <kbd>提示</kbd> 揭示所有未解空格（可切换） · <kbd>Tab</kbd> 在空格间移动。全部解对即完成本节。
+  </p>
+
+  <h2 class="sec"><span class="num">07·a</span> 查找表是一个参数</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">01</span> 在 Embeddings 类中，<code>nn.Embedding</code> 的第一个参数是词表大小。</div>
+    <pre class="exercise">self.lut = nn.Embedding(<input class="blank" data-answer="vocab|V|num_embeddings" size="10" placeholder="?">, d_model)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">02</span> 前向传播将查找结果乘以哪个值的平方根？</div>
+    <pre class="exercise">return self.lut(x) * math.sqrt(self.<input class="blank" data-answer="d_model|D|d" size="8" placeholder="?">)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">03</span> 维度大于 1 的每个权重——包括嵌入表——是如何初始化的？</div>
+    <pre class="exercise">nn.init.<input class="blank" data-answer="xavier_uniform|xavier_uniform_|xavier" size="14" placeholder="?">(p)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·b</span> 训练信号</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">04</span> 标签平滑封装了哪个损失函数？</div>
+    <pre class="exercise">self.criterion = nn.<input class="blank" data-answer="KLDivLoss|kldivloss" size="12" placeholder="?">(size_average=False)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">05</span> 论文中使用的平滑值 ε。</div>
+    <pre class="exercise">criterion = LabelSmoothing(size=V, padding_idx=0, smoothing=<input class="blank" data-answer="0.1|.1" size="6" placeholder="?">)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">06</span> 哪个调用将梯度反传到嵌入行？</div>
+    <pre class="exercise">loss.<input class="blank" data-answer="backward" size="9" placeholder="?">()</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·c</span> 稀疏更新</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">07</span> 每步只有被查找的表 ____ 才会收到梯度。</div>
+    <pre class="exercise">grad(E) 仅对已使用的 <input class="blank" data-answer="rows|row" size="6" placeholder="?"> 非零</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">08</span> 哪个优化器更新权重（betas 为 0.9, 0.98）？</div>
+    <pre class="exercise">torch.optim.<input class="blank" data-answer="Adam|adam" size="7" placeholder="?">(model.parameters(), lr=0, betas=(0.9, 0.98))</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·d</span> 权重共享与调度</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">09</span> 嵌入层与 softmax 前的 ______ 变换共享同一矩阵。</div>
+    <pre class="exercise">与 softmax 前的 <input class="blank" data-answer="linear" size="8" placeholder="?"> 层共享</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">10</span> 学习率调度中的预热步数。</div>
+    <pre class="exercise">NoamOpt(d_model, factor=2, warmup=<input class="blank" data-answer="4000" size="7" placeholder="?">, opt)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">11</span> 基础 Transformer 中的嵌入维度 d_model。</div>
+    <pre class="exercise">d_model = <input class="blank" data-answer="512" size="6" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">检查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note mint" style="margin-top:24px;">
+    <strong>全部十一题都解完了？</strong> 你现在了解输入嵌入是如何<em>训练</em>的：Xavier 初始化的查找表，乘以 √d_model 缩放，输入给标签平滑的 KLDiv 损失，由 Noam 调度的 Adam 稀疏更新，并与输出投影共享权重。下一步：
+    <a href="positional-encoding.html">位置编码 →</a>。
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="if(event.target===this)hideHelp()">
+  <div class="help-content">
+    <h3>键盘快捷键</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>跳到下一个空格</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>检查当前题目</td></tr>
+      <tr><td><kbd>1</kbd> … <kbd>7</kbd></td><td>切换标签页</td></tr>
+      <tr><td><kbd>?</kbd></td><td>本帮助</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>关闭</td></tr>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>输入嵌入 · 查找表的训练原理 · 基于 The Annotated Transformer · 实验室在浏览器中实时计算</span>
+  <span><a href="index.html">← 所有速查表</a></span>
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // 统计新解出的空格
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正确 — ' + newlySolved + ' 个正确，继续加油。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // 隐藏：清除所有提示揭示的空格（保留用户自己解对的）
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答案已隐藏 — 试着自己输入';
+    updateProgress();
+    return;
+  }
+
+  // 显示：用标准答案填入所有未解的空格
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '全部完成。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '所有答案已揭示 · 再点一次可隐藏';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['不错。', '正确！', '查到了。', '✓ 正是。', '漂亮。', '就是这一行。', '梯度已施加。', '已嵌入。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['还差一点——再试试。', '接近了。看下提示？', '差不多了。检查拼写。', '行不对。再来一次。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab 处理
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// 节完成 = 当前节中所有题目均已解出
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('本节完成！🎉  +' + drills.length + ' 已解');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#2dd4bf','#5eead4','#f0abfc','#a3e635','#e879f9','#99f6e4','#f4f0e6'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.panel, .card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '已复制！';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '复制'; }, 1300);
+  });
+}
+
+// ============== SHARED: deterministic values & colors ==============
+// 稳定的伪随机基础值在 [-1, 1] 内，以 (row, col) 为键
+function embVal(row, col) {
+  const s = Math.sin((row * 97.13 + col * 37.71 + 1) * 12.9898) * 43758.5453;
+  return (s - Math.floor(s)) * 2 - 1;
+}
+function clamp1(v) { return Math.max(-1, Math.min(1, v)); }
+// 分散色图：v<0 -> 青色，v>0 -> 紫色，~0 -> 深色
+function divColor(v) {
+  const a = Math.min(1, Math.abs(v));
+  if (v >= 0) return `rgba(240,171,252,${a})`;   // 紫色
+  return `rgba(45,212,191,${a})`;                // 青色
+}
+
+// ============== LOOKUP HEATMAP LAB ==============
+const embCanvas = document.getElementById('embCanvas');
+function drawEmb() {
+  if (!embCanvas) return;
+  const ctx = embCanvas.getContext('2d');
+  const W = embCanvas.width, H = embCanvas.height;
+  const V = +document.getElementById('vocab').value;
+  const D = +document.getElementById('dModel').value;
+  const idSlider = document.getElementById('tokId');
+  idSlider.max = V - 1;
+  let id = +idSlider.value;
+  if (id > V - 1) { id = V - 1; idSlider.value = id; }
+
+  document.getElementById('vocabV').textContent = V;
+  document.getElementById('dModelV').textContent = D;
+  document.getElementById('tokIdV').textContent = id;
+  document.getElementById('embShape').textContent = `[${V}, ${D}]`;
+  document.getElementById('embOut').textContent = `[${D}]`;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const padL = 34, padT = 8, padR = 8;
+  const stripH = 30, stripGap = 40, labelB = 22;
+  const matH = H - padT - stripH - stripGap - labelB;
+  const plotW = W - padL - padR;
+  const cw = plotW / D, ch = matH / V;
+
+  for (let r = 0; r < V; r++) {
+    for (let c = 0; c < D; c++) {
+      ctx.fillStyle = divColor(embVal(r, c));
+      ctx.fillRect(padL + c * cw, padT + r * ch, Math.ceil(cw), Math.ceil(ch));
+    }
+  }
+  const ry = padT + id * ch;
+  ctx.strokeStyle = '#2dd4bf';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#2dd4bf'; ctx.shadowBlur = 10;
+  ctx.strokeRect(padL - 1, ry - 1, plotW + 2, ch + 2);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#2dd4bf';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(String(id), padL - 6, ry + ch / 2 + 3);
+
+  const sy = padT + matH + stripGap;
+  for (let c = 0; c < D; c++) {
+    ctx.fillStyle = divColor(embVal(id, c));
+    ctx.fillRect(padL + c * cw, sy, Math.ceil(cw), stripH);
+  }
+  ctx.strokeStyle = 'rgba(240,171,252,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(padL, sy, plotW, stripH);
+
+  ctx.strokeStyle = 'rgba(45,212,191,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padL + plotW / 2, ry + ch + 1);
+  ctx.lineTo(padL + plotW / 2, sy - 1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#8a8478';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('E[id]  →  词元向量', padL, sy - 12);
+  ctx.textAlign = 'center';
+  ctx.fillText('维度 →', padL + plotW / 2, padT + matH + 14);
+  ctx.save();
+  ctx.translate(12, padT + matH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('词元 id →', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'left';
+}
+['vocab','dModel','tokId'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawEmb);
+});
+
+// ============== TRAINING SANDBOX (sparse update) ==============
+const TR_V = 16, TR_D = 40;
+// 玩具词表 + 一个训练句子；id 索引到表中
+const TR_VOCAB = ['<pad>','the','cat','sat','on','mat','dog','ran','to','park','a','big','red','ball','and','he'];
+const TR_SENTENCE = ['the','cat','sat','on','the','mat'];
+const TR_IDS = TR_SENTENCE.map(w => TR_VOCAB.indexOf(w));
+const TR_USED = Array.from(new Set(TR_IDS));   // 获得梯度的唯一行
+let trOffset = new Float32Array(TR_V * TR_D);  // 每个单元格的学习漂移量
+let trStep = 0;
+let trTouched = new Set();
+const trainCanvas = document.getElementById('trainCanvas');
+
+function trCellVal(r, c) { return clamp1(embVal(r, c) + trOffset[r * TR_D + c]); }
+
+function renderChips() {
+  const host = document.getElementById('batchChips');
+  if (!host) return;
+  host.innerHTML = '';
+  TR_SENTENCE.forEach((w, i) => {
+    const c = document.createElement('span');
+    c.className = 'chip';
+    c.innerHTML = `${w} <b>#${TR_IDS[i]}</b>`;
+    host.appendChild(c);
+  });
+}
+
+function drawTrain() {
+  if (!trainCanvas) return;
+  const ctx = trainCanvas.getContext('2d');
+  const W = trainCanvas.width, H = trainCanvas.height;
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const padL = 70, padT = 10, padR = 10, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const cw = plotW / TR_D, ch = plotH / TR_V;
+  const usedSet = new Set(TR_USED);
+
+  for (let r = 0; r < TR_V; r++) {
+    const used = usedSet.has(r);
+    for (let c = 0; c < TR_D; c++) {
+      ctx.fillStyle = divColor(trCellVal(r, c));
+      ctx.fillRect(padL + c * cw, padT + r * ch, Math.ceil(cw), Math.ceil(ch));
+    }
+    if (!used) {
+      // 冻结行变暗
+      ctx.fillStyle = 'rgba(8,16,30,0.6)';
+      ctx.fillRect(padL, padT + r * ch, plotW, ch);
+    }
+    // 行标签 = 词元词语
+    ctx.fillStyle = used ? '#2dd4bf' : '#5a564e';
+    ctx.font = used ? '10px JetBrains Mono, monospace' : '9px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(TR_VOCAB[r], padL - 8, padT + r * ch + ch / 2 + 3);
+  }
+  // 标记已使用的行 + ∇ 标志
+  ctx.textAlign = 'left';
+  TR_USED.forEach(r => {
+    const ry = padT + r * ch;
+    ctx.strokeStyle = '#a3e635';
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = '#a3e635'; ctx.shadowBlur = 7;
+    ctx.strokeRect(padL - 1, ry, plotW + 2, ch);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#a3e635';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('∇', padL + plotW + 1, ry + ch / 2 + 4);
+  });
+
+  ctx.fillStyle = '#8a8478';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('维度 →  (D = ' + TR_D + ')', padL + plotW / 2, H - 6);
+  ctx.textAlign = 'left';
+}
+
+function trainStep() {
+  trStep++;
+  // 稀疏梯度：只有批次中出现的行被微调
+  TR_USED.forEach(r => {
+    trTouched.add(r);
+    for (let c = 0; c < TR_D; c++) {
+      const g = (Math.random() - 0.5) * 0.16;   // 玩具梯度 * lr
+      trOffset[r * TR_D + c] += g;
+    }
+  });
+  document.getElementById('stepN').textContent = trStep;
+  document.getElementById('touched').textContent = trTouched.size;
+  drawTrain();
+}
+function trainRun() { for (let i = 0; i < 20; i++) trainStep(); }
+function trainReset() {
+  trOffset = new Float32Array(TR_V * TR_D);
+  trStep = 0; trTouched = new Set();
+  document.getElementById('stepN').textContent = '0';
+  document.getElementById('touched').textContent = '0';
+  drawTrain();
+}
+
+// ============== SEMANTIC MAP LAB ==============
+const TOKENS = [
+  { name: 'king',   x:  0.62, y:  0.80 },
+  { name: 'queen',  x:  0.70, y:  0.72 },
+  { name: 'prince', x:  0.52, y:  0.86 },
+  { name: 'crown',  x:  0.78, y:  0.60 },
+  { name: 'cat',    x: -0.92, y:  0.30 },
+  { name: 'dog',    x: -0.97, y:  0.18 },
+  { name: 'wolf',   x: -0.88, y:  0.40 },
+  { name: 'fox',    x: -0.99, y:  0.05 },
+  { name: 'one',    x:  0.30, y: -0.93 },
+  { name: 'two',    x:  0.42, y: -0.88 },
+  { name: 'three',  x:  0.22, y: -0.96 },
+  { name: 'ten',    x:  0.50, y: -0.84 },
+];
+function cos2(a, b) {
+  const dot = a.x * b.x + a.y * b.y;
+  const na = Math.hypot(a.x, a.y), nb = Math.hypot(b.x, b.y);
+  return (na === 0 || nb === 0) ? 0 : dot / (na * nb);
+}
+const semCanvas = document.getElementById('semCanvas');
+function drawSemantic() {
+  if (!semCanvas) return;
+  const ctx = semCanvas.getContext('2d');
+  const W = semCanvas.width, H = semCanvas.height;
+  const q = +document.getElementById('query').value;
+  const query = TOKENS[q];
+  document.getElementById('queryV').textContent = query.name;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const pad = 36;
+  const cx = W / 2, cy = H / 2;
+  const sx = (W - 2 * pad) / 2, sy = (H - 2 * pad) / 2;
+  function px(v) { return cx + v.x * sx; }
+  function py(v) { return cy - v.y * sy; }
+
+  ctx.strokeStyle = 'rgba(138,132,120,0.18)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, cy); ctx.lineTo(W - pad, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, pad); ctx.lineTo(cx, H - pad); ctx.stroke();
+
+  TOKENS.forEach((t, i) => {
+    if (i === q) return;
+    const s = cos2(query, t);
+    const a = Math.max(0, s);
+    if (a < 0.02) return;
+    ctx.strokeStyle = `rgba(45,212,191,${0.12 + a * 0.6})`;
+    ctx.lineWidth = 0.5 + a * 2.5;
+    ctx.beginPath();
+    ctx.moveTo(px(query), py(query));
+    ctx.lineTo(px(t), py(t));
+    ctx.stroke();
+  });
+
+  TOKENS.forEach((t, i) => {
+    const isQ = i === q;
+    const x = px(t), y = py(t);
+    if (isQ) {
+      ctx.fillStyle = '#f0abfc';
+      ctx.shadowColor = '#f0abfc'; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = '#2dd4bf';
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = isQ ? '#f4f0e6' : '#8a8478';
+    ctx.font = isQ ? '13px JetBrains Mono, monospace' : '11px ui-monospace, monospace';
+    ctx.textAlign = (t.x < -0.3) ? 'right' : 'left';
+    const ox = (t.x < -0.3) ? -8 : 8;
+    ctx.fillText(t.name, x + ox, y + 4);
+  });
+
+  ctx.fillStyle = '#5a564e';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('原点', cx + 5, cy - 5);
+
+  renderSimList(q);
+}
+function renderSimList(q) {
+  const query = TOKENS[q];
+  const ranked = TOKENS
+    .map((t, i) => ({ name: t.name, s: cos2(query, t), self: i === q }))
+    .filter(r => !r.self)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 6);
+  const host = document.getElementById('simList');
+  host.innerHTML = '';
+  ranked.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const w = Math.max(0, r.s) * 100;
+    row.innerHTML =
+      `<span class="nm">${r.name}</span>` +
+      `<span class="track"><span class="fill" style="width:${w}%"></span></span>` +
+      `<span class="sv">${r.s.toFixed(2)}</span>`;
+    host.appendChild(row);
+  });
+}
+const querySlider = document.getElementById('query');
+if (querySlider) {
+  querySlider.max = TOKENS.length - 1;
+  querySlider.addEventListener('input', drawSemantic);
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'table','3':'lookup','4':'train','5':'semantic','6':'tie','7':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+drawEmb();
+renderChips();
+drawTrain();
+drawSemantic();
+updateProgress();
+</script>
+</body>
+</html>

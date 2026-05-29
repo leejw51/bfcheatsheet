@@ -217,6 +217,52 @@
   }
   .shape-vis .sep { color: var(--muted); align-self: center; }
 
+  /* ===== Live Sandbox ===== */
+  .sb-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 860px) { .sb-layout { grid-template-columns: 1fr; } }
+  .sb-pane { margin-bottom: 0; }
+  .sb-field { margin: 12px 0; }
+  .sb-field > label { display: block; font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; margin-bottom: 4px; }
+  textarea.sb-input {
+    width: 100%; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; resize: vertical; line-height: 1.5;
+  }
+  textarea.sb-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(238,76,44,0.2); }
+  .sb-params { margin-bottom: 4px; min-height: 4px; }
+  .sb-param { display: inline-flex; align-items: center; gap: 6px; }
+  .sb-param label { min-width: unset; font-size: 12px; color: var(--muted); font-family: ui-monospace, monospace; }
+  .sb-param input[type=text] {
+    width: 80px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 8px; font-family: ui-monospace, monospace; font-size: 12px;
+  }
+  .sb-param input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .sb-param input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+  .sb-code {
+    font-family: ui-monospace, monospace; font-size: 13px; color: var(--fn);
+    background: var(--code-bg); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px;
+    border-left: 3px solid var(--accent); white-space: pre-wrap; word-break: break-word;
+  }
+  .sb-code.sb-error, .pg-output.sb-error { color: #f87171; border-left-color: #f87171; }
+  .sb-hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+  .sb-hint code { color: var(--string); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  .sb-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .sb-chips button {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 999px; padding: 5px 13px; font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .sb-chips button:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+  .sb-viz { margin-top: 12px; }
+  .sb-vlabel { font-size: 11px; color: var(--muted); margin: 8px 0 5px; font-family: ui-monospace, monospace; letter-spacing: 0.3px; }
+  .sb-tgrid { display: inline-grid; gap: 3px; background: var(--border); padding: 3px; border-radius: 6px; max-width: 100%; overflow-x: auto; }
+  .sb-cell {
+    background: var(--panel-2); color: var(--text); min-width: 46px; text-align: center;
+    padding: 7px 9px; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 12px;
+    transition: background 0.2s;
+  }
+  .sb-op-select { min-width: 200px; }
+
   /* Quick reference table */
   table {
     width: 100%;
@@ -1167,6 +1213,7 @@
   <button data-tab="data">Data</button>
   <button data-tab="gpu">GPU & Misc</button>
   <button data-tab="advanced">Advanced</button>
+  <button data-tab="sandbox">🧪 Sandbox</button>
   <button data-tab="practice">🎯 Practice</button>
   <button data-tab="reference">Quick Ref</button>
 </nav>
@@ -3970,6 +4017,48 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
 </section>
 
 <!-- PRACTICE -->
+<!-- SANDBOX -->
+<section class="tab-section" id="sandbox">
+  <h1>🧪 Live Sandbox</h1>
+  <p class="lead">Type real tensors, pick a function, and see the <strong>actual computed result</strong> — values, shapes, broadcasting, and the equivalent PyTorch call. A tiny tensor engine runs it live in your browser; no install required.</p>
+
+  <div class="sb-chips" id="sb-chips"></div>
+
+  <div class="sb-layout">
+    <div class="playground sb-pane">
+      <h2 style="margin-top:0;">Inputs</h2>
+      <div class="pg-row">
+        <label>Function</label>
+        <select id="sb-op" class="sb-op-select"></select>
+      </div>
+      <div class="sb-params pg-row" id="sb-params"></div>
+      <div class="sb-field">
+        <label for="sb-a">a =</label>
+        <textarea id="sb-a" class="sb-input" rows="3" spellcheck="false">[[1, 2, 3], [4, 5, 6]]</textarea>
+        <div class="shape-vis" id="sb-a-shape"></div>
+      </div>
+      <div class="sb-field" id="sb-b-field">
+        <label for="sb-b">b =</label>
+        <textarea id="sb-b" class="sb-input" rows="3" spellcheck="false">[[1, 0], [0, 1], [1, 1]]</textarea>
+        <div class="shape-vis" id="sb-b-shape"></div>
+      </div>
+      <p class="sb-hint">Tensors are nested lists — e.g. <code>[[1, 2], [3, 4]]</code>, a vector <code>[1, 2, 3]</code>, or a scalar <code>5</code>.</p>
+    </div>
+
+    <div class="playground sb-pane">
+      <h2 style="margin-top:0;">Result</h2>
+      <div class="sb-code" id="sb-code"></div>
+      <div class="pg-output" id="sb-out"></div>
+      <div class="shape-vis" id="sb-out-shape"></div>
+      <div class="sb-viz" id="sb-viz"></div>
+    </div>
+  </div>
+
+  <div class="pitfall" style="margin-top:20px;">
+    <strong>Heads-up</strong> &nbsp;This is a faithful mini-reimplementation for learning shapes &amp; semantics — it computes element-wise math, broadcasting, matmul and reductions exactly, but it isn't the real ATen kernels. Float values match PyTorch to ~4 decimals.
+  </div>
+</section>
+
 <section class="tab-section" id="practice">
   <h1>🎯 Function Practice</h1>
   <p class="lead">Type a function name to see its grammar — or run quiz mode to drill yourself.</p>
@@ -6388,6 +6477,340 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
       if (first) { e.preventDefault(); first.click(); }
     }
   });
+
+  // ===================== LIVE TENSOR SANDBOX =====================
+  (function () {
+    const opSel = document.getElementById('sb-op');
+    if (!opSel) return; // sandbox not present
+
+    // ---- tiny tensor engine: {shape:[...], data:[...]} row-major ----
+    const numel = sh => sh.reduce((a, b) => a * b, 1);
+    function strides(sh) { const s = new Array(sh.length); let acc = 1; for (let i = sh.length - 1; i >= 0; i--) { s[i] = acc; acc *= sh[i]; } return s; }
+    function unravel(flat, sh) { const st = strides(sh), idx = new Array(sh.length); for (let i = 0; i < sh.length; i++) idx[i] = Math.floor(flat / st[i]) % sh[i]; return idx; }
+    function ravel(idx, sh) { const st = strides(sh); let f = 0; for (let i = 0; i < sh.length; i++) f += idx[i] * st[i]; return f; }
+    function normDim(d, nd) { d = parseInt(d, 10); if (Number.isNaN(d)) throw new Error('dim must be an integer'); if (d < 0) d += nd; if (d < 0 || d >= nd) throw new Error(`dim out of range for ${nd}D tensor`); return d; }
+    function intOf(x) { const n = parseInt(x, 10); if (Number.isNaN(n)) throw new Error('expected an integer'); return n; }
+    function intList(s) { return String(s).split(',').map(t => t.trim()).filter(Boolean).map(t => { const n = parseInt(t, 10); if (Number.isNaN(n)) throw new Error('expected integers'); return n; }); }
+
+    function parseTensor(str) {
+      str = (str || '').trim();
+      if (!str) throw new Error('empty input');
+      if (!/^[-0-9.,\[\]\seE+]*$/.test(str)) throw new Error('only numbers, commas and brackets allowed');
+      let val; try { val = JSON.parse(str); } catch (e) { throw new Error('parse error — check brackets and commas'); }
+      const shape = [], data = [];
+      (function infer(x, depth) {
+        if (Array.isArray(x)) {
+          if (shape[depth] === undefined) shape[depth] = x.length;
+          else if (shape[depth] !== x.length) throw new Error('ragged tensor — rows have unequal length');
+          if (x.length === 0) throw new Error('empty dimension');
+          x.forEach(e => infer(e, depth + 1));
+        } else {
+          if (typeof x !== 'number' || !isFinite(x)) throw new Error('non-numeric value');
+          data.push(x);
+        }
+      })(val, 0);
+      return { shape, data };
+    }
+
+    const mapUnary = (t, f) => ({ shape: t.shape.slice(), data: t.data.map(f) });
+
+    function broadcastShape(a, b) {
+      const n = Math.max(a.length, b.length), r = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const da = a[a.length - 1 - i] ?? 1, db = b[b.length - 1 - i] ?? 1;
+        if (da !== db && da !== 1 && db !== 1) throw new Error(`shapes [${a}] and [${b}] are not broadcastable`);
+        r[n - 1 - i] = Math.max(da, db);
+      }
+      return r;
+    }
+    function broadcastBinary(A, B, f) {
+      const shape = broadcastShape(A.shape, B.shape), n = numel(shape), data = new Array(n);
+      const stA = strides(A.shape), stB = strides(B.shape), la = A.shape.length, lb = B.shape.length, lr = shape.length;
+      for (let flat = 0; flat < n; flat++) {
+        const idx = unravel(flat, shape);
+        let ia = 0; for (let d = 0; d < la; d++) { const dimIdx = idx[lr - la + d]; ia += (A.shape[d] === 1 ? 0 : dimIdx) * stA[d]; }
+        let ib = 0; for (let d = 0; d < lb; d++) { const dimIdx = idx[lr - lb + d]; ib += (B.shape[d] === 1 ? 0 : dimIdx) * stB[d]; }
+        data[flat] = f(A.data[ia], B.data[ib]);
+      }
+      return { shape, data };
+    }
+
+    function reduceDim(t, dim, keepdim, init, combine, finalize) {
+      if (dim == null) {
+        let acc = init; for (const v of t.data) acc = combine(acc, v);
+        return { shape: [], data: [finalize ? finalize(acc, t.data.length) : acc] };
+      }
+      dim = normDim(dim, t.shape.length);
+      const reduced = t.shape.slice(); const len = reduced[dim]; reduced.splice(dim, 1);
+      const outN = numel(reduced), data = new Array(outN);
+      for (let o = 0; o < outN; o++) {
+        const oidx = unravel(o, reduced); let acc = init;
+        for (let k = 0; k < len; k++) { const full = oidx.slice(); full.splice(dim, 0, k); acc = combine(acc, t.data[ravel(full, t.shape)]); }
+        data[o] = finalize ? finalize(acc, len) : acc;
+      }
+      let shape = reduced;
+      if (keepdim) { shape = t.shape.slice(); shape[dim] = 1; }
+      return { shape, data };
+    }
+    function argmaxDim(t, dim) {
+      if (dim == null) { let bi = 0; for (let i = 1; i < t.data.length; i++) if (t.data[i] > t.data[bi]) bi = i; return { shape: [], data: [bi] }; }
+      dim = normDim(dim, t.shape.length);
+      const reduced = t.shape.slice(); const len = reduced[dim]; reduced.splice(dim, 1);
+      const outN = numel(reduced), data = new Array(outN);
+      for (let o = 0; o < outN; o++) {
+        const oidx = unravel(o, reduced); let best = -Infinity, bk = 0;
+        for (let k = 0; k < len; k++) { const full = oidx.slice(); full.splice(dim, 0, k); const v = t.data[ravel(full, t.shape)]; if (v > best) { best = v; bk = k; } }
+        data[o] = bk;
+      }
+      return { shape: reduced, data };
+    }
+    function softmax(t, dim) {
+      if (t.shape.length === 0) return { shape: [], data: [1] };
+      dim = normDim(dim, t.shape.length);
+      const out = { shape: t.shape.slice(), data: t.data.slice() };
+      const outer = t.shape.slice(); const len = outer[dim]; outer.splice(dim, 1);
+      const outerN = numel(outer);
+      for (let o = 0; o < outerN; o++) {
+        const oidx = unravel(o, outer), flats = []; let mx = -Infinity;
+        for (let k = 0; k < len; k++) { const full = oidx.slice(); full.splice(dim, 0, k); const fi = ravel(full, t.shape); flats.push(fi); mx = Math.max(mx, t.data[fi]); }
+        let s = 0; const ex = flats.map(fi => { const e = Math.exp(t.data[fi] - mx); s += e; return e; });
+        flats.forEach((fi, k) => { out.data[fi] = ex[k] / s; });
+      }
+      return out;
+    }
+    function permute(t, perm) {
+      const nd = t.shape.length;
+      if (perm.length !== nd) throw new Error(`permute: got ${perm.length} dims for a ${nd}D tensor`);
+      perm = perm.map(d => normDim(d, nd));
+      const sorted = [...perm].sort((a, b) => a - b);
+      for (let i = 0; i < nd; i++) if (sorted[i] !== i) throw new Error('permute: dims must be a permutation of 0..n-1');
+      const newShape = perm.map(d => t.shape[d]), n = numel(newShape), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const nidx = unravel(flat, newShape), oidx = new Array(nd); for (let i = 0; i < nd; i++) oidx[perm[i]] = nidx[i]; data[flat] = t.data[ravel(oidx, t.shape)]; }
+      return { shape: newShape, data };
+    }
+    function transpose(t, d0, d1) { const nd = t.shape.length; if (nd < 2) return { shape: t.shape.slice(), data: t.data.slice() }; const perm = Array.from({ length: nd }, (_, i) => i); d0 = normDim(d0, nd); d1 = normDim(d1, nd); [perm[d0], perm[d1]] = [perm[d1], perm[d0]]; return permute(t, perm); }
+    function reshape(t, target) {
+      let infer = -1, known = 1, sh = target.slice();
+      sh.forEach((d, i) => { if (d === -1) { if (infer >= 0) throw new Error('only one -1 allowed'); infer = i; } else { if (d < 0) throw new Error('invalid size'); known *= d; } });
+      const tot = numel(t.shape);
+      if (infer >= 0) { if (known === 0 || tot % known !== 0) throw new Error(`cannot infer -1: ${tot} not divisible by ${known}`); sh[infer] = tot / known; }
+      if (numel(sh) !== tot) throw new Error(`cannot reshape ${tot} elements into [${sh}]`);
+      return { shape: sh, data: t.data.slice() };
+    }
+    function squeezeAt(t, dim) { if (t.shape[dim] !== 1) return { shape: t.shape.slice(), data: t.data.slice() }; const sh = t.shape.slice(); sh.splice(dim, 1); return { shape: sh, data: t.data.slice() }; }
+    function unsqueeze(t, dim) { dim = normDim(dim, t.shape.length + 1); const sh = t.shape.slice(); sh.splice(dim, 0, 1); return { shape: sh, data: t.data.slice() }; }
+    function matmul(A, B) {
+      if (A.shape.length === 0 || B.shape.length === 0) throw new Error('matmul: needs at least 1D tensors');
+      let a = A, b = B, sqA = false, sqB = false;
+      if (a.shape.length === 1) { a = { shape: [1, a.shape[0]], data: a.data.slice() }; sqA = true; }
+      if (b.shape.length === 1) { b = { shape: [b.shape[0], 1], data: b.data.slice() }; sqB = true; }
+      const am = a.shape[a.shape.length - 2], ak = a.shape[a.shape.length - 1];
+      const bk = b.shape[b.shape.length - 2], bn = b.shape[b.shape.length - 1];
+      if (ak !== bk) throw new Error(`matmul: inner dims don't match (${ak} vs ${bk})`);
+      const batchA = a.shape.slice(0, -2), batchB = b.shape.slice(0, -2), batch = broadcastShape(batchA, batchB);
+      const outShape = [...batch, am, bn], data = new Array(numel(outShape)).fill(0);
+      const stA = strides(a.shape), stB = strides(b.shape), batchN = numel(batch);
+      const aRow = stA[a.shape.length - 2], aCol = stA[a.shape.length - 1], bRow = stB[b.shape.length - 2], bCol = stB[b.shape.length - 1];
+      for (let bi = 0; bi < batchN; bi++) {
+        const bidx = unravel(bi, batch);
+        let offA = 0; for (let d = 0; d < batchA.length; d++) { const id = bidx[batch.length - batchA.length + d]; offA += (batchA[d] === 1 ? 0 : id) * stA[d]; }
+        let offB = 0; for (let d = 0; d < batchB.length; d++) { const id = bidx[batch.length - batchB.length + d]; offB += (batchB[d] === 1 ? 0 : id) * stB[d]; }
+        for (let i = 0; i < am; i++) for (let j = 0; j < bn; j++) {
+          let s = 0; for (let k = 0; k < ak; k++) s += a.data[offA + i * aRow + k * aCol] * b.data[offB + k * bRow + j * bCol];
+          data[ravel([...bidx, i, j], outShape)] = s;
+        }
+      }
+      let res = { shape: outShape, data };
+      const rm = []; if (sqA) rm.push(outShape.length - 2); if (sqB) rm.push(outShape.length - 1);
+      rm.sort((x, y) => y - x).forEach(d => { res = squeezeAt(res, d); });
+      return res;
+    }
+    function cat(A, B, dim) {
+      if (A.shape.length !== B.shape.length) throw new Error('cat: tensors must have the same number of dims');
+      dim = normDim(dim, A.shape.length);
+      for (let i = 0; i < A.shape.length; i++) if (i !== dim && A.shape[i] !== B.shape[i]) throw new Error(`cat: sizes differ on dim ${i}`);
+      const outShape = A.shape.slice(); outShape[dim] += B.shape[dim];
+      const n = numel(outShape), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const idx = unravel(flat, outShape); if (idx[dim] < A.shape[dim]) data[flat] = A.data[ravel(idx, A.shape)]; else { const j = idx.slice(); j[dim] -= A.shape[dim]; data[flat] = B.data[ravel(j, B.shape)]; } }
+      return { shape: outShape, data };
+    }
+    function stack(A, B, dim) {
+      if (A.shape.length !== B.shape.length || A.shape.some((s, i) => s !== B.shape[i])) throw new Error('stack: a and b must have identical shapes');
+      dim = normDim(dim, A.shape.length + 1);
+      const outShape = A.shape.slice(); outShape.splice(dim, 0, 2);
+      const n = numel(outShape), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const idx = unravel(flat, outShape); const which = idx[dim]; const sub = idx.slice(); sub.splice(dim, 1); const src = which === 0 ? A : B; data[flat] = src.data[ravel(sub, src.shape)]; }
+      return { shape: outShape, data };
+    }
+
+    // ---- pretty printer ----
+    function fmt(v, isFloat) { if (!isFloat) return String(v); if (Object.is(v, -0)) v = 0; const r = Math.round(v * 1e4) / 1e4; return Number.isInteger(r) ? r.toFixed(1) : String(r); }
+    function toStr(t) {
+      const { shape, data } = t;
+      if (numel(shape) > 4096) return `tensor(… ${numel(shape)} elements …)`;
+      const isFloat = data.some(v => !Number.isInteger(v));
+      if (shape.length === 0) return `tensor(${fmt(data[0], isFloat)})`;
+      const st = strides(shape);
+      function rec(off, dim) {
+        if (dim === shape.length - 1) { const parts = []; for (let i = 0; i < shape[dim]; i++) parts.push(fmt(data[off + i * st[dim]], isFloat)); return '[' + parts.join(', ') + ']'; }
+        const parts = []; for (let i = 0; i < shape[dim]; i++) parts.push(rec(off + i * st[dim], dim + 1));
+        return '[' + parts.join(',\n' + ' '.repeat(8 + dim)) + ']';
+      }
+      return 'tensor(' + rec(0, 0) + ')';
+    }
+
+    // ---- op registry ----
+    const kwDim = p => { const a = []; if (p.dim !== '' && p.dim != null) a.push('dim=' + p.dim); if (p.keepdim === true || p.keepdim === 'true') a.push('keepdim=True'); return a.join(', '); };
+    const dimArg = v => (v === '' || v == null) ? null : v;
+    const G = { U: 'Element-wise', A: 'Activation', R: 'Reduction', S: 'Shape', B: 'Binary (broadcast)', J: 'Join' };
+    const DP = [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }, { key: 'keepdim', label: 'keepdim', type: 'bool', def: false }];
+
+    const OPS = {
+      neg:     { g: G.U, n: 1, run: a => mapUnary(a, x => -x),            code: () => '-a' },
+      abs:     { g: G.U, n: 1, run: a => mapUnary(a, Math.abs),           code: () => 'a.abs()' },
+      sqrt:    { g: G.U, n: 1, run: a => mapUnary(a, Math.sqrt),          code: () => 'a.sqrt()' },
+      square:  { g: G.U, n: 1, run: a => mapUnary(a, x => x * x),         code: () => 'a.square()' },
+      exp:     { g: G.U, n: 1, run: a => mapUnary(a, Math.exp),           code: () => 'a.exp()' },
+      log:     { g: G.U, n: 1, run: a => mapUnary(a, Math.log),           code: () => 'a.log()' },
+      clamp:   { g: G.U, n: 1, params: [{ key: 'min', label: 'min', type: 'text', def: '0' }, { key: 'max', label: 'max', type: 'text', def: '1' }],
+                 run: (a, _b, p) => { const lo = p.min === '' ? -Infinity : Number(p.min), hi = p.max === '' ? Infinity : Number(p.max); return mapUnary(a, x => Math.min(hi, Math.max(lo, x))); },
+                 code: p => `a.clamp(min=${p.min || 'None'}, max=${p.max || 'None'})` },
+      relu:    { g: G.A, n: 1, run: a => mapUnary(a, x => Math.max(0, x)),         code: () => 'torch.relu(a)' },
+      sigmoid: { g: G.A, n: 1, run: a => mapUnary(a, x => 1 / (1 + Math.exp(-x))), code: () => 'torch.sigmoid(a)' },
+      tanh:    { g: G.A, n: 1, run: a => mapUnary(a, Math.tanh),                   code: () => 'torch.tanh(a)' },
+      softmax: { g: G.A, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }], run: (a, _b, p) => softmax(a, intOf(p.dim)), code: p => `torch.softmax(a, dim=${p.dim})` },
+
+      sum:    { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 0, (x, v) => x + v),                   code: p => `a.sum(${kwDim(p)})` },
+      mean:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 0, (x, v) => x + v, (acc, len) => acc / len), code: p => `a.mean(${kwDim(p)})` },
+      prod:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 1, (x, v) => x * v),                   code: p => `a.prod(${kwDim(p)})` },
+      amax:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, -Infinity, Math.max),                  code: p => `a.amax(${kwDim(p)})` },
+      amin:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, Infinity, Math.min),                   code: p => `a.amin(${kwDim(p)})` },
+      argmax: { g: G.R, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }], run: (a, _b, p) => argmaxDim(a, dimArg(p.dim) == null ? null : intOf(p.dim)), code: p => `a.argmax(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+
+      reshape:   { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '3, 2' }], run: (a, _b, p) => reshape(a, intList(p.shape)), code: p => `a.reshape(${p.shape})` },
+      view:      { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '3, 2' }], run: (a, _b, p) => reshape(a, intList(p.shape)), code: p => `a.view(${p.shape})` },
+      flatten:   { g: G.S, n: 1, run: a => ({ shape: [numel(a.shape)], data: a.data.slice() }), code: () => 'a.flatten()' },
+      transpose: { g: G.S, n: 1, params: [{ key: 'dim0', label: 'dim0', type: 'text', def: '0' }, { key: 'dim1', label: 'dim1', type: 'text', def: '1' }], run: (a, _b, p) => transpose(a, intOf(p.dim0), intOf(p.dim1)), code: p => `a.transpose(${p.dim0}, ${p.dim1})` },
+      permute:   { g: G.S, n: 1, params: [{ key: 'dims', label: 'dims', type: 'text', def: '1, 0' }], run: (a, _b, p) => permute(a, intList(p.dims)), code: p => `a.permute(${p.dims})` },
+      squeeze:   { g: G.S, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }], run: (a, _b, p) => { if (p.dim === '' || p.dim == null) { const sh = a.shape.filter(s => s !== 1); return { shape: sh, data: a.data.slice() }; } return squeezeAt(a, normDim(intOf(p.dim), a.shape.length)); }, code: p => `a.squeeze(${p.dim !== '' && p.dim != null ? p.dim : ''})` },
+      unsqueeze: { g: G.S, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, _b, p) => unsqueeze(a, intOf(p.dim)), code: p => `a.unsqueeze(${p.dim})` },
+      t:         { g: G.S, n: 1, run: a => { if (a.shape.length > 2) throw new Error('.t() expects a tensor with ≤ 2 dims'); return transpose(a, 0, 1); }, code: () => 'a.t()' },
+
+      add:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x + y),            code: () => 'a + b' },
+      sub:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x - y),            code: () => 'a - b' },
+      mul:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x * y),            code: () => 'a * b' },
+      div:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x / y),            code: () => 'a / b' },
+      pow:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => Math.pow(x, y)),   code: () => 'a ** b' },
+      maximum: { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, Math.max),                   code: () => 'torch.maximum(a, b)' },
+      minimum: { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, Math.min),                   code: () => 'torch.minimum(a, b)' },
+      matmul:  { g: G.B, n: 2, run: (a, b) => matmul(a, b),                                      code: () => 'a @ b' },
+
+      cat:   { g: G.J, n: 2, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, b, p) => cat(a, b, intOf(p.dim)),   code: p => `torch.cat([a, b], dim=${p.dim})` },
+      stack: { g: G.J, n: 2, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, b, p) => stack(a, b, intOf(p.dim)), code: p => `torch.stack([a, b], dim=${p.dim})` },
+    };
+
+    // ---- build the <select> grouped by category ----
+    const groupsOrder = [G.B, G.R, G.A, G.S, G.U, G.J];
+    groupsOrder.forEach(gname => {
+      const og = document.createElement('optgroup'); og.label = gname;
+      Object.keys(OPS).filter(k => OPS[k].g === gname).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k; og.appendChild(o); });
+      opSel.appendChild(og);
+    });
+
+    // ---- DOM refs ----
+    const paramsEl = document.getElementById('sb-params');
+    const aEl = document.getElementById('sb-a'), bEl = document.getElementById('sb-b');
+    const bField = document.getElementById('sb-b-field');
+    const aShape = document.getElementById('sb-a-shape'), bShape = document.getElementById('sb-b-shape');
+    const codeEl = document.getElementById('sb-code'), outEl = document.getElementById('sb-out');
+    const outShapeEl = document.getElementById('sb-out-shape'), vizEl = document.getElementById('sb-viz');
+
+    function readParams(op) {
+      const P = {};
+      (op.params || []).forEach(d => { const el = document.getElementById('sb-p-' + d.key); P[d.key] = !el ? d.def : (d.type === 'bool' ? el.checked : el.value); });
+      return P;
+    }
+    function buildParams(op) {
+      paramsEl.innerHTML = '';
+      (op.params || []).forEach(d => {
+        const wrap = document.createElement('span'); wrap.className = 'sb-param';
+        const lab = document.createElement('label'); lab.textContent = d.label; wrap.appendChild(lab);
+        const inp = document.createElement('input');
+        if (d.type === 'bool') { inp.type = 'checkbox'; inp.checked = !!d.def; } else { inp.type = 'text'; inp.value = d.def ?? ''; if (d.ph) inp.placeholder = d.ph; }
+        inp.id = 'sb-p-' + d.key;
+        inp.addEventListener('input', compute); inp.addEventListener('change', compute);
+        wrap.appendChild(inp); paramsEl.appendChild(wrap);
+      });
+    }
+    function pills(container, shape) {
+      container.innerHTML = '';
+      if (shape.length === 0) { const s = document.createElement('span'); s.className = 'dim'; s.textContent = 'scalar'; container.appendChild(s); return; }
+      shape.forEach((d, i) => { if (i > 0) { const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '×'; container.appendChild(sep); } const dim = document.createElement('span'); dim.className = 'dim'; dim.textContent = d; container.appendChild(dim); });
+    }
+    function renderGrid(t) {
+      vizEl.innerHTML = '';
+      if (t.shape.length > 2 || numel(t.shape) > 256) return;
+      const cols = t.shape.length === 2 ? t.shape[1] : (t.shape.length === 1 ? t.shape[0] : 1);
+      const isFloat = t.data.some(v => !Number.isInteger(v));
+      let mn = Math.min(...t.data), mx = Math.max(...t.data); if (mn === mx) { mn -= 1; mx += 1; }
+      const lbl = document.createElement('div'); lbl.className = 'sb-vlabel'; lbl.textContent = 'result · ' + (t.shape.length ? '[' + t.shape.join(' × ') + ']' : 'scalar'); vizEl.appendChild(lbl);
+      const grid = document.createElement('div'); grid.className = 'sb-tgrid'; grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+      t.data.forEach(v => { const c = document.createElement('div'); c.className = 'sb-cell'; const alpha = 0.1 + 0.72 * ((v - mn) / (mx - mn)); c.style.background = `rgba(238,76,44,${alpha.toFixed(3)})`; c.textContent = fmt(v, isFloat); grid.appendChild(c); });
+      vizEl.appendChild(grid);
+    }
+
+    function compute() {
+      const op = OPS[opSel.value];
+      bField.style.display = op.n === 2 ? '' : 'none';
+      const P = readParams(op);
+      let A, B;
+      try { A = parseTensor(aEl.value); pills(aShape, A.shape); } catch (e) { return fail('a: ' + e.message); }
+      if (op.n === 2) { try { B = parseTensor(bEl.value); pills(bShape, B.shape); } catch (e) { return fail('b: ' + e.message); } }
+      let codeStr = '...'; try { codeStr = op.code(P); } catch (e) {}
+      let res; try { res = op.run(A, B, P); } catch (e) { return fail(e.message, codeStr); }
+      codeEl.classList.remove('sb-error'); outEl.classList.remove('sb-error');
+      codeEl.textContent = '>>> ' + codeStr;
+      outEl.textContent = toStr(res) + '\n# shape: torch.Size([' + res.shape.join(', ') + '])';
+      pills(outShapeEl, res.shape); renderGrid(res);
+    }
+    function fail(msg, codeStr) {
+      codeEl.classList.remove('sb-error');
+      codeEl.textContent = codeStr ? '>>> ' + codeStr : '';
+      outEl.classList.add('sb-error'); outEl.textContent = 'RuntimeError: ' + msg;
+      outShapeEl.innerHTML = ''; vizEl.innerHTML = '';
+    }
+
+    opSel.addEventListener('change', () => { buildParams(OPS[opSel.value]); compute(); });
+    aEl.addEventListener('input', compute); bEl.addEventListener('input', compute);
+
+    // ---- example chips ----
+    const EXAMPLES = [
+      { label: 'matmul 2×3 @ 3×2', op: 'matmul', a: '[[1, 2, 3], [4, 5, 6]]', b: '[[1, 0], [0, 1], [1, 1]]' },
+      { label: 'softmax (dim=-1)', op: 'softmax', a: '[[2.0, 1.0, 0.1]]', p: { dim: '-1' } },
+      { label: 'broadcast add', op: 'add', a: '[[1, 2, 3], [4, 5, 6]]', b: '[10, 20, 30]' },
+      { label: 'mean (dim=0)', op: 'mean', a: '[[1, 2], [3, 4]]', p: { dim: '0' } },
+      { label: 'transpose', op: 'transpose', a: '[[1, 2, 3], [4, 5, 6]]', p: { dim0: '0', dim1: '1' } },
+      { label: 'reshape → 3×2', op: 'reshape', a: '[[1, 2, 3], [4, 5, 6]]', p: { shape: '3, 2' } },
+      { label: 'relu', op: 'relu', a: '[[-1, 2], [-3, 4]]' },
+      { label: 'batched matmul', op: 'matmul', a: '[[[1, 2], [3, 4]], [[5, 6], [7, 8]]]', b: '[[1, 0], [0, 1]]' },
+    ];
+    const chipsEl = document.getElementById('sb-chips');
+    EXAMPLES.forEach(ex => {
+      const btn = document.createElement('button'); btn.textContent = ex.label;
+      btn.addEventListener('click', () => {
+        opSel.value = ex.op; buildParams(OPS[ex.op]);
+        aEl.value = ex.a; if (ex.b != null) bEl.value = ex.b;
+        if (ex.p) Object.keys(ex.p).forEach(k => { const el = document.getElementById('sb-p-' + k); if (el) el.value = ex.p[k]; });
+        compute();
+      });
+      chipsEl.appendChild(btn);
+    });
+
+    // ---- init ----
+    opSel.value = 'matmul';
+    buildParams(OPS.matmul);
+    compute();
+  })();
 </script>
 
 </body>

@@ -1,161 +1,236 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Attention Tensors — shapes through the encoder</title>
+<title>Attention テンソル — エンコーダーを通る形状</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
   onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b1220;
-    --panel: #121a2b;
-    --panel-2: #182338;
-    --border: #283449;
-    --text: #e6f1ff;
-    --muted: #8aa1bd;
-    --accent: #fb923c;          /* orange */
-    --accent-2: #f59e0b;         /* amber */
-    --code-bg: #08101e;
-    --keyword: #ff7b72;
-    --string: #a5d6ff;
-    --number: #d2a8ff;
-    --comment: #7d8fa6;
-    --fn: #d2a8ff;
-    --tag: #79c0ff;
-    --good: #4ade80;
+    --bg: #0a0a0f;
+    --bg-2: #101019;
+    --panel: #12121b;
+    --panel-2: #181826;
+    --border: rgba(255,240,220,0.09);
+    --border-2: rgba(255,240,220,0.14);
+    --text: #f4f0e6;
+    --ink: #f4f0e6;
+    --muted: #8f897c;
+    --accent: #ff5e3a;          /* orange-red */
+    --accent-2: #ffd23a;        /* amber */
+    --code-bg: #050507;
+    --keyword: #ff5e3a;
+    --string: #3affb8;
+    --number: #ffd23a;
+    --comment: #5b5648;
+    --fn: #f4f0e6;
+    --tag: #7dd3fc;
+    --good: #3affb8;
     --bad: #f87171;
-    --warn: #fbbf24;
+    --warn: #ffd23a;
+    --grid: rgba(255,240,220,0.035);
     --dim-b: #7dd3fc;
     --dim-t: #c4b5fd;
-    --dim-d: #fb923c;
+    --dim-d: #ff5e3a;
     --dim-h: #f472b6;
-    --dim-k: #34d399;
-    --dim-ff: #fbbf24;
+    --dim-k: #3affb8;
+    --dim-ff: #ffd23a;
+    --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0;
     background:
-      radial-gradient(ellipse at top, rgba(251,146,60,0.10), transparent 50%),
+      radial-gradient(ellipse at top right, rgba(255,94,58,0.12), transparent 52%),
+      radial-gradient(ellipse at bottom left, rgba(58,255,184,0.06), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
       var(--bg);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px, 100% 100%;
+    background-attachment: fixed, fixed, fixed, fixed, fixed;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.55;
+    font-family: var(--sans);
+    line-height: 1.6;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
-  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+
+  /* film grain */
+  .grain {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    z-index: 300;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  ::selection { background: rgba(255,94,58,0.3); color: #fff; }
+
+  /* ---------- HEADER ---------- */
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: rgba(10,10,15,0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
   header {
-    background: linear-gradient(135deg, #2a1810 0%, #0b1220 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 24px;
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: linear-gradient(135deg, rgba(255,94,58,0.07) 0%, transparent 60%);
+    padding: 16px 28px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
   }
-  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .logo {
+    font-family: var(--serif); font-weight: 600; font-size: 21px;
+    letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 11px;
+  }
+  .logo .spark { color: var(--accent); font-size: 22px; filter: drop-shadow(0 0 10px var(--accent)); animation: flicker 3s ease-in-out infinite; }
+  @keyframes flicker { 0%,100%{opacity:1} 48%{opacity:.85} 50%{opacity:.55} 52%{opacity:.9} }
   .badge {
-    background: var(--accent); color: #1a0b00;
-    padding: 3px 8px; border-radius: 999px;
-    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--accent); color: #160600;
+    padding: 3px 10px; border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em;
+    box-shadow: 0 0 18px rgba(255,94,58,0.35);
   }
   .stat {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 7px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 12px;
+    border-radius: 2px;
+    padding: 6px 13px;
+    font-family: var(--mono);
     font-size: 13px;
   }
-  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
-  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat .num { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+  .stat .lbl { color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.18em; }
 
   .progress-bar-outer {
-    flex: 1; min-width: 180px; height: 8px;
+    flex: 1; min-width: 180px; height: 4px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 999px; overflow: hidden;
+    border-radius: 0; overflow: hidden;
   }
   .progress-bar-inner {
     height: 100%; width: 0%;
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
-    transition: width 0.5s cubic-bezier(.4,0,.2,1);
-    box-shadow: 0 0 12px rgba(251,146,60,0.6);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 0 16px rgba(255,94,58,0.7);
   }
   .streak {
-    display: flex; align-items: center; gap: 4px;
+    display: flex; align-items: center; gap: 5px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 10px;
+    border-radius: 2px;
+    padding: 6px 11px;
+    font-family: var(--mono);
     font-size: 13px;
   }
   .streak .flame-mini { font-size: 16px; }
 
   nav.tabs {
-    display: flex; gap: 6px; flex-wrap: wrap;
-    padding: 10px 24px;
-    background: var(--panel);
+    display: flex; gap: 4px; flex-wrap: wrap;
+    padding: 10px 28px;
+    background: rgba(10,10,15,0.6);
     border-bottom: 1px solid var(--border);
   }
   nav.tabs button {
     background: transparent; color: var(--muted);
     border: 1px solid transparent;
-    padding: 8px 14px; border-radius: 6px;
-    cursor: pointer; font-size: 13px; font-weight: 600;
-    transition: all 0.15s;
-    -webkit-appearance: none; appearance: none; font-family: inherit;
+    border-bottom: 2px solid transparent;
+    padding: 8px 14px; border-radius: 2px;
+    cursor: pointer; font-size: 12px; font-weight: 500;
+    font-family: var(--mono); letter-spacing: 0.02em;
+    transition: all 0.2s;
+    -webkit-appearance: none; appearance: none;
   }
-  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button:hover { color: var(--text); background: rgba(255,240,220,0.04); }
   nav.tabs button.active {
     color: var(--accent);
-    background: rgba(251,146,60,0.12);
-    border-color: rgba(251,146,60,0.4);
+    background: rgba(255,94,58,0.08);
+    border-bottom-color: var(--accent);
+    box-shadow: 0 4px 18px -8px var(--accent);
   }
   nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
 
-  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  main { padding: 56px 28px 40px; max-width: 1180px; margin: 0 auto; }
   section.tab-section { display: none; }
-  section.tab-section.active { display: block; animation: fade 0.25s ease; }
-  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+  section.tab-section.active { display: block; animation: fade 0.4s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-  h1 { font-size: 28px; margin: 0 0 8px; }
+  /* ---------- TYPOGRAPHY ---------- */
+  h1 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(34px, 5.2vw, 60px);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin: 0 0 18px;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
   h2 {
-    font-size: 18px; margin: 28px 0 12px;
-    color: var(--accent); display: flex; align-items: center; gap: 8px;
+    font-family: var(--serif);
+    font-size: 22px; font-weight: 600; font-style: italic;
+    letter-spacing: -0.01em;
+    margin: 52px 0 18px;
+    color: var(--text);
+    display: flex; align-items: center; gap: 16px;
   }
   h2::before {
-    content: ""; width: 4px; height: 18px;
-    background: var(--accent); border-radius: 2px;
-    box-shadow: 0 0 8px var(--accent);
+    content: "";
+    width: 26px; height: 1px; flex: none;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
   }
-  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+  h2::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  h3 { font-family: var(--serif); font-style: italic; }
+  p.lead {
+    color: var(--muted); margin: 0 0 24px; max-width: 760px;
+    font-size: 17px; line-height: 1.6; font-weight: 300;
+  }
+  p.lead em { font-style: italic; color: var(--text); }
+  p.lead strong { color: var(--text); font-weight: 600; }
+  code { font-family: var(--mono); }
 
+  /* ---------- CARDS (corner-bracket panels) ---------- */
   .card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 2px;
     overflow: hidden;
-    margin: 16px 0;
+    margin: 18px 0;
+    position: relative;
+    transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
   }
+  .card::before, .card::after {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    pointer-events: none; z-index: 2; opacity: 0.55; transition: opacity 0.25s;
+  }
+  .card::before { top: -1px; left: -1px; border-top: 1.5px solid var(--accent); border-left: 1.5px solid var(--accent); }
+  .card::after  { bottom: -1px; right: -1px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); }
+  .card:hover { border-color: var(--border-2); box-shadow: 0 18px 50px -28px rgba(0,0,0,0.9); }
+  .card:hover::before, .card:hover::after { opacity: 1; }
   .card-head {
-    padding: 12px 14px;
+    padding: 13px 16px;
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
     border-bottom: 1px solid var(--border);
-    background: var(--panel-2);
+    background: linear-gradient(180deg, rgba(255,240,220,0.03), transparent);
   }
-  .card-title { font-weight: 700; font-size: 14px; }
-  .card-body { padding: 14px; }
+  .card-title { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-2); }
+  .card-body { padding: 18px; }
 
   pre.code {
     margin: 8px 0;
-    padding: 12px 14px;
+    padding: 16px 18px;
     background: var(--code-bg);
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
     overflow-x: auto;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12.8px; line-height: 1.65;
+    font-family: var(--mono);
+    font-size: 12.6px; line-height: 1.7;
   }
   .tok-k { color: var(--keyword); }
   .tok-s { color: var(--string); }
@@ -164,152 +239,150 @@
   .tok-f { color: var(--fn); }
   .tok-t { color: var(--tag); }
 
-  /* Drill */
+  /* ---------- DRILLS ---------- */
   .drill {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin: 14px 0;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s;
   }
+  .drill:hover { box-shadow: 0 0 0 1px var(--border-2), 0 18px 40px -30px rgba(0,0,0,0.8); }
   .drill.solved {
     border-left-color: var(--good);
-    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+    background: linear-gradient(135deg, rgba(58,255,184,0.06), transparent 60%);
+    box-shadow: 0 0 30px -16px var(--good);
   }
   .drill .prompt {
-    font-size: 14px; color: var(--text); margin-bottom: 10px;
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 15px; color: var(--text); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
   .drill .prompt .num {
-    background: var(--accent); color: #1a0b00;
+    background: var(--accent); color: #160600;
     width: 22px; height: 22px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 800;
+    font-family: var(--mono);
+    font-size: 11px; font-weight: 700; flex: none;
+    box-shadow: 0 0 14px rgba(255,94,58,0.45);
   }
-  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill.solved .prompt .num { background: var(--good); color: #001813; box-shadow: 0 0 14px rgba(58,255,184,0.5); }
   .drill pre.exercise {
-    margin: 6px 0;
-    padding: 12px 14px;
+    margin: 8px 0;
+    padding: 14px 16px;
     background: var(--code-bg);
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 13px; line-height: 1.95;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 13px; line-height: 2.05;
     overflow-x: auto;
   }
   .blank {
     display: inline-block;
-    min-width: 70px; max-width: 240px;
+    min-width: 72px; max-width: 240px;
     padding: 2px 8px;
-    background: var(--bg);
+    background: rgba(255,94,58,0.06);
     border: 1px solid var(--accent);
-    border-radius: 4px;
+    border-radius: 2px;
     color: var(--accent);
-    font-family: ui-monospace, monospace;
+    font-family: var(--mono);
     font-size: 13px;
     outline: none;
     text-align: center;
-    transition: all 0.15s;
+    transition: all 0.18s;
   }
   .blank:focus {
-    box-shadow: 0 0 0 3px rgba(251,146,60,0.25);
-    background: rgba(251,146,60,0.05);
+    box-shadow: 0 0 0 3px rgba(255,94,58,0.22), 0 0 16px rgba(255,94,58,0.3);
+    background: rgba(255,94,58,0.12);
   }
   .blank.correct {
     border-color: var(--good); color: var(--good);
-    background: rgba(74, 222, 128, 0.08);
-    animation: pop 220ms ease-out;
+    background: rgba(58,255,184,0.1);
+    box-shadow: 0 0 14px rgba(58,255,184,0.3);
+    animation: pop 240ms ease-out;
   }
   .blank.wrong {
     border-color: var(--bad); color: var(--bad);
     animation: shake 240ms ease-in-out;
   }
-  @keyframes pop {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-    100% { transform: scale(1); }
-  }
-  @keyframes shake {
-    0%,100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    50% { transform: translateX(4px); }
-    75% { transform: translateX(-2px); }
-  }
-  .drill .controls {
-    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
-  }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.16)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .drill .controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
   .btn {
-    background: var(--accent); color: #1a0b00;
-    border: none; border-radius: 6px;
-    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    background: var(--accent); color: #160600;
+    border: none; border-radius: 2px;
+    padding: 8px 16px; font-size: 11px; font-weight: 700;
+    font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
     cursor: pointer;
-    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
-    font-family: inherit;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.2s;
   }
-  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(251,146,60,0.4); }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn.ghost {
-    background: transparent; color: var(--muted);
-    border: 1px solid var(--border);
-  }
+  .btn:hover { filter: brightness(1.1); box-shadow: 0 0 22px rgba(255,94,58,0.5); }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border-2); }
   .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
-  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+  .btn.tiny { padding: 5px 11px; font-size: 10px; }
 
-  .feedback {
-    margin-top: 8px; font-size: 13px; min-height: 18px;
-  }
+  .feedback { margin-top: 10px; font-size: 13px; min-height: 18px; font-family: var(--mono); }
   .feedback.good { color: var(--good); }
   .feedback.bad { color: var(--bad); }
-  .feedback.hint { color: var(--muted); font-style: italic; }
+  .feedback.hint { color: var(--muted); font-style: italic; font-family: var(--serif); }
 
   .note {
-    background: rgba(251,146,60,0.08);
-    border-left: 3px solid var(--accent);
-    padding: 10px 14px;
-    border-radius: 0 6px 6px 0;
-    font-size: 13.5px;
-    margin: 14px 0;
+    background: rgba(255,94,58,0.06);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    padding: 13px 16px;
+    border-radius: 2px;
+    font-size: 14px;
+    margin: 16px 0;
   }
   .note strong { color: var(--accent); }
-  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn { background: rgba(255,210,58,0.06); border-left-color: var(--warn); }
   .note.warn strong { color: var(--warn); }
-  .note.green { background: rgba(74,222,128,0.08); border-left-color: var(--good); }
+  .note.green { background: rgba(58,255,184,0.06); border-left-color: var(--good); }
   .note.green strong { color: var(--good); }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  @media (max-width: 900px) {
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
-  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
   .canvas-card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    margin: 16px 0;
+    border-radius: 2px;
+    padding: 20px;
+    margin: 18px 0;
+    position: relative;
   }
+  .canvas-card::before, .canvas-card::after {
+    content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none; opacity: 0.6;
+  }
+  .canvas-card::before { top: -1px; left: -1px; border-top: 1.5px solid var(--accent); border-left: 1.5px solid var(--accent); }
+  .canvas-card::after { bottom: -1px; right: -1px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); }
   .canvas-card h3 {
-    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    margin: 0 0 12px; font-size: 18px; color: var(--text); font-style: italic;
     display: flex; align-items: center; gap: 8px;
   }
 
-  /* Shape pills — color-coded per dimension */
+  /* Shape pills */
   .shape {
     display: inline-flex; align-items: center; gap: 2px;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
+    padding: 3px 9px;
+    border-radius: 2px;
+    font-family: var(--mono);
     font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
+    transition: border-color 0.2s;
   }
+  .shape:hover { border-color: var(--border-2); }
   .shape .br { color: var(--muted); font-weight: 700; }
-  .shape .dim { color: var(--text); font-weight: 700; }
+  .shape .dim { color: var(--text); font-weight: 700; cursor: pointer; transition: text-shadow 0.2s, transform 0.15s; }
+  .shape .dim:hover { transform: translateY(-1px); text-shadow: 0 0 10px currentColor; }
   .shape .dim.b  { color: var(--dim-b); }
   .shape .dim.t  { color: var(--dim-t); }
   .shape .dim.d  { color: var(--dim-d); }
@@ -319,282 +392,265 @@
   .shape .lbl { color: var(--muted); font-size: 10px; margin-right: 2px; }
   .shape .arrow { color: var(--muted); margin: 0 4px; }
 
+  /* dimension tracer highlight */
+  .dim-trace { animation: dimPulse 1s ease-in-out infinite; }
+  @keyframes dimPulse {
+    0%,100% { text-shadow: 0 0 0 transparent; }
+    50% { text-shadow: 0 0 14px currentColor, 0 0 4px currentColor; }
+  }
+
   .pill {
     display: inline-block;
-    background: rgba(251,146,60,0.15);
+    background: rgba(255,94,58,0.14);
     color: var(--accent);
-    padding: 1px 8px;
-    border-radius: 999px;
+    padding: 1px 9px;
+    border-radius: 2px;
     font-size: 11px;
-    font-family: ui-monospace, monospace;
-    font-weight: 700;
+    font-family: var(--mono);
+    font-weight: 600;
     margin-right: 6px;
+    cursor: default;
+    transition: box-shadow 0.2s, transform 0.15s;
   }
-  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
-  .pill.warn  { background: rgba(251,191,36,0.15); color: var(--warn); }
-  .pill.red   { background: rgba(248,113,113,0.15); color: var(--bad); }
-  .pill.blue  { background: rgba(125,211,252,0.15); color: var(--dim-b); }
-  .pill.violet{ background: rgba(196,181,253,0.15); color: var(--dim-t); }
-  .pill.pink  { background: rgba(244,114,182,0.15); color: var(--dim-h); }
+  .pill:hover { transform: translateY(-1px); box-shadow: 0 0 14px -2px currentColor; }
+  .pill.green { background: rgba(58,255,184,0.14); color: var(--good); }
+  .pill.warn  { background: rgba(255,210,58,0.14); color: var(--warn); }
+  .pill.red   { background: rgba(248,113,113,0.14); color: var(--bad); }
+  .pill.blue  { background: rgba(125,211,252,0.14); color: var(--dim-b); }
+  .pill.violet{ background: rgba(196,181,253,0.14); color: var(--dim-t); }
+  .pill.pink  { background: rgba(244,114,182,0.14); color: var(--dim-h); }
 
   /* Pipeline (sandbox) */
-  .pipeline {
-    display: flex; flex-direction: column;
-    gap: 10px;
-    margin-top: 14px;
-  }
+  .pipeline { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
   .stage {
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
+    border-left: 2px solid var(--border-2);
+    border-radius: 2px;
+    padding: 12px 16px 16px;
     display: grid;
     grid-template-columns: 38px 1fr auto auto;
-    gap: 12px;
+    gap: 14px;
     align-items: center;
-    transition: border-color 0.2s, transform 0.15s;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.25s, transform 0.2s, background 0.25s;
   }
-  .stage:hover { border-left-color: var(--accent); transform: translateX(2px); }
+  .stage:hover { border-left-color: var(--accent); transform: translateX(3px); }
+  /* animated size bar at bottom of each stage */
+  .stage .size-bar {
+    position: absolute; left: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0; opacity: 0.85;
+    box-shadow: 0 0 12px rgba(255,94,58,0.5);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stage[data-section="attn"] .size-bar { background: linear-gradient(90deg, var(--dim-h), var(--accent)); box-shadow: 0 0 12px rgba(244,114,182,0.5); }
+  .stage[data-section="ffn"]  .size-bar { background: linear-gradient(90deg, var(--dim-ff), var(--accent)); box-shadow: 0 0 12px rgba(255,210,58,0.5); }
+  .stage[data-section="emb"]  .size-bar { background: linear-gradient(90deg, var(--dim-t), var(--accent-2)); box-shadow: 0 0 12px rgba(196,181,253,0.5); }
   .stage .stage-num {
     width: 30px; height: 30px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 12px; font-weight: 800; color: var(--muted);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 12px; font-weight: 700; color: var(--muted);
   }
-  .stage .stage-name {
-    font-weight: 700; font-size: 13.5px;
-    color: var(--text);
-  }
-  .stage .stage-name .meta { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
-  .stage .params {
-    font-family: ui-monospace, monospace;
-    font-size: 11px; color: var(--muted);
-    white-space: nowrap;
-  }
+  .stage .stage-name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .stage .stage-name .meta { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; font-family: var(--mono); }
+  .stage .params { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
   .stage .params b { color: var(--accent-2); font-weight: 700; }
-  .stage.changed { border-left-color: var(--accent); background: linear-gradient(90deg, rgba(251,146,60,0.06), transparent); }
+  .stage.changed { border-left-color: var(--accent); background: linear-gradient(90deg, rgba(255,94,58,0.07), transparent); }
   .stage[data-section="attn"] .stage-num { color: var(--dim-h); }
   .stage[data-section="ffn"]  .stage-num { color: var(--dim-ff); }
   .stage[data-section="emb"]  .stage-num { color: var(--dim-t); }
 
   .legend {
-    display: flex; gap: 14px; flex-wrap: wrap;
-    margin: 4px 0 12px;
-    font-family: ui-monospace, monospace;
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin: 4px 0 14px;
+    font-family: var(--mono);
     font-size: 12px;
   }
-  .legend span { display: inline-flex; align-items: center; gap: 4px; }
-  .legend .dot {
-    width: 10px; height: 10px; border-radius: 2px;
-    display: inline-block;
-  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
-  /* sandbox controls */
   .sandbox-controls {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
+    gap: 14px;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin: 12px 0;
+    border-radius: 2px;
+    padding: 18px;
+    margin: 14px 0;
   }
-  .sandbox-controls .knob {
-    display: flex; flex-direction: column; gap: 4px;
-  }
+  .sandbox-controls .knob { display: flex; flex-direction: column; gap: 6px; }
   .sandbox-controls .knob label {
-    font-family: ui-monospace, monospace;
-    font-size: 11px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 0.4px;
+    font-family: var(--mono);
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.16em;
   }
   .sandbox-controls .knob input {
     background: var(--bg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-2);
     color: var(--text);
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 15px;
     outline: none;
     width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .sandbox-controls .knob input:focus { border-color: var(--accent); }
-  .sandbox-controls .knob.derived input {
-    background: var(--panel-2); color: var(--accent);
-    cursor: not-allowed;
-  }
-  .sandbox-controls .knob.bad input {
-    border-color: var(--bad); color: var(--bad);
-  }
+  .sandbox-controls .knob input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,94,58,0.2); }
+  .sandbox-controls .knob.derived input { background: var(--panel-2); color: var(--accent); cursor: not-allowed; }
+  .sandbox-controls .knob.bad input { border-color: var(--bad); color: var(--bad); }
 
   .total-params {
-    background: linear-gradient(135deg, rgba(251,146,60,0.08), rgba(245,158,11,0.04));
-    border: 1px solid rgba(251,146,60,0.3);
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-top: 10px;
-    font-family: ui-monospace, monospace;
+    background: linear-gradient(135deg, rgba(255,94,58,0.09), rgba(255,210,58,0.04));
+    border: 1px solid rgba(255,94,58,0.3);
+    border-radius: 2px;
+    padding: 13px 16px;
+    margin-top: 12px;
+    font-family: var(--mono);
     font-size: 13px;
     display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
   }
-  .total-params b { color: var(--accent); font-size: 16px; }
+  .total-params b { color: var(--accent); font-size: 17px; }
 
-  /* Step cards (pipeline overview tab) */
+  /* Step cards */
   .step-card {
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
+    border-radius: 2px;
+    padding: 14px 16px;
+    transition: border-color 0.25s, transform 0.2s;
   }
+  .step-card:hover { border-color: var(--border-2); transform: translateY(-2px); }
   .step-card .step-num {
     display: inline-block;
     width: 22px; height: 22px;
-    background: var(--accent); color: #1a0b00;
+    background: var(--accent); color: #160600;
     border-radius: 50%; text-align: center; line-height: 22px;
-    font-weight: 800; font-size: 12px; margin-right: 6px;
+    font-family: var(--mono);
+    font-weight: 700; font-size: 12px; margin-right: 6px;
+    box-shadow: 0 0 12px rgba(255,94,58,0.4);
   }
-  .step-card h4 {
-    margin: 0 0 6px; font-size: 14px; color: var(--text);
-    display: flex; align-items: center; flex-wrap: wrap;
-  }
+  .step-card h4 { margin: 0 0 6px; font-size: 15px; color: var(--text); display: flex; align-items: center; flex-wrap: wrap; }
   .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-  .step-card code {
-    color: var(--tag); font-family: ui-monospace, monospace;
-    font-size: 12.5px;
-  }
+  .step-card code { color: var(--tag); font-family: var(--mono); font-size: 12.5px; }
 
-  /* Architecture diagram (welcome) */
   .arch-svg {
     width: 100%; max-width: 560px;
     background: var(--code-bg);
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px solid var(--border);
     display: block;
     margin: 0 auto;
   }
 
-  /* table */
-  .matrix-table {
-    width: 100%; border-collapse: collapse;
-    font-family: ui-monospace, monospace;
-    font-size: 12.5px;
-  }
-  .matrix-table th, .matrix-table td {
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    text-align: left;
-  }
-  .matrix-table th {
-    background: var(--panel-2);
-    color: var(--accent);
-    font-weight: 700;
-  }
+  .matrix-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  .matrix-table th, .matrix-table td { padding: 8px 11px; border: 1px solid var(--border); text-align: left; }
+  .matrix-table th { background: var(--panel-2); color: var(--accent-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+  .matrix-table tr { transition: background 0.15s; }
+  .matrix-table tbody tr:hover, .matrix-table tr:hover { background: rgba(255,240,220,0.025); }
   .matrix-table td.shape-cell { color: var(--text); }
 
-  /* Confetti */
-  #confetti-canvas {
-    position: fixed; inset: 0;
-    pointer-events: none; z-index: 100;
-    background: transparent;
-    border: none;
-  }
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 200; background: transparent; border: none; }
 
-  /* Help overlay */
   #help-overlay {
     position: fixed; inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
-    z-index: 200;
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(6px);
+    z-index: 400;
     display: none;
     align-items: center; justify-content: center;
     padding: 24px;
   }
-  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay.show { display: flex; animation: fade 0.25s ease; }
   #help-overlay .help-content {
     background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px 28px;
+    border: 1px solid var(--border-2);
+    border-radius: 2px;
+    padding: 28px 32px;
     max-width: 480px;
     width: 100%;
+    position: relative;
   }
-  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 18px; height: 18px; border-top: 1.5px solid var(--accent); border-left: 1.5px solid var(--accent); }
+  #help-overlay .help-content::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 18px; height: 18px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); }
+  #help-overlay h3 { margin: 0 0 16px; color: var(--accent); font-family: var(--serif); font-style: italic; font-size: 22px; }
   #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  #help-overlay td { padding: 6px 0; }
+  #help-overlay td { padding: 7px 0; }
   #help-overlay kbd {
     background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-family: ui-monospace, monospace;
+    border: 1px solid var(--border-2);
+    border-radius: 2px;
+    padding: 2px 9px;
+    font-family: var(--mono);
     font-size: 12px;
     color: var(--accent);
   }
 
-  /* Toast */
   .toast {
-    position: fixed; bottom: 24px; left: 50%;
+    position: fixed; bottom: 28px; left: 50%;
     transform: translateX(-50%) translateY(40px);
     background: var(--panel);
     border: 1px solid var(--accent);
     color: var(--text);
-    padding: 10px 18px;
-    border-radius: 999px;
-    font-size: 13px; font-weight: 600;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(251,146,60,0.3);
+    padding: 11px 20px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 12.5px; font-weight: 500;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6), 0 0 24px rgba(255,94,58,0.35);
     opacity: 0; pointer-events: none;
-    transition: opacity 0.3s, transform 0.3s;
-    z-index: 150;
+    transition: opacity 0.35s, transform 0.35s;
+    z-index: 250;
   }
-  .toast.show {
-    opacity: 1; transform: translateX(-50%) translateY(0);
-  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   footer {
     text-align: center; color: var(--muted);
-    font-size: 12px; padding: 30px 20px;
+    font-family: var(--mono);
+    font-size: 11px; padding: 40px 20px;
     border-top: 1px solid var(--border);
-    margin-top: 30px;
+    margin-top: 50px; letter-spacing: 0.04em;
   }
   footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
 
   .copy-btn {
     background: transparent; color: var(--muted);
-    border: 1px solid var(--border); border-radius: 5px;
-    padding: 3px 8px; font-size: 11px; cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
+    border: 1px solid var(--border-2); border-radius: 2px;
+    padding: 4px 10px; font-size: 10px; cursor: pointer;
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em;
+    transition: all 0.18s;
   }
   .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
   .copy-btn.copied { color: var(--good); border-color: var(--good); }
 
   .formula {
-    text-align: center; padding: 12px;
+    text-align: center; padding: 16px;
     background: var(--code-bg);
-    border-radius: 8px;
-    font-size: 16px;
-    margin: 10px 0;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 17px;
+    margin: 12px 0;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-    }
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
 <body>
+<div class="grain"></div>
 
 <div class="sticky-top">
   <header>
     <div class="logo">
-      <span class="spark">⚡</span> Attention Tensors <span class="badge">Type to Learn</span>
+      <span class="spark">⚡</span> Attention テンソル <span class="badge">タイピング学習</span>
     </div>
     <div class="progress-bar-outer" title="overall progress">
       <div class="progress-bar-inner" id="progressBar"></div>
@@ -612,16 +668,16 @@
     <button class="btn ghost tiny" onclick="showHelp()">?</button>
   </header>
   <nav class="tabs" id="tabs">
-    <button class="active" data-tab="welcome">1. What is it?</button>
-    <button data-tab="inputs">2. Inputs &amp; Embeddings</button>
-    <button data-tab="attn">3. Multi-Head Attention</button>
-    <button data-tab="ffn">4. FFN &amp; Encoder block</button>
-    <button data-tab="decoder">5. Decoder block</button>
-    <button data-tab="output">6. Output &rarr; logits</button>
-    <button data-tab="training">7. Training</button>
-    <button data-tab="inference">8. Inference</button>
-    <button data-tab="sandbox">9. Live Shapes</button>
-    <button data-tab="drills">0. Practice</button>
+    <button class="active" data-tab="welcome">1. これは何？</button>
+    <button data-tab="inputs">2. 入力 &amp; 埋め込み</button>
+    <button data-tab="attn">3. マルチヘッドAttention</button>
+    <button data-tab="ffn">4. FFN &amp; エンコーダーブロック</button>
+    <button data-tab="decoder">5. デコーダーブロック</button>
+    <button data-tab="output">6. 出力 &rarr; logits</button>
+    <button data-tab="training">7. 訓練</button>
+    <button data-tab="inference">8. 推論</button>
+    <button data-tab="sandbox">9. ライブ形状</button>
+    <button data-tab="drills">0. 練習</button>
   </nav>
 </div>
 
@@ -629,94 +685,93 @@
 
 <!-- ========================= WELCOME ========================= -->
 <section class="tab-section active" id="tab-welcome">
-  <h1>One tensor, all the way to logits</h1>
+  <h1>1つのテンソル、logitsまで一気に</h1>
   <p class="lead">
-    The <em>Attention Is All You Need</em> transformer is a recipe: take a tensor of source token IDs,
-    push it through an encoder, push the target tokens through a decoder that <em>cross-attends</em>
-    to the encoder, project to the vocabulary, and out come <strong>next-token logits</strong>.
-    This page tracks <strong>shape</strong> — every stage from input IDs to final
-    <code>[B, T_tgt, V]</code> probabilities, color-coded so you can read the paper without ever losing
-    the tensor.
+    <em>Attention Is All You Need</em> の Transformer はひとつのレシピです：ソーストークンIDのテンソルを受け取り、
+    エンコーダーを通し、ターゲットトークンをエンコーダーに<em>クロスアテンション</em>するデコーダーに通し、
+    語彙に射影して、<strong>次トークンのlogits</strong>を出力する。
+    このページでは<strong>形状</strong>を追います — 入力IDから最終的な
+    <code>[B, T_tgt, V]</code>確率まで、すべてのステージを色分けして示し、論文を読む際にテンソルを見失わないようにします。
   </p>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-head"><div class="card-title">paper defaults (base)</div></div>
+      <div class="card-head"><div class="card-title">論文デフォルト (ベース)</div></div>
       <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
-        <div>B (batch)        = <b style="color: var(--dim-b)">2</b>   <span style="color: var(--muted);"># batch size</span></div>
-        <div>T_src (src len)  = <b style="color: var(--dim-t)">8</b>   <span style="color: var(--muted);"># source tokens</span></div>
-        <div>T_tgt (tgt len)  = <b style="color: var(--dim-t)">7</b>   <span style="color: var(--muted);"># target tokens</span></div>
-        <div>d_model          = <b style="color: var(--dim-d)">512</b> <span style="color: var(--muted);"># embedding dim</span></div>
-        <div>h (heads)        = <b style="color: var(--dim-h)">8</b>   <span style="color: var(--muted);"># attention heads</span></div>
+        <div>B (batch)        = <b style="color: var(--dim-b)">2</b>   <span style="color: var(--muted);"># バッチサイズ</span></div>
+        <div>T_src (src len)  = <b style="color: var(--dim-t)">8</b>   <span style="color: var(--muted);"># ソーストークン数</span></div>
+        <div>T_tgt (tgt len)  = <b style="color: var(--dim-t)">7</b>   <span style="color: var(--muted);"># ターゲットトークン数</span></div>
+        <div>d_model          = <b style="color: var(--dim-d)">512</b> <span style="color: var(--muted);"># 埋め込み次元</span></div>
+        <div>h (heads)        = <b style="color: var(--dim-h)">8</b>   <span style="color: var(--muted);"># アテンションヘッド数</span></div>
         <div>d_k = d_v        = <b style="color: var(--dim-k)">64</b>  <span style="color: var(--muted);"># d_model / h</span></div>
-        <div>d_ff             = <b style="color: var(--dim-ff)">2048</b><span style="color: var(--muted);"># FFN inner dim (4·d_model)</span></div>
-        <div>V (vocab)        = <b style="color: var(--accent-2)">37000</b><span style="color: var(--muted);"># EN→DE BPE vocab</span></div>
-        <div>N (layers)       = <b>6</b>     <span style="color: var(--muted);"># enc layers = dec layers</span></div>
+        <div>d_ff             = <b style="color: var(--dim-ff)">2048</b><span style="color: var(--muted);"># FFN内部次元 (4·d_model)</span></div>
+        <div>V (vocab)        = <b style="color: var(--accent-2)">37000</b><span style="color: var(--muted);"># EN→DE BPEボキャブラリー</span></div>
+        <div>N (layers)       = <b>6</b>     <span style="color: var(--muted);"># encレイヤー数 = decレイヤー数</span></div>
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><div class="card-title">color legend (used everywhere)</div></div>
+      <div class="card-head"><div class="card-title">カラーレジェンド（全体で使用）</div></div>
       <div class="card-body">
         <div class="legend">
-          <span><span class="dot" style="background: var(--dim-b)"></span> B  batch</span>
-          <span><span class="dot" style="background: var(--dim-t)"></span> T  tokens</span>
+          <span><span class="dot" style="background: var(--dim-b)"></span> B  バッチ</span>
+          <span><span class="dot" style="background: var(--dim-t)"></span> T  トークン</span>
           <span><span class="dot" style="background: var(--dim-d)"></span> d_model</span>
-          <span><span class="dot" style="background: var(--dim-h)"></span> h  heads</span>
+          <span><span class="dot" style="background: var(--dim-h)"></span> h  ヘッド</span>
           <span><span class="dot" style="background: var(--dim-k)"></span> d_k</span>
           <span><span class="dot" style="background: var(--dim-ff)"></span> d_ff</span>
         </div>
         <p style="margin: 6px 0 0; color: var(--muted); font-size: 12.5px;">
-          When a dimension changes between stages, it lights up. Watch the same tensor get
-          split into heads, multiplied, scaled, soft-maxed, and stitched back together.
+          ステージ間で次元が変わると、それが点灯します。同じテンソルがヘッドに分割され、
+          乗算・スケーリング・softmax・結合される過程を観察してください。
         </p>
       </div>
     </div>
   </div>
 
-  <h2>The full pipeline at a glance</h2>
+  <h2>パイプライン全体を一目で</h2>
   <div class="card">
     <div class="card-body" style="padding: 6px 0;">
       <table class="matrix-table">
-        <tr><th style="width: 40px;">#</th><th>Stage</th><th>Shape (with paper defaults)</th></tr>
-        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Encoder · ×6 layers</td></tr>
-        <tr><td>1</td><td>Source token IDs</td><td class="shape-cell">[B=2, T_src=8] <span style="color: var(--muted);">int</span></td></tr>
-        <tr><td>2</td><td>Source embedding lookup</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>3</td><td>+ Positional encoding</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>4</td><td>Q, K, V projections</td><td class="shape-cell">[2, 8, 512] × 3</td></tr>
-        <tr><td>5</td><td>Reshape for heads</td><td class="shape-cell">[2, h=8, T_src=8, d_k=64]</td></tr>
+        <tr><th style="width: 40px;">#</th><th>ステージ</th><th>形状（論文デフォルト使用）</th></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">エンコーダー · ×6レイヤー</td></tr>
+        <tr><td>1</td><td>ソーストークンID</td><td class="shape-cell">[B=2, T_src=8] <span style="color: var(--muted);">int</span></td></tr>
+        <tr><td>2</td><td>ソース埋め込みルックアップ</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>3</td><td>+ 位置エンコーディング</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>4</td><td>Q, K, V 射影</td><td class="shape-cell">[2, 8, 512] × 3</td></tr>
+        <tr><td>5</td><td>ヘッド用にリシェイプ</td><td class="shape-cell">[2, h=8, T_src=8, d_k=64]</td></tr>
         <tr><td>6</td><td>Q @ Kᵀ</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
-        <tr><td>7</td><td>Scale by 1/√d_k</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
-        <tr><td>8</td><td>Softmax (last axis)</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>7</td><td>1/√d_k でスケール</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>8</td><td>Softmax（最終軸）</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
         <tr><td>9</td><td>Attn @ V</td><td class="shape-cell">[2, 8, 8, 64]</td></tr>
-        <tr><td>10</td><td>Concat heads</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>11</td><td>Output projection W_O</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>12</td><td>Residual + LayerNorm</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>13</td><td>FFN linear 1</td><td class="shape-cell">[2, 8, 2048]</td></tr>
+        <tr><td>10</td><td>ヘッドを結合</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>11</td><td>出力射影 W_O</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>12</td><td>残差 + LayerNorm</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>13</td><td>FFN 線形1</td><td class="shape-cell">[2, 8, 2048]</td></tr>
         <tr><td>14</td><td>ReLU</td><td class="shape-cell">[2, 8, 2048]</td></tr>
-        <tr><td>15</td><td>FFN linear 2</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>16</td><td>Residual + LayerNorm <span style="color: var(--muted);">(=encoder output, "memory")</span></td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Decoder · ×6 layers</td></tr>
-        <tr><td>17</td><td>Target token IDs (shifted right)</td><td class="shape-cell">[B=2, T_tgt=7] <span style="color: var(--muted);">int</span></td></tr>
-        <tr><td>18</td><td>Target embed + positional</td><td class="shape-cell">[2, 7, 512]</td></tr>
-        <tr><td>19</td><td><b>Masked</b> self-attn (causal)</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 7]</td></tr>
-        <tr><td>20</td><td><b>Cross-attn</b>: Q from dec, K/V from enc</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 8]</td></tr>
-        <tr><td>21</td><td>FFN + residual + LN</td><td class="shape-cell">[2, 7, 512]</td></tr>
-        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Output head</td></tr>
-        <tr><td>22</td><td>Linear W_lm (often tied to embed)</td><td class="shape-cell">[2, 7, V=37000]</td></tr>
-        <tr><td>23</td><td>Softmax (last axis) — train probs</td><td class="shape-cell">[2, 7, 37000]</td></tr>
-        <tr><td>24</td><td><b>Training</b>: cross-entropy vs labels [B, T_tgt]</td><td class="shape-cell">scalar loss</td></tr>
-        <tr><td>25</td><td><b>Inference</b>: argmax / sample at last position</td><td class="shape-cell">[B] next-token IDs</td></tr>
+        <tr><td>15</td><td>FFN 線形2</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>16</td><td>残差 + LayerNorm <span style="color: var(--muted);">(=エンコーダー出力、"memory")</span></td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">デコーダー · ×6レイヤー</td></tr>
+        <tr><td>17</td><td>ターゲットトークンID（右シフト）</td><td class="shape-cell">[B=2, T_tgt=7] <span style="color: var(--muted);">int</span></td></tr>
+        <tr><td>18</td><td>ターゲット埋め込み + 位置エンコーディング</td><td class="shape-cell">[2, 7, 512]</td></tr>
+        <tr><td>19</td><td><b>マスク済み</b>自己アテンション（causal）</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 7]</td></tr>
+        <tr><td>20</td><td><b>クロスアテンション</b>：QはDec、K/VはEnc</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 8]</td></tr>
+        <tr><td>21</td><td>FFN + 残差 + LN</td><td class="shape-cell">[2, 7, 512]</td></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">出力ヘッド</td></tr>
+        <tr><td>22</td><td>線形 W_lm（しばしば埋め込みと共有）</td><td class="shape-cell">[2, 7, V=37000]</td></tr>
+        <tr><td>23</td><td>Softmax（最終軸）— 学習時確率</td><td class="shape-cell">[2, 7, 37000]</td></tr>
+        <tr><td>24</td><td><b>学習</b>：ラベル [B, T_tgt] との交差エントロピー</td><td class="shape-cell">スカラー損失</td></tr>
+        <tr><td>25</td><td><b>推論</b>：最終位置でargmax / サンプリング</td><td class="shape-cell">[B] 次トークンID</td></tr>
       </table>
     </div>
   </div>
 
-  <h2>The encoder block, drawn</h2>
+  <h2>エンコーダーブロックの図解</h2>
   <div class="canvas-card">
     <svg viewBox="0 0 580 600" class="arch-svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="boxGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#fb923c" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#fb923c" stop-opacity="0.04"/>
+          <stop offset="0%" stop-color="#ff5e3a" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#ff5e3a" stop-opacity="0.04"/>
         </linearGradient>
         <filter id="glow">
           <feGaussianBlur stdDeviation="2" result="blur"/>
@@ -725,98 +780,100 @@
       </defs>
 
       <!-- vertical flow line -->
-      <line x1="290" y1="20" x2="290" y2="580" stroke="#283449" stroke-width="2" stroke-dasharray="4,4"/>
+      <line x1="290" y1="20" x2="290" y2="580" stroke="rgba(255,240,220,0.14)" stroke-width="2" stroke-dasharray="4,4"/>
 
       <!-- input -->
-      <g font-family="ui-monospace, monospace" font-size="12" fill="#e6f1ff">
-        <rect x="200" y="20" width="180" height="34" rx="6" fill="#182338" stroke="#7dd3fc" stroke-width="1.5"/>
+      <g font-family="ui-monospace, monospace" font-size="12" fill="#f4f0e6">
+        <rect x="200" y="20" width="180" height="34" rx="6" fill="#181826" stroke="#7dd3fc" stroke-width="1.5"/>
         <text x="290" y="38" text-anchor="middle">Token IDs</text>
         <text x="290" y="50" text-anchor="middle" fill="#7dd3fc" font-size="10">[B, T]</text>
       </g>
-      <line x1="290" y1="54" x2="290" y2="74" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="54" x2="290" y2="74" stroke="#ff5e3a" stroke-width="2"/>
 
-      <g font-family="ui-monospace, monospace" font-size="12" fill="#e6f1ff">
-        <rect x="200" y="74" width="180" height="34" rx="6" fill="#182338" stroke="#c4b5fd" stroke-width="1.5"/>
+      <g font-family="ui-monospace, monospace" font-size="12" fill="#f4f0e6">
+        <rect x="200" y="74" width="180" height="34" rx="6" fill="#181826" stroke="#c4b5fd" stroke-width="1.5"/>
         <text x="290" y="92" text-anchor="middle">Embedding + Positional</text>
-        <text x="290" y="104" text-anchor="middle" fill="#fb923c" font-size="10">[B, T, d_model]</text>
+        <text x="290" y="104" text-anchor="middle" fill="#ff5e3a" font-size="10">[B, T, d_model]</text>
       </g>
-      <line x1="290" y1="108" x2="290" y2="128" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="108" x2="290" y2="128" stroke="#ff5e3a" stroke-width="2"/>
 
       <!-- big block: Multi-Head Attention -->
-      <rect x="100" y="128" width="380" height="170" rx="10" fill="url(#boxGrad)" stroke="#fb923c" stroke-width="1.5" filter="url(#glow)"/>
-      <text x="290" y="148" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="12" font-weight="800">MULTI-HEAD ATTENTION</text>
+      <rect x="100" y="128" width="380" height="170" rx="10" fill="url(#boxGrad)" stroke="#ff5e3a" stroke-width="1.5" filter="url(#glow)"/>
+      <text x="290" y="148" text-anchor="middle" fill="#ff5e3a" font-family="ui-monospace, monospace" font-size="12" font-weight="800">MULTI-HEAD ATTENTION</text>
 
-      <g font-family="ui-monospace, monospace" font-size="11" fill="#e6f1ff">
-        <rect x="120" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#f4f0e6">
+        <rect x="120" y="160" width="100" height="26" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="170" y="177" text-anchor="middle">Q proj</text>
-        <rect x="240" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="240" y="160" width="100" height="26" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="177" text-anchor="middle">K proj</text>
-        <rect x="360" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="360" y="160" width="100" height="26" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="410" y="177" text-anchor="middle">V proj</text>
 
-        <rect x="120" y="200" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="120" y="200" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="216" text-anchor="middle" fill="#f472b6">reshape → [B, h, T, d_k]</text>
 
-        <rect x="120" y="234" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
-        <text x="290" y="250" text-anchor="middle" fill="#34d399">softmax(Q Kᵀ / √d_k) · V</text>
+        <rect x="120" y="234" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
+        <text x="290" y="250" text-anchor="middle" fill="#3affb8">softmax(Q Kᵀ / √d_k) · V</text>
 
-        <rect x="120" y="266" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="120" y="266" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="282" text-anchor="middle">concat heads · W_O</text>
       </g>
 
-      <line x1="290" y1="298" x2="290" y2="318" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="298" x2="290" y2="318" stroke="#ff5e3a" stroke-width="2"/>
       <!-- residual arrow -->
-      <path d="M 488 95 Q 540 95 540 320 L 510 320" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
-      <text x="555" y="200" fill="#fbbf24" font-family="ui-monospace, monospace" font-size="10" transform="rotate(90, 555, 200)">residual</text>
+      <path d="M 488 95 Q 540 95 540 320 L 510 320" stroke="#ffd23a" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
+      <text x="555" y="200" fill="#ffd23a" font-family="ui-monospace, monospace" font-size="10" transform="rotate(90, 555, 200)">residual</text>
 
-      <rect x="200" y="318" width="180" height="34" rx="6" fill="#182338" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="290" y="338" text-anchor="middle" fill="#e6f1ff" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
-      <line x1="290" y1="352" x2="290" y2="372" stroke="#fb923c" stroke-width="2"/>
+      <rect x="200" y="318" width="180" height="34" rx="6" fill="#181826" stroke="#ffd23a" stroke-width="1.5"/>
+      <text x="290" y="338" text-anchor="middle" fill="#f4f0e6" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
+      <line x1="290" y1="352" x2="290" y2="372" stroke="#ff5e3a" stroke-width="2"/>
 
       <!-- FFN -->
-      <rect x="100" y="372" width="380" height="120" rx="10" fill="url(#boxGrad)" stroke="#fb923c" stroke-width="1.5"/>
-      <text x="290" y="392" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="12" font-weight="800">FEED FORWARD</text>
-      <g font-family="ui-monospace, monospace" font-size="11" fill="#e6f1ff">
-        <rect x="120" y="404" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
-        <text x="290" y="420" text-anchor="middle" fill="#fbbf24">Linear: d_model → d_ff (= 4·d_model)</text>
-        <rect x="120" y="436" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
-        <text x="290" y="452" text-anchor="middle" fill="#4ade80">ReLU</text>
-        <rect x="120" y="468" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+      <rect x="100" y="372" width="380" height="120" rx="10" fill="url(#boxGrad)" stroke="#ff5e3a" stroke-width="1.5"/>
+      <text x="290" y="392" text-anchor="middle" fill="#ff5e3a" font-family="ui-monospace, monospace" font-size="12" font-weight="800">FEED FORWARD</text>
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#f4f0e6">
+        <rect x="120" y="404" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
+        <text x="290" y="420" text-anchor="middle" fill="#ffd23a">Linear: d_model → d_ff (= 4·d_model)</text>
+        <rect x="120" y="436" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
+        <text x="290" y="452" text-anchor="middle" fill="#3affb8">ReLU</text>
+        <rect x="120" y="468" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="484" text-anchor="middle">Linear: d_ff → d_model</text>
       </g>
 
-      <line x1="290" y1="492" x2="290" y2="512" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="492" x2="290" y2="512" stroke="#ff5e3a" stroke-width="2"/>
       <!-- residual 2 -->
-      <path d="M 488 360 Q 565 360 565 514 L 510 514" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
+      <path d="M 488 360 Q 565 360 565 514 L 510 514" stroke="#ffd23a" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
 
-      <rect x="200" y="512" width="180" height="34" rx="6" fill="#182338" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="290" y="532" text-anchor="middle" fill="#e6f1ff" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
-      <line x1="290" y1="546" x2="290" y2="566" stroke="#fb923c" stroke-width="2"/>
+      <rect x="200" y="512" width="180" height="34" rx="6" fill="#181826" stroke="#ffd23a" stroke-width="1.5"/>
+      <text x="290" y="532" text-anchor="middle" fill="#f4f0e6" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
+      <line x1="290" y1="546" x2="290" y2="566" stroke="#ff5e3a" stroke-width="2"/>
 
-      <text x="290" y="582" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="11" font-weight="700">[B, T, d_model]  →  next layer</text>
+      <text x="290" y="582" text-anchor="middle" fill="#ff5e3a" font-family="ui-monospace, monospace" font-size="11" font-weight="700">[B, T, d_model]  →  next layer</text>
     </svg>
   </div>
 
   <div class="note">
-    <strong>How to use this page:</strong> jump through tabs in order. Tab 5 is the killer
-    feature — change B, T, d_model, h and watch every stage update live. Tab 6 has 14 drills.
-    Press <kbd>?</kbd> for shortcuts.
+    <strong>このページの使い方：</strong>タブを順番に移動してください。<strong>ライブ形状</strong>は
+    最強のタブです — B、T、d_model、h を変更すると全ステージがリアルタイム更新され、それぞれ相対テンソルサイズを示すバーが表示されます。
+    <strong>色付きの次元をクリック</strong>（例：
+    <span class="shape" style="padding:1px 6px"><span class="dim t">T=8</span></span>）するとページ全体でその次元をトレースできます。
+    ショートカットは<kbd>?</kbd>キーで確認できます。
   </div>
 </section>
 
 <!-- ========================= INPUTS & EMBEDDINGS ========================= -->
 <section class="tab-section" id="tab-inputs">
-  <h1>Stages 1–3 · From token IDs to a contextual-ready tensor</h1>
+  <h1>ステージ1〜3 · トークンIDからコンテキスト対応テンソルへ</h1>
   <p class="lead">
-    Before any attention, the input has to become a tensor of vectors. Three quick stages:
-    integer IDs in, real-valued vectors out, with positional info baked in by addition.
+    アテンションの前に、入力はベクトルのテンソルに変換される必要があります。3つのステップで完了します：
+    整数IDを入力し、実数値ベクトルを出力として得て、加算により位置情報を埋め込みます。
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 1 · token IDs</div></div>
+    <div class="card-head"><div class="card-title">ステージ1 · トークンID</div></div>
     <div class="card-body">
       <div style="margin-bottom: 6px;">
-        Tokenizer output. Two examples in a batch, eight tokens each.
+        トークナイザーの出力。バッチ内の2つの例、それぞれ8トークン。
       </div>
       <div class="formula">
         $\text{ids}\in\mathbb{Z}^{B\times T}$
@@ -829,20 +886,19 @@
           dtype: int32
         </span>
       </div>
-      <pre class="code"><code><span class="tok-c"># two sentences, each padded/truncated to T=8 tokens</span>
+      <pre class="code"><code><span class="tok-c"># 2文、それぞれT=8トークンにパディング/切り詰め</span>
 ids = [[ <span class="tok-n">101</span>, <span class="tok-n">2057</span>, <span class="tok-n">2293</span>, <span class="tok-n">3019</span>, <span class="tok-n">2025</span>, <span class="tok-n">2748</span>, <span class="tok-n">102</span>, <span class="tok-n">0</span> ],
        [ <span class="tok-n">101</span>, <span class="tok-n">7592</span>, <span class="tok-n">2088</span>,  <span class="tok-n">102</span>,    <span class="tok-n">0</span>,    <span class="tok-n">0</span>,   <span class="tok-n">0</span>, <span class="tok-n">0</span> ]]
-<span class="tok-c"># shape: [B=2, T=8]</span></code></pre>
+<span class="tok-c"># 形状: [B=2, T=8]</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 2 · embedding lookup</div></div>
+    <div class="card-head"><div class="card-title">ステージ2 · 埋め込みルックアップ</div></div>
     <div class="card-body">
       <p>
-        A weight matrix $E\in\mathbb{R}^{V\times d_{model}}$ holds one row per vocabulary entry.
-        Lookup by ID. The tensor gains a dimension: a real-valued vector of size <code>d_model</code>
-        replaces each integer.
+        重み行列 $E\in\mathbb{R}^{V\times d_{model}}$ はボキャブラリーエントリーごとに1行保持しています。
+        IDでルックアップします。テンソルが1次元増えます：各整数が<code>d_model</code>サイズの実数値ベクトルに置き換わります。
       </p>
       <div class="formula">
         $X = E[\text{ids}] \;\in\; \mathbb{R}^{B\times T\times d_{model}}$
@@ -859,19 +915,18 @@ embed = nn.<span class="tok-f">Embedding</span>(num_embeddings=<span class="tok-
 X = embed(ids)            <span class="tok-c"># [B, T] -> [B, T, d_model]</span>
 <span class="tok-f">print</span>(X.shape)            <span class="tok-c"># torch.Size([2, 8, 512])</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        Param count: $V \cdot d_{model} = 30522 \cdot 512 \approx 15.6\text{M}$ — the embedding
-        table alone is bigger than the rest of any single layer.
+        パラメーター数: $V \cdot d_{model} = 30522 \cdot 512 \approx 15.6\text{M}$ — 埋め込みテーブルだけで
+        他のどの単一レイヤーよりも大きいです。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 3 · + positional encoding</div></div>
+    <div class="card-head"><div class="card-title">ステージ3 · + 位置エンコーディング</div></div>
     <div class="card-body">
       <p>
-        Self-attention is permutation-equivariant — without position info, "the cat sat" and
-        "sat cat the" produce the same outputs. The paper adds a fixed sinusoidal pattern of
-        the same shape as $X$.
+        自己アテンションは置換等変です — 位置情報なしでは「the cat sat」と
+        「sat cat the」は同じ出力を生成します。論文では$X$と同じ形状の固定サイン波パターンを加算します。
       </p>
       <div class="formula">
         $\mathrm{PE}_{(pos, 2i)} = \sin\!\big(pos / 10000^{2i/d_{model}}\big)$<br>
@@ -886,35 +941,35 @@ X = embed(ids)            <span class="tok-c"># [B, T] -> [B, T, d_model]</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code><span class="tok-c"># PE has shape [T, d_model], broadcasts over B</span>
+      <pre class="code"><code><span class="tok-c"># PEの形状は [T, d_model]、B次元にブロードキャストされる</span>
 X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -> [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        Same shape in, same shape out. The information goes into the values, not the dims.
+        入力と出力の形状は同じです。情報は次元ではなく値に入ります。
       </p>
     </div>
   </div>
 
   <div class="note">
-    <strong>End of stage 3:</strong> we now have a tensor of shape
+    <strong>ステージ3終了：</strong> 形状
     <span class="shape"><span class="br">[</span><span class="dim b">B</span>, <span class="dim t">T</span>, <span class="dim d">d_model</span><span class="br">]</span></span>
-    that's both <em>about</em> the words and <em>about where they are</em>. Every later stage
-    is a transformation on this layout.
+    のテンソルが得られました。これは単語<em>の意味</em>と<em>その位置</em>の両方を含んでいます。
+    以降のすべてのステージはこのレイアウトに対する変換です。
   </div>
 </section>
 
 <!-- ========================= ATTENTION ========================= -->
 <section class="tab-section" id="tab-attn">
-  <h1>Stages 4–11 · Multi-head attention, dimension by dimension</h1>
+  <h1>ステージ4〜11 · マルチヘッドアテンション、次元ごとの解説</h1>
   <p class="lead">
-    The whole reason this paper exists. Each token becomes a query, key, and value;
-    similarities are computed, scaled, soft-maxed, and used to mix the values. We also reshape
-    twice: once to split heads, once to glue them back.
+    この論文が存在する理由そのものです。各トークンがクエリ、キー、バリューになり、
+    類似度が計算され、スケーリング・softmax処理・バリューの混合が行われます。
+    また、ヘッドを分割するため1回、結合するため1回の計2回リシェイプします。
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stages 4 · Q, K, V projections</div></div>
+    <div class="card-head"><div class="card-title">ステージ4 · Q、K、V 射影</div></div>
     <div class="card-body">
-      <p>Three independent linear maps, each $\mathbb{R}^{d_{model}}\to\mathbb{R}^{d_{model}}$:</p>
+      <p>3つの独立した線形マップ、それぞれ $\mathbb{R}^{d_{model}}\to\mathbb{R}^{d_{model}}$：</p>
       <div class="formula">
         $Q = X W^Q,\quad K = X W^K,\quad V = X W^V$
       </div>
@@ -933,7 +988,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code><span class="tok-c"># three linear layers, no bias in the paper but a bias is fine in practice</span>
+      <pre class="code"><code><span class="tok-c"># 3つの線形レイヤー、論文ではバイアスなしだが実装上はバイアスありでも可</span>
 Wq = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># 512*512 = 262 144 params</span>
 Wk = nn.<span class="tok-f">Linear</span>(d_model, d_model)
 Wv = nn.<span class="tok-f">Linear</span>(d_model, d_model)
@@ -942,19 +997,19 @@ Q = Wq(X)                              <span class="tok-c"># [B, T, d_model]</sp
 K = Wk(X)                              <span class="tok-c"># [B, T, d_model]</span>
 V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        Three matrices of shape $[d_{model}, d_{model}]$ — total params here:
-        $3\cdot 512\cdot 512 = 786\,432$. In some implementations these three are fused into a
-        single $[d_{model}, 3\cdot d_{model}]$ matrix.
+        形状 $[d_{model}, d_{model}]$ の3つの行列 — ここでのパラメーター合計：
+        $3\cdot 512\cdot 512 = 786\,432$。いくつかの実装ではこの3つを単一の
+        $[d_{model}, 3\cdot d_{model}]$ 行列に融合します。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 5 · reshape &amp; transpose for h heads</div></div>
+    <div class="card-head"><div class="card-title">ステージ5 · h ヘッド用にリシェイプ &amp; 転置</div></div>
     <div class="card-body">
       <p>
-        Slice the last dim into $h$ chunks of $d_k = d_{model}/h$ each, then transpose so heads
-        become an outer dim. <strong>No new parameters</strong> — just view + permute.
+        最後の次元を $d_k = d_{model}/h$ の $h$ チャンクに分割し、ヘッドが外側の次元になるよう転置します。
+        <strong>新しいパラメーターなし</strong> — view + permute のみです。
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
@@ -968,24 +1023,23 @@ V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</sp
       <pre class="code"><code>B, T, d_model = Q.shape
 h, d_k = <span class="tok-n">8</span>, d_model // h         <span class="tok-c"># 8, 64</span>
 
-<span class="tok-c"># split last dim into (h, d_k), then move heads next to batch</span>
+<span class="tok-c"># 最後の次元を (h, d_k) に分割し、ヘッドをバッチの隣に移動</span>
 Q = Q.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span>
 K = K.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span>
 V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
       <div class="note green">
-        <strong>Why heads matter:</strong> with $h=8$ separate $[T, d_k=64]$ subspaces, each
-        head can specialize on a different relational pattern. Compute is unchanged: 8 small
-        $64$-dim attentions instead of one $512$-dim one.
+        <strong>ヘッドが重要な理由：</strong> $h=8$ の独立した $[T, d_k=64]$ 部分空間で、各
+        ヘッドが異なる関係パターンに特化できます。計算量は変わりません：1つの$512$次元アテンションの代わりに8つの小さな$64$次元アテンション。
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 6 · Q @ Kᵀ — pairwise similarity</div></div>
+    <div class="card-head"><div class="card-title">ステージ6 · Q @ Kᵀ — ペアワイズ類似度</div></div>
     <div class="card-body">
       <p>
-        For each head, every query attends to every key. The matmul contracts the $d_k$ axis,
-        producing a $T\times T$ score matrix per head per batch.
+        各ヘッドで、すべてのクエリがすべてのキーにアテンションします。行列積が $d_k$ 軸を縮約し、
+        バッチ・ヘッドごとに $T\times T$ のスコア行列を生成します。
       </p>
       <div class="formula">
         $\text{scores} = Q K^\top$
@@ -1006,17 +1060,17 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
         </span>
       </div>
       <pre class="code"><code>scores = Q @ K.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)   <span class="tok-c"># [B, h, T, T]</span>
-<span class="tok-c"># entry (b, head, i, j) = how much token i attends to token j (in that head)</span></code></pre>
+<span class="tok-c"># 要素 (b, head, i, j) = トークン i がトークン j にアテンションする度合い（そのヘッドで）</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 7 · scale by 1/√d_k</div></div>
+    <div class="card-head"><div class="card-title">ステージ7 · 1/√d_k でスケール</div></div>
     <div class="card-body">
       <p>
-        Without scaling, dot products of $d_k$-dim vectors grow as $\sqrt{d_k}$ — large values
-        push softmax into the saturating regime where gradients vanish. Divide every score by
-        $\sqrt{d_k}$.
+        スケーリングなしでは、$d_k$次元ベクトルの内積が$\sqrt{d_k}$の割合で増大し — 大きな値が
+        softmaxを勾配が消える飽和領域に押し込みます。すべてのスコアを
+        $\sqrt{d_k}$で割ります。
       </p>
       <div class="formula">
         $\text{scaled} = \text{scores} / \sqrt{d_k} = \text{scores} / 8$
@@ -1027,7 +1081,7 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
           <span class="arrow">÷ √64</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
         </span>
-        <span class="pill">shape unchanged</span>
+        <span class="pill">形状は変わらず</span>
       </div>
       <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">math</span>
 scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c"># 1/√64 = 1/8 = 0.125</span></code></pre>
@@ -1035,11 +1089,11 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 8 · softmax along the last axis</div></div>
+    <div class="card-head"><div class="card-title">ステージ8 · 最終軸に沿って softmax</div></div>
     <div class="card-body">
       <p>
-        Turn raw scores into a probability distribution per query. Each row of the
-        $[T,T]$ block sums to 1 — these are the attention <em>weights</em>.
+        クエリごとに生スコアを確率分布に変換します。$[T,T]$ブロックの各行の合計は1になります —
+        これらがアテンション<em>重み</em>です。
       </p>
       <div class="formula">
         $A = \mathrm{softmax}(\text{scaled},\ \text{dim}=-1)$
@@ -1050,23 +1104,23 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
           <span class="arrow">→</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
         </span>
-        <span class="pill green">rows sum to 1</span>
+        <span class="pill green">各行の合計=1</span>
       </div>
       <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
 A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)    <span class="tok-c"># [B, h, T, T]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        For decoder self-attention, an additive $-\infty$ mask is applied <em>before</em>
-        softmax to enforce causality.
+        デコーダー自己アテンションでは、因果性を強制するために加法的な $-\infty$ マスクが
+        softmaxの<em>前に</em>適用されます。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 9 · attention @ V</div></div>
+    <div class="card-head"><div class="card-title">ステージ9 · attention @ V</div></div>
     <div class="card-body">
       <p>
-        Mix value vectors using the attention weights. Each query's output is a weighted sum of
-        all $T$ value vectors. The contracting axis is the inner $T$.
+        アテンション重みを使ってバリューベクトルを混合します。各クエリの出力はすべての $T$ 個のバリューベクトルの
+        加重和です。縮約軸は内側の $T$ です。
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
@@ -1088,11 +1142,11 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 10 · concat heads (transpose + reshape)</div></div>
+    <div class="card-head"><div class="card-title">ステージ10 · ヘッドを結合（転置 + リシェイプ）</div></div>
     <div class="card-body">
       <p>
-        Glue the heads back into one big last-dim. <code>transpose(1,2)</code> moves heads next
-        to $d_k$, then <code>reshape</code> merges them. Param-free.
+        ヘッドを1つの大きな最終次元に結合します。<code>transpose(1,2)</code>でヘッドを
+        $d_k$の隣に移動し、<code>reshape</code>で結合します。パラメーターは不要。
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
@@ -1105,15 +1159,16 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       </div>
       <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]</span>
 out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span class="tok-c"># [B, T, d_model]</span></code></pre>
+
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 11 · output projection W_O</div></div>
+    <div class="card-head"><div class="card-title">ステージ11 · 出力射影 W_O</div></div>
     <div class="card-body">
       <p>
-        One more $\mathbb{R}^{d_{model}\to d_{model}}$ linear map. Same shape, but lets the
-        model mix information across heads after concat.
+        もう1つの $\mathbb{R}^{d_{model}\to d_{model}}$ 線形マップ。形状は同じですが、結合後に
+        ヘッド間の情報をモデルが混合できるようにします。
       </p>
       <div class="formula">
         $\text{MHA}(X) = \mathrm{Concat}(\text{head}_1, \dots, \text{head}_h)\,W^O$
@@ -1125,36 +1180,36 @@ out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span c
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># another 262 144 params</span>
+      <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># さらに262 144パラメーター</span>
 mha_out = Wo(out)                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        <strong>Total MHA params:</strong> $4 \cdot d_{model}^2 = 4\cdot 512^2 = 1{,}048{,}576$
-        (Q, K, V, O — each $d_{model}\times d_{model}$).
+        <strong>MHA パラメーター合計：</strong> $4 \cdot d_{model}^2 = 4\cdot 512^2 = 1{,}048{,}576$
+        (Q, K, V, O — それぞれ $d_{model}\times d_{model}$)。
       </p>
     </div>
   </div>
 
   <div class="note green">
-    <strong>End of attention:</strong> we left with shape
+    <strong>アテンション終了：</strong> 形状
     <span class="shape"><span class="br">[</span><span class="dim b">B</span>, <span class="dim t">T</span>, <span class="dim d">d_model</span><span class="br">]</span></span>
-    — exactly the same shape we entered with. Attention is a <em>same-shape</em> operator.
+    で終わりました — 入力と全く同じ形状です。アテンションは<em>形状保持</em>演算子です。
   </div>
 </section>
 
 <!-- ========================= FFN & BLOCK ========================= -->
 <section class="tab-section" id="tab-ffn">
-  <h1>Stages 12–16 · LayerNorm, FFN, and the residual highway</h1>
+  <h1>ステージ12〜16 · LayerNorm、FFN、残差ハイウェイ</h1>
   <p class="lead">
-    After attention, the encoder block stitches everything with two residual connections,
-    two LayerNorms, and one position-wise FFN. The FFN is where most of the parameters
-    live — and where, many believe, factual knowledge is stored.
+    アテンションの後、エンコーダーブロックは2つの残差接続、2つのLayerNorm、
+    そして1つの位置ごとFFNで全てをつなぎます。FFNはパラメーターの大部分が存在する場所であり —
+    多くの研究者が事実的知識が保存される場所と考えています。
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 12 · residual + LayerNorm</div></div>
+    <div class="card-head"><div class="card-title">ステージ12 · 残差 + LayerNorm</div></div>
     <div class="card-body">
       <p>
-        Add the original $X$ back (skip connection), then normalize per-token across $d_{model}$.
+        元の $X$ を加算し（スキップ接続）、トークンごとに $d_{model}$ 全体で正規化します。
       </p>
       <div class="formula">
         $X' = \mathrm{LayerNorm}(X + \mathrm{MHA}(X))$
@@ -1171,19 +1226,18 @@ mha_out = Wo(out)                       <span class="tok-c"># [B, T, d_model]</s
       <pre class="code"><code>ln1 = nn.<span class="tok-f">LayerNorm</span>(d_model)      <span class="tok-c"># 2 * d_model = 1024 params (γ, β)</span>
 X_post = ln1(X + mha_out)         <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        LN normalizes across the last axis: each $[d_{model}]$ vector becomes mean-0, var-1, then
-        re-scaled by learned $\gamma, \beta\in\mathbb{R}^{d_{model}}$. Both batch and token
-        positions stay independent.
+        LNは最終軸で正規化します：各 $[d_{model}]$ ベクトルが平均0・分散1になり、
+        学習済みの $\gamma, \beta\in\mathbb{R}^{d_{model}}$ で再スケールされます。バッチとトークン位置は両方独立を保ちます。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stages 13–14 · FFN linear 1 + ReLU</div></div>
+    <div class="card-head"><div class="card-title">ステージ13〜14 · FFN 線形1 + ReLU</div></div>
     <div class="card-body">
       <p>
-        A position-wise feed-forward network: same MLP applied to every token independently.
-        First linear expands $d_{model} \to d_{ff}$ (typically $4\cdot d_{model}$).
+        位置ごとの Feed-Forward Network：同じMLPがすべてのトークンに独立して適用されます。
+        最初の線形が $d_{model} \to d_{ff}$（通常 $4\cdot d_{model}$）に拡張します。
       </p>
       <div class="formula">
         $H = \mathrm{ReLU}(X' W_1 + b_1)$
@@ -1199,15 +1253,16 @@ X_post = ln1(X + mha_out)         <span class="tok-c"># [B, T, d_model]</span></
       </div>
       <pre class="code"><code>W1 = nn.<span class="tok-f">Linear</span>(d_model, d_ff)       <span class="tok-c"># 512 * 2048 = 1 048 576 params</span>
 H = F.<span class="tok-f">relu</span>(W1(X_post))            <span class="tok-c"># [B, T, d_ff]</span></code></pre>
+
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 15 · FFN linear 2</div></div>
+    <div class="card-head"><div class="card-title">ステージ15 · FFN 線形2</div></div>
     <div class="card-body">
       <p>
-        Second linear projects back: $d_{ff} \to d_{model}$. Restores the canonical shape so the
-        next block can start fresh.
+        2番目の線形が戻す：$d_{ff} \to d_{model}$。次のブロックが新鮮にスタートできるよう
+        正規の形状に復元します。
       </p>
       <div class="formula">
         $Y = H W_2 + b_2$
@@ -1219,22 +1274,21 @@ H = F.<span class="tok-f">relu</span>(W1(X_post))            <span class="tok-c"
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>W2 = nn.<span class="tok-f">Linear</span>(d_ff, d_model)       <span class="tok-c"># 2048 * 512 = another 1 048 576 params</span>
+      <pre class="code"><code>W2 = nn.<span class="tok-f">Linear</span>(d_ff, d_model)       <span class="tok-c"># 2048 * 512 = さらに1 048 576 params</span>
 ffn_out = W2(H)                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        <strong>Total FFN params:</strong> $2\cdot d_{model}\cdot d_{ff} = 2\cdot 512\cdot 2048 = 2{,}097{,}152$ —
-        roughly twice the cost of all four attention projections combined. This is where
-        big models put their weight.
+        <strong>FFN パラメーター合計：</strong> $2\cdot d_{model}\cdot d_{ff} = 2\cdot 512\cdot 2048 = 2{,}097{,}152$ —
+        4つのアテンション射影の合計のほぼ2倍。大規模モデルが重量を置く場所です。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 16 · residual + LayerNorm (again)</div></div>
+    <div class="card-head"><div class="card-title">ステージ16 · 残差 + LayerNorm（再び）</div></div>
     <div class="card-body">
       <p>
-        Same pattern as stage 12. Add the pre-FFN tensor, layer-normalize, and the encoder
-        block is done.
+        ステージ12と同じパターン。FFN前のテンソルを加算し、レイヤー正規化を行い、
+        エンコーダーブロックが完了します。
       </p>
       <div class="formula">
         $Y' = \mathrm{LayerNorm}(X' + Y)$
@@ -1245,7 +1299,7 @@ ffn_out = W2(H)                       <span class="tok-c"># [B, T, d_model]</spa
           <span class="arrow">→</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
-        <span class="pill">block-output shape = block-input shape</span>
+        <span class="pill">ブロック出力形状 = ブロック入力形状</span>
       </div>
       <pre class="code"><code>ln2 = nn.<span class="tok-f">LayerNorm</span>(d_model)
 out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></code></pre>
@@ -1253,17 +1307,17 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
   </div>
 
   <div class="note">
-    <strong>Stack &amp; repeat:</strong> the paper stacks $N=6$ identical encoder blocks. Each
-    one's input shape equals its output shape, which is why they compose cleanly.
-    Total encoder params (one block, base): roughly
-    $4\cdot 512^2 + 2\cdot 512\cdot 2048 + 4\cdot 512 \approx 3.15$M.
+    <strong>スタック &amp; 繰り返し：</strong> 論文は $N=6$ の同一エンコーダーブロックを積み重ねます。各ブロックの
+    入力形状は出力形状と等しいため、きれいに合成できます。
+    エンコーダーパラメーター合計（1ブロック、ベース）：おおよそ
+    $4\cdot 512^2 + 2\cdot 512\cdot 2048 + 4\cdot 512 \approx 3.15$M。
   </div>
 
-  <h2>The whole encoder block in 14 lines</h2>
+  <h2>エンコーダーブロック全体を14行で</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">EncoderBlock — minimal PyTorch</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">EncoderBlock — 最小限の PyTorch</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
     </div>
     <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">EncoderBlock</span>(nn.Module):
     <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, d_model=<span class="tok-n">512</span>, h=<span class="tok-n">8</span>, d_ff=<span class="tok-n">2048</span>):
@@ -1281,43 +1335,43 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
         x = self.<span class="tok-f">ln1</span>(x + a)
         x = self.<span class="tok-f">ln2</span>(x + self.<span class="tok-f">ffn</span>(x))
         <span class="tok-k">return</span> x                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
+
   </div>
 </section>
 
 <!-- ========================= DECODER ========================= -->
 <section class="tab-section" id="tab-decoder">
-  <h1>Stages 17–21 · The decoder block</h1>
+  <h1>ステージ17〜21 · デコーダーブロック</h1>
   <p class="lead">
-    The decoder takes <em>target</em> tokens (shifted right by one) and produces a tensor that
-    knows about both (a) the target tokens it has seen so far — via <strong>masked self-attn</strong>
-    — and (b) the source — via <strong>cross-attn</strong>, where Q comes from the decoder
-    and K, V come from the encoder output (the &ldquo;memory&rdquo;). Same embedding dim, same residual+LN
-    discipline as the encoder. Three sub-blocks per layer, six layers in the paper.
+    デコーダーは<em>ターゲット</em>トークン（右に1つシフト）を受け取り、(a) これまでに見たターゲットトークン —
+    <strong>マスク済み自己アテンション</strong>経由 — と、(b) ソース — <strong>クロスアテンション</strong>経由
+    （QはデコーダーからKとVはエンコーダー出力（&ldquo;memory&rdquo;）から）の両方を知るテンソルを生成します。
+    埋め込み次元とエンコーダーと同じ残差+LN構造。レイヤーごとに3つのサブブロック、論文では6レイヤー。
   </p>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-head"><div class="card-title">paper config (still)</div></div>
+      <div class="card-head"><div class="card-title">論文設定（変わらず）</div></div>
       <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
         <div>B = <b style="color: var(--dim-b)">2</b>, T_src = <b style="color: var(--dim-t)">8</b>, T_tgt = <b style="color: var(--dim-t)">7</b></div>
         <div>d_model = <b style="color: var(--dim-d)">512</b>, h = <b style="color: var(--dim-h)">8</b>, d_k = <b style="color: var(--dim-k)">64</b></div>
-        <div style="margin-top:6px; color: var(--muted);"># T_tgt is independent of T_src.</div>
-        <div style="color: var(--muted);"># cross-attn is the only place they meet.</div>
+        <div style="margin-top:6px; color: var(--muted);"># T_tgt は T_src から独立しています。</div>
+        <div style="color: var(--muted);"># クロスアテンションだけが両者の出会いの場。</div>
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><div class="card-title">why &ldquo;shifted right&rdquo;?</div></div>
+      <div class="card-head"><div class="card-title">なぜ「右シフト」なのか？</div></div>
       <div class="card-body">
-        <p style="margin:0 0 6px;">During training the decoder sees the gold target prefixed with
-          <code>&lt;sos&gt;</code> and predicts the same target ending in <code>&lt;eos&gt;</code>.</p>
-        <pre class="code" style="margin:0;"><code><span class="tok-c"># target  : "die katze sitzt"           ← truth</span>
-<span class="tok-c"># dec_in  : "&lt;sos&gt; die katze sitzt"     ← shifted right (input)</span>
-<span class="tok-c"># labels  : "die katze sitzt &lt;eos&gt;"     ← what we predict</span></code></pre>
+        <p style="margin:0 0 6px;">学習時にデコーダーは<code>&lt;sos&gt;</code>が前置された正解ターゲットを見て、
+          <code>&lt;eos&gt;</code>で終わる同じターゲットを予測します。</p>
+        <pre class="code" style="margin:0;"><code><span class="tok-c"># target  : "die katze sitzt"           ← 正解</span>
+<span class="tok-c"># dec_in  : "&lt;sos&gt; die katze sitzt"     ← 右シフト（入力）</span>
+<span class="tok-c"># labels  : "die katze sitzt &lt;eos&gt;"     ← 予測対象</span></code></pre>
       </div>
     </div>
   </div>
 
-  <h2>Stage 17 · Decoder input → embedding</h2>
+  <h2>ステージ17 · デコーダー入力 → 埋め込み</h2>
   <div class="card">
     <div class="card-body">
       <div class="legend">
@@ -1329,49 +1383,49 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
     </div>
   </div>
 
-  <h2>Stage 19 · Masked self-attention <span style="color: var(--muted); font-weight:400; font-size:14px;">(causal mask)</span></h2>
+  <h2>ステージ19 · マスク済み自己アテンション <span style="color: var(--muted); font-weight:400; font-size:14px;">（因果マスク）</span></h2>
   <div class="card">
     <div class="card-body">
-      <p style="margin:0 0 8px;">Identical to encoder self-attn — except the score matrix gets
-        <em>−∞</em> stamped on every position above the diagonal so position <code>i</code> can
-        never look at <code>i+1, i+2, ...</code>. After softmax those positions become exactly 0.</p>
+      <p style="margin:0 0 8px;">エンコーダー自己アテンションと同一 — ただしスコア行列の対角線より上のすべての位置に
+        <em>−∞</em>が押印されるため、位置 <code>i</code> は
+        <code>i+1, i+2, ...</code>を絶対に見ることができません。softmax後にそれらの位置は正確に0になります。</p>
       <pre class="code"><code><span class="tok-c"># scores: [B, h, T_tgt, T_tgt] = [2, 8, 7, 7]</span>
 mask = torch.<span class="tok-f">triu</span>(torch.<span class="tok-f">ones</span>(T_tgt, T_tgt), diagonal=<span class="tok-n">1</span>).<span class="tok-f">bool</span>()
 scores = scores.<span class="tok-f">masked_fill</span>(mask, <span class="tok-k">float</span>(<span class="tok-s">'-inf'</span>))
-A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)        <span class="tok-c"># lower triangle, rows sum to 1</span></code></pre>
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)        <span class="tok-c"># 下三角、各行の合計=1</span></code></pre>
       <div class="legend" style="margin-top:8px;">
         <span class="pill"><span class="dot" style="background: var(--dim-h)"></span>[B, h, T_tgt, T_tgt]</span>
         <span style="color: var(--muted);">= [2, 8, 7, 7]</span>
-        <span style="color: var(--muted); margin-left:auto;">upper-triangle = 0 after softmax</span>
+        <span style="color: var(--muted); margin-left:auto;">softmax後、上三角 = 0</span>
       </div>
     </div>
   </div>
 
-  <h2>Stage 20 · Cross-attention <span style="color: var(--muted); font-weight:400; font-size:14px;">(Q ← decoder, K, V ← encoder)</span></h2>
+  <h2>ステージ20 · クロスアテンション <span style="color: var(--muted); font-weight:400; font-size:14px;">（Q ← デコーダー、K、V ← エンコーダー）</span></h2>
   <div class="card">
     <div class="card-body">
-      <p style="margin:0 0 8px;">This is where the encoder finally talks to the decoder. The decoder
-        emits queries; the encoder output supplies keys and values.</p>
-      <pre class="code"><code><span class="tok-c"># dec_x: [B, T_tgt, d_model] = [2, 7, 512]   ← from masked self-attn</span>
-<span class="tok-c"># memory: [B, T_src, d_model] = [2, 8, 512]  ← encoder output (stage 16)</span>
+      <p style="margin:0 0 8px;">ここがエンコーダーが最終的にデコーダーと対話する場所です。デコーダーがクエリを
+        出力し、エンコーダー出力がキーとバリューを供給します。</p>
+      <pre class="code"><code><span class="tok-c"># dec_x: [B, T_tgt, d_model] = [2, 7, 512]   ← マスク済み自己アテンションから</span>
+<span class="tok-c"># memory: [B, T_src, d_model] = [2, 8, 512]  ← エンコーダー出力（ステージ16）</span>
 Q = W_q(dec_x).<span class="tok-f">view</span>(B, T_tgt, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_tgt, d_k]</span>
 K = W_k(memory).<span class="tok-f">view</span>(B, T_src, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_src, d_k]</span>
 V = W_v(memory).<span class="tok-f">view</span>(B, T_src, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_src, d_k]</span>
 scores = Q @ K.<span class="tok-f">transpose</span>(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>) / math.<span class="tok-f">sqrt</span>(d_k)         <span class="tok-c"># [B, h, T_tgt, T_src] = [2, 8, 7, 8]</span>
-A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)                              <span class="tok-c"># last axis is T_src</span>
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)                              <span class="tok-c"># 最終軸はT_src</span>
 out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>).<span class="tok-f">reshape</span>(B, T_tgt, d_model) <span class="tok-c"># [2, 7, 512]</span></code></pre>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        Crucially: the score matrix is <em>not square</em>. It is
-        <code>[B, h, T_tgt, T_src]</code> — every target token attends over every source token.
+        重要な点：スコア行列は<em>正方行列ではありません</em>。
+        <code>[B, h, T_tgt, T_src]</code> — すべてのターゲットトークンがすべてのソーストークンにアテンションします。
       </p>
     </div>
   </div>
 
-  <h2>The decoder block in 16 lines</h2>
+  <h2>デコーダーブロック全体を16行で</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">DecoderBlock — minimal PyTorch</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">DecoderBlock — 最小限の PyTorch</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
     </div>
     <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">DecoderBlock</span>(nn.Module):
     <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, d=<span class="tok-n">512</span>, h=<span class="tok-n">8</span>, d_ff=<span class="tok-n">2048</span>):
@@ -1389,25 +1443,26 @@ out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>,
         x = self.<span class="tok-f">ln2</span>(x + c)                 <span class="tok-c"># [B, T_tgt, d]</span>
         x = self.<span class="tok-f">ln3</span>(x + self.<span class="tok-f">ffn</span>(x))
         <span class="tok-k">return</span> x                            <span class="tok-c"># [B, T_tgt, d]</span></code></pre>
+
   </div>
 
   <p style="color: var(--muted); margin-top: 14px;">
-    Output of the decoder stack (after 6 of these): <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
-    = <code>[2, 7, 512]</code>. Next stop: project to vocabulary.
+    デコーダースタックの出力（6つ後）: <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
+    = <code>[2, 7, 512]</code>。次のステップ：語彙に射影。
   </p>
 </section>
 
 <!-- ========================= OUTPUT &rarr; LOGITS ========================= -->
 <section class="tab-section" id="tab-output">
-  <h1>Stages 22–23 · From hidden state to logits</h1>
+  <h1>ステージ22〜23 · 隠れ状態から logits へ</h1>
   <p class="lead">
-    A single <code>nn.Linear(d_model, V)</code> turns each per-token hidden vector into a score for
-    every word in the vocabulary. Softmax along the last axis turns those scores into probabilities.
-    That's the entire output head. In the paper, <code>W_lm</code> is <em>tied</em> to the input
-    embedding matrix — same parameters, transposed.
+    単一の <code>nn.Linear(d_model, V)</code> が各トークンの隠れベクトルを語彙内のすべての単語のスコアに変換します。
+    最終軸に沿ったsoftmaxがそれらのスコアを確率に変換します。
+    これが出力ヘッド全体です。論文では<code>W_lm</code>は入力埋め込み行列と<em>共有（tied）</em>されています —
+    同じパラメーター、転置で使用。
   </p>
 
-  <h2>Stage 22 · Linear projection to vocabulary</h2>
+  <h2>ステージ22 · 語彙への線形射影</h2>
   <div class="card">
     <div class="card-body">
       <div class="legend">
@@ -1417,46 +1472,45 @@ out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>,
         <span style="color: var(--muted);">= [2, 7, 37000]</span>
       </div>
       <pre class="code" style="margin-top:10px;"><code><span class="tok-c"># dec_out: [B, T_tgt, d_model]</span>
-<span class="tok-c"># W_lm:    [V, d_model]   ← often tied to embed.weight</span>
+<span class="tok-c"># W_lm:    [V, d_model]   ← しばしば embed.weight と共有</span>
 logits = dec_out @ W_lm.<span class="tok-f">T</span>           <span class="tok-c"># [B, T_tgt, V]</span>
-<span class="tok-c"># or simply:</span>
+<span class="tok-c"># または単純に:</span>
 logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-c"># nn.Linear(d_model, V)</span></code></pre>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        These are <strong>raw scores</strong> — one per vocabulary token, per position, per example.
-        Not probabilities yet. Don't softmax them if your loss is <code>CrossEntropyLoss</code>;
-        it does that internally for numerical stability.
+        これらは<strong>生スコア</strong>です — 語彙トークンごと、位置ごと、サンプルごとに1つ。
+        まだ確率ではありません。損失が<code>CrossEntropyLoss</code>なら softmax しないでください；
+        数値安定性のために内部で行います。
       </p>
     </div>
   </div>
 
-  <h2>Stage 23 · Softmax → probabilities <span style="color: var(--muted); font-weight:400; font-size:14px;">(only when you actually need them)</span></h2>
+  <h2>ステージ23 · Softmax → 確率 <span style="color: var(--muted); font-weight:400; font-size:14px;">（実際に必要な場合のみ）</span></h2>
   <div class="card">
     <div class="card-body">
-      <pre class="code" style="margin:0;"><code>probs = F.<span class="tok-f">softmax</span>(logits, dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B, T_tgt, V] — rows over V sum to 1</span></code></pre>
+      <pre class="code" style="margin:0;"><code>probs = F.<span class="tok-f">softmax</span>(logits, dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B, T_tgt, V] — V方向の各行の合計=1</span></code></pre>
       <p style="margin:8px 0 0;">
-        At each of the <code>B·T_tgt</code> positions you now have a distribution over the entire
-        vocabulary. <em>Most of those 37,000 numbers are tiny.</em> A handful concentrate near the
-        right answer.
+        <code>B·T_tgt</code>の各位置で語彙全体の分布が得られます。<em>その37,000個の数値のほとんどは極小です。</em>
+        一握りが正解の近くに集中します。
       </p>
     </div>
   </div>
 
-  <h2>Parameter count of the output head</h2>
+  <h2>出力ヘッドのパラメーター数</h2>
   <div class="card">
     <div class="card-body">
       <p style="margin:0;">
-        <code>W_lm</code> alone is <code>V × d_model = 37000 × 512 ≈ 19M parameters</code> —
-        usually the single largest weight in the model. The paper ties it to the input embedding
-        matrix, halving the weight memory and (empirically) helping generalization.
+        <code>W_lm</code>だけで<code>V × d_model = 37000 × 512 ≈ 19Mパラメーター</code> —
+        通常、モデル内で最も大きな単一の重みです。論文ではこれを入力埋め込み行列と共有し、
+        重みメモリを半分にして（経験的に）汎化に役立てています。
       </p>
     </div>
   </div>
 
-  <h2>The full forward, end-to-end</h2>
+  <h2>エンドツーエンドの完全な順伝播</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">Transformer.forward — paper-faithful</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">Transformer.forward — 論文に忠実</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
     </div>
     <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, src_ids, tgt_in_ids):
     <span class="tok-c"># src_ids:    [B, T_src]   tgt_in_ids: [B, T_tgt]</span>
@@ -1477,43 +1531,43 @@ logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-
   </div>
 </section>
 
+
 <!-- ========================= TRAINING ========================= -->
 <section class="tab-section" id="tab-training">
-  <h1>Training — the whole paper, one step</h1>
+  <h1>訓練 — 論文全体をワンステップで</h1>
   <p class="lead">
-    A single training step on a batch of <em>(source, target)</em> string pairs. We tokenize
-    both, build the encoder &amp; decoder inputs, run the full transformer (embeds → positional →
-    6 encoder layers → 6 decoder layers → linear head), compute cross-entropy against the
-    shifted-right labels, backprop, and take an optimizer step. <strong>Initial input: a list
-    of string pairs. Final output: a scalar loss + updated parameters.</strong>
+    <em>（ソース、ターゲット）</em>文字列ペアのバッチ上の単一の訓練ステップ。両者をトークナイズし、
+    エンコーダー&amp;デコーダーの入力を構築し、完全なTransformer（埋め込み → 位置エンコーディング →
+    6エンコーダーレイヤー → 6デコーダーレイヤー → 線形ヘッド）を実行し、右シフトラベルに対する交差エントロピーを計算し、
+    逆伝播してオプティマイザーステップを実行します。<strong>初期入力：文字列ペアのリスト。最終出力：スカラー損失 + 更新されたパラメーター。</strong>
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">paper config (still — held fixed across all stages)</div></div>
+    <div class="card-head"><div class="card-title">論文設定（変わらず — 全ステージで固定）</div></div>
     <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
       <div>B = <b style="color: var(--dim-b)">2</b>, T_src = <b style="color: var(--dim-t)">8</b>, T_tgt = <b style="color: var(--dim-t)">7</b>, d_model = <b style="color: var(--dim-d)">512</b>, h = <b style="color: var(--dim-h)">8</b>, d_k = <b style="color: var(--dim-k)">64</b>, d_ff = <b style="color: var(--dim-ff)">2048</b>, V = <b style="color: var(--accent-2)">37000</b>, N = <b>6</b></div>
-      <div style="color: var(--muted); margin-top: 4px;">tokens shown: &lt;sos&gt;=1, &lt;eos&gt;=2, &lt;pad&gt;=0; English/German IDs are illustrative.</div>
+      <div style="color: var(--muted); margin-top: 4px;">トークン：&lt;sos&gt;=1, &lt;eos&gt;=2, &lt;pad&gt;=0; 英語/ドイツ語IDは例示用。</div>
     </div>
   </div>
 
-  <h2>Step 1 · Initial input — raw strings <span style="color: var(--muted); font-weight:400; font-size:14px;">(no tensor yet)</span></h2>
+  <h2>ステップ1 · 初期入力 — 生文字列 <span style="color: var(--muted); font-weight:400; font-size:14px;">（テンソルはまだなし）</span></h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">a batch of B=2 (src, tgt) pairs</div>
+      <div class="card-title">B=2の (src, tgt) ペアのバッチ</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>list[(str, str)], len = B</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
           <pre class="code"><code>batch = [
   (<span class="tok-s">"the cat sat"</span>, <span class="tok-s">"die katze sitzt"</span>),
   (<span class="tok-s">"i love you"</span>,  <span class="tok-s">"ich liebe dich"</span>),
 ]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code><span class="tok-c"># nothing yet — pure Python strings</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
+          <pre class="code"><code><span class="tok-c"># まだなし — 純粋なPython文字列</span>
 <span class="tok-f">type</span>(batch)        <span class="tok-c"># list</span>
 <span class="tok-f">len</span>(batch)         <span class="tok-c"># 2  (= B)</span></code></pre>
         </div>
@@ -1521,25 +1575,25 @@ logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-
     </div>
   </div>
 
-  <h2>Step 2 · Tokenize source — strings → integer IDs</h2>
+  <h2>ステップ2 · ソースをトークナイズ — 文字列 → 整数ID</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">BPE tokenizer · pad to T_src</div>
+      <div class="card-title">BPEトークナイザー · T_srcにパディング</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_src)</span>
       <span class="pill" style="margin-left:6px;">[2, 8] int64</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># each row: &lt;sos&gt;, words..., &lt;eos&gt;, &lt;pad&gt;...</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
+          <pre class="code"><code><span class="tok-c"># 各行: &lt;sos&gt;, 単語..., &lt;eos&gt;, &lt;pad&gt;...</span>
 src_ids = [
   [<span class="tok-n">1</span>, <span class="tok-n">1996</span>, <span class="tok-n">4937</span>, <span class="tok-n">2938</span>, <span class="tok-n">2</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
   [<span class="tok-n">1</span>, <span class="tok-n">1045</span>, <span class="tok-n">2293</span>, <span class="tok-n">2017</span>, <span class="tok-n">2</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
 ]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
           <pre class="code"><code>src_ids = torch.<span class="tok-f">tensor</span>(src_ids)
 src_ids.shape   <span class="tok-c"># torch.Size([2, 8])  = (B, T_src)</span>
 src_ids.dtype   <span class="tok-c"># torch.int64</span></code></pre>
@@ -1548,102 +1602,102 @@ src_ids.dtype   <span class="tok-c"># torch.int64</span></code></pre>
     </div>
   </div>
 
-  <h2>Step 3 · Tokenize target — and shift right</h2>
+  <h2>ステップ3 · ターゲットをトークナイズ — そして右シフト</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">decoder input vs. labels</div>
+      <div class="card-title">デコーダー入力 vs. ラベル</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>dec_in: (B, T_tgt) · labels: (B, T_tgt)</span>
     </div>
     <div class="card-body">
       <p style="margin: 0 0 8px;">
-        The decoder is trained to predict <em>each next token</em>. So <code>dec_in</code> is the
-        target prefixed with <code>&lt;sos&gt;</code> and <code>labels</code> is the same target
-        ending in <code>&lt;eos&gt;</code>. Position <code>i</code> of <code>dec_in</code> must
-        predict position <code>i</code> of <code>labels</code>.
+        デコーダーは<em>次のトークンをそれぞれ</em>予測するよう訓練されます。したがって<code>dec_in</code>は
+        <code>&lt;sos&gt;</code>が前置されたターゲットで、<code>labels</code>は
+        <code>&lt;eos&gt;</code>で終わる同じターゲットです。<code>dec_in</code>の位置<code>i</code>は
+        <code>labels</code>の位置<code>i</code>を予測しなければなりません。
       </p>
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># dec_in: prepend &lt;sos&gt;, drop final &lt;eos&gt;</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
+          <pre class="code"><code><span class="tok-c"># dec_in: &lt;sos&gt;を前置、最後の&lt;eos&gt;を除去</span>
 dec_in = [
   [<span class="tok-n">1</span>, <span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
   [<span class="tok-n">1</span>, <span class="tok-n">1156</span>, <span class="tok-n">4502</span>, <span class="tok-n">3299</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
 ]
-<span class="tok-c"># labels: drop &lt;sos&gt;, append &lt;eos&gt;, pad with -100</span>
+<span class="tok-c"># labels: &lt;sos&gt;を除去、&lt;eos&gt;を追加、-100でパディング</span>
 labels = [
   [<span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>, <span class="tok-n">2</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>],
   [<span class="tok-n">1156</span>, <span class="tok-n">4502</span>, <span class="tok-n">3299</span>, <span class="tok-n">2</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>],
 ]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
           <pre class="code"><code>dec_in.shape    <span class="tok-c"># (2, 7) = (B, T_tgt)</span>
 labels.shape    <span class="tok-c"># (2, 7) = (B, T_tgt)</span>
-<span class="tok-c"># -100 is the default ignore_index for CE</span>
-<span class="tok-c"># so padding contributes nothing to the loss</span></code></pre>
+<span class="tok-c"># -100 はCEのデフォルトのignore_index</span>
+<span class="tok-c"># したがってパディングは損失に何も貢献しない</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 4 · Source embedding lookup <span style="color: var(--muted); font-weight:400; font-size:14px;">(× √d_model, per the paper)</span></h2>
+  <h2>ステップ4 · ソース埋め込みルックアップ <span style="color: var(--muted); font-weight:400; font-size:14px;">（× √d_model、論文通り）</span></h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">int IDs → dense vectors</div>
+      <div class="card-title">整数ID → 密ベクトル</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 8, 512]</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">コード</h4>
           <pre class="code"><code>src = src_embed(src_ids) * math.<span class="tok-f">sqrt</span>(d_model)
 <span class="tok-c"># src_embed: nn.Embedding(V, d_model)</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
           <pre class="code"><code>src.shape       <span class="tok-c"># (2, 8, 512)</span>
 src.dtype       <span class="tok-c"># torch.float32</span>
-<span class="tok-c"># src[0, 0, :5] e.g. tensor([ 0.31, -0.07, ...])</span></code></pre>
+<span class="tok-c"># src[0, 0, :5] 例 tensor([ 0.31, -0.07, ...])</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 5 · Sinusoidal positional encoding (added)</h2>
+  <h2>ステップ5 · サイン波位置エンコーディング（加算）</h2>
   <div class="card">
     <div class="card-head">
       <div class="card-title">PE(pos, 2i) = sin(pos / 10000<sup>2i/d</sup>) · PE(pos, 2i+1) = cos(...)</div>
-      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model) — same shape</span>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model) — 同じ形状</span>
     </div>
     <div class="card-body">
-      <pre class="code" style="margin:0;"><code>src = src + pe[:T_src]              <span class="tok-c"># pe: precomputed [max_len, d_model]</span></code></pre>
+      <pre class="code" style="margin:0;"><code>src = src + pe[:T_src]              <span class="tok-c"># pe: 事前計算済み [max_len, d_model]</span></code></pre>
     </div>
   </div>
 
-  <h2>Step 6 · Encoder — N=6 layers → memory</h2>
+  <h2>ステップ6 · エンコーダー — N=6レイヤー → memory</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">each layer: MHA → add+LN → FFN → add+LN</div>
+      <div class="card-title">各レイヤー: MHA → add+LN → FFN → add+LN</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 8, 512]</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0 0 8px;"><code>memory = src
-<span class="tok-k">for</span> layer <span class="tok-k">in</span> encoder_layers:    <span class="tok-c"># 6 of them</span>
-    memory = <span class="tok-f">layer</span>(memory)       <span class="tok-c"># [2, 8, 512] in, [2, 8, 512] out</span></code></pre>
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> encoder_layers:    <span class="tok-c"># 6つ</span>
+    memory = <span class="tok-f">layer</span>(memory)       <span class="tok-c"># [2, 8, 512] 入力、[2, 8, 512] 出力</span></code></pre>
       <p style="margin:0; color: var(--muted); font-size: 13px;">
-        Inside each layer: <code>x = LN(x + MHA(x,x,x))</code> then <code>x = LN(x + FFN(x))</code>.
-        Shapes: <code>[B, T_src, d_model]</code> in and out, scratch goes through <code>[B, h, T_src, d_k]</code>
-        and <code>[B, T_src, d_ff]</code>.
+        各レイヤー内部: <code>x = LN(x + MHA(x,x,x))</code> 次に <code>x = LN(x + FFN(x))</code>。
+        形状: <code>[B, T_src, d_model]</code> 入出力、中間処理は <code>[B, h, T_src, d_k]</code>
+        と <code>[B, T_src, d_ff]</code>。
       </p>
     </div>
   </div>
 
-  <h2>Step 7 · Target embedding + positional encoding</h2>
+  <h2>ステップ7 · ターゲット埋め込み + 位置エンコーディング</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">decoder input pipeline</div>
+      <div class="card-title">デコーダー入力パイプライン</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_tgt, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 7, 512]</span>
     </div>
@@ -1653,125 +1707,125 @@ tgt = tgt + pe[:T_tgt]              <span class="tok-c"># [2, 7, 512]</span></co
     </div>
   </div>
 
-  <h2>Step 8 · Decoder — N=6 layers (causal mask + cross-attn)</h2>
+  <h2>ステップ8 · デコーダー — N=6レイヤー（因果マスク + クロスアテンション）</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">each layer: masked-MHA → cross-MHA(memory) → FFN, all with add+LN</div>
+      <div class="card-title">各レイヤー: masked-MHA → cross-MHA(memory) → FFN、全てadd+LN付き</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_tgt, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 7, 512]</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0;"><code>causal = torch.<span class="tok-f">triu</span>(torch.<span class="tok-f">ones</span>(T_tgt, T_tgt), diagonal=<span class="tok-n">1</span>).<span class="tok-f">bool</span>()
 x = tgt
-<span class="tok-k">for</span> layer <span class="tok-k">in</span> decoder_layers:    <span class="tok-c"># 6 of them</span>
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> decoder_layers:    <span class="tok-c"># 6つ</span>
     x = <span class="tok-f">layer</span>(x, memory, causal)       <span class="tok-c"># [2, 7, 512]</span></code></pre>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        Inner shapes: masked-attn scores <code>[2, 8, 7, 7]</code>; cross-attn scores
-        <code>[2, 8, 7, 8]</code> (T_tgt × T_src — non-square!); FFN scratch <code>[2, 7, 2048]</code>.
+        内部形状: masked-attnスコア <code>[2, 8, 7, 7]</code>; cross-attnスコア
+        <code>[2, 8, 7, 8]</code> (T_tgt × T_src — 非正方！); FFN中間処理 <code>[2, 7, 2048]</code>。
       </p>
     </div>
   </div>
 
-  <h2>Step 9 · LM head — project to vocabulary</h2>
+  <h2>ステップ9 · LMヘッド — 語彙に射影</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">linear: d_model → V (often weight-tied to tgt_embed)</div>
+      <div class="card-title">線形: d_model → V（しばしば tgt_embed と重み共有）</div>
       <span class="pill"><span class="dot" style="background: var(--accent-2)"></span>(B, T_tgt, V)</span>
       <span class="pill" style="margin-left:6px;">[2, 7, 37000]</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">コード</h4>
           <pre class="code"><code>logits = lm_head(x)
 <span class="tok-c"># lm_head: nn.Linear(d_model, V, bias=False)</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
           <pre class="code"><code>logits.shape    <span class="tok-c"># (2, 7, 37000)</span>
 logits.dtype    <span class="tok-c"># float32</span>
-<span class="tok-c"># raw scores — NOT softmaxed yet</span></code></pre>
+<span class="tok-c"># 生スコア — まだ softmax されていない</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 10 · Cross-entropy loss</h2>
+  <h2>ステップ10 · 交差エントロピー損失</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">flatten the batch · padding ignored via -100</div>
-      <span class="pill">scalar</span>
+      <div class="card-title">バッチを平坦化 · -100でパディング無視</div>
+      <span class="pill">スカラー</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">コード</h4>
           <pre class="code"><code>loss = F.<span class="tok-f">cross_entropy</span>(
     logits.<span class="tok-f">view</span>(-<span class="tok-n">1</span>, V),    <span class="tok-c"># [B*T_tgt, V] = [14, 37000]</span>
     labels.<span class="tok-f">view</span>(-<span class="tok-n">1</span>),       <span class="tok-c"># [B*T_tgt] = [14]</span>
     ignore_index=-<span class="tok-n">100</span>,
-    label_smoothing=<span class="tok-n">0.1</span>     <span class="tok-c"># paper §5.4</span>
+    label_smoothing=<span class="tok-n">0.1</span>     <span class="tok-c"># 論文 §5.4</span>
 )</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code>loss.shape          <span class="tok-c"># torch.Size([])  — 0-dim scalar</span>
-loss.<span class="tok-f">item</span>()          <span class="tok-c"># e.g. 6.93</span>
-<span class="tok-c"># ∂L/∂logits = (P − Y) — see softmax-ce.html</span></code></pre>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
+          <pre class="code"><code>loss.shape          <span class="tok-c"># torch.Size([])  — 0次元スカラー</span>
+loss.<span class="tok-f">item</span>()          <span class="tok-c"># 例 6.93</span>
+<span class="tok-c"># ∂L/∂logits = (P − Y) — softmax-ce.html参照</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 11 · Backward + optimizer step</h2>
+  <h2>ステップ11 · 逆伝播 + オプティマイザーステップ</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">∂L flows back through every parameter</div>
-      <span class="pill">scalar in, ~65M parameters updated</span>
+      <div class="card-title">∂L がすべてのパラメーターを逆流</div>
+      <span class="pill">スカラー入力、~65Mパラメーター更新</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0 0 8px;"><code>optimizer.<span class="tok-f">zero_grad</span>()
-loss.<span class="tok-f">backward</span>()           <span class="tok-c"># autograd walks: loss → logits → lm_head → 6 dec → 6 enc → embeds</span>
-optimizer.<span class="tok-f">step</span>()         <span class="tok-c"># Adam, β₁=0.9, β₂=0.98, ε=1e-9, with warmup (paper §5.3)</span></code></pre>
+loss.<span class="tok-f">backward</span>()           <span class="tok-c"># autogradが辿る: loss → logits → lm_head → 6 dec → 6 enc → embeds</span>
+optimizer.<span class="tok-f">step</span>()         <span class="tok-c"># Adam, β₁=0.9, β₂=0.98, ε=1e-9, warmup付き（論文 §5.3）</span></code></pre>
       <p style="margin:0; color: var(--muted); font-size: 13px;">
-        Every weight tensor — <code>src_embed.weight</code>, <code>tgt_embed.weight</code>,
-        all 6+6 layers' Q/K/V/O/FFN/LN params, <code>lm_head.weight</code> — receives
-        <code>.grad</code> with the same shape as itself, then gets nudged by the optimizer.
+        すべての重みテンソル — <code>src_embed.weight</code>、<code>tgt_embed.weight</code>、
+        6+6レイヤーのQ/K/V/O/FFN/LNパラメーター、<code>lm_head.weight</code> — が
+        自身と同じ形状の<code>.grad</code>を受け取り、オプティマイザーで微調整されます。
       </p>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Final output of the training step</h2>
+  <h2 style="color: var(--accent);">訓練ステップの最終出力</h2>
   <div class="card">
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># 1) a scalar to log</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
+          <pre class="code"><code><span class="tok-c"># 1) ログ用スカラー</span>
 loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
 
-<span class="tok-c"># 2) updated weights (in-place)</span>
-<span class="tok-c"># every parameter has been nudged</span></code></pre>
+<span class="tok-c"># 2) 更新された重み（インプレース）</span>
+<span class="tok-c"># すべてのパラメーターが微調整済み</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
           <pre class="code"><code>loss            <span class="tok-c"># tensor(6.93)  shape=()</span>
-<span class="tok-c"># model state has changed; no new tensor returned</span></code></pre>
+<span class="tok-c"># モデル状態が変化; 新しいテンソルは返されない</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>The whole training step in one shot</h2>
+  <h2>訓練ステップ全体を一気に</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">train_step — paper-faithful, ~20 lines</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">train_step — 論文に忠実、約20行</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
     </div>
     <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">train_step</span>(model, optimizer, batch):
-    <span class="tok-c"># batch: list[(src_str, tgt_str)] of length B</span>
+    <span class="tok-c"># batch: list[(src_str, tgt_str)]、長さB</span>
     src_ids = <span class="tok-f">tokenize_src</span>(batch)         <span class="tok-c"># [B, T_src]    int64</span>
-    dec_in, labels = <span class="tok-f">tokenize_tgt</span>(batch)  <span class="tok-c"># [B, T_tgt] each</span>
+    dec_in, labels = <span class="tok-f">tokenize_tgt</span>(batch)  <span class="tok-c"># それぞれ [B, T_tgt]</span>
 
     src = model.<span class="tok-f">src_embed</span>(src_ids)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(src_ids)
     tgt = model.<span class="tok-f">tgt_embed</span>(dec_in)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(dec_in)
@@ -1789,40 +1843,40 @@ loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
         ignore_index=-<span class="tok-n">100</span>, label_smoothing=<span class="tok-n">0.1</span>)
 
     optimizer.<span class="tok-f">zero_grad</span>(); loss.<span class="tok-f">backward</span>(); optimizer.<span class="tok-f">step</span>()
-    <span class="tok-k">return</span> loss.<span class="tok-f">item</span>()                     <span class="tok-c"># scalar</span></code></pre>
+    <span class="tok-k">return</span> loss.<span class="tok-f">item</span>()                     <span class="tok-c"># スカラー</span></code></pre>
   </div>
 
   <p style="color: var(--muted); margin-top: 14px;">
-    <strong>Summary of shapes during one training step:</strong>
-    raw strings (B) →
+    <strong>1回の訓練ステップ中の形状まとめ：</strong>
+    生文字列 (B) →
     <span class="pill">[B, T_src]</span> →
     <span class="pill">[B, T_src, d]</span> →
     <span class="pill">[B, T_tgt, d]</span> →
-    <span class="pill">[B, T_tgt, V]</span> → scalar loss → ∂L/∂θ on every param.
+    <span class="pill">[B, T_tgt, V]</span> → スカラー損失 → 全パラメーターへの ∂L/∂θ。
   </p>
 </section>
 
 <!-- ========================= INFERENCE ========================= -->
 <section class="tab-section" id="tab-inference">
-  <h1>Inference — generating one translation</h1>
+  <h1>推論 — 翻訳を1つ生成する</h1>
   <p class="lead">
-    At test time we have a single source string (B=1 in this walkthrough). We tokenize, run the
-    encoder <em>once</em> to get <code>memory</code>, then loop: <em>decode → take the last
-    position's logits → pick a token → append it</em>. Repeat until <code>&lt;eos&gt;</code> or
-    a max length. <strong>Initial input: a string. Final output: a string.</strong>
+    テスト時には単一のソース文字列（このウォークスルーではB=1）があります。トークナイズし、
+    エンコーダーを<em>1回</em>実行して<code>memory</code>を得て、ループします：<em>デコード → 最後の
+    位置のlogitsを取得 → トークンを選択 → 追加</em>。<code>&lt;eos&gt;</code>または
+    最大長まで繰り返します。<strong>初期入力：文字列。最終出力：文字列。</strong>
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">config for this walkthrough</div></div>
+    <div class="card-head"><div class="card-title">このウォークスルーの設定</div></div>
     <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
-      <div>B = <b style="color: var(--dim-b)">1</b>, T_src = <b style="color: var(--dim-t)">5</b> (no padding needed for B=1), d_model = <b style="color: var(--dim-d)">512</b>, V = <b style="color: var(--accent-2)">37000</b>, max_len = <b>32</b></div>
-      <div style="color: var(--muted); margin-top: 4px;">No labels. No loss. <code>torch.no_grad()</code> wraps everything.</div>
+      <div>B = <b style="color: var(--dim-b)">1</b>, T_src = <b style="color: var(--dim-t)">5</b> (B=1のためパディング不要), d_model = <b style="color: var(--dim-d)">512</b>, V = <b style="color: var(--accent-2)">37000</b>, max_len = <b>32</b></div>
+      <div style="color: var(--muted); margin-top: 4px;">ラベルなし。損失なし。<code>torch.no_grad()</code>で全体をラップ。</div>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Phase A — preprocess the source <em>once</em></h2>
+  <h2 style="color: var(--accent);">フェーズA — ソースを<em>1回だけ</em>前処理</h2>
 
-  <h3>Step 1 · Initial input — one raw string</h3>
+  <h3>ステップ1 · 初期入力 — 1つの生文字列</h3>
   <div class="card">
     <div class="card-head">
       <div class="card-title">B = 1</div>
@@ -1831,33 +1885,33 @@ loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
           <pre class="code"><code>src_text = <span class="tok-s">"the cat sat"</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code><span class="tok-c"># nothing yet — pure Python str</span></code></pre>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
+          <pre class="code"><code><span class="tok-c"># まだなし — 純粋なPython str</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h3>Step 2 · Tokenize source</h3>
+  <h3>ステップ2 · ソースをトークナイズ</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">str → int IDs · wrap in batch dim</div>
+      <div class="card-title">str → 整数ID · バッチ次元でラップ</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_src)</span>
       <span class="pill" style="margin-left:6px;">[1, 5] int64</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
           <pre class="code"><code><span class="tok-c"># &lt;sos&gt; the cat sat &lt;eos&gt;</span>
 src_ids = [[<span class="tok-n">1</span>, <span class="tok-n">1996</span>, <span class="tok-n">4937</span>, <span class="tok-n">2938</span>, <span class="tok-n">2</span>]]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
           <pre class="code"><code>src_ids = torch.<span class="tok-f">tensor</span>(src_ids)
 src_ids.shape   <span class="tok-c"># (1, 5)</span></code></pre>
         </div>
@@ -1865,10 +1919,10 @@ src_ids.shape   <span class="tok-c"># (1, 5)</span></code></pre>
     </div>
   </div>
 
-  <h3>Step 3 · Source embed + positional</h3>
+  <h3>ステップ3 · ソース埋め込み + 位置エンコーディング</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">int → dense vectors</div>
+      <div class="card-title">整数 → 密ベクトル</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
       <span class="pill" style="margin-left:6px;">[1, 5, 512]</span>
     </div>
@@ -1878,7 +1932,7 @@ src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c">#
     </div>
   </div>
 
-  <h3>Step 4 · Encoder — N=6 layers → memory <em>(computed once, reused every loop step)</em></h3>
+  <h3>ステップ4 · エンコーダー — N=6レイヤー → memory <em>（1回計算、ループの各ステップで再利用）</em></h3>
   <div class="card">
     <div class="card-head">
       <div class="card-title">memory = encoder(src)</div>
@@ -1892,12 +1946,12 @@ src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c">#
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Phase B — autoregressive decoding loop</h2>
+  <h2 style="color: var(--accent);">フェーズB — 自己回帰デコーディングループ</h2>
 
-  <h3>Step 5 · Initialize decoder input with <code>&lt;sos&gt;</code></h3>
+  <h3>ステップ5 · <code>&lt;sos&gt;</code>でデコーダー入力を初期化</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">start with one token; T_tgt grows by 1 every step</div>
+      <div class="card-title">1トークンで開始; T_tgtは毎ステップ1ずつ増加</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_tgt=1)</span>
       <span class="pill" style="margin-left:6px;">[1, 1] int64</span>
     </div>
@@ -1906,90 +1960,90 @@ src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c">#
     </div>
   </div>
 
-  <h3>Steps 6–9 · Loop body — repeat until <code>&lt;eos&gt;</code> or <code>max_len</code></h3>
+  <h3>ステップ6〜9 · ループ本体 — <code>&lt;eos&gt;</code>または<code>max_len</code>まで繰り返す</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">each pass grows T_tgt by exactly one</div>
+      <div class="card-title">各パスでT_tgtがちょうど1増加</div>
     </div>
     <div class="card-body">
       <table class="matrix-table">
-        <tr><th>#</th><th>operation</th><th>shape (B=1)</th><th>data (e.g. step t)</th></tr>
+        <tr><th>#</th><th>操作</th><th>形状 (B=1)</th><th>データ (例：ステップt)</th></tr>
         <tr><td>6</td><td>tgt_embed(dec_in) + pe[:t]</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
-        <tr><td>7</td><td>decoder × 6 (causal + cross-attn over memory)</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
-        <tr><td>8</td><td>lm_head → logits</td><td class="shape-cell">[1, t, V] = [1, t, 37000]</td><td><span style="color: var(--muted);">raw scores</span></td></tr>
-        <tr><td>9a</td><td>take last position only</td><td class="shape-cell">[1, V]</td><td><code>logits[:, -1, :]</code></td></tr>
-        <tr><td>9b</td><td>argmax (greedy) <em>or</em> multinomial(softmax/τ)</td><td class="shape-cell">[1]</td><td><code>next_id</code></td></tr>
-        <tr><td>9c</td><td>append: dec_in = cat(dec_in, next_id[:, None])</td><td class="shape-cell">[1, t+1]</td><td>grows by 1</td></tr>
+        <tr><td>7</td><td>デコーダー × 6 (causal + memory上のクロスアテンション)</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
+        <tr><td>8</td><td>lm_head → logits</td><td class="shape-cell">[1, t, V] = [1, t, 37000]</td><td><span style="color: var(--muted);">生スコア</span></td></tr>
+        <tr><td>9a</td><td>最後の位置のみ取得</td><td class="shape-cell">[1, V]</td><td><code>logits[:, -1, :]</code></td></tr>
+        <tr><td>9b</td><td>argmax（貪欲法）<em>または</em> multinomial(softmax/τ)</td><td class="shape-cell">[1]</td><td><code>next_id</code></td></tr>
+        <tr><td>9c</td><td>追加: dec_in = cat(dec_in, next_id[:, None])</td><td class="shape-cell">[1, t+1]</td><td>1ずつ増加</td></tr>
       </table>
     </div>
   </div>
 
-  <h3>A concrete trace (greedy)</h3>
+  <h3>具体的なトレース（貪欲法）</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">how dec_in grows; what gets sampled</div>
+      <div class="card-title">dec_inの成長; 何がサンプリングされるか</div>
     </div>
     <div class="card-body">
       <table class="matrix-table">
-        <tr><th>step</th><th>dec_in (data)</th><th>dec_in.shape</th><th>last_logits.shape</th><th>argmax → token</th></tr>
+        <tr><th>ステップ</th><th>dec_in（データ）</th><th>dec_in.shape</th><th>last_logits.shape</th><th>argmax → トークン</th></tr>
         <tr><td>t=1</td><td><code>[[1]]</code></td><td class="shape-cell">[1, 1]</td><td class="shape-cell">[1, 37000]</td><td><code>521</code> &nbsp;<em>"die"</em></td></tr>
         <tr><td>t=2</td><td><code>[[1, 521]]</code></td><td class="shape-cell">[1, 2]</td><td class="shape-cell">[1, 37000]</td><td><code>8901</code> &nbsp;<em>"katze"</em></td></tr>
         <tr><td>t=3</td><td><code>[[1, 521, 8901]]</code></td><td class="shape-cell">[1, 3]</td><td class="shape-cell">[1, 37000]</td><td><code>2334</code> &nbsp;<em>"sitzt"</em></td></tr>
-        <tr><td>t=4</td><td><code>[[1, 521, 8901, 2334]]</code></td><td class="shape-cell">[1, 4]</td><td class="shape-cell">[1, 37000]</td><td><code>2</code> &nbsp;<em>&lt;eos&gt;</em> — stop</td></tr>
+        <tr><td>t=4</td><td><code>[[1, 521, 8901, 2334]]</code></td><td class="shape-cell">[1, 4]</td><td class="shape-cell">[1, 37000]</td><td><code>2</code> &nbsp;<em>&lt;eos&gt;</em> — 停止</td></tr>
       </table>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        The encoder ran exactly once. The decoder ran four times. In a production decoder you'd
-        cache K and V from previous steps (KV cache) so each loop step only computes the new last
-        column instead of rebuilding the whole prefix.
+        エンコーダーは1回だけ実行されました。デコーダーは4回実行されました。本番デコーダーでは、
+        前のステップのKとVをキャッシュ（KVキャッシュ）して、各ループステップでプレフィックス全体を
+        再構築する代わりに新しい最後の列だけを計算します。
       </p>
     </div>
   </div>
 
-  <h3>Step 10 · Detokenize → final output string</h3>
+  <h3>ステップ10 · デトークナイズ → 最終出力文字列</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">int IDs → string</div>
+      <div class="card-title">整数ID → 文字列</div>
       <span class="pill">str</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># strip &lt;sos&gt; and &lt;eos&gt;</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
+          <pre class="code"><code><span class="tok-c"># &lt;sos&gt; と &lt;eos&gt; を除去</span>
 out_ids  = [<span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>]
 out_text = <span class="tok-s">"die katze sitzt"</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code>out_ids.shape    <span class="tok-c"># (1, 3) before detokenize</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル</h4>
+          <pre class="code"><code>out_ids.shape    <span class="tok-c"># デトークナイズ前 (1, 3)</span>
 <span class="tok-f">type</span>(out_text)    <span class="tok-c"># str</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Final output of inference</h2>
+  <h2 style="color: var(--accent);">推論の最終出力</h2>
   <div class="card">
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">データ</h4>
           <pre class="code"><code>out_text = <span class="tok-s">"die katze sitzt"</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor (intermediate)</h4>
-          <pre class="code"><code><span class="tok-c"># the generated IDs before detokenize</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">テンソル（中間）</h4>
+          <pre class="code"><code><span class="tok-c"># デトークナイズ前の生成ID</span>
 generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>The whole inference loop in one shot</h2>
+  <h2>推論ループ全体を一気に</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">generate — greedy, ~20 lines</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">generate — 貪欲法、約20行</div>
+      <button class="copy-btn" onclick="copyCode(this)">コピー</button>
     </div>
     <pre class="code"><code><span class="tok-k">@torch.no_grad</span>()
 <span class="tok-k">def</span> <span class="tok-f">generate</span>(model, src_text, max_len=<span class="tok-n">32</span>):
@@ -2016,13 +2070,13 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
   </div>
 
   <p style="color: var(--muted); margin-top: 14px;">
-    <strong>Summary of shapes during inference:</strong>
-    raw string →
+    <strong>推論中の形状まとめ：</strong>
+    生文字列 →
     <span class="pill">[1, T_src]</span> →
-    <span class="pill">[1, T_src, d]</span> (memory, once) →
-    loop: <span class="pill">[1, t]</span> → <span class="pill">[1, t, d]</span> →
+    <span class="pill">[1, T_src, d]</span> (memory、1回) →
+    ループ: <span class="pill">[1, t]</span> → <span class="pill">[1, t, d]</span> →
     <span class="pill">[1, t, V]</span> → <span class="pill">[1, V]</span> →
-    <span class="pill">[1]</span> → append → grow → final string.
+    <span class="pill">[1]</span> → 追加 → 成長 → 最終文字列。
   </p>
 </section>
 
@@ -2030,22 +2084,22 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
 
 <!-- ========================= LIVE SANDBOX ========================= -->
 <section class="tab-section" id="tab-sandbox">
-  <h1>Live shape sandbox</h1>
+  <h1>ライブ形状サンドボックス</h1>
   <p class="lead">
-    Edit B, T, d_model, h. Every stage recomputes — shape pills, parameter counts, and the
-    derived $d_k$ all update. Try $d_{model}=768, h=12$ (BERT-base). Or $d_{model}=4096, h=32$
-    (LLaMA-7B). Same recipe, different numbers.
+    B、T、d_model、hを編集してください。すべてのステージが再計算されます — 形状ピル、パラメーター数、
+    導出された $d_k$ がすべて更新されます。$d_{model}=768, h=12$（BERT-base）を試してみてください。
+    または $d_{model}=4096, h=32$（LLaMA-7B）。同じレシピ、異なる数値。
   </p>
 
   <div class="canvas-card">
-    <h3>knobs</h3>
+    <h3>調整ノブ</h3>
     <div class="sandbox-controls">
       <div class="knob">
-        <label>B (batch)</label>
+        <label>B (バッチ)</label>
         <input type="number" id="sB" value="2" min="1" max="64" step="1">
       </div>
       <div class="knob">
-        <label>T (seq len)</label>
+        <label>T (シーケンス長)</label>
         <input type="number" id="sT" value="8" min="1" max="2048" step="1">
       </div>
       <div class="knob">
@@ -2053,7 +2107,7 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
         <input type="number" id="sD" value="512" min="8" max="8192" step="8">
       </div>
       <div class="knob">
-        <label>h (heads)</label>
+        <label>h (ヘッド数)</label>
         <input type="number" id="sH" value="8" min="1" max="64" step="1">
       </div>
       <div class="knob derived">
@@ -2074,7 +2128,7 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
       <span><span class="dot" style="background: var(--dim-h)"></span> h</span>
       <span><span class="dot" style="background: var(--dim-k)"></span> d_k</span>
       <span><span class="dot" style="background: var(--dim-ff)"></span> d_ff</span>
-      <span style="margin-left: auto;">orange highlight = dim changed from prev stage</span>
+      <span style="margin-left: auto;">オレンジ強調 = 前ステージから次元が変化</span>
     </div>
 
     <div class="pipeline" id="pipeline"></div>
@@ -2083,310 +2137,307 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
   </div>
 
   <div class="note">
-    <strong>What stays constant:</strong> the input and output shapes of every encoder block
-    are identical, $[B, T, d_{model}]$. That's what makes stacking $N$ of them trivial.<br>
-    <strong>What changes inside:</strong> the tensor dilates to 4D for attention and to
-    $4\cdot d_{model}$ inside the FFN, then collapses back.
+    <strong>一定のもの：</strong> 各エンコーダーブロックの入力と出力の形状は同一で、
+    $[B, T, d_{model}]$。これが$N$個のスタッキングを簡単にする理由です。<br>
+    <strong>内部で変化するもの：</strong> テンソルはアテンションのために4Dに拡張され、
+    FFN内部では $4\cdot d_{model}$ になり、その後元に戻ります。
   </div>
 
-  <h2>Famous configurations</h2>
+  <h2>有名な設定</h2>
   <div class="grid-3">
     <div class="step-card">
-      <h4>Transformer base</h4>
+      <h4>Transformer ベース</h4>
       <p>d_model=512, h=8, d_ff=2048, N=6.<br>
-         Params per encoder block: ~3.1M.</p>
+         エンコーダーブロックあたりのパラメーター: ~3.1M。</p>
     </div>
     <div class="step-card">
       <h4>BERT-base</h4>
       <p>d_model=768, h=12, d_ff=3072, N=12.<br>
-         d_k = 64. ~7M params per block.</p>
+         d_k = 64. ブロックあたり ~7M パラメーター。</p>
     </div>
     <div class="step-card">
       <h4>GPT-2 small</h4>
       <p>d_model=768, h=12, d_ff=3072, N=12.<br>
-         Same shape per block as BERT-base.</p>
+         BERT-baseとブロックあたり同じ形状。</p>
     </div>
     <div class="step-card">
       <h4>LLaMA-7B</h4>
       <p>d_model=4096, h=32, d_ff=11008, N=32.<br>
-         d_k = 128. SwiGLU instead of ReLU.</p>
+         d_k = 128. ReLUの代わりにSwiGLU。</p>
     </div>
     <div class="step-card">
       <h4>GPT-3 175B</h4>
       <p>d_model=12288, h=96, d_ff=49152, N=96.<br>
-         d_k = 128. Huge.</p>
+         d_k = 128. 巨大。</p>
     </div>
     <div class="step-card">
-      <h4>your model</h4>
-      <p>type whatever you like above and see the shapes flow.</p>
+      <h4>あなたのモデル</h4>
+      <p>上に何でも入力して形状の流れを確認してください。</p>
     </div>
   </div>
 </section>
 
 <!-- ========================= DRILLS ========================= -->
 <section class="tab-section" id="tab-drills">
-  <h1>Practice — type the shapes</h1>
+  <h1>練習 — 形状をタイプしよう</h1>
   <p class="lead">
-    Twenty-two drills. Tab moves between blanks · Enter checks · Hint reveals all unsolved
-    blanks (click again to hide). Numbers below assume the paper's base config:
-    B=2, T_src=8, T_tgt=7, d_model=512, h=8, d_k=64, d_ff=2048, V=37000.
+    22問の練習問題。Tabで空白間を移動 · Enterで確認 · Hintですべての未解答空白を表示（再クリックで非表示）。
+    以下の数値は論文のベース設定を想定：
+    B=2, T_src=8, T_tgt=7, d_model=512, h=8, d_k=64, d_ff=2048, V=37000。
   </p>
 
-  <h2>The numbers</h2>
+  <h2>数値</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">1</span> If d_model = 512 and h = 8, what is d_k?</div>
+    <div class="prompt"><span class="num">1</span> d_model = 512 で h = 8 の場合、d_k はいくつか？</div>
     <pre class="exercise">d_k = d_model / h = 512 / 8 = <input class="blank" data-answer="64" size="4" placeholder="?"></pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">2</span> The FFN inner dim is typically what multiple of d_model? (paper choice)</div>
+    <div class="prompt"><span class="num">2</span> FFNの内部次元は通常 d_model の何倍か？（論文の選択）</div>
     <pre class="exercise">d_ff = <input class="blank" data-answer="4" size="3" placeholder="?"> * d_model      # 2048 = ? * 512</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">3</span> Scaling factor in attention. Why divide by √d_k? To prevent softmax saturation when d_k is ___.</div>
-    <pre class="exercise">scaled = scores / sqrt(d_k)   # protects gradients when d_k is <input class="blank" data-answer="large|big|high" size="7" placeholder="?"></pre>
+    <div class="prompt"><span class="num">3</span> アテンションのスケーリング係数。なぜ √d_k で割るのか？d_k が ___ のときにsoftmaxの飽和を防ぐため。</div>
+    <pre class="exercise">scaled = scores / sqrt(d_k)   # d_k が <input class="blank" data-answer="large|big|high" size="7" placeholder="?"> ときに勾配を保護</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">4</span> Softmax in attention is taken along which axis? (use the PyTorch convention)</div>
+    <div class="prompt"><span class="num">4</span> アテンションのsoftmaxはどの軸で計算されるか？（PyTorchの規約を使用）</div>
     <pre class="exercise">A = F.softmax(scores, dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
-  <h2>The shapes — fill the blanks</h2>
+  <h2>形状 — 空白を埋めよう</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">5</span> After embedding lookup, the tensor has 3 dims. The new last dim is ___.</div>
+    <div class="prompt"><span class="num">5</span> 埋め込みルックアップ後、テンソルは3次元になる。新しい最終次元は何か？</div>
     <pre class="exercise"># ids: [B, T]
 X = embed(ids)        # [B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">6</span> After the head reshape, Q has shape [_, _, _, _].</div>
+    <div class="prompt"><span class="num">6</span> ヘッドリシェイプ後、Qの形状は [_, _, _, _] になる。</div>
     <pre class="exercise">Q = Q.view(B, T, h, d_k).transpose(1, 2)
 # Q.shape = [<input class="blank" data-answer="B|2" size="3" placeholder="?">, <input class="blank" data-answer="h|8" size="3" placeholder="?">, <input class="blank" data-answer="T|8" size="3" placeholder="?">, <input class="blank" data-answer="d_k|dk|64" size="5" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">7</span> The attention score matrix Q @ Kᵀ has shape [B, h, T, ___].</div>
+    <div class="prompt"><span class="num">7</span> アテンションスコア行列 Q @ Kᵀ の形状は [B, h, T, ___] になる。</div>
     <pre class="exercise">scores = Q @ K.transpose(-2, -1)
 # scores.shape = [B, h, T, <input class="blank" data-answer="T|8" size="3" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">8</span> After A @ V, before concat, shape is [B, h, T, ___].</div>
+    <div class="prompt"><span class="num">8</span> A @ V の後、結合前の形状は [B, h, T, ___] になる。</div>
     <pre class="exercise">head_out = A @ V
 # head_out.shape = [B, h, T, <input class="blank" data-answer="d_k|dk|d_v|64" size="5" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">9</span> After concat heads, the tensor returns to its pre-head-split shape [B, T, ___].</div>
+    <div class="prompt"><span class="num">9</span> ヘッド結合後、テンソルはヘッド分割前の形状 [B, T, ___] に戻る。</div>
     <pre class="exercise">out = head_out.transpose(1, 2).reshape(B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">10</span> The first FFN linear expands d_model → d_ff. Output last-dim:</div>
+    <div class="prompt"><span class="num">10</span> FFNの最初の線形が d_model → d_ff に拡張する。出力の最終次元は：</div>
     <pre class="exercise">H = F.relu(W1(X))
 # H.shape = [B, T, <input class="blank" data-answer="d_ff|dff|2048" size="6" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
-  <h2>The code</h2>
+  <h2>コード</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">11</span> Fill in the scaled dot-product attention formula.</div>
+    <div class="prompt"><span class="num">11</span> スケールドット積アテンションの公式を埋めよ。</div>
     <pre class="exercise">def attention(Q, K, V):
     d_k = Q.size(-1)
     scores = Q @ K.transpose(-2, -1) / math.sqrt(<input class="blank" data-answer="d_k|dk|64" size="5" placeholder="?">)
     A = F.softmax(scores, dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)
-    return A @ <input class="blank" data-answer="V|v" size="3" placeholder="?">    # weighted values</pre>
+    return A @ <input class="blank" data-answer="V|v" size="3" placeholder="?">    # 重み付きバリュー</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">12</span> Splitting heads. Last dim becomes (h, d_k). What method "reshapes without copying"?</div>
+    <div class="prompt"><span class="num">12</span> ヘッドを分割する。最終次元が (h, d_k) になる。「コピーなしでリシェイプ」するメソッドは？</div>
     <pre class="exercise">Q = Q.<input class="blank" data-answer="view|reshape" size="7" placeholder="?">(B, T, h, d_k).transpose(1, 2)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">13</span> The encoder block ends with a residual + LayerNorm. Fill the wrap.</div>
+    <div class="prompt"><span class="num">13</span> エンコーダーブロックは残差 + LayerNorm で終わる。ラップを埋めよ。</div>
     <pre class="exercise">x = self.ln2(x + self.<input class="blank" data-answer="ffn|mlp" size="5" placeholder="?">(x))</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">14</span> Total parameters of the four attention projections (Q, K, V, O), each [d_model, d_model]:</div>
-    <pre class="exercise"># 4 matrices, each d_model × d_model
+    <div class="prompt"><span class="num">14</span> 4つのアテンション射影（Q、K、V、O）の総パラメーター数。それぞれ [d_model, d_model]：</div>
+    <pre class="exercise"># 4つの行列、それぞれ d_model × d_model
 total_attn_params = <input class="blank" data-answer="4" size="3" placeholder="?"> * d_model * d_model     # = 4 * 512^2 = 1,048,576</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
-  <h2>Decoder, output, training, inference</h2>
+  <h2>デコーダー、出力、訓練、推論</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">15</span> Cross-attention scores are <em>not</em> square. Their shape is [B, h, T_tgt, ___].</div>
+    <div class="prompt"><span class="num">15</span> クロスアテンションスコアは正方形<em>ではない</em>。形状は [B, h, T_tgt, ___] になる。</div>
     <pre class="exercise">scores = Q_dec @ K_enc.transpose(-2, -1)   # [B, h, T_tgt, <input class="blank" data-answer="T_src|Tsrc|src|8" size="6" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">16</span> The decoder's <em>masked</em> self-attention zeros out positions above the diagonal so token <code>i</code> can't see token ___.</div>
-    <pre class="exercise">scores = scores.masked_fill(causal_mask, float('-inf'))   # token i sees ≤ <input class="blank" data-answer="i|i-1|itself" size="5" placeholder="?"></pre>
+    <div class="prompt"><span class="num">16</span> デコーダーの<em>マスク済み</em>自己アテンションは対角線より上の位置をゼロにするため、トークン<code>i</code>はトークン ___ を見ることができない。</div>
+    <pre class="exercise">scores = scores.masked_fill(causal_mask, float('-inf'))   # トークン i は ≤ <input class="blank" data-answer="i|i-1|itself" size="5" placeholder="?"> を見る</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">17</span> The output head projects each hidden vector to vocabulary scores. The shape goes [B, T_tgt, d_model] → [B, T_tgt, ___].</div>
+    <div class="prompt"><span class="num">17</span> 出力ヘッドは各隠れベクトルを語彙スコアに射影する。形状は [B, T_tgt, d_model] → [B, T_tgt, ___] になる。</div>
     <pre class="exercise">logits = self.lm_head(dec_out)   # [B, T_tgt, <input class="blank" data-answer="V|vocab|vocab_size" size="8" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">18</span> Training loss reduces all those logits to a single scalar via cross-entropy. Fill the call.</div>
+    <div class="prompt"><span class="num">18</span> 訓練損失は交差エントロピーによってすべてのlogitsを単一のスカラーに縮約する。呼び出しを埋めよ。</div>
     <pre class="exercise">loss = F.<input class="blank" data-answer="cross_entropy|crossentropy" size="14" placeholder="?">(
     logits.view(-1, V),    # [B*T_tgt, V]
     labels.view(-1)        # [B*T_tgt]
 )</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">19</span> Softmax + cross-entropy at the output head has a famously simple gradient. With P = softmax(z) and one-hot Y:</div>
+    <div class="prompt"><span class="num">19</span> 出力ヘッドでのsoftmax + 交差エントロピーは有名なシンプルな勾配を持つ。P = softmax(z) と one-hot Y で：</div>
     <pre class="exercise">dL/dz = <input class="blank" data-answer="P-Y|P - Y|p-y|p - y" size="8" placeholder="?"></pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">20</span> At inference time you only need the <em>last</em> position to pick the next token. Slice it.</div>
+    <div class="prompt"><span class="num">20</span> 推論時には次のトークンを選ぶために<em>最後の</em>位置だけが必要だ。スライスせよ。</div>
     <pre class="exercise">last_logits = logits[:, <input class="blank" data-answer="-1" size="3" placeholder="?">, :]   # [B, V]
 next_id = last_logits.argmax(dim=<input class="blank" data-answer="-1" size="3" placeholder="?">)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">21</span> Sampling with temperature. Lower temp ⇒ sharper distribution. Where does temperature go?</div>
+    <div class="prompt"><span class="num">21</span> 温度サンプリング。低温 ⇒ より鋭い分布。温度はどこに入るか？</div>
     <pre class="exercise">probs = F.softmax(logits / <input class="blank" data-answer="temperature|T|temp" size="13" placeholder="?">, dim=-1)
 next_id = torch.multinomial(probs, 1)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">22</span> Inference wraps the loop in a context manager that disables autograd. Fill it.</div>
+    <div class="prompt"><span class="num">22</span> 推論はautogradを無効にするコンテキストマネージャーでループをラップする。埋めよ。</div>
     <pre class="exercise">with torch.<input class="blank" data-answer="no_grad|inference_mode" size="13" placeholder="?">():
     memory = encoder(src_ids)
     for _ in range(max_len):
         ...</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">確認</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">ヒント</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="note" style="margin-top: 24px;">
-    <strong>Done all twenty-two?</strong> You can now read the attention paper without losing
-    track of any tensor — encoder, decoder, output head, loss, and the inference loop. Pop over to
-    <a href="transformers.html" style="color: var(--accent);">transformers.html</a>
-    for an end-to-end walkthrough,
-    <a href="softmax-ce.html" style="color: var(--accent);">softmax-ce.html</a>
-    for the full P − Y derivation,
-    or <a href="bert.html" style="color: var(--accent);">bert.html</a>
-    to see the same shapes inside the BERT-base config.
+    <strong>22問すべて完了？</strong> これでアテンション論文をテンソルを見失うことなく読めるようになりました —
+    エンコーダー、デコーダー、出力ヘッド、損失、推論ループすべて。
+    エンドツーエンドのウォークスルーは<a href="../transformers.html" style="color: var(--accent);">transformers.html</a>へ、
+    P − Y 導出の完全版は<a href="../softmax-ce.html" style="color: var(--accent);">softmax-ce.html</a>へ、
+    BERT-base設定内の同じ形状は<a href="../bert.html" style="color: var(--accent);">bert.html</a>へどうぞ。
   </div>
 </section>
 
@@ -2397,25 +2448,25 @@ next_id = torch.multinomial(probs, 1)</pre>
 
 <div id="help-overlay" onclick="hideHelp()">
   <div class="help-content" onclick="event.stopPropagation()">
-    <h3>Keyboard shortcuts</h3>
+    <h3>キーボードショートカット</h3>
     <table>
-      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
-      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
-      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>次の空白へ移動</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>現在の問題を確認</td></tr>
+      <tr><td><kbd>?</kbd></td><td>このヘルプ</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>0</kbd></td><td>タブを切り替え</td></tr>
+      <tr><td><span style="color:var(--dim-t);font-weight:700">次元</span>をクリック</td><td>ページ全体でトレース</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>トレース解除 · オーバーレイを閉じる</td></tr>
     </table>
     <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
-      Click anywhere to dismiss.
+      クリックで閉じる。
     </p>
   </div>
 </div>
 
 <footer>
-  <strong style="color: var(--accent);">Browser-side</strong> — every shape and parameter
-  count in the live sandbox is computed in JavaScript on each keystroke. No server, no
-  Python, no PyTorch import needed. Companion to
-  <a href="transformers.html">transformers.html</a> · ⚡ 16 stages, one tensor
+  <strong style="color: var(--accent);">ブラウザーサイド</strong> — ライブサンドボックスのすべての形状とパラメーター数は
+  キーストロークごとにJavaScriptで計算されます。サーバー不要、Python不要、PyTorchのインポート不要。
+  <a href="../transformers.html">transformers.html</a> の補完資料 · ⚡ 16ステージ、1つのテンソル
 </footer>
 
 <script>
@@ -2561,11 +2612,11 @@ function hintDrill(btn) {
 }
 
 function randomGood() {
-  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'clean.', 'tensor approved.', 'shapes line up.'];
+  const m = ['いいね。', '正解！', 'ぴったり。', '✓ その通り。', '鋭い。', 'それだ。', 'きれい。', 'テンソル承認。', '形状一致。'];
   return m[Math.floor(Math.random() * m.length)];
 }
 function randomBad() {
-  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check the dim.', 'red. try once more.', 'shapes don\'t match.'];
+  const m = ['惜しい — もう一度。', '近い。ヒントを見る？', 'もう少し。次元を確認。', '不正解。もう一度試して。', '形状が一致しない。'];
   return m[Math.floor(Math.random() * m.length)];
 }
 
@@ -2896,6 +2947,10 @@ function renderPipeline() {
   let totalParams = 0;
   let prev = null;
 
+  // element count per stage (product of dims) → relative size bar
+  const counts = stages.map(st => st.dims.reduce((a, d) => a * d.value, 1));
+  const maxCount = Math.max(...counts, 1);
+
   stages.forEach((st, i) => {
     const row = document.createElement('div');
     row.className = 'stage';
@@ -2949,6 +3004,15 @@ function renderPipeline() {
     // mark changed if any flag is true
     if (changed.some(x => x)) row.classList.add('changed');
 
+    // relative size bar (tensor element count vs. largest stage)
+    const bar = document.createElement('div');
+    bar.className = 'size-bar';
+    const pct = Math.max(2, Math.round((counts[i] / maxCount) * 100));
+    bar.title = counts[i].toLocaleString() + ' elements (' + pct + '% of largest stage)';
+    row.appendChild(bar);
+    // animate from 0 → pct on next frame
+    requestAnimationFrame(() => { bar.style.width = pct + '%'; });
+
     root.appendChild(row);
     prev = st;
   });
@@ -2969,6 +3033,34 @@ function renderPipeline() {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', renderPipeline);
 });
+
+// ============== DIMENSION TRACER ==============
+// Click any colored dimension to pulse-highlight every place that dimension
+// appears across the whole page. Click it again (or press Esc) to clear.
+const DIM_NAMES = { b: 'B · batch', t: 'T · sequence', d: 'd_model', h: 'h · heads', k: 'd_k · head dim', ff: 'd_ff · FFN width' };
+let tracedKind = null;
+
+function clearTrace() {
+  document.querySelectorAll('.dim.dim-trace').forEach(el => el.classList.remove('dim-trace'));
+  tracedKind = null;
+}
+function traceKind(kind) {
+  if (!kind || !DIM_NAMES[kind]) return;
+  if (tracedKind === kind) { clearTrace(); return; }
+  clearTrace();
+  tracedKind = kind;
+  const hits = document.querySelectorAll('.dim.' + kind);
+  hits.forEach(el => el.classList.add('dim-trace'));
+  showToast('Tracing ' + DIM_NAMES[kind] + ' — ' + hits.length + ' on this page · click again to clear');
+}
+
+document.addEventListener('click', (e) => {
+  const dim = e.target.closest && e.target.closest('.dim');
+  if (!dim) return;
+  const kind = ['b','t','d','h','k','ff'].find(k => dim.classList.contains(k));
+  if (kind) { e.preventDefault(); traceKind(kind); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') clearTrace(); });
 
 // ============== INIT ==============
 renderPipeline();

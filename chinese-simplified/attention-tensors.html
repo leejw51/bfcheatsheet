@@ -1,161 +1,236 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hans">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Attention Tensors — shapes through the encoder</title>
+<title>注意力张量 — 编码器中的形状变换</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
   onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0b1220;
-    --panel: #121a2b;
-    --panel-2: #182338;
-    --border: #283449;
-    --text: #e6f1ff;
-    --muted: #8aa1bd;
-    --accent: #fb923c;          /* orange */
-    --accent-2: #f59e0b;         /* amber */
-    --code-bg: #08101e;
-    --keyword: #ff7b72;
-    --string: #a5d6ff;
-    --number: #d2a8ff;
-    --comment: #7d8fa6;
-    --fn: #d2a8ff;
-    --tag: #79c0ff;
-    --good: #4ade80;
+    --bg: #0a0a0f;
+    --bg-2: #101019;
+    --panel: #12121b;
+    --panel-2: #181826;
+    --border: rgba(255,240,220,0.09);
+    --border-2: rgba(255,240,220,0.14);
+    --text: #f4f0e6;
+    --ink: #f4f0e6;
+    --muted: #8f897c;
+    --accent: #ff5e3a;          /* orange-red */
+    --accent-2: #ffd23a;        /* amber */
+    --code-bg: #050507;
+    --keyword: #ff5e3a;
+    --string: #3affb8;
+    --number: #ffd23a;
+    --comment: #5b5648;
+    --fn: #f4f0e6;
+    --tag: #7dd3fc;
+    --good: #3affb8;
     --bad: #f87171;
-    --warn: #fbbf24;
+    --warn: #ffd23a;
+    --grid: rgba(255,240,220,0.035);
     --dim-b: #7dd3fc;
     --dim-t: #c4b5fd;
-    --dim-d: #fb923c;
+    --dim-d: #ff5e3a;
     --dim-h: #f472b6;
-    --dim-k: #34d399;
-    --dim-ff: #fbbf24;
+    --dim-k: #3affb8;
+    --dim-ff: #ffd23a;
+    --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; padding: 0;
     background:
-      radial-gradient(ellipse at top, rgba(251,146,60,0.10), transparent 50%),
+      radial-gradient(ellipse at top right, rgba(255,94,58,0.12), transparent 52%),
+      radial-gradient(ellipse at bottom left, rgba(58,255,184,0.06), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
       var(--bg);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px, 100% 100%;
+    background-attachment: fixed, fixed, fixed, fixed, fixed;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-    line-height: 1.55;
+    font-family: var(--sans);
+    line-height: 1.6;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
   }
-  .sticky-top { position: sticky; top: 0; z-index: 50; background: var(--bg); }
+
+  /* film grain */
+  .grain {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    opacity: 0.05;
+    z-index: 300;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  ::selection { background: rgba(255,94,58,0.3); color: #fff; }
+
+  /* ---------- HEADER ---------- */
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: rgba(10,10,15,0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--border); }
   header {
-    background: linear-gradient(135deg, #2a1810 0%, #0b1220 100%);
-    border-bottom: 1px solid var(--border);
-    padding: 14px 24px;
-    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    background: linear-gradient(135deg, rgba(255,94,58,0.07) 0%, transparent 60%);
+    padding: 16px 28px;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
   }
-  .logo { font-weight: 800; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-  .logo .spark { color: var(--accent); font-size: 24px; filter: drop-shadow(0 0 8px var(--accent)); }
+  .logo {
+    font-family: var(--serif); font-weight: 600; font-size: 21px;
+    letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 11px;
+  }
+  .logo .spark { color: var(--accent); font-size: 22px; filter: drop-shadow(0 0 10px var(--accent)); animation: flicker 3s ease-in-out infinite; }
+  @keyframes flicker { 0%,100%{opacity:1} 48%{opacity:.85} 50%{opacity:.55} 52%{opacity:.9} }
   .badge {
-    background: var(--accent); color: #1a0b00;
-    padding: 3px 8px; border-radius: 999px;
-    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;
+    background: var(--accent); color: #160600;
+    padding: 3px 10px; border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em;
+    box-shadow: 0 0 18px rgba(255,94,58,0.35);
   }
   .stat {
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 7px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 12px;
+    border-radius: 2px;
+    padding: 6px 13px;
+    font-family: var(--mono);
     font-size: 13px;
   }
-  .stat .num { color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace; }
-  .stat .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .stat .num { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+  .stat .lbl { color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.18em; }
 
   .progress-bar-outer {
-    flex: 1; min-width: 180px; height: 8px;
+    flex: 1; min-width: 180px; height: 4px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 999px; overflow: hidden;
+    border-radius: 0; overflow: hidden;
   }
   .progress-bar-inner {
     height: 100%; width: 0%;
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
-    transition: width 0.5s cubic-bezier(.4,0,.2,1);
-    box-shadow: 0 0 12px rgba(251,146,60,0.6);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+    box-shadow: 0 0 16px rgba(255,94,58,0.7);
   }
   .streak {
-    display: flex; align-items: center; gap: 4px;
+    display: flex; align-items: center; gap: 5px;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 10px;
+    border-radius: 2px;
+    padding: 6px 11px;
+    font-family: var(--mono);
     font-size: 13px;
   }
   .streak .flame-mini { font-size: 16px; }
 
   nav.tabs {
-    display: flex; gap: 6px; flex-wrap: wrap;
-    padding: 10px 24px;
-    background: var(--panel);
+    display: flex; gap: 4px; flex-wrap: wrap;
+    padding: 10px 28px;
+    background: rgba(10,10,15,0.6);
     border-bottom: 1px solid var(--border);
   }
   nav.tabs button {
     background: transparent; color: var(--muted);
     border: 1px solid transparent;
-    padding: 8px 14px; border-radius: 6px;
-    cursor: pointer; font-size: 13px; font-weight: 600;
-    transition: all 0.15s;
-    -webkit-appearance: none; appearance: none; font-family: inherit;
+    border-bottom: 2px solid transparent;
+    padding: 8px 14px; border-radius: 2px;
+    cursor: pointer; font-size: 12px; font-weight: 500;
+    font-family: var(--mono); letter-spacing: 0.02em;
+    transition: all 0.2s;
+    -webkit-appearance: none; appearance: none;
   }
-  nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+  nav.tabs button:hover { color: var(--text); background: rgba(255,240,220,0.04); }
   nav.tabs button.active {
     color: var(--accent);
-    background: rgba(251,146,60,0.12);
-    border-color: rgba(251,146,60,0.4);
+    background: rgba(255,94,58,0.08);
+    border-bottom-color: var(--accent);
+    box-shadow: 0 4px 18px -8px var(--accent);
   }
   nav.tabs button .check { color: var(--good); margin-left: 6px; font-weight: 700; }
 
-  main { padding: 24px; max-width: 1300px; margin: 0 auto; }
+  main { padding: 56px 28px 40px; max-width: 1180px; margin: 0 auto; }
   section.tab-section { display: none; }
-  section.tab-section.active { display: block; animation: fade 0.25s ease; }
-  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+  section.tab-section.active { display: block; animation: fade 0.4s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-  h1 { font-size: 28px; margin: 0 0 8px; }
+  /* ---------- TYPOGRAPHY ---------- */
+  h1 {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(34px, 5.2vw, 60px);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    margin: 0 0 18px;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
   h2 {
-    font-size: 18px; margin: 28px 0 12px;
-    color: var(--accent); display: flex; align-items: center; gap: 8px;
+    font-family: var(--serif);
+    font-size: 22px; font-weight: 600; font-style: italic;
+    letter-spacing: -0.01em;
+    margin: 52px 0 18px;
+    color: var(--text);
+    display: flex; align-items: center; gap: 16px;
   }
   h2::before {
-    content: ""; width: 4px; height: 18px;
-    background: var(--accent); border-radius: 2px;
-    box-shadow: 0 0 8px var(--accent);
+    content: "";
+    width: 26px; height: 1px; flex: none;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
   }
-  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 820px; }
+  h2::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  h3 { font-family: var(--serif); font-style: italic; }
+  p.lead {
+    color: var(--muted); margin: 0 0 24px; max-width: 760px;
+    font-size: 17px; line-height: 1.6; font-weight: 300;
+  }
+  p.lead em { font-style: italic; color: var(--text); }
+  p.lead strong { color: var(--text); font-weight: 600; }
+  code { font-family: var(--mono); }
 
+  /* ---------- CARDS (corner-bracket panels) ---------- */
   .card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 2px;
     overflow: hidden;
-    margin: 16px 0;
+    margin: 18px 0;
+    position: relative;
+    transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s;
   }
+  .card::before, .card::after {
+    content: ''; position: absolute; width: 16px; height: 16px;
+    pointer-events: none; z-index: 2; opacity: 0.55; transition: opacity 0.25s;
+  }
+  .card::before { top: -1px; left: -1px; border-top: 1.5px solid var(--accent); border-left: 1.5px solid var(--accent); }
+  .card::after  { bottom: -1px; right: -1px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); }
+  .card:hover { border-color: var(--border-2); box-shadow: 0 18px 50px -28px rgba(0,0,0,0.9); }
+  .card:hover::before, .card:hover::after { opacity: 1; }
   .card-head {
-    padding: 12px 14px;
+    padding: 13px 16px;
     display: flex; justify-content: space-between; align-items: center; gap: 10px;
     border-bottom: 1px solid var(--border);
-    background: var(--panel-2);
+    background: linear-gradient(180deg, rgba(255,240,220,0.03), transparent);
   }
-  .card-title { font-weight: 700; font-size: 14px; }
-  .card-body { padding: 14px; }
+  .card-title { font-family: var(--mono); font-weight: 500; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-2); }
+  .card-body { padding: 18px; }
 
   pre.code {
     margin: 8px 0;
-    padding: 12px 14px;
+    padding: 16px 18px;
     background: var(--code-bg);
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
     overflow-x: auto;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    font-size: 12.8px; line-height: 1.65;
+    font-family: var(--mono);
+    font-size: 12.6px; line-height: 1.7;
   }
   .tok-k { color: var(--keyword); }
   .tok-s { color: var(--string); }
@@ -164,152 +239,150 @@
   .tok-f { color: var(--fn); }
   .tok-t { color: var(--tag); }
 
-  /* Drill */
+  /* ---------- DRILLS ---------- */
   .drill {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--accent);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin: 14px 0;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    border-left: 2px solid var(--accent);
+    border-radius: 2px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    transition: border-color 0.25s, box-shadow 0.25s, transform 0.2s;
   }
+  .drill:hover { box-shadow: 0 0 0 1px var(--border-2), 0 18px 40px -30px rgba(0,0,0,0.8); }
   .drill.solved {
     border-left-color: var(--good);
-    background: linear-gradient(135deg, rgba(74,222,128,0.05), transparent);
+    background: linear-gradient(135deg, rgba(58,255,184,0.06), transparent 60%);
+    box-shadow: 0 0 30px -16px var(--good);
   }
   .drill .prompt {
-    font-size: 14px; color: var(--text); margin-bottom: 10px;
-    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    font-size: 15px; color: var(--text); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   }
   .drill .prompt .num {
-    background: var(--accent); color: #1a0b00;
+    background: var(--accent); color: #160600;
     width: 22px; height: 22px; border-radius: 50%;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 800;
+    font-family: var(--mono);
+    font-size: 11px; font-weight: 700; flex: none;
+    box-shadow: 0 0 14px rgba(255,94,58,0.45);
   }
-  .drill.solved .prompt .num { background: var(--good); color: #001018; }
+  .drill.solved .prompt .num { background: var(--good); color: #001813; box-shadow: 0 0 14px rgba(58,255,184,0.5); }
   .drill pre.exercise {
-    margin: 6px 0;
-    padding: 12px 14px;
+    margin: 8px 0;
+    padding: 14px 16px;
     background: var(--code-bg);
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 13px; line-height: 1.95;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 13px; line-height: 2.05;
     overflow-x: auto;
   }
   .blank {
     display: inline-block;
-    min-width: 70px; max-width: 240px;
+    min-width: 72px; max-width: 240px;
     padding: 2px 8px;
-    background: var(--bg);
+    background: rgba(255,94,58,0.06);
     border: 1px solid var(--accent);
-    border-radius: 4px;
+    border-radius: 2px;
     color: var(--accent);
-    font-family: ui-monospace, monospace;
+    font-family: var(--mono);
     font-size: 13px;
     outline: none;
     text-align: center;
-    transition: all 0.15s;
+    transition: all 0.18s;
   }
   .blank:focus {
-    box-shadow: 0 0 0 3px rgba(251,146,60,0.25);
-    background: rgba(251,146,60,0.05);
+    box-shadow: 0 0 0 3px rgba(255,94,58,0.22), 0 0 16px rgba(255,94,58,0.3);
+    background: rgba(255,94,58,0.12);
   }
   .blank.correct {
     border-color: var(--good); color: var(--good);
-    background: rgba(74, 222, 128, 0.08);
-    animation: pop 220ms ease-out;
+    background: rgba(58,255,184,0.1);
+    box-shadow: 0 0 14px rgba(58,255,184,0.3);
+    animation: pop 240ms ease-out;
   }
   .blank.wrong {
     border-color: var(--bad); color: var(--bad);
     animation: shake 240ms ease-in-out;
   }
-  @keyframes pop {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-    100% { transform: scale(1); }
-  }
-  @keyframes shake {
-    0%,100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    50% { transform: translateX(4px); }
-    75% { transform: translateX(-2px); }
-  }
-  .drill .controls {
-    display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap;
-  }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.16)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .drill .controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
   .btn {
-    background: var(--accent); color: #1a0b00;
-    border: none; border-radius: 6px;
-    padding: 7px 14px; font-size: 12.5px; font-weight: 800;
+    background: var(--accent); color: #160600;
+    border: none; border-radius: 2px;
+    padding: 8px 16px; font-size: 11px; font-weight: 700;
+    font-family: var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
     cursor: pointer;
-    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
-    font-family: inherit;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.2s;
   }
-  .btn:hover { filter: brightness(1.15); box-shadow: 0 0 14px rgba(251,146,60,0.4); }
-  .btn:active { transform: scale(0.97); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn.ghost {
-    background: transparent; color: var(--muted);
-    border: 1px solid var(--border);
-  }
+  .btn:hover { filter: brightness(1.1); box-shadow: 0 0 22px rgba(255,94,58,0.5); }
+  .btn:active { transform: scale(0.96); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border-2); }
   .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
-  .btn.tiny { padding: 4px 10px; font-size: 11px; }
+  .btn.tiny { padding: 5px 11px; font-size: 10px; }
 
-  .feedback {
-    margin-top: 8px; font-size: 13px; min-height: 18px;
-  }
+  .feedback { margin-top: 10px; font-size: 13px; min-height: 18px; font-family: var(--mono); }
   .feedback.good { color: var(--good); }
   .feedback.bad { color: var(--bad); }
-  .feedback.hint { color: var(--muted); font-style: italic; }
+  .feedback.hint { color: var(--muted); font-style: italic; font-family: var(--serif); }
 
   .note {
-    background: rgba(251,146,60,0.08);
-    border-left: 3px solid var(--accent);
-    padding: 10px 14px;
-    border-radius: 0 6px 6px 0;
-    font-size: 13.5px;
-    margin: 14px 0;
+    background: rgba(255,94,58,0.06);
+    border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    padding: 13px 16px;
+    border-radius: 2px;
+    font-size: 14px;
+    margin: 16px 0;
   }
   .note strong { color: var(--accent); }
-  .note.warn { background: rgba(251,191,36,0.08); border-left-color: var(--warn); }
+  .note.warn { background: rgba(255,210,58,0.06); border-left-color: var(--warn); }
   .note.warn strong { color: var(--warn); }
-  .note.green { background: rgba(74,222,128,0.08); border-left-color: var(--good); }
+  .note.green { background: rgba(58,255,184,0.06); border-left-color: var(--good); }
   .note.green strong { color: var(--good); }
 
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-  @media (max-width: 900px) {
-    .grid-2, .grid-3 { grid-template-columns: 1fr; }
-  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
 
   .canvas-card {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    margin: 16px 0;
+    border-radius: 2px;
+    padding: 20px;
+    margin: 18px 0;
+    position: relative;
   }
+  .canvas-card::before, .canvas-card::after {
+    content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none; opacity: 0.6;
+  }
+  .canvas-card::before { top: -1px; left: -1px; border-top: 1.5px solid var(--accent); border-left: 1.5px solid var(--accent); }
+  .canvas-card::after { bottom: -1px; right: -1px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); }
   .canvas-card h3 {
-    margin: 0 0 10px; font-size: 15px; color: var(--accent);
+    margin: 0 0 12px; font-size: 18px; color: var(--text); font-style: italic;
     display: flex; align-items: center; gap: 8px;
   }
 
-  /* Shape pills — color-coded per dimension */
+  /* Shape pills */
   .shape {
     display: inline-flex; align-items: center; gap: 2px;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
+    padding: 3px 9px;
+    border-radius: 2px;
+    font-family: var(--mono);
     font-size: 12px;
     color: var(--muted);
     white-space: nowrap;
+    transition: border-color 0.2s;
   }
+  .shape:hover { border-color: var(--border-2); }
   .shape .br { color: var(--muted); font-weight: 700; }
-  .shape .dim { color: var(--text); font-weight: 700; }
+  .shape .dim { color: var(--text); font-weight: 700; cursor: pointer; transition: text-shadow 0.2s, transform 0.15s; }
+  .shape .dim:hover { transform: translateY(-1px); text-shadow: 0 0 10px currentColor; }
   .shape .dim.b  { color: var(--dim-b); }
   .shape .dim.t  { color: var(--dim-t); }
   .shape .dim.d  { color: var(--dim-d); }
@@ -319,309 +392,292 @@
   .shape .lbl { color: var(--muted); font-size: 10px; margin-right: 2px; }
   .shape .arrow { color: var(--muted); margin: 0 4px; }
 
+  /* dimension tracer highlight */
+  .dim-trace { animation: dimPulse 1s ease-in-out infinite; }
+  @keyframes dimPulse {
+    0%,100% { text-shadow: 0 0 0 transparent; }
+    50% { text-shadow: 0 0 14px currentColor, 0 0 4px currentColor; }
+  }
+
   .pill {
     display: inline-block;
-    background: rgba(251,146,60,0.15);
+    background: rgba(255,94,58,0.14);
     color: var(--accent);
-    padding: 1px 8px;
-    border-radius: 999px;
+    padding: 1px 9px;
+    border-radius: 2px;
     font-size: 11px;
-    font-family: ui-monospace, monospace;
-    font-weight: 700;
+    font-family: var(--mono);
+    font-weight: 600;
     margin-right: 6px;
+    cursor: default;
+    transition: box-shadow 0.2s, transform 0.15s;
   }
-  .pill.green { background: rgba(74,222,128,0.15); color: var(--good); }
-  .pill.warn  { background: rgba(251,191,36,0.15); color: var(--warn); }
-  .pill.red   { background: rgba(248,113,113,0.15); color: var(--bad); }
-  .pill.blue  { background: rgba(125,211,252,0.15); color: var(--dim-b); }
-  .pill.violet{ background: rgba(196,181,253,0.15); color: var(--dim-t); }
-  .pill.pink  { background: rgba(244,114,182,0.15); color: var(--dim-h); }
+  .pill:hover { transform: translateY(-1px); box-shadow: 0 0 14px -2px currentColor; }
+  .pill.green { background: rgba(58,255,184,0.14); color: var(--good); }
+  .pill.warn  { background: rgba(255,210,58,0.14); color: var(--warn); }
+  .pill.red   { background: rgba(248,113,113,0.14); color: var(--bad); }
+  .pill.blue  { background: rgba(125,211,252,0.14); color: var(--dim-b); }
+  .pill.violet{ background: rgba(196,181,253,0.14); color: var(--dim-t); }
+  .pill.pink  { background: rgba(244,114,182,0.14); color: var(--dim-h); }
 
   /* Pipeline (sandbox) */
-  .pipeline {
-    display: flex; flex-direction: column;
-    gap: 10px;
-    margin-top: 14px;
-  }
+  .pipeline { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
   .stage {
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-left: 3px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
+    border-left: 2px solid var(--border-2);
+    border-radius: 2px;
+    padding: 12px 16px 16px;
     display: grid;
     grid-template-columns: 38px 1fr auto auto;
-    gap: 12px;
+    gap: 14px;
     align-items: center;
-    transition: border-color 0.2s, transform 0.15s;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.25s, transform 0.2s, background 0.25s;
   }
-  .stage:hover { border-left-color: var(--accent); transform: translateX(2px); }
+  .stage:hover { border-left-color: var(--accent); transform: translateX(3px); }
+  /* animated size bar at bottom of each stage */
+  .stage .size-bar {
+    position: absolute; left: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    width: 0; opacity: 0.85;
+    box-shadow: 0 0 12px rgba(255,94,58,0.5);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stage[data-section="attn"] .size-bar { background: linear-gradient(90deg, var(--dim-h), var(--accent)); box-shadow: 0 0 12px rgba(244,114,182,0.5); }
+  .stage[data-section="ffn"]  .size-bar { background: linear-gradient(90deg, var(--dim-ff), var(--accent)); box-shadow: 0 0 12px rgba(255,210,58,0.5); }
+  .stage[data-section="emb"]  .size-bar { background: linear-gradient(90deg, var(--dim-t), var(--accent-2)); box-shadow: 0 0 12px rgba(196,181,253,0.5); }
   .stage .stage-num {
     width: 30px; height: 30px;
     display: inline-flex; align-items: center; justify-content: center;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 12px; font-weight: 800; color: var(--muted);
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 12px; font-weight: 700; color: var(--muted);
   }
-  .stage .stage-name {
-    font-weight: 700; font-size: 13.5px;
-    color: var(--text);
-  }
-  .stage .stage-name .meta { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
-  .stage .params {
-    font-family: ui-monospace, monospace;
-    font-size: 11px; color: var(--muted);
-    white-space: nowrap;
-  }
+  .stage .stage-name { font-weight: 600; font-size: 14px; color: var(--text); }
+  .stage .stage-name .meta { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 6px; font-family: var(--mono); }
+  .stage .params { font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap; }
   .stage .params b { color: var(--accent-2); font-weight: 700; }
-  .stage.changed { border-left-color: var(--accent); background: linear-gradient(90deg, rgba(251,146,60,0.06), transparent); }
+  .stage.changed { border-left-color: var(--accent); background: linear-gradient(90deg, rgba(255,94,58,0.07), transparent); }
   .stage[data-section="attn"] .stage-num { color: var(--dim-h); }
   .stage[data-section="ffn"]  .stage-num { color: var(--dim-ff); }
   .stage[data-section="emb"]  .stage-num { color: var(--dim-t); }
 
   .legend {
-    display: flex; gap: 14px; flex-wrap: wrap;
-    margin: 4px 0 12px;
-    font-family: ui-monospace, monospace;
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin: 4px 0 14px;
+    font-family: var(--mono);
     font-size: 12px;
   }
-  .legend span { display: inline-flex; align-items: center; gap: 4px; }
-  .legend .dot {
-    width: 10px; height: 10px; border-radius: 2px;
-    display: inline-block;
-  }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
 
-  /* sandbox controls */
   .sandbox-controls {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
+    gap: 14px;
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin: 12px 0;
+    border-radius: 2px;
+    padding: 18px;
+    margin: 14px 0;
   }
-  .sandbox-controls .knob {
-    display: flex; flex-direction: column; gap: 4px;
-  }
+  .sandbox-controls .knob { display: flex; flex-direction: column; gap: 6px; }
   .sandbox-controls .knob label {
-    font-family: ui-monospace, monospace;
-    font-size: 11px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 0.4px;
+    font-family: var(--mono);
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.16em;
   }
   .sandbox-controls .knob input {
     background: var(--bg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-2);
     color: var(--text);
-    padding: 6px 10px;
-    border-radius: 6px;
-    font-family: ui-monospace, monospace;
-    font-size: 14px;
+    padding: 8px 12px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 15px;
     outline: none;
     width: 100%;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
-  .sandbox-controls .knob input:focus { border-color: var(--accent); }
-  .sandbox-controls .knob.derived input {
-    background: var(--panel-2); color: var(--accent);
-    cursor: not-allowed;
-  }
-  .sandbox-controls .knob.bad input {
-    border-color: var(--bad); color: var(--bad);
-  }
+  .sandbox-controls .knob input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255,94,58,0.2); }
+  .sandbox-controls .knob.derived input { background: var(--panel-2); color: var(--accent); cursor: not-allowed; }
+  .sandbox-controls .knob.bad input { border-color: var(--bad); color: var(--bad); }
 
   .total-params {
-    background: linear-gradient(135deg, rgba(251,146,60,0.08), rgba(245,158,11,0.04));
-    border: 1px solid rgba(251,146,60,0.3);
-    border-radius: 8px;
-    padding: 10px 14px;
-    margin-top: 10px;
-    font-family: ui-monospace, monospace;
+    background: linear-gradient(135deg, rgba(255,94,58,0.09), rgba(255,210,58,0.04));
+    border: 1px solid rgba(255,94,58,0.3);
+    border-radius: 2px;
+    padding: 13px 16px;
+    margin-top: 12px;
+    font-family: var(--mono);
     font-size: 13px;
     display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
   }
-  .total-params b { color: var(--accent); font-size: 16px; }
+  .total-params b { color: var(--accent); font-size: 17px; }
 
-  /* Step cards (pipeline overview tab) */
+  /* Step cards */
   .step-card {
     background: var(--panel-2);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
+    border-radius: 2px;
+    padding: 14px 16px;
+    transition: border-color 0.25s, transform 0.2s;
   }
+  .step-card:hover { border-color: var(--border-2); transform: translateY(-2px); }
   .step-card .step-num {
     display: inline-block;
     width: 22px; height: 22px;
-    background: var(--accent); color: #1a0b00;
+    background: var(--accent); color: #160600;
     border-radius: 50%; text-align: center; line-height: 22px;
-    font-weight: 800; font-size: 12px; margin-right: 6px;
+    font-family: var(--mono);
+    font-weight: 700; font-size: 12px; margin-right: 6px;
+    box-shadow: 0 0 12px rgba(255,94,58,0.4);
   }
-  .step-card h4 {
-    margin: 0 0 6px; font-size: 14px; color: var(--text);
-    display: flex; align-items: center; flex-wrap: wrap;
-  }
+  .step-card h4 { margin: 0 0 6px; font-size: 15px; color: var(--text); display: flex; align-items: center; flex-wrap: wrap; }
   .step-card p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-  .step-card code {
-    color: var(--tag); font-family: ui-monospace, monospace;
-    font-size: 12.5px;
-  }
+  .step-card code { color: var(--tag); font-family: var(--mono); font-size: 12.5px; }
 
-  /* Architecture diagram (welcome) */
   .arch-svg {
     width: 100%; max-width: 560px;
     background: var(--code-bg);
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px solid var(--border);
     display: block;
     margin: 0 auto;
   }
 
-  /* table */
-  .matrix-table {
-    width: 100%; border-collapse: collapse;
-    font-family: ui-monospace, monospace;
-    font-size: 12.5px;
-  }
-  .matrix-table th, .matrix-table td {
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    text-align: left;
-  }
-  .matrix-table th {
-    background: var(--panel-2);
-    color: var(--accent);
-    font-weight: 700;
-  }
+  .matrix-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  .matrix-table th, .matrix-table td { padding: 8px 11px; border: 1px solid var(--border); text-align: left; }
+  .matrix-table th { background: var(--panel-2); color: var(--accent-2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+  .matrix-table tr { transition: background 0.15s; }
+  .matrix-table tbody tr:hover, .matrix-table tr:hover { background: rgba(255,240,220,0.025); }
   .matrix-table td.shape-cell { color: var(--text); }
 
-  /* Confetti */
-  #confetti-canvas {
-    position: fixed; inset: 0;
-    pointer-events: none; z-index: 100;
-    background: transparent;
-    border: none;
-  }
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 200; background: transparent; border: none; }
 
-  /* Help overlay */
   #help-overlay {
     position: fixed; inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
-    z-index: 200;
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(6px);
+    z-index: 400;
     display: none;
     align-items: center; justify-content: center;
     padding: 24px;
   }
-  #help-overlay.show { display: flex; animation: fade 0.2s ease; }
+  #help-overlay.show { display: flex; animation: fade 0.25s ease; }
   #help-overlay .help-content {
     background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px 28px;
+    border: 1px solid var(--border-2);
+    border-radius: 2px;
+    padding: 28px 32px;
     max-width: 480px;
     width: 100%;
+    position: relative;
   }
-  #help-overlay h3 { margin: 0 0 14px; color: var(--accent); }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 18px; height: 18px; border-top: 1.5px solid var(--accent); border-left: 1.5px solid var(--accent); }
+  #help-overlay .help-content::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 18px; height: 18px; border-bottom: 1.5px solid var(--accent); border-right: 1.5px solid var(--accent); }
+  #help-overlay h3 { margin: 0 0 16px; color: var(--accent); font-family: var(--serif); font-style: italic; font-size: 22px; }
   #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  #help-overlay td { padding: 6px 0; }
+  #help-overlay td { padding: 7px 0; }
   #help-overlay kbd {
     background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-family: ui-monospace, monospace;
+    border: 1px solid var(--border-2);
+    border-radius: 2px;
+    padding: 2px 9px;
+    font-family: var(--mono);
     font-size: 12px;
     color: var(--accent);
   }
 
-  /* Toast */
   .toast {
-    position: fixed; bottom: 24px; left: 50%;
+    position: fixed; bottom: 28px; left: 50%;
     transform: translateX(-50%) translateY(40px);
     background: var(--panel);
     border: 1px solid var(--accent);
     color: var(--text);
-    padding: 10px 18px;
-    border-radius: 999px;
-    font-size: 13px; font-weight: 600;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 16px rgba(251,146,60,0.3);
+    padding: 11px 20px;
+    border-radius: 2px;
+    font-family: var(--mono);
+    font-size: 12.5px; font-weight: 500;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6), 0 0 24px rgba(255,94,58,0.35);
     opacity: 0; pointer-events: none;
-    transition: opacity 0.3s, transform 0.3s;
-    z-index: 150;
+    transition: opacity 0.35s, transform 0.35s;
+    z-index: 250;
   }
-  .toast.show {
-    opacity: 1; transform: translateX(-50%) translateY(0);
-  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   footer {
     text-align: center; color: var(--muted);
-    font-size: 12px; padding: 30px 20px;
+    font-family: var(--mono);
+    font-size: 11px; padding: 40px 20px;
     border-top: 1px solid var(--border);
-    margin-top: 30px;
+    margin-top: 50px; letter-spacing: 0.04em;
   }
   footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
 
   .copy-btn {
     background: transparent; color: var(--muted);
-    border: 1px solid var(--border); border-radius: 5px;
-    padding: 3px 8px; font-size: 11px; cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
+    border: 1px solid var(--border-2); border-radius: 2px;
+    padding: 4px 10px; font-size: 10px; cursor: pointer;
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.1em;
+    transition: all 0.18s;
   }
   .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
   .copy-btn.copied { color: var(--good); border-color: var(--good); }
 
   .formula {
-    text-align: center; padding: 12px;
+    text-align: center; padding: 16px;
     background: var(--code-bg);
-    border-radius: 8px;
-    font-size: 16px;
-    margin: 10px 0;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    font-size: 17px;
+    margin: 12px 0;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-    }
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 </style>
 </head>
 <body>
+<div class="grain"></div>
 
 <div class="sticky-top">
   <header>
     <div class="logo">
-      <span class="spark">⚡</span> Attention Tensors <span class="badge">Type to Learn</span>
+      <span class="spark">⚡</span> 注意力张量 <span class="badge">边打边学</span>
     </div>
-    <div class="progress-bar-outer" title="overall progress">
+    <div class="progress-bar-outer" title="整体进度">
       <div class="progress-bar-inner" id="progressBar"></div>
     </div>
-    <div class="stat" title="exercises completed">
+    <div class="stat" title="已完成练习数">
       <span class="num" id="scoreNum">0</span>
       <span>/</span>
       <span class="num" id="scoreTot">0</span>
-      <span class="lbl">solved</span>
+      <span class="lbl">已解</span>
     </div>
-    <div class="streak" title="streak">
+    <div class="streak" title="连击">
       <span class="flame-mini">🔥</span>
       <span class="num" id="streakNum" style="color: var(--accent); font-weight: 800; font-family: ui-monospace, monospace;">0</span>
     </div>
     <button class="btn ghost tiny" onclick="showHelp()">?</button>
   </header>
   <nav class="tabs" id="tabs">
-    <button class="active" data-tab="welcome">1. What is it?</button>
-    <button data-tab="inputs">2. Inputs &amp; Embeddings</button>
-    <button data-tab="attn">3. Multi-Head Attention</button>
-    <button data-tab="ffn">4. FFN &amp; Encoder block</button>
-    <button data-tab="decoder">5. Decoder block</button>
-    <button data-tab="output">6. Output &rarr; logits</button>
-    <button data-tab="training">7. Training</button>
-    <button data-tab="inference">8. Inference</button>
-    <button data-tab="sandbox">9. Live Shapes</button>
-    <button data-tab="drills">0. Practice</button>
+    <button class="active" data-tab="welcome">1. 什么是注意力？</button>
+    <button data-tab="inputs">2. 输入与嵌入</button>
+    <button data-tab="attn">3. 多头注意力</button>
+    <button data-tab="ffn">4. FFN 与编码器块</button>
+    <button data-tab="decoder">5. 解码器块</button>
+    <button data-tab="output">6. 输出 &rarr; logits</button>
+    <button data-tab="training">7. 训练</button>
+    <button data-tab="inference">8. 推理</button>
+    <button data-tab="sandbox">9. 实时形状</button>
+    <button data-tab="drills">0. 练习</button>
   </nav>
 </div>
 
@@ -629,94 +685,94 @@
 
 <!-- ========================= WELCOME ========================= -->
 <section class="tab-section active" id="tab-welcome">
-  <h1>One tensor, all the way to logits</h1>
+  <h1>一个张量，直到 logits</h1>
   <p class="lead">
-    The <em>Attention Is All You Need</em> transformer is a recipe: take a tensor of source token IDs,
-    push it through an encoder, push the target tokens through a decoder that <em>cross-attends</em>
-    to the encoder, project to the vocabulary, and out come <strong>next-token logits</strong>.
-    This page tracks <strong>shape</strong> — every stage from input IDs to final
-    <code>[B, T_tgt, V]</code> probabilities, color-coded so you can read the paper without ever losing
-    the tensor.
+    <em>Attention Is All You Need</em> Transformer 是一套流程：取一个源 token ID 张量，
+    送入编码器，再将目标 token 送入对编码器进行<em>交叉注意力</em>的解码器，
+    投影到词表，输出<strong>下一 token 的 logits</strong>。
+    本页追踪<strong>形状</strong>——从输入 ID 到最终
+    <code>[B, T_tgt, V]</code> 概率的每个阶段，用颜色标注，
+    让你读论文时不会迷失在张量里。
   </p>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-head"><div class="card-title">paper defaults (base)</div></div>
+      <div class="card-head"><div class="card-title">论文默认值（base 配置）</div></div>
       <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
-        <div>B (batch)        = <b style="color: var(--dim-b)">2</b>   <span style="color: var(--muted);"># batch size</span></div>
-        <div>T_src (src len)  = <b style="color: var(--dim-t)">8</b>   <span style="color: var(--muted);"># source tokens</span></div>
-        <div>T_tgt (tgt len)  = <b style="color: var(--dim-t)">7</b>   <span style="color: var(--muted);"># target tokens</span></div>
-        <div>d_model          = <b style="color: var(--dim-d)">512</b> <span style="color: var(--muted);"># embedding dim</span></div>
-        <div>h (heads)        = <b style="color: var(--dim-h)">8</b>   <span style="color: var(--muted);"># attention heads</span></div>
+        <div>B (batch)        = <b style="color: var(--dim-b)">2</b>   <span style="color: var(--muted);"># 批大小</span></div>
+        <div>T_src (src len)  = <b style="color: var(--dim-t)">8</b>   <span style="color: var(--muted);"># 源序列 token 数</span></div>
+        <div>T_tgt (tgt len)  = <b style="color: var(--dim-t)">7</b>   <span style="color: var(--muted);"># 目标序列 token 数</span></div>
+        <div>d_model          = <b style="color: var(--dim-d)">512</b> <span style="color: var(--muted);"># 嵌入维度</span></div>
+        <div>h (heads)        = <b style="color: var(--dim-h)">8</b>   <span style="color: var(--muted);"># 注意力头数</span></div>
         <div>d_k = d_v        = <b style="color: var(--dim-k)">64</b>  <span style="color: var(--muted);"># d_model / h</span></div>
-        <div>d_ff             = <b style="color: var(--dim-ff)">2048</b><span style="color: var(--muted);"># FFN inner dim (4·d_model)</span></div>
-        <div>V (vocab)        = <b style="color: var(--accent-2)">37000</b><span style="color: var(--muted);"># EN→DE BPE vocab</span></div>
-        <div>N (layers)       = <b>6</b>     <span style="color: var(--muted);"># enc layers = dec layers</span></div>
+        <div>d_ff             = <b style="color: var(--dim-ff)">2048</b><span style="color: var(--muted);"># FFN 内部维度（4·d_model）</span></div>
+        <div>V (vocab)        = <b style="color: var(--accent-2)">37000</b><span style="color: var(--muted);"># 英→德 BPE 词表</span></div>
+        <div>N (layers)       = <b>6</b>     <span style="color: var(--muted);"># 编码器层数 = 解码器层数</span></div>
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><div class="card-title">color legend (used everywhere)</div></div>
+      <div class="card-head"><div class="card-title">颜色图例（全局统一）</div></div>
       <div class="card-body">
         <div class="legend">
-          <span><span class="dot" style="background: var(--dim-b)"></span> B  batch</span>
-          <span><span class="dot" style="background: var(--dim-t)"></span> T  tokens</span>
+          <span><span class="dot" style="background: var(--dim-b)"></span> B  批次</span>
+          <span><span class="dot" style="background: var(--dim-t)"></span> T  token 数</span>
           <span><span class="dot" style="background: var(--dim-d)"></span> d_model</span>
-          <span><span class="dot" style="background: var(--dim-h)"></span> h  heads</span>
+          <span><span class="dot" style="background: var(--dim-h)"></span> h  头数</span>
           <span><span class="dot" style="background: var(--dim-k)"></span> d_k</span>
           <span><span class="dot" style="background: var(--dim-ff)"></span> d_ff</span>
         </div>
         <p style="margin: 6px 0 0; color: var(--muted); font-size: 12.5px;">
-          When a dimension changes between stages, it lights up. Watch the same tensor get
-          split into heads, multiplied, scaled, soft-maxed, and stitched back together.
+          当某个维度在两个阶段之间发生变化时，它会高亮显示。看着同一个张量被
+          拆分为多个头、相乘、缩放、softmax，再拼接回来。
         </p>
       </div>
     </div>
   </div>
 
-  <h2>The full pipeline at a glance</h2>
+  <h2>完整流水线一览</h2>
   <div class="card">
     <div class="card-body" style="padding: 6px 0;">
       <table class="matrix-table">
-        <tr><th style="width: 40px;">#</th><th>Stage</th><th>Shape (with paper defaults)</th></tr>
-        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Encoder · ×6 layers</td></tr>
-        <tr><td>1</td><td>Source token IDs</td><td class="shape-cell">[B=2, T_src=8] <span style="color: var(--muted);">int</span></td></tr>
-        <tr><td>2</td><td>Source embedding lookup</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>3</td><td>+ Positional encoding</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>4</td><td>Q, K, V projections</td><td class="shape-cell">[2, 8, 512] × 3</td></tr>
-        <tr><td>5</td><td>Reshape for heads</td><td class="shape-cell">[2, h=8, T_src=8, d_k=64]</td></tr>
+        <tr><th style="width: 40px;">#</th><th>阶段</th><th>形状（论文默认值）</th></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">编码器 · ×6 层</td></tr>
+        <tr><td>1</td><td>源 token ID</td><td class="shape-cell">[B=2, T_src=8] <span style="color: var(--muted);">int</span></td></tr>
+        <tr><td>2</td><td>源嵌入查找</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>3</td><td>+ 位置编码</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>4</td><td>Q、K、V 投影</td><td class="shape-cell">[2, 8, 512] × 3</td></tr>
+        <tr><td>5</td><td>为多头重塑形状</td><td class="shape-cell">[2, h=8, T_src=8, d_k=64]</td></tr>
         <tr><td>6</td><td>Q @ Kᵀ</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
-        <tr><td>7</td><td>Scale by 1/√d_k</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
-        <tr><td>8</td><td>Softmax (last axis)</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>7</td><td>除以 1/√d_k 缩放</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
+        <tr><td>8</td><td>Softmax（最后一轴）</td><td class="shape-cell">[2, 8, 8, 8]</td></tr>
         <tr><td>9</td><td>Attn @ V</td><td class="shape-cell">[2, 8, 8, 64]</td></tr>
-        <tr><td>10</td><td>Concat heads</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>11</td><td>Output projection W_O</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>12</td><td>Residual + LayerNorm</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>13</td><td>FFN linear 1</td><td class="shape-cell">[2, 8, 2048]</td></tr>
+        <tr><td>10</td><td>拼接多头</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>11</td><td>输出投影 W_O</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>12</td><td>残差 + LayerNorm</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>13</td><td>FFN 线性层 1</td><td class="shape-cell">[2, 8, 2048]</td></tr>
         <tr><td>14</td><td>ReLU</td><td class="shape-cell">[2, 8, 2048]</td></tr>
-        <tr><td>15</td><td>FFN linear 2</td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td>16</td><td>Residual + LayerNorm <span style="color: var(--muted);">(=encoder output, "memory")</span></td><td class="shape-cell">[2, 8, 512]</td></tr>
-        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Decoder · ×6 layers</td></tr>
-        <tr><td>17</td><td>Target token IDs (shifted right)</td><td class="shape-cell">[B=2, T_tgt=7] <span style="color: var(--muted);">int</span></td></tr>
-        <tr><td>18</td><td>Target embed + positional</td><td class="shape-cell">[2, 7, 512]</td></tr>
-        <tr><td>19</td><td><b>Masked</b> self-attn (causal)</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 7]</td></tr>
-        <tr><td>20</td><td><b>Cross-attn</b>: Q from dec, K/V from enc</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 8]</td></tr>
-        <tr><td>21</td><td>FFN + residual + LN</td><td class="shape-cell">[2, 7, 512]</td></tr>
-        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">Output head</td></tr>
-        <tr><td>22</td><td>Linear W_lm (often tied to embed)</td><td class="shape-cell">[2, 7, V=37000]</td></tr>
-        <tr><td>23</td><td>Softmax (last axis) — train probs</td><td class="shape-cell">[2, 7, 37000]</td></tr>
-        <tr><td>24</td><td><b>Training</b>: cross-entropy vs labels [B, T_tgt]</td><td class="shape-cell">scalar loss</td></tr>
-        <tr><td>25</td><td><b>Inference</b>: argmax / sample at last position</td><td class="shape-cell">[B] next-token IDs</td></tr>
+        <tr><td>15</td><td>FFN 线性层 2</td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td>16</td><td>残差 + LayerNorm <span style="color: var(--muted);">（=编码器输出，即"memory"）</span></td><td class="shape-cell">[2, 8, 512]</td></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">解码器 · ×6 层</td></tr>
+        <tr><td>17</td><td>目标 token ID（右移一位）</td><td class="shape-cell">[B=2, T_tgt=7] <span style="color: var(--muted);">int</span></td></tr>
+        <tr><td>18</td><td>目标嵌入 + 位置编码</td><td class="shape-cell">[2, 7, 512]</td></tr>
+        <tr><td>19</td><td><b>掩码</b>自注意力（因果）</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 7]</td></tr>
+        <tr><td>20</td><td><b>交叉注意力</b>：Q 来自解码器，K/V 来自编码器</td><td class="shape-cell">[2, 7, 512] · scores [2, 8, 7, 8]</td></tr>
+        <tr><td>21</td><td>FFN + 残差 + LN</td><td class="shape-cell">[2, 7, 512]</td></tr>
+        <tr><td colspan="3" style="background:var(--panel-2); color:var(--muted); font-weight:700; padding:6px 12px;">输出头</td></tr>
+        <tr><td>22</td><td>线性层 W_lm（通常与嵌入共享参数）</td><td class="shape-cell">[2, 7, V=37000]</td></tr>
+        <tr><td>23</td><td>Softmax（最后一轴）— 训练概率</td><td class="shape-cell">[2, 7, 37000]</td></tr>
+        <tr><td>24</td><td><b>训练</b>：与标签 [B, T_tgt] 计算交叉熵</td><td class="shape-cell">标量损失</td></tr>
+        <tr><td>25</td><td><b>推理</b>：在最后位置 argmax / 采样</td><td class="shape-cell">[B] 下一个 token ID</td></tr>
       </table>
     </div>
   </div>
 
-  <h2>The encoder block, drawn</h2>
+  <h2>编码器块示意图</h2>
   <div class="canvas-card">
     <svg viewBox="0 0 580 600" class="arch-svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <linearGradient id="boxGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#fb923c" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#fb923c" stop-opacity="0.04"/>
+          <stop offset="0%" stop-color="#ff5e3a" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#ff5e3a" stop-opacity="0.04"/>
         </linearGradient>
         <filter id="glow">
           <feGaussianBlur stdDeviation="2" result="blur"/>
@@ -725,98 +781,100 @@
       </defs>
 
       <!-- vertical flow line -->
-      <line x1="290" y1="20" x2="290" y2="580" stroke="#283449" stroke-width="2" stroke-dasharray="4,4"/>
+      <line x1="290" y1="20" x2="290" y2="580" stroke="rgba(255,240,220,0.14)" stroke-width="2" stroke-dasharray="4,4"/>
 
       <!-- input -->
-      <g font-family="ui-monospace, monospace" font-size="12" fill="#e6f1ff">
-        <rect x="200" y="20" width="180" height="34" rx="6" fill="#182338" stroke="#7dd3fc" stroke-width="1.5"/>
+      <g font-family="ui-monospace, monospace" font-size="12" fill="#f4f0e6">
+        <rect x="200" y="20" width="180" height="34" rx="6" fill="#181826" stroke="#7dd3fc" stroke-width="1.5"/>
         <text x="290" y="38" text-anchor="middle">Token IDs</text>
         <text x="290" y="50" text-anchor="middle" fill="#7dd3fc" font-size="10">[B, T]</text>
       </g>
-      <line x1="290" y1="54" x2="290" y2="74" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="54" x2="290" y2="74" stroke="#ff5e3a" stroke-width="2"/>
 
-      <g font-family="ui-monospace, monospace" font-size="12" fill="#e6f1ff">
-        <rect x="200" y="74" width="180" height="34" rx="6" fill="#182338" stroke="#c4b5fd" stroke-width="1.5"/>
+      <g font-family="ui-monospace, monospace" font-size="12" fill="#f4f0e6">
+        <rect x="200" y="74" width="180" height="34" rx="6" fill="#181826" stroke="#c4b5fd" stroke-width="1.5"/>
         <text x="290" y="92" text-anchor="middle">Embedding + Positional</text>
-        <text x="290" y="104" text-anchor="middle" fill="#fb923c" font-size="10">[B, T, d_model]</text>
+        <text x="290" y="104" text-anchor="middle" fill="#ff5e3a" font-size="10">[B, T, d_model]</text>
       </g>
-      <line x1="290" y1="108" x2="290" y2="128" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="108" x2="290" y2="128" stroke="#ff5e3a" stroke-width="2"/>
 
       <!-- big block: Multi-Head Attention -->
-      <rect x="100" y="128" width="380" height="170" rx="10" fill="url(#boxGrad)" stroke="#fb923c" stroke-width="1.5" filter="url(#glow)"/>
-      <text x="290" y="148" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="12" font-weight="800">MULTI-HEAD ATTENTION</text>
+      <rect x="100" y="128" width="380" height="170" rx="10" fill="url(#boxGrad)" stroke="#ff5e3a" stroke-width="1.5" filter="url(#glow)"/>
+      <text x="290" y="148" text-anchor="middle" fill="#ff5e3a" font-family="ui-monospace, monospace" font-size="12" font-weight="800">MULTI-HEAD ATTENTION</text>
 
-      <g font-family="ui-monospace, monospace" font-size="11" fill="#e6f1ff">
-        <rect x="120" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#f4f0e6">
+        <rect x="120" y="160" width="100" height="26" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="170" y="177" text-anchor="middle">Q proj</text>
-        <rect x="240" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="240" y="160" width="100" height="26" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="177" text-anchor="middle">K proj</text>
-        <rect x="360" y="160" width="100" height="26" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="360" y="160" width="100" height="26" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="410" y="177" text-anchor="middle">V proj</text>
 
-        <rect x="120" y="200" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="120" y="200" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="216" text-anchor="middle" fill="#f472b6">reshape → [B, h, T, d_k]</text>
 
-        <rect x="120" y="234" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
-        <text x="290" y="250" text-anchor="middle" fill="#34d399">softmax(Q Kᵀ / √d_k) · V</text>
+        <rect x="120" y="234" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
+        <text x="290" y="250" text-anchor="middle" fill="#3affb8">softmax(Q Kᵀ / √d_k) · V</text>
 
-        <rect x="120" y="266" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+        <rect x="120" y="266" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="282" text-anchor="middle">concat heads · W_O</text>
       </g>
 
-      <line x1="290" y1="298" x2="290" y2="318" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="298" x2="290" y2="318" stroke="#ff5e3a" stroke-width="2"/>
       <!-- residual arrow -->
-      <path d="M 488 95 Q 540 95 540 320 L 510 320" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
-      <text x="555" y="200" fill="#fbbf24" font-family="ui-monospace, monospace" font-size="10" transform="rotate(90, 555, 200)">residual</text>
+      <path d="M 488 95 Q 540 95 540 320 L 510 320" stroke="#ffd23a" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
+      <text x="555" y="200" fill="#ffd23a" font-family="ui-monospace, monospace" font-size="10" transform="rotate(90, 555, 200)">residual</text>
 
-      <rect x="200" y="318" width="180" height="34" rx="6" fill="#182338" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="290" y="338" text-anchor="middle" fill="#e6f1ff" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
-      <line x1="290" y1="352" x2="290" y2="372" stroke="#fb923c" stroke-width="2"/>
+      <rect x="200" y="318" width="180" height="34" rx="6" fill="#181826" stroke="#ffd23a" stroke-width="1.5"/>
+      <text x="290" y="338" text-anchor="middle" fill="#f4f0e6" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
+      <line x1="290" y1="352" x2="290" y2="372" stroke="#ff5e3a" stroke-width="2"/>
 
       <!-- FFN -->
-      <rect x="100" y="372" width="380" height="120" rx="10" fill="url(#boxGrad)" stroke="#fb923c" stroke-width="1.5"/>
-      <text x="290" y="392" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="12" font-weight="800">FEED FORWARD</text>
-      <g font-family="ui-monospace, monospace" font-size="11" fill="#e6f1ff">
-        <rect x="120" y="404" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
-        <text x="290" y="420" text-anchor="middle" fill="#fbbf24">Linear: d_model → d_ff (= 4·d_model)</text>
-        <rect x="120" y="436" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
-        <text x="290" y="452" text-anchor="middle" fill="#4ade80">ReLU</text>
-        <rect x="120" y="468" width="340" height="24" rx="4" fill="#0b1220" stroke="#283449"/>
+      <rect x="100" y="372" width="380" height="120" rx="10" fill="url(#boxGrad)" stroke="#ff5e3a" stroke-width="1.5"/>
+      <text x="290" y="392" text-anchor="middle" fill="#ff5e3a" font-family="ui-monospace, monospace" font-size="12" font-weight="800">FEED FORWARD</text>
+      <g font-family="ui-monospace, monospace" font-size="11" fill="#f4f0e6">
+        <rect x="120" y="404" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
+        <text x="290" y="420" text-anchor="middle" fill="#ffd23a">Linear: d_model → d_ff (= 4·d_model)</text>
+        <rect x="120" y="436" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
+        <text x="290" y="452" text-anchor="middle" fill="#3affb8">ReLU</text>
+        <rect x="120" y="468" width="340" height="24" rx="4" fill="#050507" stroke="rgba(255,240,220,0.14)"/>
         <text x="290" y="484" text-anchor="middle">Linear: d_ff → d_model</text>
       </g>
 
-      <line x1="290" y1="492" x2="290" y2="512" stroke="#fb923c" stroke-width="2"/>
+      <line x1="290" y1="492" x2="290" y2="512" stroke="#ff5e3a" stroke-width="2"/>
       <!-- residual 2 -->
-      <path d="M 488 360 Q 565 360 565 514 L 510 514" stroke="#fbbf24" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
+      <path d="M 488 360 Q 565 360 565 514 L 510 514" stroke="#ffd23a" stroke-width="1.8" fill="none" stroke-dasharray="3,3"/>
 
-      <rect x="200" y="512" width="180" height="34" rx="6" fill="#182338" stroke="#fbbf24" stroke-width="1.5"/>
-      <text x="290" y="532" text-anchor="middle" fill="#e6f1ff" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
-      <line x1="290" y1="546" x2="290" y2="566" stroke="#fb923c" stroke-width="2"/>
+      <rect x="200" y="512" width="180" height="34" rx="6" fill="#181826" stroke="#ffd23a" stroke-width="1.5"/>
+      <text x="290" y="532" text-anchor="middle" fill="#f4f0e6" font-family="ui-monospace, monospace" font-size="12">Add &amp; LayerNorm</text>
+      <line x1="290" y1="546" x2="290" y2="566" stroke="#ff5e3a" stroke-width="2"/>
 
-      <text x="290" y="582" text-anchor="middle" fill="#fb923c" font-family="ui-monospace, monospace" font-size="11" font-weight="700">[B, T, d_model]  →  next layer</text>
+      <text x="290" y="582" text-anchor="middle" fill="#ff5e3a" font-family="ui-monospace, monospace" font-size="11" font-weight="700">[B, T, d_model]  →  next layer</text>
     </svg>
   </div>
 
   <div class="note">
-    <strong>How to use this page:</strong> jump through tabs in order. Tab 5 is the killer
-    feature — change B, T, d_model, h and watch every stage update live. Tab 6 has 14 drills.
-    Press <kbd>?</kbd> for shortcuts.
+    <strong>如何使用本页：</strong>按顺序浏览各标签页。<strong>实时形状</strong>是最强大的标签——
+    修改 B、T、d_model、h，即可看到每个阶段实时更新，并附有显示相对张量大小的进度条。
+    <strong>点击任意彩色维度</strong>（如
+    <span class="shape" style="padding:1px 6px"><span class="dim t">T=8</span></span>）可在整页追踪它。
+    按 <kbd>?</kbd> 查看快捷键。
   </div>
 </section>
 
 <!-- ========================= INPUTS & EMBEDDINGS ========================= -->
 <section class="tab-section" id="tab-inputs">
-  <h1>Stages 1–3 · From token IDs to a contextual-ready tensor</h1>
+  <h1>阶段 1–3 · 从 token ID 到可用于注意力的张量</h1>
   <p class="lead">
-    Before any attention, the input has to become a tensor of vectors. Three quick stages:
-    integer IDs in, real-valued vectors out, with positional info baked in by addition.
+    在进行任何注意力运算之前，输入必须先变成向量张量。三个快速阶段：
+    整数 ID 输入，实值向量输出，并通过加法将位置信息融入其中。
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 1 · token IDs</div></div>
+    <div class="card-head"><div class="card-title">阶段 1 · token ID</div></div>
     <div class="card-body">
       <div style="margin-bottom: 6px;">
-        Tokenizer output. Two examples in a batch, eight tokens each.
+        分词器输出。批次中两个样本，各八个 token。
       </div>
       <div class="formula">
         $\text{ids}\in\mathbb{Z}^{B\times T}$
@@ -829,20 +887,19 @@
           dtype: int32
         </span>
       </div>
-      <pre class="code"><code><span class="tok-c"># two sentences, each padded/truncated to T=8 tokens</span>
+      <pre class="code"><code><span class="tok-c"># 两个句子，各填充/截断至 T=8 个 token</span>
 ids = [[ <span class="tok-n">101</span>, <span class="tok-n">2057</span>, <span class="tok-n">2293</span>, <span class="tok-n">3019</span>, <span class="tok-n">2025</span>, <span class="tok-n">2748</span>, <span class="tok-n">102</span>, <span class="tok-n">0</span> ],
        [ <span class="tok-n">101</span>, <span class="tok-n">7592</span>, <span class="tok-n">2088</span>,  <span class="tok-n">102</span>,    <span class="tok-n">0</span>,    <span class="tok-n">0</span>,   <span class="tok-n">0</span>, <span class="tok-n">0</span> ]]
-<span class="tok-c"># shape: [B=2, T=8]</span></code></pre>
+<span class="tok-c"># 形状：[B=2, T=8]</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 2 · embedding lookup</div></div>
+    <div class="card-head"><div class="card-title">阶段 2 · 嵌入查找</div></div>
     <div class="card-body">
       <p>
-        A weight matrix $E\in\mathbb{R}^{V\times d_{model}}$ holds one row per vocabulary entry.
-        Lookup by ID. The tensor gains a dimension: a real-valued vector of size <code>d_model</code>
-        replaces each integer.
+        权重矩阵 $E\in\mathbb{R}^{V\times d_{model}}$ 每行对应词表中的一个词条。
+        按 ID 查找。张量增加了一个维度：每个整数被替换为大小为 <code>d_model</code> 的实值向量。
       </p>
       <div class="formula">
         $X = E[\text{ids}] \;\in\; \mathbb{R}^{B\times T\times d_{model}}$
@@ -859,19 +916,17 @@ embed = nn.<span class="tok-f">Embedding</span>(num_embeddings=<span class="tok-
 X = embed(ids)            <span class="tok-c"># [B, T] -> [B, T, d_model]</span>
 <span class="tok-f">print</span>(X.shape)            <span class="tok-c"># torch.Size([2, 8, 512])</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        Param count: $V \cdot d_{model} = 30522 \cdot 512 \approx 15.6\text{M}$ — the embedding
-        table alone is bigger than the rest of any single layer.
+        参数量：$V \cdot d_{model} = 30522 \cdot 512 \approx 15.6\text{M}$ — 单是嵌入表就比任何单一层的其他部分都大。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 3 · + positional encoding</div></div>
+    <div class="card-head"><div class="card-title">阶段 3 · + 位置编码</div></div>
     <div class="card-body">
       <p>
-        Self-attention is permutation-equivariant — without position info, "the cat sat" and
-        "sat cat the" produce the same outputs. The paper adds a fixed sinusoidal pattern of
-        the same shape as $X$.
+        自注意力具有置换等变性——若无位置信息，"the cat sat" 和
+        "sat cat the" 将产生相同的输出。论文在 $X$ 上加入一个固定的正弦模式，形状相同。
       </p>
       <div class="formula">
         $\mathrm{PE}_{(pos, 2i)} = \sin\!\big(pos / 10000^{2i/d_{model}}\big)$<br>
@@ -886,35 +941,34 @@ X = embed(ids)            <span class="tok-c"># [B, T] -> [B, T, d_model]</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code><span class="tok-c"># PE has shape [T, d_model], broadcasts over B</span>
+      <pre class="code"><code><span class="tok-c"># PE 形状为 [T, d_model]，沿 B 广播</span>
 X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -> [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        Same shape in, same shape out. The information goes into the values, not the dims.
+        输入与输出形状相同。信息进入数值，而不改变维度。
       </p>
     </div>
   </div>
 
   <div class="note">
-    <strong>End of stage 3:</strong> we now have a tensor of shape
+    <strong>阶段 3 结束：</strong>我们现在得到一个形状为
     <span class="shape"><span class="br">[</span><span class="dim b">B</span>, <span class="dim t">T</span>, <span class="dim d">d_model</span><span class="br">]</span></span>
-    that's both <em>about</em> the words and <em>about where they are</em>. Every later stage
-    is a transformation on this layout.
+    的张量，它既包含<em>词语的语义</em>，也包含<em>词语的位置</em>。后续每个阶段都是对这一布局的变换。
   </div>
 </section>
 
 <!-- ========================= ATTENTION ========================= -->
 <section class="tab-section" id="tab-attn">
-  <h1>Stages 4–11 · Multi-head attention, dimension by dimension</h1>
+  <h1>阶段 4–11 · 多头注意力，逐维度解析</h1>
   <p class="lead">
-    The whole reason this paper exists. Each token becomes a query, key, and value;
-    similarities are computed, scaled, soft-maxed, and used to mix the values. We also reshape
-    twice: once to split heads, once to glue them back.
+    这正是这篇论文存在的核心理由。每个 token 变成一个 query、key 和 value；
+    计算相似度、缩放、softmax，再用来混合 value 向量。我们还进行两次形状变换：
+    一次拆分多头，一次合并回来。
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stages 4 · Q, K, V projections</div></div>
+    <div class="card-head"><div class="card-title">阶段 4 · Q、K、V 投影</div></div>
     <div class="card-body">
-      <p>Three independent linear maps, each $\mathbb{R}^{d_{model}}\to\mathbb{R}^{d_{model}}$:</p>
+      <p>三个独立的线性映射，各自将 $\mathbb{R}^{d_{model}}\to\mathbb{R}^{d_{model}}$：</p>
       <div class="formula">
         $Q = X W^Q,\quad K = X W^K,\quad V = X W^V$
       </div>
@@ -933,8 +987,8 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code><span class="tok-c"># three linear layers, no bias in the paper but a bias is fine in practice</span>
-Wq = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># 512*512 = 262 144 params</span>
+      <pre class="code"><code><span class="tok-c"># 三个线性层，论文中无偏置，实际使用时加偏置也可以</span>
+Wq = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># 512*512 = 262 144 个参数</span>
 Wk = nn.<span class="tok-f">Linear</span>(d_model, d_model)
 Wv = nn.<span class="tok-f">Linear</span>(d_model, d_model)
 
@@ -942,19 +996,19 @@ Q = Wq(X)                              <span class="tok-c"># [B, T, d_model]</sp
 K = Wk(X)                              <span class="tok-c"># [B, T, d_model]</span>
 V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        Three matrices of shape $[d_{model}, d_{model}]$ — total params here:
-        $3\cdot 512\cdot 512 = 786\,432$. In some implementations these three are fused into a
-        single $[d_{model}, 3\cdot d_{model}]$ matrix.
+        三个形状为 $[d_{model}, d_{model}]$ 的矩阵——此处总参数量：
+        $3\cdot 512\cdot 512 = 786\,432$。部分实现将这三个矩阵合并为
+        一个 $[d_{model}, 3\cdot d_{model}]$ 的单矩阵。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 5 · reshape &amp; transpose for h heads</div></div>
+    <div class="card-head"><div class="card-title">阶段 5 · 为 h 个头重塑并转置</div></div>
     <div class="card-body">
       <p>
-        Slice the last dim into $h$ chunks of $d_k = d_{model}/h$ each, then transpose so heads
-        become an outer dim. <strong>No new parameters</strong> — just view + permute.
+        将最后一维切分为 $h$ 块，每块大小为 $d_k = d_{model}/h$，然后转置使头成为外层维度。
+        <strong>无新参数</strong>——仅 view + permute。
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
@@ -968,24 +1022,23 @@ V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</sp
       <pre class="code"><code>B, T, d_model = Q.shape
 h, d_k = <span class="tok-n">8</span>, d_model // h         <span class="tok-c"># 8, 64</span>
 
-<span class="tok-c"># split last dim into (h, d_k), then move heads next to batch</span>
+<span class="tok-c"># 将最后一维拆成 (h, d_k)，然后将头移到紧邻批次的位置</span>
 Q = Q.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span>
 K = K.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span>
 V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
       <div class="note green">
-        <strong>Why heads matter:</strong> with $h=8$ separate $[T, d_k=64]$ subspaces, each
-        head can specialize on a different relational pattern. Compute is unchanged: 8 small
-        $64$-dim attentions instead of one $512$-dim one.
+        <strong>为什么需要多头：</strong>有 $h=8$ 个独立的 $[T, d_k=64]$ 子空间，每个
+        头可以专注于不同的关系模式。计算量不变：8 个小的 $64$ 维注意力，代替一个 $512$ 维的。
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 6 · Q @ Kᵀ — pairwise similarity</div></div>
+    <div class="card-head"><div class="card-title">阶段 6 · Q @ Kᵀ — 两两相似度</div></div>
     <div class="card-body">
       <p>
-        For each head, every query attends to every key. The matmul contracts the $d_k$ axis,
-        producing a $T\times T$ score matrix per head per batch.
+        对每个头，每个 query 关注每个 key。矩阵乘法收缩 $d_k$ 轴，
+        为每个批次的每个头产生一个 $T\times T$ 的得分矩阵。
       </p>
       <div class="formula">
         $\text{scores} = Q K^\top$
@@ -1006,17 +1059,16 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
         </span>
       </div>
       <pre class="code"><code>scores = Q @ K.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)   <span class="tok-c"># [B, h, T, T]</span>
-<span class="tok-c"># entry (b, head, i, j) = how much token i attends to token j (in that head)</span></code></pre>
+<span class="tok-c"># 元素 (b, head, i, j) = token i 对 token j 的关注程度（在该头中）</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 7 · scale by 1/√d_k</div></div>
+    <div class="card-head"><div class="card-title">阶段 7 · 缩放因子 1/√d_k</div></div>
     <div class="card-body">
       <p>
-        Without scaling, dot products of $d_k$-dim vectors grow as $\sqrt{d_k}$ — large values
-        push softmax into the saturating regime where gradients vanish. Divide every score by
-        $\sqrt{d_k}$.
+        若不缩放，$d_k$ 维向量的点积会随 $\sqrt{d_k}$ 增大——过大的值会使
+        softmax 进入饱和区域，导致梯度消失。将每个得分除以 $\sqrt{d_k}$。
       </p>
       <div class="formula">
         $\text{scaled} = \text{scores} / \sqrt{d_k} = \text{scores} / 8$
@@ -1027,7 +1079,7 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
           <span class="arrow">÷ √64</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
         </span>
-        <span class="pill">shape unchanged</span>
+        <span class="pill">形状不变</span>
       </div>
       <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">math</span>
 scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c"># 1/√64 = 1/8 = 0.125</span></code></pre>
@@ -1035,11 +1087,11 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 8 · softmax along the last axis</div></div>
+    <div class="card-head"><div class="card-title">阶段 8 · 沿最后一轴的 softmax</div></div>
     <div class="card-body">
       <p>
-        Turn raw scores into a probability distribution per query. Each row of the
-        $[T,T]$ block sums to 1 — these are the attention <em>weights</em>.
+        将原始得分转化为每个 query 的概率分布。$[T,T]$ 块的每一行之和为 1——
+        这些就是注意力<em>权重</em>。
       </p>
       <div class="formula">
         $A = \mathrm{softmax}(\text{scaled},\ \text{dim}=-1)$
@@ -1050,23 +1102,22 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
           <span class="arrow">→</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
         </span>
-        <span class="pill green">rows sum to 1</span>
+        <span class="pill green">行和为 1</span>
       </div>
       <pre class="code"><code><span class="tok-k">import</span> <span class="tok-t">torch.nn.functional</span> <span class="tok-k">as</span> <span class="tok-t">F</span>
 A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)    <span class="tok-c"># [B, h, T, T]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        For decoder self-attention, an additive $-\infty$ mask is applied <em>before</em>
-        softmax to enforce causality.
+        在解码器自注意力中，softmax <em>之前</em>会施加一个加性的 $-\infty$ 掩码以强制因果性。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 9 · attention @ V</div></div>
+    <div class="card-head"><div class="card-title">阶段 9 · attention @ V</div></div>
     <div class="card-body">
       <p>
-        Mix value vectors using the attention weights. Each query's output is a weighted sum of
-        all $T$ value vectors. The contracting axis is the inner $T$.
+        用注意力权重混合 value 向量。每个 query 的输出是所有 $T$ 个 value 向量的加权和。
+        收缩轴是内部的 $T$。
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
@@ -1083,16 +1134,16 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>head_out = A @ V                  <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
+      <pre class="code"><code>head_out = A @ V                  <span class="tok-c"># [B, h, T, d_k]（加权值向量之和）</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 10 · concat heads (transpose + reshape)</div></div>
+    <div class="card-head"><div class="card-title">阶段 10 · 拼接多头（转置 + 重塑）</div></div>
     <div class="card-body">
       <p>
-        Glue the heads back into one big last-dim. <code>transpose(1,2)</code> moves heads next
-        to $d_k$, then <code>reshape</code> merges them. Param-free.
+        将各头重新拼合为一个大的最后维度。<code>transpose(1,2)</code> 将头移到紧邻 $d_k$，
+        再用 <code>reshape</code> 合并。无参数。
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
@@ -1103,17 +1154,17 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]</span>
-out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span class="tok-c"># [B, T, d_model]</span></code></pre>
+      <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]（将头轴移回）</span>
+out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span class="tok-c"># [B, T, d_model]（合并头与 d_k）</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 11 · output projection W_O</div></div>
+    <div class="card-head"><div class="card-title">阶段 11 · 输出投影 W_O</div></div>
     <div class="card-body">
       <p>
-        One more $\mathbb{R}^{d_{model}\to d_{model}}$ linear map. Same shape, but lets the
-        model mix information across heads after concat.
+        再一个 $\mathbb{R}^{d_{model}\to d_{model}}$ 线性映射。形状不变，但允许模型
+        在拼接后跨头混合信息。
       </p>
       <div class="formula">
         $\text{MHA}(X) = \mathrm{Concat}(\text{head}_1, \dots, \text{head}_h)\,W^O$
@@ -1125,36 +1176,35 @@ out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span c
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># another 262 144 params</span>
+      <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># 又 262 144 个参数</span>
 mha_out = Wo(out)                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        <strong>Total MHA params:</strong> $4 \cdot d_{model}^2 = 4\cdot 512^2 = 1{,}048{,}576$
-        (Q, K, V, O — each $d_{model}\times d_{model}$).
+        <strong>MHA 总参数量：</strong> $4 \cdot d_{model}^2 = 4\cdot 512^2 = 1{,}048{,}576$
+        （Q、K、V、O——各 $d_{model}\times d_{model}$）。
       </p>
     </div>
   </div>
 
   <div class="note green">
-    <strong>End of attention:</strong> we left with shape
+    <strong>注意力阶段结束：</strong>输出形状为
     <span class="shape"><span class="br">[</span><span class="dim b">B</span>, <span class="dim t">T</span>, <span class="dim d">d_model</span><span class="br">]</span></span>
-    — exactly the same shape we entered with. Attention is a <em>same-shape</em> operator.
+    ——与进入时完全相同。注意力是一个<em>保形状</em>的算子。
   </div>
 </section>
 
 <!-- ========================= FFN & BLOCK ========================= -->
 <section class="tab-section" id="tab-ffn">
-  <h1>Stages 12–16 · LayerNorm, FFN, and the residual highway</h1>
+  <h1>阶段 12–16 · LayerNorm、FFN 与残差通路</h1>
   <p class="lead">
-    After attention, the encoder block stitches everything with two residual connections,
-    two LayerNorms, and one position-wise FFN. The FFN is where most of the parameters
-    live — and where, many believe, factual knowledge is stored.
+    注意力之后，编码器块通过两个残差连接、两个 LayerNorm 和一个位置级 FFN 将一切串联起来。
+    FFN 是大多数参数所在之处——也被许多人认为是存储事实性知识的地方。
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 12 · residual + LayerNorm</div></div>
+    <div class="card-head"><div class="card-title">阶段 12 · 残差 + LayerNorm</div></div>
     <div class="card-body">
       <p>
-        Add the original $X$ back (skip connection), then normalize per-token across $d_{model}$.
+        将原始 $X$ 加回（跳跃连接），然后在 $d_{model}$ 轴上对每个 token 归一化。
       </p>
       <div class="formula">
         $X' = \mathrm{LayerNorm}(X + \mathrm{MHA}(X))$
@@ -1168,22 +1218,21 @@ mha_out = Wo(out)                       <span class="tok-c"># [B, T, d_model]</s
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>ln1 = nn.<span class="tok-f">LayerNorm</span>(d_model)      <span class="tok-c"># 2 * d_model = 1024 params (γ, β)</span>
+      <pre class="code"><code>ln1 = nn.<span class="tok-f">LayerNorm</span>(d_model)      <span class="tok-c"># 2 * d_model = 1024 个参数（γ, β）</span>
 X_post = ln1(X + mha_out)         <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        LN normalizes across the last axis: each $[d_{model}]$ vector becomes mean-0, var-1, then
-        re-scaled by learned $\gamma, \beta\in\mathbb{R}^{d_{model}}$. Both batch and token
-        positions stay independent.
+        LN 沿最后一轴归一化：每个 $[d_{model}]$ 向量变为均值 0、方差 1，
+        再由可学习的 $\gamma, \beta\in\mathbb{R}^{d_{model}}$ 重新缩放。批次和 token 位置保持独立。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stages 13–14 · FFN linear 1 + ReLU</div></div>
+    <div class="card-head"><div class="card-title">阶段 13–14 · FFN 线性层 1 + ReLU</div></div>
     <div class="card-body">
       <p>
-        A position-wise feed-forward network: same MLP applied to every token independently.
-        First linear expands $d_{model} \to d_{ff}$ (typically $4\cdot d_{model}$).
+        位置级前馈网络：对每个 token 独立应用相同的 MLP。
+        第一个线性层将维度从 $d_{model}$ 扩展到 $d_{ff}$（通常为 $4\cdot d_{model}$）。
       </p>
       <div class="formula">
         $H = \mathrm{ReLU}(X' W_1 + b_1)$
@@ -1197,17 +1246,16 @@ X_post = ln1(X + mha_out)         <span class="tok-c"># [B, T, d_model]</span></
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim ff">2048</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>W1 = nn.<span class="tok-f">Linear</span>(d_model, d_ff)       <span class="tok-c"># 512 * 2048 = 1 048 576 params</span>
+      <pre class="code"><code>W1 = nn.<span class="tok-f">Linear</span>(d_model, d_ff)       <span class="tok-c"># 512 * 2048 = 1 048 576 个参数</span>
 H = F.<span class="tok-f">relu</span>(W1(X_post))            <span class="tok-c"># [B, T, d_ff]</span></code></pre>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 15 · FFN linear 2</div></div>
+    <div class="card-head"><div class="card-title">阶段 15 · FFN 线性层 2</div></div>
     <div class="card-body">
       <p>
-        Second linear projects back: $d_{ff} \to d_{model}$. Restores the canonical shape so the
-        next block can start fresh.
+        第二个线性层将维度压回：$d_{ff} \to d_{model}$。恢复标准形状，以便下一个块重新开始。
       </p>
       <div class="formula">
         $Y = H W_2 + b_2$
@@ -1219,22 +1267,20 @@ H = F.<span class="tok-f">relu</span>(W1(X_post))            <span class="tok-c"
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>W2 = nn.<span class="tok-f">Linear</span>(d_ff, d_model)       <span class="tok-c"># 2048 * 512 = another 1 048 576 params</span>
+      <pre class="code"><code>W2 = nn.<span class="tok-f">Linear</span>(d_ff, d_model)       <span class="tok-c"># 2048 * 512 = 又 1 048 576 个参数</span>
 ffn_out = W2(H)                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
       <p style="font-size: 12.5px; color: var(--muted); margin: 8px 0 0;">
-        <strong>Total FFN params:</strong> $2\cdot d_{model}\cdot d_{ff} = 2\cdot 512\cdot 2048 = 2{,}097{,}152$ —
-        roughly twice the cost of all four attention projections combined. This is where
-        big models put their weight.
+        <strong>FFN 总参数量：</strong> $2\cdot d_{model}\cdot d_{ff} = 2\cdot 512\cdot 2048 = 2{,}097{,}152$ ——
+        大约是所有四个注意力投影加起来的两倍。这正是大型模型"堆参数"的地方。
       </p>
     </div>
   </div>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">stage 16 · residual + LayerNorm (again)</div></div>
+    <div class="card-head"><div class="card-title">阶段 16 · 残差 + LayerNorm（再次）</div></div>
     <div class="card-body">
       <p>
-        Same pattern as stage 12. Add the pre-FFN tensor, layer-normalize, and the encoder
-        block is done.
+        与阶段 12 相同的模式。加上 FFN 前的张量，进行层归一化，编码器块完成。
       </p>
       <div class="formula">
         $Y' = \mathrm{LayerNorm}(X' + Y)$
@@ -1245,7 +1291,7 @@ ffn_out = W2(H)                       <span class="tok-c"># [B, T, d_model]</spa
           <span class="arrow">→</span>
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
-        <span class="pill">block-output shape = block-input shape</span>
+        <span class="pill">块输出形状 = 块输入形状</span>
       </div>
       <pre class="code"><code>ln2 = nn.<span class="tok-f">LayerNorm</span>(d_model)
 out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></code></pre>
@@ -1253,17 +1299,16 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
   </div>
 
   <div class="note">
-    <strong>Stack &amp; repeat:</strong> the paper stacks $N=6$ identical encoder blocks. Each
-    one's input shape equals its output shape, which is why they compose cleanly.
-    Total encoder params (one block, base): roughly
-    $4\cdot 512^2 + 2\cdot 512\cdot 2048 + 4\cdot 512 \approx 3.15$M.
+    <strong>堆叠并重复：</strong>论文将 $N=6$ 个相同的编码器块堆叠在一起。每个块的输入形状等于输出形状，
+    这就是它们可以干净地组合的原因。单块的总编码器参数（base 配置）约为
+    $4\cdot 512^2 + 2\cdot 512\cdot 2048 + 4\cdot 512 \approx 3.15$M。
   </div>
 
-  <h2>The whole encoder block in 14 lines</h2>
+  <h2>14 行实现完整编码器块</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">EncoderBlock — minimal PyTorch</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">EncoderBlock — 最小化 PyTorch 实现</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
     </div>
     <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">EncoderBlock</span>(nn.Module):
     <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, d_model=<span class="tok-n">512</span>, h=<span class="tok-n">8</span>, d_ff=<span class="tok-n">2048</span>):
@@ -1276,48 +1321,47 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
         self.ln2 = nn.<span class="tok-f">LayerNorm</span>(d_model)
 
     <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x):
-        <span class="tok-c"># x: [B, T, d_model]</span>
+        <span class="tok-c"># x: [B, T, d_model]（输入形状）</span>
         a, _ = self.<span class="tok-f">attn</span>(x, x, x)
         x = self.<span class="tok-f">ln1</span>(x + a)
         x = self.<span class="tok-f">ln2</span>(x + self.<span class="tok-f">ffn</span>(x))
-        <span class="tok-k">return</span> x                       <span class="tok-c"># [B, T, d_model]</span></code></pre>
+        <span class="tok-k">return</span> x                       <span class="tok-c"># [B, T, d_model]（输出形状相同）</span></code></pre>
   </div>
 </section>
 
 <!-- ========================= DECODER ========================= -->
 <section class="tab-section" id="tab-decoder">
-  <h1>Stages 17–21 · The decoder block</h1>
+  <h1>阶段 17–21 · 解码器块</h1>
   <p class="lead">
-    The decoder takes <em>target</em> tokens (shifted right by one) and produces a tensor that
-    knows about both (a) the target tokens it has seen so far — via <strong>masked self-attn</strong>
-    — and (b) the source — via <strong>cross-attn</strong>, where Q comes from the decoder
-    and K, V come from the encoder output (the &ldquo;memory&rdquo;). Same embedding dim, same residual+LN
-    discipline as the encoder. Three sub-blocks per layer, six layers in the paper.
+    解码器接收<em>目标</em> token（右移一位），生成同时了解以下两方面的张量：
+    (a) 它迄今所见的目标 token——通过<strong>掩码自注意力</strong>；
+    (b) 源序列——通过<strong>交叉注意力</strong>，Q 来自解码器，K、V 来自编码器输出（"memory"）。
+    嵌入维度和残差+LN 规范与编码器相同。每层三个子块，论文中共六层。
   </p>
 
   <div class="grid-2">
     <div class="card">
-      <div class="card-head"><div class="card-title">paper config (still)</div></div>
+      <div class="card-head"><div class="card-title">论文配置（沿用）</div></div>
       <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
         <div>B = <b style="color: var(--dim-b)">2</b>, T_src = <b style="color: var(--dim-t)">8</b>, T_tgt = <b style="color: var(--dim-t)">7</b></div>
         <div>d_model = <b style="color: var(--dim-d)">512</b>, h = <b style="color: var(--dim-h)">8</b>, d_k = <b style="color: var(--dim-k)">64</b></div>
-        <div style="margin-top:6px; color: var(--muted);"># T_tgt is independent of T_src.</div>
-        <div style="color: var(--muted);"># cross-attn is the only place they meet.</div>
+        <div style="margin-top:6px; color: var(--muted);"># T_tgt 与 T_src 无关。</div>
+        <div style="color: var(--muted);"># 交叉注意力是它们唯一相遇的地方。</div>
       </div>
     </div>
     <div class="card">
-      <div class="card-head"><div class="card-title">why &ldquo;shifted right&rdquo;?</div></div>
+      <div class="card-head"><div class="card-title">为什么是"右移"？</div></div>
       <div class="card-body">
-        <p style="margin:0 0 6px;">During training the decoder sees the gold target prefixed with
-          <code>&lt;sos&gt;</code> and predicts the same target ending in <code>&lt;eos&gt;</code>.</p>
-        <pre class="code" style="margin:0;"><code><span class="tok-c"># target  : "die katze sitzt"           ← truth</span>
-<span class="tok-c"># dec_in  : "&lt;sos&gt; die katze sitzt"     ← shifted right (input)</span>
-<span class="tok-c"># labels  : "die katze sitzt &lt;eos&gt;"     ← what we predict</span></code></pre>
+        <p style="margin:0 0 6px;">训练时解码器看到以 <code>&lt;sos&gt;</code> 为前缀的目标序列，
+          预测以 <code>&lt;eos&gt;</code> 结尾的同一目标序列。</p>
+        <pre class="code" style="margin:0;"><code><span class="tok-c"># target  : "die katze sitzt"           ← 真实标签</span>
+<span class="tok-c"># dec_in  : "&lt;sos&gt; die katze sitzt"     ← 右移（解码器输入）</span>
+<span class="tok-c"># labels  : "die katze sitzt &lt;eos&gt;"     ← 需要预测的内容</span></code></pre>
       </div>
     </div>
   </div>
 
-  <h2>Stage 17 · Decoder input → embedding</h2>
+  <h2>阶段 17 · 解码器输入 → 嵌入</h2>
   <div class="card">
     <div class="card-body">
       <div class="legend">
@@ -1329,49 +1373,49 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
     </div>
   </div>
 
-  <h2>Stage 19 · Masked self-attention <span style="color: var(--muted); font-weight:400; font-size:14px;">(causal mask)</span></h2>
+  <h2>阶段 19 · 掩码自注意力 <span style="color: var(--muted); font-weight:400; font-size:14px;">（因果掩码）</span></h2>
   <div class="card">
     <div class="card-body">
-      <p style="margin:0 0 8px;">Identical to encoder self-attn — except the score matrix gets
-        <em>−∞</em> stamped on every position above the diagonal so position <code>i</code> can
-        never look at <code>i+1, i+2, ...</code>. After softmax those positions become exactly 0.</p>
+      <p style="margin:0 0 8px;">与编码器自注意力完全相同——只是得分矩阵对角线以上的每个位置都被标记为
+        <em>−∞</em>，使得位置 <code>i</code> 无法查看 <code>i+1, i+2, ...</code>。
+        经 softmax 后这些位置精确变为 0。</p>
       <pre class="code"><code><span class="tok-c"># scores: [B, h, T_tgt, T_tgt] = [2, 8, 7, 7]</span>
 mask = torch.<span class="tok-f">triu</span>(torch.<span class="tok-f">ones</span>(T_tgt, T_tgt), diagonal=<span class="tok-n">1</span>).<span class="tok-f">bool</span>()
 scores = scores.<span class="tok-f">masked_fill</span>(mask, <span class="tok-k">float</span>(<span class="tok-s">'-inf'</span>))
-A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)        <span class="tok-c"># lower triangle, rows sum to 1</span></code></pre>
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)        <span class="tok-c"># 下三角，每行之和为 1</span></code></pre>
       <div class="legend" style="margin-top:8px;">
         <span class="pill"><span class="dot" style="background: var(--dim-h)"></span>[B, h, T_tgt, T_tgt]</span>
         <span style="color: var(--muted);">= [2, 8, 7, 7]</span>
-        <span style="color: var(--muted); margin-left:auto;">upper-triangle = 0 after softmax</span>
+        <span style="color: var(--muted); margin-left:auto;">softmax 后上三角 = 0</span>
       </div>
     </div>
   </div>
 
-  <h2>Stage 20 · Cross-attention <span style="color: var(--muted); font-weight:400; font-size:14px;">(Q ← decoder, K, V ← encoder)</span></h2>
+  <h2>阶段 20 · 交叉注意力 <span style="color: var(--muted); font-weight:400; font-size:14px;">（Q ← 解码器，K、V ← 编码器）</span></h2>
   <div class="card">
     <div class="card-body">
-      <p style="margin:0 0 8px;">This is where the encoder finally talks to the decoder. The decoder
-        emits queries; the encoder output supplies keys and values.</p>
-      <pre class="code"><code><span class="tok-c"># dec_x: [B, T_tgt, d_model] = [2, 7, 512]   ← from masked self-attn</span>
-<span class="tok-c"># memory: [B, T_src, d_model] = [2, 8, 512]  ← encoder output (stage 16)</span>
+      <p style="margin:0 0 8px;">这是编码器最终与解码器"对话"的地方。解码器发出 query；
+        编码器输出提供 key 和 value。</p>
+      <pre class="code"><code><span class="tok-c"># dec_x: [B, T_tgt, d_model] = [2, 7, 512]   ← 来自掩码自注意力</span>
+<span class="tok-c"># memory: [B, T_src, d_model] = [2, 8, 512]  ← 编码器输出（阶段 16）</span>
 Q = W_q(dec_x).<span class="tok-f">view</span>(B, T_tgt, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_tgt, d_k]</span>
 K = W_k(memory).<span class="tok-f">view</span>(B, T_src, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_src, d_k]</span>
 V = W_v(memory).<span class="tok-f">view</span>(B, T_src, h, d_k).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>)   <span class="tok-c"># [B, h, T_src, d_k]</span>
 scores = Q @ K.<span class="tok-f">transpose</span>(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>) / math.<span class="tok-f">sqrt</span>(d_k)         <span class="tok-c"># [B, h, T_tgt, T_src] = [2, 8, 7, 8]</span>
-A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)                              <span class="tok-c"># last axis is T_src</span>
+A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</span>)                              <span class="tok-c"># 最后一轴为 T_src</span>
 out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>, <span class="tok-n">2</span>).<span class="tok-f">reshape</span>(B, T_tgt, d_model) <span class="tok-c"># [2, 7, 512]</span></code></pre>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        Crucially: the score matrix is <em>not square</em>. It is
-        <code>[B, h, T_tgt, T_src]</code> — every target token attends over every source token.
+        关键点：得分矩阵<em>不是方阵</em>。它的形状是
+        <code>[B, h, T_tgt, T_src]</code>——每个目标 token 都关注每个源 token。
       </p>
     </div>
   </div>
 
-  <h2>The decoder block in 16 lines</h2>
+  <h2>16 行实现完整解码器块</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">DecoderBlock — minimal PyTorch</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">DecoderBlock — 最小化 PyTorch 实现</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
     </div>
     <pre class="code"><code><span class="tok-k">class</span> <span class="tok-f">DecoderBlock</span>(nn.Module):
     <span class="tok-k">def</span> <span class="tok-f">__init__</span>(self, d=<span class="tok-n">512</span>, h=<span class="tok-n">8</span>, d_ff=<span class="tok-n">2048</span>):
@@ -1382,7 +1426,7 @@ out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>,
         self.ln1, self.ln2, self.ln3 = nn.<span class="tok-f">LayerNorm</span>(d), nn.<span class="tok-f">LayerNorm</span>(d), nn.<span class="tok-f">LayerNorm</span>(d)
 
     <span class="tok-k">def</span> <span class="tok-f">forward</span>(self, x, memory, causal_mask):
-        <span class="tok-c"># x:      [B, T_tgt, d]      memory: [B, T_src, d]</span>
+        <span class="tok-c"># x:      [B, T_tgt, d]      memory: [B, T_src, d]（编码器输出）</span>
         a, _ = self.<span class="tok-f">self_attn</span>(x, x, x, attn_mask=causal_mask)
         x = self.<span class="tok-f">ln1</span>(x + a)                 <span class="tok-c"># [B, T_tgt, d]</span>
         c, _ = self.<span class="tok-f">cross_attn</span>(x, memory, memory)
@@ -1392,22 +1436,21 @@ out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>,
   </div>
 
   <p style="color: var(--muted); margin-top: 14px;">
-    Output of the decoder stack (after 6 of these): <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
-    = <code>[2, 7, 512]</code>. Next stop: project to vocabulary.
+    解码器栈的输出（经过 6 个这样的块之后）：<span class="pill"><span class="dot" style="background: var(--dim-d)"></span>[B, T_tgt, d_model]</span>
+    = <code>[2, 7, 512]</code>。下一步：投影到词表。
   </p>
 </section>
 
 <!-- ========================= OUTPUT &rarr; LOGITS ========================= -->
 <section class="tab-section" id="tab-output">
-  <h1>Stages 22–23 · From hidden state to logits</h1>
+  <h1>阶段 22–23 · 从隐状态到 logits</h1>
   <p class="lead">
-    A single <code>nn.Linear(d_model, V)</code> turns each per-token hidden vector into a score for
-    every word in the vocabulary. Softmax along the last axis turns those scores into probabilities.
-    That's the entire output head. In the paper, <code>W_lm</code> is <em>tied</em> to the input
-    embedding matrix — same parameters, transposed.
+    一个 <code>nn.Linear(d_model, V)</code> 将每个 token 的隐状态向量转化为词表中每个词的得分。
+    沿最后一轴的 softmax 将这些得分转为概率。这就是完整的输出头。
+    论文中 <code>W_lm</code> 与输入嵌入矩阵<em>共享参数</em>——参数相同，转置使用。
   </p>
 
-  <h2>Stage 22 · Linear projection to vocabulary</h2>
+  <h2>阶段 22 · 线性投影到词表</h2>
   <div class="card">
     <div class="card-body">
       <div class="legend">
@@ -1417,51 +1460,50 @@ out = (A @ V).<span class="tok-f">transpose</span>(<span class="tok-n">1</span>,
         <span style="color: var(--muted);">= [2, 7, 37000]</span>
       </div>
       <pre class="code" style="margin-top:10px;"><code><span class="tok-c"># dec_out: [B, T_tgt, d_model]</span>
-<span class="tok-c"># W_lm:    [V, d_model]   ← often tied to embed.weight</span>
+<span class="tok-c"># W_lm:    [V, d_model]   ← 通常与 embed.weight 共享参数</span>
 logits = dec_out @ W_lm.<span class="tok-f">T</span>           <span class="tok-c"># [B, T_tgt, V]</span>
-<span class="tok-c"># or simply:</span>
+<span class="tok-c"># 或简单地：</span>
 logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-c"># nn.Linear(d_model, V)</span></code></pre>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        These are <strong>raw scores</strong> — one per vocabulary token, per position, per example.
-        Not probabilities yet. Don't softmax them if your loss is <code>CrossEntropyLoss</code>;
-        it does that internally for numerical stability.
+        这些是<strong>原始得分</strong>——每个词表 token、每个位置、每个样本各一个。
+        尚不是概率。如果损失函数是 <code>CrossEntropyLoss</code>，不要对它们做 softmax；
+        该函数内部会处理以保持数值稳定性。
       </p>
     </div>
   </div>
 
-  <h2>Stage 23 · Softmax → probabilities <span style="color: var(--muted); font-weight:400; font-size:14px;">(only when you actually need them)</span></h2>
+  <h2>阶段 23 · Softmax → 概率 <span style="color: var(--muted); font-weight:400; font-size:14px;">（仅在真正需要时使用）</span></h2>
   <div class="card">
     <div class="card-body">
-      <pre class="code" style="margin:0;"><code>probs = F.<span class="tok-f">softmax</span>(logits, dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B, T_tgt, V] — rows over V sum to 1</span></code></pre>
+      <pre class="code" style="margin:0;"><code>probs = F.<span class="tok-f">softmax</span>(logits, dim=-<span class="tok-n">1</span>)   <span class="tok-c"># [B, T_tgt, V] — V 轴上每行之和为 1</span></code></pre>
       <p style="margin:8px 0 0;">
-        At each of the <code>B·T_tgt</code> positions you now have a distribution over the entire
-        vocabulary. <em>Most of those 37,000 numbers are tiny.</em> A handful concentrate near the
-        right answer.
+        在 <code>B·T_tgt</code> 个位置的每一处，你现在都有一个覆盖整个词表的分布。
+        <em>这 37000 个数字中大多数都非常微小。</em>只有少数集中在正确答案附近。
       </p>
     </div>
   </div>
 
-  <h2>Parameter count of the output head</h2>
+  <h2>输出头的参数量</h2>
   <div class="card">
     <div class="card-body">
       <p style="margin:0;">
-        <code>W_lm</code> alone is <code>V × d_model = 37000 × 512 ≈ 19M parameters</code> —
-        usually the single largest weight in the model. The paper ties it to the input embedding
-        matrix, halving the weight memory and (empirically) helping generalization.
+        仅 <code>W_lm</code> 就有 <code>V × d_model = 37000 × 512 ≈ 1900万参数</code> ——
+        通常是模型中单个最大的权重。论文将它与输入嵌入矩阵共享参数，
+        将权重内存减半，且实验上有助于泛化。
       </p>
     </div>
   </div>
 
-  <h2>The full forward, end-to-end</h2>
+  <h2>端到端完整前向传播</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">Transformer.forward — paper-faithful</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">Transformer.forward — 忠于论文的实现</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
     </div>
     <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">forward</span>(self, src_ids, tgt_in_ids):
     <span class="tok-c"># src_ids:    [B, T_src]   tgt_in_ids: [B, T_tgt]</span>
-    src = self.<span class="tok-f">src_embed</span>(src_ids) + self.<span class="tok-f">pos</span>(src_ids)        <span class="tok-c"># [B, T_src, d]</span>
-    tgt = self.<span class="tok-f">tgt_embed</span>(tgt_in_ids) + self.<span class="tok-f">pos</span>(tgt_in_ids)    <span class="tok-c"># [B, T_tgt, d]</span>
+    src = self.<span class="tok-f">src_embed</span>(src_ids) + self.<span class="tok-f">pos</span>(src_ids)        <span class="tok-c"># [B, T_src, d]（源嵌入+位置）</span>
+    tgt = self.<span class="tok-f">tgt_embed</span>(tgt_in_ids) + self.<span class="tok-f">pos</span>(tgt_in_ids)    <span class="tok-c"># [B, T_tgt, d]（目标嵌入+位置）</span>
 
     memory = src
     <span class="tok-k">for</span> layer <span class="tok-k">in</span> self.encoder_layers:
@@ -1479,41 +1521,40 @@ logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-
 
 <!-- ========================= TRAINING ========================= -->
 <section class="tab-section" id="tab-training">
-  <h1>Training — the whole paper, one step</h1>
+  <h1>训练 — 整篇论文，一个步骤</h1>
   <p class="lead">
-    A single training step on a batch of <em>(source, target)</em> string pairs. We tokenize
-    both, build the encoder &amp; decoder inputs, run the full transformer (embeds → positional →
-    6 encoder layers → 6 decoder layers → linear head), compute cross-entropy against the
-    shifted-right labels, backprop, and take an optimizer step. <strong>Initial input: a list
-    of string pairs. Final output: a scalar loss + updated parameters.</strong>
+    对一批<em>（源, 目标）</em>字符串对执行单个训练步骤。我们对两者分词，
+    构建编码器和解码器输入，运行完整的 Transformer（嵌入 → 位置编码 →
+    6 个编码器层 → 6 个解码器层 → 线性头），对右移标签计算交叉熵，反向传播，执行优化器更新。
+    <strong>初始输入：字符串对列表。最终输出：标量损失 + 更新后的参数。</strong>
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">paper config (still — held fixed across all stages)</div></div>
+    <div class="card-head"><div class="card-title">论文配置（沿用——跨所有阶段固定）</div></div>
     <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
       <div>B = <b style="color: var(--dim-b)">2</b>, T_src = <b style="color: var(--dim-t)">8</b>, T_tgt = <b style="color: var(--dim-t)">7</b>, d_model = <b style="color: var(--dim-d)">512</b>, h = <b style="color: var(--dim-h)">8</b>, d_k = <b style="color: var(--dim-k)">64</b>, d_ff = <b style="color: var(--dim-ff)">2048</b>, V = <b style="color: var(--accent-2)">37000</b>, N = <b>6</b></div>
-      <div style="color: var(--muted); margin-top: 4px;">tokens shown: &lt;sos&gt;=1, &lt;eos&gt;=2, &lt;pad&gt;=0; English/German IDs are illustrative.</div>
+      <div style="color: var(--muted); margin-top: 4px;">token 示例：&lt;sos&gt;=1, &lt;eos&gt;=2, &lt;pad&gt;=0；英/德 ID 仅作示意。</div>
     </div>
   </div>
 
-  <h2>Step 1 · Initial input — raw strings <span style="color: var(--muted); font-weight:400; font-size:14px;">(no tensor yet)</span></h2>
+  <h2>步骤 1 · 初始输入 — 原始字符串 <span style="color: var(--muted); font-weight:400; font-size:14px;">（还没有张量）</span></h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">a batch of B=2 (src, tgt) pairs</div>
+      <div class="card-title">B=2 对（源, 目标）组成的批次</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>list[(str, str)], len = B</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
           <pre class="code"><code>batch = [
   (<span class="tok-s">"the cat sat"</span>, <span class="tok-s">"die katze sitzt"</span>),
   (<span class="tok-s">"i love you"</span>,  <span class="tok-s">"ich liebe dich"</span>),
 ]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code><span class="tok-c"># nothing yet — pure Python strings</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
+          <pre class="code"><code><span class="tok-c"># 尚无张量——纯 Python 字符串</span>
 <span class="tok-f">type</span>(batch)        <span class="tok-c"># list</span>
 <span class="tok-f">len</span>(batch)         <span class="tok-c"># 2  (= B)</span></code></pre>
         </div>
@@ -1521,25 +1562,25 @@ logits = self.<span class="tok-f">lm_head</span>(dec_out)      <span class="tok-
     </div>
   </div>
 
-  <h2>Step 2 · Tokenize source — strings → integer IDs</h2>
+  <h2>步骤 2 · 分词源序列 — 字符串 → 整数 ID</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">BPE tokenizer · pad to T_src</div>
+      <div class="card-title">BPE 分词器 · 填充至 T_src</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_src)</span>
       <span class="pill" style="margin-left:6px;">[2, 8] int64</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># each row: &lt;sos&gt;, words..., &lt;eos&gt;, &lt;pad&gt;...</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
+          <pre class="code"><code><span class="tok-c"># 每行：&lt;sos&gt;, 词..., &lt;eos&gt;, &lt;pad&gt;...</span>
 src_ids = [
   [<span class="tok-n">1</span>, <span class="tok-n">1996</span>, <span class="tok-n">4937</span>, <span class="tok-n">2938</span>, <span class="tok-n">2</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
   [<span class="tok-n">1</span>, <span class="tok-n">1045</span>, <span class="tok-n">2293</span>, <span class="tok-n">2017</span>, <span class="tok-n">2</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
 ]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
           <pre class="code"><code>src_ids = torch.<span class="tok-f">tensor</span>(src_ids)
 src_ids.shape   <span class="tok-c"># torch.Size([2, 8])  = (B, T_src)</span>
 src_ids.dtype   <span class="tok-c"># torch.int64</span></code></pre>
@@ -1548,63 +1589,62 @@ src_ids.dtype   <span class="tok-c"># torch.int64</span></code></pre>
     </div>
   </div>
 
-  <h2>Step 3 · Tokenize target — and shift right</h2>
+  <h2>步骤 3 · 分词目标序列 — 并右移</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">decoder input vs. labels</div>
+      <div class="card-title">解码器输入 vs. 标签</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>dec_in: (B, T_tgt) · labels: (B, T_tgt)</span>
     </div>
     <div class="card-body">
       <p style="margin: 0 0 8px;">
-        The decoder is trained to predict <em>each next token</em>. So <code>dec_in</code> is the
-        target prefixed with <code>&lt;sos&gt;</code> and <code>labels</code> is the same target
-        ending in <code>&lt;eos&gt;</code>. Position <code>i</code> of <code>dec_in</code> must
-        predict position <code>i</code> of <code>labels</code>.
+        解码器被训练为预测<em>每个下一个 token</em>。因此 <code>dec_in</code> 是
+        以 <code>&lt;sos&gt;</code> 为前缀的目标序列，<code>labels</code> 是以 <code>&lt;eos&gt;</code> 结尾的同一目标序列。
+        <code>dec_in</code> 的位置 <code>i</code> 必须预测 <code>labels</code> 的位置 <code>i</code>。
       </p>
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># dec_in: prepend &lt;sos&gt;, drop final &lt;eos&gt;</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
+          <pre class="code"><code><span class="tok-c"># dec_in：前置 &lt;sos&gt;，去掉末尾 &lt;eos&gt;</span>
 dec_in = [
   [<span class="tok-n">1</span>, <span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
   [<span class="tok-n">1</span>, <span class="tok-n">1156</span>, <span class="tok-n">4502</span>, <span class="tok-n">3299</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>, <span class="tok-n">0</span>],
 ]
-<span class="tok-c"># labels: drop &lt;sos&gt;, append &lt;eos&gt;, pad with -100</span>
+<span class="tok-c"># labels：去掉 &lt;sos&gt;，追加 &lt;eos&gt;，用 -100 填充</span>
 labels = [
   [<span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>, <span class="tok-n">2</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>],
   [<span class="tok-n">1156</span>, <span class="tok-n">4502</span>, <span class="tok-n">3299</span>, <span class="tok-n">2</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>, -<span class="tok-n">100</span>],
 ]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
           <pre class="code"><code>dec_in.shape    <span class="tok-c"># (2, 7) = (B, T_tgt)</span>
 labels.shape    <span class="tok-c"># (2, 7) = (B, T_tgt)</span>
-<span class="tok-c"># -100 is the default ignore_index for CE</span>
-<span class="tok-c"># so padding contributes nothing to the loss</span></code></pre>
+<span class="tok-c"># -100 是 CE 的默认 ignore_index</span>
+<span class="tok-c"># 填充位置对损失没有贡献</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 4 · Source embedding lookup <span style="color: var(--muted); font-weight:400; font-size:14px;">(× √d_model, per the paper)</span></h2>
+  <h2>步骤 4 · 源嵌入查找 <span style="color: var(--muted); font-weight:400; font-size:14px;">（× √d_model，论文要求）</span></h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">int IDs → dense vectors</div>
+      <div class="card-title">整数 ID → 稠密向量</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 8, 512]</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">代码</h4>
           <pre class="code"><code>src = src_embed(src_ids) * math.<span class="tok-f">sqrt</span>(d_model)
-<span class="tok-c"># src_embed: nn.Embedding(V, d_model)</span></code></pre>
+<span class="tok-c"># src_embed: nn.Embedding(V, d_model)（词表大小, 嵌入维度）</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
           <pre class="code"><code>src.shape       <span class="tok-c"># (2, 8, 512)</span>
 src.dtype       <span class="tok-c"># torch.float32</span>
-<span class="tok-c"># src[0, 0, :5] e.g. tensor([ 0.31, -0.07, ...])</span></code></pre>
+<span class="tok-c"># src[0, 0, :5] 例如 tensor([ 0.31, -0.07, ...])</span></code></pre>
         </div>
       </div>
     </div>
@@ -1614,36 +1654,36 @@ src.dtype       <span class="tok-c"># torch.float32</span>
   <div class="card">
     <div class="card-head">
       <div class="card-title">PE(pos, 2i) = sin(pos / 10000<sup>2i/d</sup>) · PE(pos, 2i+1) = cos(...)</div>
-      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model) — same shape</span>
+      <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model) — 形状不变</span>
     </div>
     <div class="card-body">
-      <pre class="code" style="margin:0;"><code>src = src + pe[:T_src]              <span class="tok-c"># pe: precomputed [max_len, d_model]</span></code></pre>
+      <pre class="code" style="margin:0;"><code>src = src + pe[:T_src]              <span class="tok-c"># pe：预计算的 [max_len, d_model]</span></code></pre>
     </div>
   </div>
 
-  <h2>Step 6 · Encoder — N=6 layers → memory</h2>
+  <h2>步骤 6 · 编码器 — N=6 层 → memory</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">each layer: MHA → add+LN → FFN → add+LN</div>
+      <div class="card-title">每层：MHA → add+LN → FFN → add+LN</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 8, 512]</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0 0 8px;"><code>memory = src
-<span class="tok-k">for</span> layer <span class="tok-k">in</span> encoder_layers:    <span class="tok-c"># 6 of them</span>
-    memory = <span class="tok-f">layer</span>(memory)       <span class="tok-c"># [2, 8, 512] in, [2, 8, 512] out</span></code></pre>
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> encoder_layers:    <span class="tok-c"># 共 6 层</span>
+    memory = <span class="tok-f">layer</span>(memory)       <span class="tok-c"># 输入 [2, 8, 512]，输出 [2, 8, 512]</span></code></pre>
       <p style="margin:0; color: var(--muted); font-size: 13px;">
-        Inside each layer: <code>x = LN(x + MHA(x,x,x))</code> then <code>x = LN(x + FFN(x))</code>.
-        Shapes: <code>[B, T_src, d_model]</code> in and out, scratch goes through <code>[B, h, T_src, d_k]</code>
-        and <code>[B, T_src, d_ff]</code>.
+        每层内部：<code>x = LN(x + MHA(x,x,x))</code>，然后 <code>x = LN(x + FFN(x))</code>。
+        形状：<code>[B, T_src, d_model]</code> 输入输出，中间经过 <code>[B, h, T_src, d_k]</code>
+        和 <code>[B, T_src, d_ff]</code>。
       </p>
     </div>
   </div>
 
-  <h2>Step 7 · Target embedding + positional encoding</h2>
+  <h2>步骤 7 · 目标嵌入 + 位置编码</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">decoder input pipeline</div>
+      <div class="card-title">解码器输入流水线</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_tgt, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 7, 512]</span>
     </div>
@@ -1653,125 +1693,125 @@ tgt = tgt + pe[:T_tgt]              <span class="tok-c"># [2, 7, 512]</span></co
     </div>
   </div>
 
-  <h2>Step 8 · Decoder — N=6 layers (causal mask + cross-attn)</h2>
+  <h2>步骤 8 · 解码器 — N=6 层（因果掩码 + 交叉注意力）</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">each layer: masked-MHA → cross-MHA(memory) → FFN, all with add+LN</div>
+      <div class="card-title">每层：masked-MHA → cross-MHA(memory) → FFN，全部带 add+LN</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_tgt, d_model)</span>
       <span class="pill" style="margin-left:6px;">[2, 7, 512]</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0;"><code>causal = torch.<span class="tok-f">triu</span>(torch.<span class="tok-f">ones</span>(T_tgt, T_tgt), diagonal=<span class="tok-n">1</span>).<span class="tok-f">bool</span>()
 x = tgt
-<span class="tok-k">for</span> layer <span class="tok-k">in</span> decoder_layers:    <span class="tok-c"># 6 of them</span>
+<span class="tok-k">for</span> layer <span class="tok-k">in</span> decoder_layers:    <span class="tok-c"># 共 6 层</span>
     x = <span class="tok-f">layer</span>(x, memory, causal)       <span class="tok-c"># [2, 7, 512]</span></code></pre>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        Inner shapes: masked-attn scores <code>[2, 8, 7, 7]</code>; cross-attn scores
-        <code>[2, 8, 7, 8]</code> (T_tgt × T_src — non-square!); FFN scratch <code>[2, 7, 2048]</code>.
+        内部形状：掩码注意力得分 <code>[2, 8, 7, 7]</code>；交叉注意力得分
+        <code>[2, 8, 7, 8]</code>（T_tgt × T_src——非方阵！）；FFN 中间 <code>[2, 7, 2048]</code>。
       </p>
     </div>
   </div>
 
-  <h2>Step 9 · LM head — project to vocabulary</h2>
+  <h2>步骤 9 · LM 头 — 投影到词表</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">linear: d_model → V (often weight-tied to tgt_embed)</div>
+      <div class="card-title">线性层：d_model → V（通常与 tgt_embed 共享参数）</div>
       <span class="pill"><span class="dot" style="background: var(--accent-2)"></span>(B, T_tgt, V)</span>
       <span class="pill" style="margin-left:6px;">[2, 7, 37000]</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">代码</h4>
           <pre class="code"><code>logits = lm_head(x)
 <span class="tok-c"># lm_head: nn.Linear(d_model, V, bias=False)</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
           <pre class="code"><code>logits.shape    <span class="tok-c"># (2, 7, 37000)</span>
 logits.dtype    <span class="tok-c"># float32</span>
-<span class="tok-c"># raw scores — NOT softmaxed yet</span></code></pre>
+<span class="tok-c"># 原始得分——尚未做 softmax</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 10 · Cross-entropy loss</h2>
+  <h2>步骤 10 · 交叉熵损失</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">flatten the batch · padding ignored via -100</div>
-      <span class="pill">scalar</span>
+      <div class="card-title">展平批次 · 用 -100 忽略填充位</div>
+      <span class="pill">标量</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">code</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">代码</h4>
           <pre class="code"><code>loss = F.<span class="tok-f">cross_entropy</span>(
     logits.<span class="tok-f">view</span>(-<span class="tok-n">1</span>, V),    <span class="tok-c"># [B*T_tgt, V] = [14, 37000]</span>
     labels.<span class="tok-f">view</span>(-<span class="tok-n">1</span>),       <span class="tok-c"># [B*T_tgt] = [14]</span>
     ignore_index=-<span class="tok-n">100</span>,
-    label_smoothing=<span class="tok-n">0.1</span>     <span class="tok-c"># paper §5.4</span>
+    label_smoothing=<span class="tok-n">0.1</span>     <span class="tok-c"># 论文 §5.4</span>
 )</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code>loss.shape          <span class="tok-c"># torch.Size([])  — 0-dim scalar</span>
-loss.<span class="tok-f">item</span>()          <span class="tok-c"># e.g. 6.93</span>
-<span class="tok-c"># ∂L/∂logits = (P − Y) — see softmax-ce.html</span></code></pre>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
+          <pre class="code"><code>loss.shape          <span class="tok-c"># torch.Size([])  — 0 维标量</span>
+loss.<span class="tok-f">item</span>()          <span class="tok-c"># 例如 6.93</span>
+<span class="tok-c"># ∂L/∂logits = (P − Y) — 详见 softmax-ce.html</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>Step 11 · Backward + optimizer step</h2>
+  <h2>步骤 11 · 反向传播 + 优化器更新</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">∂L flows back through every parameter</div>
-      <span class="pill">scalar in, ~65M parameters updated</span>
+      <div class="card-title">∂L 反向流经每个参数</div>
+      <span class="pill">标量输入，约 6500万参数更新</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0 0 8px;"><code>optimizer.<span class="tok-f">zero_grad</span>()
-loss.<span class="tok-f">backward</span>()           <span class="tok-c"># autograd walks: loss → logits → lm_head → 6 dec → 6 enc → embeds</span>
-optimizer.<span class="tok-f">step</span>()         <span class="tok-c"># Adam, β₁=0.9, β₂=0.98, ε=1e-9, with warmup (paper §5.3)</span></code></pre>
+loss.<span class="tok-f">backward</span>()           <span class="tok-c"># autograd 路径：loss → logits → lm_head → 6 解码器层 → 6 编码器层 → 嵌入</span>
+optimizer.<span class="tok-f">step</span>()         <span class="tok-c"># Adam, β₁=0.9, β₂=0.98, ε=1e-9，带预热（论文 §5.3）</span></code></pre>
       <p style="margin:0; color: var(--muted); font-size: 13px;">
-        Every weight tensor — <code>src_embed.weight</code>, <code>tgt_embed.weight</code>,
-        all 6+6 layers' Q/K/V/O/FFN/LN params, <code>lm_head.weight</code> — receives
-        <code>.grad</code> with the same shape as itself, then gets nudged by the optimizer.
+        每个权重张量——<code>src_embed.weight</code>、<code>tgt_embed.weight</code>、
+        所有 6+6 层的 Q/K/V/O/FFN/LN 参数、<code>lm_head.weight</code>——
+        都会收到与自身形状相同的 <code>.grad</code>，然后由优化器进行调整。
       </p>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Final output of the training step</h2>
+  <h2 style="color: var(--accent);">训练步骤的最终输出</h2>
   <div class="card">
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># 1) a scalar to log</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
+          <pre class="code"><code><span class="tok-c"># 1) 用于记录的标量</span>
 loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
 
-<span class="tok-c"># 2) updated weights (in-place)</span>
-<span class="tok-c"># every parameter has been nudged</span></code></pre>
+<span class="tok-c"># 2) 就地更新的权重</span>
+<span class="tok-c"># 每个参数都已被微调</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
           <pre class="code"><code>loss            <span class="tok-c"># tensor(6.93)  shape=()</span>
-<span class="tok-c"># model state has changed; no new tensor returned</span></code></pre>
+<span class="tok-c"># 模型状态已改变；没有新张量被返回</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>The whole training step in one shot</h2>
+  <h2>一次完整训练步骤</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">train_step — paper-faithful, ~20 lines</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">train_step — 忠于论文，约 20 行</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
     </div>
     <pre class="code"><code><span class="tok-k">def</span> <span class="tok-f">train_step</span>(model, optimizer, batch):
-    <span class="tok-c"># batch: list[(src_str, tgt_str)] of length B</span>
+    <span class="tok-c"># batch: list[(src_str, tgt_str)]，长度为 B</span>
     src_ids = <span class="tok-f">tokenize_src</span>(batch)         <span class="tok-c"># [B, T_src]    int64</span>
-    dec_in, labels = <span class="tok-f">tokenize_tgt</span>(batch)  <span class="tok-c"># [B, T_tgt] each</span>
+    dec_in, labels = <span class="tok-f">tokenize_tgt</span>(batch)  <span class="tok-c"># [B, T_tgt] 各一个</span>
 
     src = model.<span class="tok-f">src_embed</span>(src_ids)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(src_ids)
     tgt = model.<span class="tok-f">tgt_embed</span>(dec_in)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(dec_in)
@@ -1789,40 +1829,40 @@ loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
         ignore_index=-<span class="tok-n">100</span>, label_smoothing=<span class="tok-n">0.1</span>)
 
     optimizer.<span class="tok-f">zero_grad</span>(); loss.<span class="tok-f">backward</span>(); optimizer.<span class="tok-f">step</span>()
-    <span class="tok-k">return</span> loss.<span class="tok-f">item</span>()                     <span class="tok-c"># scalar</span></code></pre>
+    <span class="tok-k">return</span> loss.<span class="tok-f">item</span>()                     <span class="tok-c"># 标量</span></code></pre>
   </div>
 
   <p style="color: var(--muted); margin-top: 14px;">
-    <strong>Summary of shapes during one training step:</strong>
-    raw strings (B) →
+    <strong>一个训练步骤中的形状摘要：</strong>
+    原始字符串（B）→
     <span class="pill">[B, T_src]</span> →
     <span class="pill">[B, T_src, d]</span> →
     <span class="pill">[B, T_tgt, d]</span> →
-    <span class="pill">[B, T_tgt, V]</span> → scalar loss → ∂L/∂θ on every param.
+    <span class="pill">[B, T_tgt, V]</span> → 标量损失 → ∂L/∂θ 作用于每个参数。
   </p>
 </section>
 
 <!-- ========================= INFERENCE ========================= -->
 <section class="tab-section" id="tab-inference">
-  <h1>Inference — generating one translation</h1>
+  <h1>推理 — 生成一个翻译</h1>
   <p class="lead">
-    At test time we have a single source string (B=1 in this walkthrough). We tokenize, run the
-    encoder <em>once</em> to get <code>memory</code>, then loop: <em>decode → take the last
-    position's logits → pick a token → append it</em>. Repeat until <code>&lt;eos&gt;</code> or
-    a max length. <strong>Initial input: a string. Final output: a string.</strong>
+    测试时只有一条源字符串（本示例 B=1）。我们分词，<em>运行一次</em>编码器得到 <code>memory</code>，
+    然后循环：<em>解码 → 取最后位置的 logits → 选取一个 token → 追加它</em>。
+    重复直到 <code>&lt;eos&gt;</code> 或达到最大长度。
+    <strong>初始输入：字符串。最终输出：字符串。</strong>
   </p>
 
   <div class="card">
-    <div class="card-head"><div class="card-title">config for this walkthrough</div></div>
+    <div class="card-head"><div class="card-title">本示例配置</div></div>
     <div class="card-body" style="font-family: ui-monospace, monospace; font-size: 13px;">
-      <div>B = <b style="color: var(--dim-b)">1</b>, T_src = <b style="color: var(--dim-t)">5</b> (no padding needed for B=1), d_model = <b style="color: var(--dim-d)">512</b>, V = <b style="color: var(--accent-2)">37000</b>, max_len = <b>32</b></div>
-      <div style="color: var(--muted); margin-top: 4px;">No labels. No loss. <code>torch.no_grad()</code> wraps everything.</div>
+      <div>B = <b style="color: var(--dim-b)">1</b>, T_src = <b style="color: var(--dim-t)">5</b>（B=1 无需填充），d_model = <b style="color: var(--dim-d)">512</b>, V = <b style="color: var(--accent-2)">37000</b>, max_len = <b>32</b></div>
+      <div style="color: var(--muted); margin-top: 4px;">无标签。无损失。<code>torch.no_grad()</code> 包裹一切。</div>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Phase A — preprocess the source <em>once</em></h2>
+  <h2 style="color: var(--accent);">阶段 A — 预处理源序列（<em>仅一次</em>）</h2>
 
-  <h3>Step 1 · Initial input — one raw string</h3>
+  <h3>步骤 1 · 初始输入 — 一条原始字符串</h3>
   <div class="card">
     <div class="card-head">
       <div class="card-title">B = 1</div>
@@ -1831,33 +1871,33 @@ loss.<span class="tok-f">item</span>()        <span class="tok-c"># 6.93</span>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
           <pre class="code"><code>src_text = <span class="tok-s">"the cat sat"</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code><span class="tok-c"># nothing yet — pure Python str</span></code></pre>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
+          <pre class="code"><code><span class="tok-c"># 尚无张量——纯 Python str</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h3>Step 2 · Tokenize source</h3>
+  <h3>步骤 2 · 分词源序列</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">str → int IDs · wrap in batch dim</div>
+      <div class="card-title">str → 整数 ID · 增加批次维</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_src)</span>
       <span class="pill" style="margin-left:6px;">[1, 5] int64</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># &lt;sos&gt; the cat sat &lt;eos&gt;</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
+          <pre class="code"><code><span class="tok-c"># &lt;sos&gt; the cat sat &lt;eos&gt;（头尾添加特殊 token）</span>
 src_ids = [[<span class="tok-n">1</span>, <span class="tok-n">1996</span>, <span class="tok-n">4937</span>, <span class="tok-n">2938</span>, <span class="tok-n">2</span>]]</code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
           <pre class="code"><code>src_ids = torch.<span class="tok-f">tensor</span>(src_ids)
 src_ids.shape   <span class="tok-c"># (1, 5)</span></code></pre>
         </div>
@@ -1865,20 +1905,20 @@ src_ids.shape   <span class="tok-c"># (1, 5)</span></code></pre>
     </div>
   </div>
 
-  <h3>Step 3 · Source embed + positional</h3>
+  <h3>步骤 3 · 源嵌入 + 位置编码</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">int → dense vectors</div>
+      <div class="card-title">整数 → 稠密向量</div>
       <span class="pill"><span class="dot" style="background: var(--dim-d)"></span>(B, T_src, d_model)</span>
       <span class="pill" style="margin-left:6px;">[1, 5, 512]</span>
     </div>
     <div class="card-body">
       <pre class="code" style="margin:0;"><code>src = model.<span class="tok-f">src_embed</span>(src_ids) * math.<span class="tok-f">sqrt</span>(d_model)
-src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c"># [1, 5, 512]</span></code></pre>
+src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c"># [1, 5, 512]（嵌入+位置）</span></code></pre>
     </div>
   </div>
 
-  <h3>Step 4 · Encoder — N=6 layers → memory <em>(computed once, reused every loop step)</em></h3>
+  <h3>步骤 4 · 编码器 — N=6 层 → memory <em>（计算一次，每次循环复用）</em></h3>
   <div class="card">
     <div class="card-head">
       <div class="card-title">memory = encoder(src)</div>
@@ -1888,108 +1928,107 @@ src = src + pe[:<span class="tok-n">5</span>]              <span class="tok-c">#
     <div class="card-body">
       <pre class="code" style="margin:0;"><code>memory = src
 <span class="tok-k">for</span> layer <span class="tok-k">in</span> model.encoder_layers:
-    memory = <span class="tok-f">layer</span>(memory)        <span class="tok-c"># [1, 5, 512]</span></code></pre>
+    memory = <span class="tok-f">layer</span>(memory)        <span class="tok-c"># [1, 5, 512]（编码器输出）</span></code></pre>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Phase B — autoregressive decoding loop</h2>
+  <h2 style="color: var(--accent);">阶段 B — 自回归解码循环</h2>
 
-  <h3>Step 5 · Initialize decoder input with <code>&lt;sos&gt;</code></h3>
+  <h3>步骤 5 · 以 <code>&lt;sos&gt;</code> 初始化解码器输入</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">start with one token; T_tgt grows by 1 every step</div>
+      <div class="card-title">从一个 token 开始；每步 T_tgt 增长 1</div>
       <span class="pill"><span class="dot" style="background: var(--dim-b)"></span>(B, T_tgt=1)</span>
       <span class="pill" style="margin-left:6px;">[1, 1] int64</span>
     </div>
     <div class="card-body">
-      <pre class="code" style="margin:0;"><code>dec_in = torch.<span class="tok-f">tensor</span>([[<span class="tok-n">1</span>]])     <span class="tok-c"># &lt;sos&gt; — shape (1, 1)</span></code></pre>
+      <pre class="code" style="margin:0;"><code>dec_in = torch.<span class="tok-f">tensor</span>([[<span class="tok-n">1</span>]])     <span class="tok-c"># &lt;sos&gt; — 形状 (1, 1)</span></code></pre>
     </div>
   </div>
 
-  <h3>Steps 6–9 · Loop body — repeat until <code>&lt;eos&gt;</code> or <code>max_len</code></h3>
+  <h3>步骤 6–9 · 循环体 — 重复直到 <code>&lt;eos&gt;</code> 或 <code>max_len</code></h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">each pass grows T_tgt by exactly one</div>
+      <div class="card-title">每次迭代 T_tgt 恰好增长 1</div>
     </div>
     <div class="card-body">
       <table class="matrix-table">
-        <tr><th>#</th><th>operation</th><th>shape (B=1)</th><th>data (e.g. step t)</th></tr>
+        <tr><th>#</th><th>操作</th><th>形状（B=1）</th><th>数据（例如步骤 t）</th></tr>
         <tr><td>6</td><td>tgt_embed(dec_in) + pe[:t]</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
-        <tr><td>7</td><td>decoder × 6 (causal + cross-attn over memory)</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
-        <tr><td>8</td><td>lm_head → logits</td><td class="shape-cell">[1, t, V] = [1, t, 37000]</td><td><span style="color: var(--muted);">raw scores</span></td></tr>
-        <tr><td>9a</td><td>take last position only</td><td class="shape-cell">[1, V]</td><td><code>logits[:, -1, :]</code></td></tr>
-        <tr><td>9b</td><td>argmax (greedy) <em>or</em> multinomial(softmax/τ)</td><td class="shape-cell">[1]</td><td><code>next_id</code></td></tr>
-        <tr><td>9c</td><td>append: dec_in = cat(dec_in, next_id[:, None])</td><td class="shape-cell">[1, t+1]</td><td>grows by 1</td></tr>
+        <tr><td>7</td><td>解码器 × 6（因果 + memory 交叉注意力）</td><td class="shape-cell">[1, t, 512]</td><td><span style="color: var(--muted);">float</span></td></tr>
+        <tr><td>8</td><td>lm_head → logits</td><td class="shape-cell">[1, t, V] = [1, t, 37000]</td><td><span style="color: var(--muted);">原始得分</span></td></tr>
+        <tr><td>9a</td><td>仅取最后位置</td><td class="shape-cell">[1, V]</td><td><code>logits[:, -1, :]</code></td></tr>
+        <tr><td>9b</td><td>argmax（贪心）<em>或</em> multinomial(softmax/τ)</td><td class="shape-cell">[1]</td><td><code>next_id</code></td></tr>
+        <tr><td>9c</td><td>追加：dec_in = cat(dec_in, next_id[:, None])</td><td class="shape-cell">[1, t+1]</td><td>增长 1</td></tr>
       </table>
     </div>
   </div>
 
-  <h3>A concrete trace (greedy)</h3>
+  <h3>具体追踪（贪心）</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">how dec_in grows; what gets sampled</div>
+      <div class="card-title">dec_in 如何增长；采样到什么</div>
     </div>
     <div class="card-body">
       <table class="matrix-table">
-        <tr><th>step</th><th>dec_in (data)</th><th>dec_in.shape</th><th>last_logits.shape</th><th>argmax → token</th></tr>
+        <tr><th>步骤</th><th>dec_in（数据）</th><th>dec_in.shape</th><th>last_logits.shape</th><th>argmax → token</th></tr>
         <tr><td>t=1</td><td><code>[[1]]</code></td><td class="shape-cell">[1, 1]</td><td class="shape-cell">[1, 37000]</td><td><code>521</code> &nbsp;<em>"die"</em></td></tr>
         <tr><td>t=2</td><td><code>[[1, 521]]</code></td><td class="shape-cell">[1, 2]</td><td class="shape-cell">[1, 37000]</td><td><code>8901</code> &nbsp;<em>"katze"</em></td></tr>
         <tr><td>t=3</td><td><code>[[1, 521, 8901]]</code></td><td class="shape-cell">[1, 3]</td><td class="shape-cell">[1, 37000]</td><td><code>2334</code> &nbsp;<em>"sitzt"</em></td></tr>
-        <tr><td>t=4</td><td><code>[[1, 521, 8901, 2334]]</code></td><td class="shape-cell">[1, 4]</td><td class="shape-cell">[1, 37000]</td><td><code>2</code> &nbsp;<em>&lt;eos&gt;</em> — stop</td></tr>
+        <tr><td>t=4</td><td><code>[[1, 521, 8901, 2334]]</code></td><td class="shape-cell">[1, 4]</td><td class="shape-cell">[1, 37000]</td><td><code>2</code> &nbsp;<em>&lt;eos&gt;</em> — 停止</td></tr>
       </table>
       <p style="margin:8px 0 0; color: var(--muted); font-size: 13px;">
-        The encoder ran exactly once. The decoder ran four times. In a production decoder you'd
-        cache K and V from previous steps (KV cache) so each loop step only computes the new last
-        column instead of rebuilding the whole prefix.
+        编码器恰好运行了一次。解码器运行了四次。在生产级解码器中，你会缓存前几步的 K 和 V（KV cache），
+        这样每次循环只需计算新的最后一列，而不必重建整个前缀。
       </p>
     </div>
   </div>
 
-  <h3>Step 10 · Detokenize → final output string</h3>
+  <h3>步骤 10 · 反分词 → 最终输出字符串</h3>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">int IDs → string</div>
+      <div class="card-title">整数 ID → 字符串</div>
       <span class="pill">str</span>
     </div>
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
-          <pre class="code"><code><span class="tok-c"># strip &lt;sos&gt; and &lt;eos&gt;</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
+          <pre class="code"><code><span class="tok-c"># 去掉 &lt;sos&gt; 和 &lt;eos&gt;</span>
 out_ids  = [<span class="tok-n">521</span>, <span class="tok-n">8901</span>, <span class="tok-n">2334</span>]
 out_text = <span class="tok-s">"die katze sitzt"</span></code></pre>
         </div>
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">tensor</h4>
-          <pre class="code"><code>out_ids.shape    <span class="tok-c"># (1, 3) before detokenize</span>
+          <h4 style="margin:0 0 6px; color: var(--accent);">张量</h4>
+          <pre class="code"><code>out_ids.shape    <span class="tok-c"># 反分词前 (1, 3)</span>
 <span class="tok-f">type</span>(out_text)    <span class="tok-c"># str</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2 style="color: var(--accent);">Final output of inference</h2>
+  <h2 style="color: var(--accent);">推理的最终输出</h2>
   <div class="card">
     <div class="card-body">
       <div class="grid-2">
         <div>
-          <h4 style="margin:0 0 6px; color: var(--accent);">data</h4>
+          <h4 style="margin:0 0 6px; color: var(--accent);">数据</h4>
           <pre class="code"><code>out_text = <span class="tok-s">"die katze sitzt"</span></code></pre>
         </div>
         <div>
           <h4 style="margin:0 0 6px; color: var(--accent);">tensor (intermediate)</h4>
-          <pre class="code"><code><span class="tok-c"># the generated IDs before detokenize</span>
+          <pre class="code"><code><span class="tok-c"># 反分词前生成的 ID</span>
 generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code></pre>
         </div>
       </div>
     </div>
   </div>
 
-  <h2>The whole inference loop in one shot</h2>
+  <h2>一次完整推理循环</h2>
   <div class="card">
     <div class="card-head">
-      <div class="card-title">generate — greedy, ~20 lines</div>
-      <button class="copy-btn" onclick="copyCode(this)">copy</button>
+      <div class="card-title">generate — 贪心解码，约 20 行</div>
+      <button class="copy-btn" onclick="copyCode(this)">复制</button>
     </div>
     <pre class="code"><code><span class="tok-k">@torch.no_grad</span>()
 <span class="tok-k">def</span> <span class="tok-f">generate</span>(model, src_text, max_len=<span class="tok-n">32</span>):
@@ -2000,7 +2039,7 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
     <span class="tok-k">for</span> layer <span class="tok-k">in</span> model.encoder_layers:
         memory = <span class="tok-f">layer</span>(memory)                          <span class="tok-c"># [1, T_src, d]</span>
 
-    dec_in = torch.<span class="tok-f">tensor</span>([[SOS]])                         <span class="tok-c"># [1, 1]</span>
+    dec_in = torch.<span class="tok-f">tensor</span>([[SOS]])                         <span class="tok-c"># [1, 1]（以 &lt;sos&gt; 开始）</span>
     <span class="tok-k">for</span> _ <span class="tok-k">in</span> <span class="tok-f">range</span>(max_len):
         tgt = model.<span class="tok-f">tgt_embed</span>(dec_in)*math.<span class="tok-f">sqrt</span>(d) + model.<span class="tok-f">pos</span>(dec_in)
         causal = model.<span class="tok-f">causal_mask</span>(dec_in.shape[<span class="tok-n">1</span>])
@@ -2010,19 +2049,19 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
         logits = model.<span class="tok-f">lm_head</span>(x)                          <span class="tok-c"># [1, t, V]</span>
         next_id = logits[:, -<span class="tok-n">1</span>, :].<span class="tok-f">argmax</span>(-<span class="tok-n">1</span>, keepdim=<span class="tok-k">True</span>)
         <span class="tok-k">if</span> next_id.<span class="tok-f">item</span>() == EOS: <span class="tok-k">break</span>
-        dec_in = torch.<span class="tok-f">cat</span>([dec_in, next_id], dim=<span class="tok-n">1</span>)    <span class="tok-c"># [1, t+1]</span>
+        dec_in = torch.<span class="tok-f">cat</span>([dec_in, next_id], dim=<span class="tok-n">1</span>)    <span class="tok-c"># [1, t+1]（追加新 token）</span>
 
-    <span class="tok-k">return</span> <span class="tok-f">detokenize</span>(dec_in[<span class="tok-n">0</span>, <span class="tok-n">1</span>:].<span class="tok-f">tolist</span>())          <span class="tok-c"># str</span></code></pre>
+    <span class="tok-k">return</span> <span class="tok-f">detokenize</span>(dec_in[<span class="tok-n">0</span>, <span class="tok-n">1</span>:].<span class="tok-f">tolist</span>())          <span class="tok-c"># str（去掉 &lt;sos&gt;）</span></code></pre>
   </div>
 
   <p style="color: var(--muted); margin-top: 14px;">
-    <strong>Summary of shapes during inference:</strong>
-    raw string →
+    <strong>推理过程中的形状摘要：</strong>
+    原始字符串 →
     <span class="pill">[1, T_src]</span> →
-    <span class="pill">[1, T_src, d]</span> (memory, once) →
-    loop: <span class="pill">[1, t]</span> → <span class="pill">[1, t, d]</span> →
+    <span class="pill">[1, T_src, d]</span>（memory，仅一次）→
+    循环：<span class="pill">[1, t]</span> → <span class="pill">[1, t, d]</span> →
     <span class="pill">[1, t, V]</span> → <span class="pill">[1, V]</span> →
-    <span class="pill">[1]</span> → append → grow → final string.
+    <span class="pill">[1]</span> → 追加 → 增长 → 最终字符串。
   </p>
 </section>
 
@@ -2030,22 +2069,22 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
 
 <!-- ========================= LIVE SANDBOX ========================= -->
 <section class="tab-section" id="tab-sandbox">
-  <h1>Live shape sandbox</h1>
+  <h1>实时形状沙盒</h1>
   <p class="lead">
-    Edit B, T, d_model, h. Every stage recomputes — shape pills, parameter counts, and the
-    derived $d_k$ all update. Try $d_{model}=768, h=12$ (BERT-base). Or $d_{model}=4096, h=32$
-    (LLaMA-7B). Same recipe, different numbers.
+    修改 B、T、d_model、h。每个阶段都会重新计算——形状标签、参数量和
+    推导出的 $d_k$ 全部更新。试试 $d_{model}=768, h=12$（BERT-base）。
+    或 $d_{model}=4096, h=32$（LLaMA-7B）。相同的公式，不同的数字。
   </p>
 
   <div class="canvas-card">
-    <h3>knobs</h3>
+    <h3>参数调节</h3>
     <div class="sandbox-controls">
       <div class="knob">
-        <label>B (batch)</label>
+        <label>B（批大小）</label>
         <input type="number" id="sB" value="2" min="1" max="64" step="1">
       </div>
       <div class="knob">
-        <label>T (seq len)</label>
+        <label>T（序列长度）</label>
         <input type="number" id="sT" value="8" min="1" max="2048" step="1">
       </div>
       <div class="knob">
@@ -2053,15 +2092,15 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
         <input type="number" id="sD" value="512" min="8" max="8192" step="8">
       </div>
       <div class="knob">
-        <label>h (heads)</label>
+        <label>h（头数）</label>
         <input type="number" id="sH" value="8" min="1" max="64" step="1">
       </div>
       <div class="knob derived">
-        <label>d_k = d_model/h</label>
+        <label>d_k = d_model/h（推导）</label>
         <input type="text" id="sK" value="64" disabled>
       </div>
       <div class="knob derived">
-        <label>d_ff = 4·d_model</label>
+        <label>d_ff = 4·d_model（推导）</label>
         <input type="text" id="sFF" value="2048" disabled>
       </div>
     </div>
@@ -2074,7 +2113,7 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
       <span><span class="dot" style="background: var(--dim-h)"></span> h</span>
       <span><span class="dot" style="background: var(--dim-k)"></span> d_k</span>
       <span><span class="dot" style="background: var(--dim-ff)"></span> d_ff</span>
-      <span style="margin-left: auto;">orange highlight = dim changed from prev stage</span>
+      <span style="margin-left: auto;">橙色高亮 = 与上一阶段相比维度发生变化</span>
     </div>
 
     <div class="pipeline" id="pipeline"></div>
@@ -2083,310 +2122,309 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
   </div>
 
   <div class="note">
-    <strong>What stays constant:</strong> the input and output shapes of every encoder block
-    are identical, $[B, T, d_{model}]$. That's what makes stacking $N$ of them trivial.<br>
-    <strong>What changes inside:</strong> the tensor dilates to 4D for attention and to
-    $4\cdot d_{model}$ inside the FFN, then collapses back.
+    <strong>保持不变的是：</strong>每个编码器块的输入和输出形状完全相同，即 $[B, T, d_{model}]$。
+    这正是将 $N$ 个块堆叠起来如此简洁的原因。<br>
+    <strong>内部的变化：</strong>张量在注意力阶段扩展为 4D，在 FFN 内部扩展到
+    $4\cdot d_{model}$，然后再折叠回来。
   </div>
 
-  <h2>Famous configurations</h2>
+  <h2>著名配置</h2>
   <div class="grid-3">
     <div class="step-card">
       <h4>Transformer base</h4>
       <p>d_model=512, h=8, d_ff=2048, N=6.<br>
-         Params per encoder block: ~3.1M.</p>
+         每个编码器块约 3.1M 参数。</p>
     </div>
     <div class="step-card">
       <h4>BERT-base</h4>
       <p>d_model=768, h=12, d_ff=3072, N=12.<br>
-         d_k = 64. ~7M params per block.</p>
+         d_k = 64. 每块约 7M 参数。</p>
     </div>
     <div class="step-card">
       <h4>GPT-2 small</h4>
       <p>d_model=768, h=12, d_ff=3072, N=12.<br>
-         Same shape per block as BERT-base.</p>
+         每块形状与 BERT-base 相同。</p>
     </div>
     <div class="step-card">
       <h4>LLaMA-7B</h4>
       <p>d_model=4096, h=32, d_ff=11008, N=32.<br>
-         d_k = 128. SwiGLU instead of ReLU.</p>
+         d_k = 128. 用 SwiGLU 代替 ReLU。</p>
     </div>
     <div class="step-card">
       <h4>GPT-3 175B</h4>
       <p>d_model=12288, h=96, d_ff=49152, N=96.<br>
-         d_k = 128. Huge.</p>
+         d_k = 128. 超大规模。</p>
     </div>
     <div class="step-card">
-      <h4>your model</h4>
-      <p>type whatever you like above and see the shapes flow.</p>
+      <h4>你的模型</h4>
+      <p>在上方输入任意值，即可看到形状变化。</p>
     </div>
   </div>
 </section>
 
 <!-- ========================= DRILLS ========================= -->
 <section class="tab-section" id="tab-drills">
-  <h1>Practice — type the shapes</h1>
+  <h1>练习 — 填写形状</h1>
   <p class="lead">
-    Twenty-two drills. Tab moves between blanks · Enter checks · Hint reveals all unsolved
-    blanks (click again to hide). Numbers below assume the paper's base config:
-    B=2, T_src=8, T_tgt=7, d_model=512, h=8, d_k=64, d_ff=2048, V=37000.
+    共 22 道练习。Tab 在空格间移动 · Enter 检查 · Hint 显示所有未解空格（再次点击隐藏）。
+    数字基于论文 base 配置：B=2, T_src=8, T_tgt=7, d_model=512, h=8, d_k=64, d_ff=2048, V=37000。
   </p>
 
-  <h2>The numbers</h2>
+  <h2>数字</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">1</span> If d_model = 512 and h = 8, what is d_k?</div>
+    <div class="prompt"><span class="num">1</span> 若 d_model = 512，h = 8，d_k 是多少？</div>
     <pre class="exercise">d_k = d_model / h = 512 / 8 = <input class="blank" data-answer="64" size="4" placeholder="?"></pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">2</span> The FFN inner dim is typically what multiple of d_model? (paper choice)</div>
+    <div class="prompt"><span class="num">2</span> FFN 内部维度通常是 d_model 的几倍？（论文选择）</div>
     <pre class="exercise">d_ff = <input class="blank" data-answer="4" size="3" placeholder="?"> * d_model      # 2048 = ? * 512</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">3</span> Scaling factor in attention. Why divide by √d_k? To prevent softmax saturation when d_k is ___.</div>
-    <pre class="exercise">scaled = scores / sqrt(d_k)   # protects gradients when d_k is <input class="blank" data-answer="large|big|high" size="7" placeholder="?"></pre>
+    <div class="prompt"><span class="num">3</span> 注意力中的缩放因子。为什么要除以 √d_k？为了防止 d_k 较___时 softmax 饱和。</div>
+    <pre class="exercise">scaled = scores / sqrt(d_k)   # 当 d_k 较 <input class="blank" data-answer="large|big|high" size="7" placeholder="?"> 时保护梯度</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">4</span> Softmax in attention is taken along which axis? (use the PyTorch convention)</div>
+    <div class="prompt"><span class="num">4</span> 注意力中的 softmax 沿哪个轴计算？（使用 PyTorch 约定）</div>
     <pre class="exercise">A = F.softmax(scores, dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
-  <h2>The shapes — fill the blanks</h2>
+  <h2>形状 — 填空</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">5</span> After embedding lookup, the tensor has 3 dims. The new last dim is ___.</div>
+    <div class="prompt"><span class="num">5</span> 嵌入查找后，张量有 3 个维度。新的最后一维是___。</div>
     <pre class="exercise"># ids: [B, T]
-X = embed(ids)        # [B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">]</pre>
+X = embed(ids)        # [B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">]（嵌入维度）</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">6</span> After the head reshape, Q has shape [_, _, _, _].</div>
+    <div class="prompt"><span class="num">6</span> 头重塑后，Q 的形状是 [_, _, _, _]。</div>
     <pre class="exercise">Q = Q.view(B, T, h, d_k).transpose(1, 2)
 # Q.shape = [<input class="blank" data-answer="B|2" size="3" placeholder="?">, <input class="blank" data-answer="h|8" size="3" placeholder="?">, <input class="blank" data-answer="T|8" size="3" placeholder="?">, <input class="blank" data-answer="d_k|dk|64" size="5" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">7</span> The attention score matrix Q @ Kᵀ has shape [B, h, T, ___].</div>
+    <div class="prompt"><span class="num">7</span> 注意力得分矩阵 Q @ Kᵀ 的形状是 [B, h, T, ___]。</div>
     <pre class="exercise">scores = Q @ K.transpose(-2, -1)
 # scores.shape = [B, h, T, <input class="blank" data-answer="T|8" size="3" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">8</span> After A @ V, before concat, shape is [B, h, T, ___].</div>
+    <div class="prompt"><span class="num">8</span> A @ V 之后、拼接之前，形状是 [B, h, T, ___]。</div>
     <pre class="exercise">head_out = A @ V
 # head_out.shape = [B, h, T, <input class="blank" data-answer="d_k|dk|d_v|64" size="5" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">9</span> After concat heads, the tensor returns to its pre-head-split shape [B, T, ___].</div>
+    <div class="prompt"><span class="num">9</span> 拼接头之后，张量恢复到拆分头之前的形状 [B, T, ___]。</div>
     <pre class="exercise">out = head_out.transpose(1, 2).reshape(B, T, <input class="blank" data-answer="d_model|dmodel|512" size="9" placeholder="?">)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">10</span> The first FFN linear expands d_model → d_ff. Output last-dim:</div>
+    <div class="prompt"><span class="num">10</span> FFN 第一个线性层将 d_model 扩展到 d_ff。输出的最后一维是：</div>
     <pre class="exercise">H = F.relu(W1(X))
 # H.shape = [B, T, <input class="blank" data-answer="d_ff|dff|2048" size="6" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
-  <h2>The code</h2>
+  <h2>代码</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">11</span> Fill in the scaled dot-product attention formula.</div>
+    <div class="prompt"><span class="num">11</span> 填写缩放点积注意力公式。</div>
     <pre class="exercise">def attention(Q, K, V):
     d_k = Q.size(-1)
     scores = Q @ K.transpose(-2, -1) / math.sqrt(<input class="blank" data-answer="d_k|dk|64" size="5" placeholder="?">)
     A = F.softmax(scores, dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)
-    return A @ <input class="blank" data-answer="V|v" size="3" placeholder="?">    # weighted values</pre>
+    return A @ <input class="blank" data-answer="V|v" size="3" placeholder="?">    # 加权值向量</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">12</span> Splitting heads. Last dim becomes (h, d_k). What method "reshapes without copying"?</div>
+    <div class="prompt"><span class="num">12</span> 拆分头时，最后一维变为 (h, d_k)。哪个方法"无拷贝重塑"？</div>
     <pre class="exercise">Q = Q.<input class="blank" data-answer="view|reshape" size="7" placeholder="?">(B, T, h, d_k).transpose(1, 2)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">13</span> The encoder block ends with a residual + LayerNorm. Fill the wrap.</div>
+    <div class="prompt"><span class="num">13</span> 编码器块以残差 + LayerNorm 结束。填写包裹代码。</div>
     <pre class="exercise">x = self.ln2(x + self.<input class="blank" data-answer="ffn|mlp" size="5" placeholder="?">(x))</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">14</span> Total parameters of the four attention projections (Q, K, V, O), each [d_model, d_model]:</div>
-    <pre class="exercise"># 4 matrices, each d_model × d_model
+    <div class="prompt"><span class="num">14</span> 四个注意力投影（Q、K、V、O）的总参数量，各为 [d_model, d_model]：</div>
+    <pre class="exercise"># 4 个矩阵，各 d_model × d_model
 total_attn_params = <input class="blank" data-answer="4" size="3" placeholder="?"> * d_model * d_model     # = 4 * 512^2 = 1,048,576</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
-  <h2>Decoder, output, training, inference</h2>
+  <h2>解码器、输出、训练、推理</h2>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">15</span> Cross-attention scores are <em>not</em> square. Their shape is [B, h, T_tgt, ___].</div>
+    <div class="prompt"><span class="num">15</span> 交叉注意力得分<em>不是</em>方阵。其形状是 [B, h, T_tgt, ___]。</div>
     <pre class="exercise">scores = Q_dec @ K_enc.transpose(-2, -1)   # [B, h, T_tgt, <input class="blank" data-answer="T_src|Tsrc|src|8" size="6" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">16</span> The decoder's <em>masked</em> self-attention zeros out positions above the diagonal so token <code>i</code> can't see token ___.</div>
-    <pre class="exercise">scores = scores.masked_fill(causal_mask, float('-inf'))   # token i sees ≤ <input class="blank" data-answer="i|i-1|itself" size="5" placeholder="?"></pre>
+    <div class="prompt"><span class="num">16</span> 解码器的<em>掩码</em>自注意力将对角线以上的位置归零，使 token <code>i</code> 看不到 token ___。</div>
+    <pre class="exercise">scores = scores.masked_fill(causal_mask, float('-inf'))   # token i 只能看到 ≤ <input class="blank" data-answer="i|i-1|itself" size="5" placeholder="?"></pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">17</span> The output head projects each hidden vector to vocabulary scores. The shape goes [B, T_tgt, d_model] → [B, T_tgt, ___].</div>
+    <div class="prompt"><span class="num">17</span> 输出头将每个隐状态向量投影到词表得分。形状从 [B, T_tgt, d_model] 变为 [B, T_tgt, ___]。</div>
     <pre class="exercise">logits = self.lm_head(dec_out)   # [B, T_tgt, <input class="blank" data-answer="V|vocab|vocab_size" size="8" placeholder="?">]</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">18</span> Training loss reduces all those logits to a single scalar via cross-entropy. Fill the call.</div>
+    <div class="prompt"><span class="num">18</span> 训练损失通过交叉熵将所有 logits 归约为单个标量。填写调用函数。</div>
     <pre class="exercise">loss = F.<input class="blank" data-answer="cross_entropy|crossentropy" size="14" placeholder="?">(
     logits.view(-1, V),    # [B*T_tgt, V]
     labels.view(-1)        # [B*T_tgt]
 )</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">19</span> Softmax + cross-entropy at the output head has a famously simple gradient. With P = softmax(z) and one-hot Y:</div>
+    <div class="prompt"><span class="num">19</span> 输出头的 softmax + 交叉熵有一个著名的简洁梯度。设 P = softmax(z)，one-hot Y：</div>
     <pre class="exercise">dL/dz = <input class="blank" data-answer="P-Y|P - Y|p-y|p - y" size="8" placeholder="?"></pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">20</span> At inference time you only need the <em>last</em> position to pick the next token. Slice it.</div>
+    <div class="prompt"><span class="num">20</span> 推理时只需取<em>最后</em>一个位置来选取下一个 token。切片它。</div>
     <pre class="exercise">last_logits = logits[:, <input class="blank" data-answer="-1" size="3" placeholder="?">, :]   # [B, V]
 next_id = last_logits.argmax(dim=<input class="blank" data-answer="-1" size="3" placeholder="?">)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">21</span> Sampling with temperature. Lower temp ⇒ sharper distribution. Where does temperature go?</div>
+    <div class="prompt"><span class="num">21</span> 带温度采样。温度越低 ⇒ 分布越尖锐。温度应放在哪里？</div>
     <pre class="exercise">probs = F.softmax(logits / <input class="blank" data-answer="temperature|T|temp" size="13" placeholder="?">, dim=-1)
 next_id = torch.multinomial(probs, 1)</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="drill" data-drill>
-    <div class="prompt"><span class="num">22</span> Inference wraps the loop in a context manager that disables autograd. Fill it.</div>
+    <div class="prompt"><span class="num">22</span> 推理将循环包裹在一个禁用 autograd 的上下文管理器中。填写它。</div>
     <pre class="exercise">with torch.<input class="blank" data-answer="no_grad|inference_mode" size="13" placeholder="?">():
     memory = encoder(src_ids)
     for _ in range(max_len):
         ...</pre>
     <div class="controls">
-      <button class="btn" onclick="checkDrill(this)">Check</button>
-      <button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button>
+      <button class="btn" onclick="checkDrill(this)">检查</button>
+      <button class="btn ghost tiny" onclick="hintDrill(this)">提示</button>
     </div>
     <div class="feedback"></div>
   </div>
 
   <div class="note" style="margin-top: 24px;">
-    <strong>Done all twenty-two?</strong> You can now read the attention paper without losing
-    track of any tensor — encoder, decoder, output head, loss, and the inference loop. Pop over to
+    <strong>全部 22 道都完成了？</strong>你现在可以阅读注意力论文而不再迷失在任何张量中——
+    编码器、解码器、输出头、损失和推理循环。前往
     <a href="transformers.html" style="color: var(--accent);">transformers.html</a>
-    for an end-to-end walkthrough,
+    获取端到端详细讲解，
     <a href="softmax-ce.html" style="color: var(--accent);">softmax-ce.html</a>
-    for the full P − Y derivation,
-    or <a href="bert.html" style="color: var(--accent);">bert.html</a>
-    to see the same shapes inside the BERT-base config.
+    了解完整的 P − Y 推导，
+    或 <a href="bert.html" style="color: var(--accent);">bert.html</a>
+    查看 BERT-base 配置中相同的形状变化。
   </div>
 </section>
 
@@ -2397,25 +2435,25 @@ next_id = torch.multinomial(probs, 1)</pre>
 
 <div id="help-overlay" onclick="hideHelp()">
   <div class="help-content" onclick="event.stopPropagation()">
-    <h3>Keyboard shortcuts</h3>
+    <h3>键盘快捷键</h3>
     <table>
-      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
-      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
-      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
-      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+      <tr><td><kbd>Tab</kbd></td><td>跳转到下一个空格</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>检查当前练习</td></tr>
+      <tr><td><kbd>?</kbd></td><td>此帮助</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>0</kbd></td><td>切换标签页</td></tr>
+      <tr><td>点击彩色 <span style="color:var(--dim-t);font-weight:700">维度</span></td><td>在整页中追踪该维度</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>清除追踪 · 关闭弹窗</td></tr>
     </table>
     <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">
-      Click anywhere to dismiss.
+      点击任意处关闭。
     </p>
   </div>
 </div>
 
 <footer>
-  <strong style="color: var(--accent);">Browser-side</strong> — every shape and parameter
-  count in the live sandbox is computed in JavaScript on each keystroke. No server, no
-  Python, no PyTorch import needed. Companion to
-  <a href="transformers.html">transformers.html</a> · ⚡ 16 stages, one tensor
+  <strong style="color: var(--accent);">纯浏览器端</strong> — 实时沙盒中的每个形状和参数量均在每次按键时由 JavaScript 计算。
+  无需服务器，无需 Python，无需 PyTorch 导入。配套页面：
+  <a href="transformers.html">transformers.html</a> · ⚡ 16 个阶段，一个张量
 </footer>
 
 <script>
@@ -2526,7 +2564,7 @@ function hintDrill(btn) {
     drill.classList.remove('solved');
     drill.dataset.hintShowing = '';
     fb.className = 'feedback hint';
-    fb.textContent = 'answers hidden — try typing them yourself';
+    fb.textContent = '答案已隐藏——试着自己输入吧';
     updateProgress();
     return;
   }
@@ -2896,6 +2934,10 @@ function renderPipeline() {
   let totalParams = 0;
   let prev = null;
 
+  // element count per stage (product of dims) → relative size bar
+  const counts = stages.map(st => st.dims.reduce((a, d) => a * d.value, 1));
+  const maxCount = Math.max(...counts, 1);
+
   stages.forEach((st, i) => {
     const row = document.createElement('div');
     row.className = 'stage';
@@ -2949,6 +2991,15 @@ function renderPipeline() {
     // mark changed if any flag is true
     if (changed.some(x => x)) row.classList.add('changed');
 
+    // relative size bar (tensor element count vs. largest stage)
+    const bar = document.createElement('div');
+    bar.className = 'size-bar';
+    const pct = Math.max(2, Math.round((counts[i] / maxCount) * 100));
+    bar.title = counts[i].toLocaleString() + ' elements (' + pct + '% of largest stage)';
+    row.appendChild(bar);
+    // animate from 0 → pct on next frame
+    requestAnimationFrame(() => { bar.style.width = pct + '%'; });
+
     root.appendChild(row);
     prev = st;
   });
@@ -2969,6 +3020,34 @@ function renderPipeline() {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', renderPipeline);
 });
+
+// ============== DIMENSION TRACER ==============
+// Click any colored dimension to pulse-highlight every place that dimension
+// appears across the whole page. Click it again (or press Esc) to clear.
+const DIM_NAMES = { b: 'B · batch', t: 'T · sequence', d: 'd_model', h: 'h · heads', k: 'd_k · head dim', ff: 'd_ff · FFN width' };
+let tracedKind = null;
+
+function clearTrace() {
+  document.querySelectorAll('.dim.dim-trace').forEach(el => el.classList.remove('dim-trace'));
+  tracedKind = null;
+}
+function traceKind(kind) {
+  if (!kind || !DIM_NAMES[kind]) return;
+  if (tracedKind === kind) { clearTrace(); return; }
+  clearTrace();
+  tracedKind = kind;
+  const hits = document.querySelectorAll('.dim.' + kind);
+  hits.forEach(el => el.classList.add('dim-trace'));
+  showToast('Tracing ' + DIM_NAMES[kind] + ' — ' + hits.length + ' on this page · click again to clear');
+}
+
+document.addEventListener('click', (e) => {
+  const dim = e.target.closest && e.target.closest('.dim');
+  if (!dim) return;
+  const kind = ['b','t','d','h','k','ff'].find(k => dim.classList.contains(k));
+  if (kind) { e.preventDefault(); traceKind(kind); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') clearTrace(); });
 
 // ============== INIT ==============
 renderPipeline();

@@ -263,6 +263,28 @@
   }
   .sb-op-select { min-width: 200px; }
 
+  /* ----- sandbox visual effects ----- */
+  @keyframes sbPop { from { opacity: 0; transform: scale(0.35) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .sb-cell.sb-anim { animation: sbPop 0.32s cubic-bezier(.2,.9,.25,1.15) both; }
+  .sb-cell { cursor: default; }
+  .sb-cell.sb-hl { outline: 2px solid var(--accent-2); outline-offset: -2px; filter: brightness(1.25); z-index: 1; }
+  @keyframes sbGlow {
+    0%   { box-shadow: 0 0 0 0 rgba(238,76,44,0); }
+    25%  { box-shadow: 0 0 0 2px rgba(238,76,44,0.55), 0 0 28px rgba(238,76,44,0.35); }
+    100% { box-shadow: 0 0 0 0 rgba(238,76,44,0); }
+  }
+  .sb-pulse { animation: sbGlow 0.75s ease; }
+  @keyframes sbPillIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .shape-vis .dim.sb-anim { animation: sbPillIn 0.3s ease both; }
+  .sb-legend { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-family: ui-monospace, monospace; font-size: 11px; color: var(--muted); }
+  .sb-legend .bar { width: 110px; height: 9px; border-radius: 5px; background: linear-gradient(90deg, rgba(238,76,44,0.1), rgba(238,76,44,0.82)); border: 1px solid var(--border); }
+  .sb-code { transition: box-shadow 0.2s; }
+  @keyframes sbScan { from { background-position: -120% 0; } to { background-position: 220% 0; } }
+  .sb-code.sb-flash { background-image: linear-gradient(100deg, transparent 30%, rgba(238,76,44,0.16) 50%, transparent 70%); background-size: 200% 100%; animation: sbScan 0.6s ease; }
+  @media (prefers-reduced-motion: reduce) {
+    .sb-cell.sb-anim, .sb-pulse, .shape-vis .dim.sb-anim, .sb-code.sb-flash { animation: none !important; }
+  }
+
   /* Quick reference table */
   table {
     width: 100%;
@@ -4038,9 +4060,14 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
         <div class="shape-vis" id="sb-a-shape"></div>
       </div>
       <div class="sb-field" id="sb-b-field">
-        <label for="sb-b">b =</label>
+        <label for="sb-b" id="sb-b-label">b =</label>
         <textarea id="sb-b" class="sb-input" rows="3" spellcheck="false">[[1, 0], [0, 1], [1, 1]]</textarea>
         <div class="shape-vis" id="sb-b-shape"></div>
+      </div>
+      <div class="sb-field" id="sb-c-field" style="display:none;">
+        <label for="sb-c" id="sb-c-label">c =</label>
+        <textarea id="sb-c" class="sb-input" rows="3" spellcheck="false">[[0, 0], [0, 0]]</textarea>
+        <div class="shape-vis" id="sb-c-shape"></div>
       </div>
       <p class="sb-hint">Tensors are nested lists — e.g. <code>[[1, 2], [3, 4]]</code>, a vector <code>[1, 2, 3]</code>, or a scalar <code>5</code>.</p>
     </div>
@@ -6643,6 +6670,98 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
       return { shape: outShape, data };
     }
 
+    // ---- extra engine helpers ----
+    function erf(x) { const s = x < 0 ? -1 : 1; x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
+    function broadcastMany(tensors, f) {
+      let shape = []; tensors.forEach(t => { shape = broadcastShape(shape, t.shape); });
+      const n = numel(shape), data = new Array(n), lr = shape.length, sts = tensors.map(t => strides(t.shape));
+      for (let flat = 0; flat < n; flat++) {
+        const idx = unravel(flat, shape);
+        const vals = tensors.map((t, ti) => { const la = t.shape.length; let ia = 0; for (let d = 0; d < la; d++) { const di = idx[lr - la + d]; ia += (t.shape[d] === 1 ? 0 : di) * sts[ti][d]; } return t.data[ia]; });
+        data[flat] = f(...vals);
+      }
+      return { shape, data };
+    }
+    function reduceWith(t, dim, keepdim, fn) {
+      if (dim == null) return { shape: [], data: [fn(t.data.slice())] };
+      dim = normDim(dim, t.shape.length);
+      const reduced = t.shape.slice(); const len = reduced[dim]; reduced.splice(dim, 1);
+      const outN = numel(reduced), data = new Array(outN);
+      for (let o = 0; o < outN; o++) {
+        const oidx = unravel(o, reduced); const vals = new Array(len);
+        for (let k = 0; k < len; k++) { const full = oidx.slice(); full.splice(dim, 0, k); vals[k] = t.data[ravel(full, t.shape)]; }
+        data[o] = fn(vals);
+      }
+      let shape = reduced; if (keepdim) { shape = t.shape.slice(); shape[dim] = 1; }
+      return { shape, data };
+    }
+    function argminDim(t, dim) {
+      if (dim == null) { let bi = 0; for (let i = 1; i < t.data.length; i++) if (t.data[i] < t.data[bi]) bi = i; return { shape: [], data: [bi] }; }
+      dim = normDim(dim, t.shape.length);
+      const reduced = t.shape.slice(); const len = reduced[dim]; reduced.splice(dim, 1);
+      const outN = numel(reduced), data = new Array(outN);
+      for (let o = 0; o < outN; o++) { const oidx = unravel(o, reduced); let best = Infinity, bk = 0; for (let k = 0; k < len; k++) { const full = oidx.slice(); full.splice(dim, 0, k); const v = t.data[ravel(full, t.shape)]; if (v < best) { best = v; bk = k; } } data[o] = bk; }
+      return { shape: reduced, data };
+    }
+    function cumOp(t, dim, combine) {
+      dim = normDim(dim, t.shape.length);
+      const out = { shape: t.shape.slice(), data: t.data.slice() }, len = t.shape[dim];
+      const outer = t.shape.slice(); outer.splice(dim, 1); const outerN = numel(outer);
+      for (let o = 0; o < outerN; o++) { const oidx = unravel(o, outer); let acc = null; for (let k = 0; k < len; k++) { const full = oidx.slice(); full.splice(dim, 0, k); const fi = ravel(full, t.shape); acc = acc === null ? t.data[fi] : combine(acc, t.data[fi]); out.data[fi] = acc; } }
+      return out;
+    }
+    function flip(t, dims) {
+      const nd = t.shape.length, ds = dims.map(d => normDim(d, nd)), n = numel(t.shape), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const idx = unravel(flat, t.shape); const src = idx.slice(); ds.forEach(d => src[d] = t.shape[d] - 1 - idx[d]); data[flat] = t.data[ravel(src, t.shape)]; }
+      return { shape: t.shape.slice(), data };
+    }
+    function roll(t, shifts, dims) {
+      const n = numel(t.shape);
+      if (dims.length === 0) { const s = ((shifts[0] % n) + n) % n, data = new Array(n); for (let i = 0; i < n; i++) data[(i + s) % n] = t.data[i]; return { shape: t.shape.slice(), data }; }
+      if (shifts.length !== dims.length) throw new Error('roll: shifts and dims must have equal length');
+      const nd = t.shape.length, ds = dims.map(d => normDim(d, nd)), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const idx = unravel(flat, t.shape); const src = idx.slice(); ds.forEach((d, i) => { const len = t.shape[d]; src[d] = ((idx[d] - shifts[i]) % len + len) % len; }); data[flat] = t.data[ravel(src, t.shape)]; }
+      return { shape: t.shape.slice(), data };
+    }
+    function repeatT(t, reps) {
+      let shape = t.shape.slice(); while (shape.length < reps.length) shape.unshift(1);
+      if (reps.length < shape.length) throw new Error('repeat: fewer reps than dimensions');
+      const outShape = shape.map((s, i) => s * reps[i]), n = numel(outShape), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const idx = unravel(flat, outShape); const src = idx.map((v, i) => v % shape[i]); data[flat] = t.data[ravel(src, shape)]; }
+      return { shape: outShape, data };
+    }
+    function expandT(t, target) {
+      let shape = t.shape.slice(); while (shape.length < target.length) shape.unshift(1);
+      const out = target.map((d, i) => d === -1 ? shape[i] : d);
+      for (let i = 0; i < out.length; i++) if (shape[i] !== out[i] && shape[i] !== 1) throw new Error(`expand: cannot expand dim ${i} from ${shape[i]} to ${out[i]}`);
+      const n = numel(out), data = new Array(n);
+      for (let flat = 0; flat < n; flat++) { const idx = unravel(flat, out); const src = idx.map((v, i) => shape[i] === 1 ? 0 : v); data[flat] = t.data[ravel(src, shape)]; }
+      return { shape: out, data };
+    }
+    function tri(t, diagonal, lower) {
+      const nd = t.shape.length; if (nd < 2) throw new Error('input must be ≥ 2D'); const data = t.data.slice();
+      for (let flat = 0; flat < data.length; flat++) { const idx = unravel(flat, t.shape); const i = idx[nd - 2], j = idx[nd - 1]; const keep = lower ? (j <= i + diagonal) : (j >= i + diagonal); if (!keep) data[flat] = 0; }
+      return { shape: t.shape.slice(), data };
+    }
+    function diag(t, offset) {
+      offset = offset || 0;
+      if (t.shape.length === 1) { const n = t.shape[0], size = n + Math.abs(offset), data = new Array(size * size).fill(0); for (let i = 0; i < n; i++) { const r = offset >= 0 ? i : i - offset, c = offset >= 0 ? i + offset : i; data[r * size + c] = t.data[i]; } return { shape: [size, size], data }; }
+      if (t.shape.length === 2) { const [r, c] = t.shape, out = []; for (let i = 0; ; i++) { const rr = offset >= 0 ? i : i - offset, cc = offset >= 0 ? i + offset : i; if (rr >= r || cc >= c) break; out.push(t.data[rr * c + cc]); } return { shape: [out.length], data: out }; }
+      throw new Error('diag: input must be 1D or 2D');
+    }
+    function trace(t) { if (t.shape.length !== 2) throw new Error('trace: expects a 2D tensor'); const [r, c] = t.shape; let s = 0; for (let i = 0; i < Math.min(r, c); i++) s += t.data[i * c + i]; return { shape: [], data: [s] }; }
+    function dot(a, b) { if (a.shape.length !== 1 || b.shape.length !== 1) throw new Error('dot: both inputs must be 1D'); if (a.shape[0] !== b.shape[0]) throw new Error('dot: size mismatch'); let s = 0; for (let i = 0; i < a.data.length; i++) s += a.data[i] * b.data[i]; return { shape: [], data: [s] }; }
+    function outer(a, b) { if (a.shape.length !== 1 || b.shape.length !== 1) throw new Error('outer: both inputs must be 1D'); const m = a.shape[0], n = b.shape[0], data = new Array(m * n); for (let i = 0; i < m; i++) for (let j = 0; j < n; j++) data[i * n + j] = a.data[i] * b.data[j]; return { shape: [m, n], data }; }
+    const atleast2dRow = t => t.shape.length === 1 ? { shape: [1, t.shape[0]], data: t.data.slice() } : t;
+    function vstack(a, b) { return cat(atleast2dRow(a), atleast2dRow(b), 0); }
+    function hstack(a, b) { return (a.shape.length === 1 && b.shape.length === 1) ? cat(a, b, 0) : cat(a, b, 1); }
+    // reducers for reduceWith
+    const rMean = v => v.reduce((a, x) => a + x, 0) / v.length;
+    const rVar = (v, corr) => { if (v.length - corr <= 0) return NaN; const m = rMean(v); return v.reduce((a, x) => a + (x - m) * (x - m), 0) / (v.length - corr); };
+    function median1(v) { const s = [...v].sort((a, b) => a - b); return s[Math.floor((s.length - 1) / 2)]; }
+    function logsumexp1(v) { const mx = Math.max(...v); return mx + Math.log(v.reduce((a, x) => a + Math.exp(x - mx), 0)); }
+    function normReducer(p) { if (p === 'inf') return v => Math.max(...v.map(Math.abs)); if (p === '-inf') return v => Math.min(...v.map(Math.abs)); const pn = Number(p); if (pn === 1) return v => v.reduce((a, x) => a + Math.abs(x), 0); if (pn === 2) return v => Math.sqrt(v.reduce((a, x) => a + x * x, 0)); return v => Math.pow(v.reduce((a, x) => a + Math.pow(Math.abs(x), pn), 0), 1 / pn); }
+
     // ---- pretty printer ----
     function fmt(v, isFloat) { if (!isFloat) return String(v); if (Object.is(v, -0)) v = 0; const r = Math.round(v * 1e4) / 1e4; return Number.isInteger(r) ? r.toFixed(1) : String(r); }
     function toStr(t) {
@@ -6662,55 +6781,134 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
     // ---- op registry ----
     const kwDim = p => { const a = []; if (p.dim !== '' && p.dim != null) a.push('dim=' + p.dim); if (p.keepdim === true || p.keepdim === 'true') a.push('keepdim=True'); return a.join(', '); };
     const dimArg = v => (v === '' || v == null) ? null : v;
-    const G = { U: 'Element-wise', A: 'Activation', R: 'Reduction', S: 'Shape', B: 'Binary (broadcast)', J: 'Join' };
+    const G = { U: 'Element-wise', A: 'Activation', R: 'Reduction', S: 'Shape', B: 'Binary (broadcast)', L: 'Linalg', J: 'Join' };
     const DP = [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }, { key: 'keepdim', label: 'keepdim', type: 'bool', def: false }];
+    const DIMOPT = [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }];
+    const un = (g, fn, code) => ({ g, n: 1, run: a => mapUnary(a, fn), code: () => code });
+    const bin = (run, code) => ({ g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, run), code: () => code });
+    const SP2 = Math.sqrt(2);
 
     const OPS = {
-      neg:     { g: G.U, n: 1, run: a => mapUnary(a, x => -x),            code: () => '-a' },
-      abs:     { g: G.U, n: 1, run: a => mapUnary(a, Math.abs),           code: () => 'a.abs()' },
-      sqrt:    { g: G.U, n: 1, run: a => mapUnary(a, Math.sqrt),          code: () => 'a.sqrt()' },
-      square:  { g: G.U, n: 1, run: a => mapUnary(a, x => x * x),         code: () => 'a.square()' },
-      exp:     { g: G.U, n: 1, run: a => mapUnary(a, Math.exp),           code: () => 'a.exp()' },
-      log:     { g: G.U, n: 1, run: a => mapUnary(a, Math.log),           code: () => 'a.log()' },
-      clamp:   { g: G.U, n: 1, params: [{ key: 'min', label: 'min', type: 'text', def: '0' }, { key: 'max', label: 'max', type: 'text', def: '1' }],
-                 run: (a, _b, p) => { const lo = p.min === '' ? -Infinity : Number(p.min), hi = p.max === '' ? Infinity : Number(p.max); return mapUnary(a, x => Math.min(hi, Math.max(lo, x))); },
-                 code: p => `a.clamp(min=${p.min || 'None'}, max=${p.max || 'None'})` },
-      relu:    { g: G.A, n: 1, run: a => mapUnary(a, x => Math.max(0, x)),         code: () => 'torch.relu(a)' },
-      sigmoid: { g: G.A, n: 1, run: a => mapUnary(a, x => 1 / (1 + Math.exp(-x))), code: () => 'torch.sigmoid(a)' },
-      tanh:    { g: G.A, n: 1, run: a => mapUnary(a, Math.tanh),                   code: () => 'torch.tanh(a)' },
-      softmax: { g: G.A, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }], run: (a, _b, p) => softmax(a, intOf(p.dim)), code: p => `torch.softmax(a, dim=${p.dim})` },
+      // ---- element-wise ----
+      neg:        un(G.U, x => -x, '-a'),
+      abs:        un(G.U, Math.abs, 'a.abs()'),
+      reciprocal: un(G.U, x => 1 / x, 'a.reciprocal()'),
+      sign:       un(G.U, Math.sign, 'a.sign()'),
+      sqrt:       un(G.U, Math.sqrt, 'a.sqrt()'),
+      rsqrt:      un(G.U, x => 1 / Math.sqrt(x), 'a.rsqrt()'),
+      square:     un(G.U, x => x * x, 'a.square()'),
+      exp:        un(G.U, Math.exp, 'a.exp()'),
+      expm1:      un(G.U, Math.expm1, 'a.expm1()'),
+      log:        un(G.U, Math.log, 'a.log()'),
+      log2:       un(G.U, Math.log2, 'a.log2()'),
+      log10:      un(G.U, Math.log10, 'a.log10()'),
+      log1p:      un(G.U, Math.log1p, 'a.log1p()'),
+      sin:        un(G.U, Math.sin, 'a.sin()'),
+      cos:        un(G.U, Math.cos, 'a.cos()'),
+      tan:        un(G.U, Math.tan, 'a.tan()'),
+      floor:      un(G.U, Math.floor, 'a.floor()'),
+      ceil:       un(G.U, Math.ceil, 'a.ceil()'),
+      round:      un(G.U, Math.round, 'a.round()'),
+      trunc:      un(G.U, Math.trunc, 'a.trunc()'),
+      frac:       un(G.U, x => x - Math.trunc(x), 'a.frac()'),
+      erf:        un(G.U, erf, 'a.erf()'),
+      clamp:      { g: G.U, n: 1, params: [{ key: 'min', label: 'min', type: 'text', def: '0' }, { key: 'max', label: 'max', type: 'text', def: '1' }],
+                    run: (a, _b, p) => { const lo = p.min === '' ? -Infinity : Number(p.min), hi = p.max === '' ? Infinity : Number(p.max); return mapUnary(a, x => Math.min(hi, Math.max(lo, x))); },
+                    code: p => `a.clamp(min=${p.min || 'None'}, max=${p.max || 'None'})` },
 
-      sum:    { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 0, (x, v) => x + v),                   code: p => `a.sum(${kwDim(p)})` },
-      mean:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 0, (x, v) => x + v, (acc, len) => acc / len), code: p => `a.mean(${kwDim(p)})` },
-      prod:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 1, (x, v) => x * v),                   code: p => `a.prod(${kwDim(p)})` },
-      amax:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, -Infinity, Math.max),                  code: p => `a.amax(${kwDim(p)})` },
-      amin:   { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, Infinity, Math.min),                   code: p => `a.amin(${kwDim(p)})` },
-      argmax: { g: G.R, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }], run: (a, _b, p) => argmaxDim(a, dimArg(p.dim) == null ? null : intOf(p.dim)), code: p => `a.argmax(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+      // ---- activations ----
+      relu:        un(G.A, x => Math.max(0, x), 'torch.relu(a)'),
+      relu6:       un(G.A, x => Math.min(6, Math.max(0, x)), 'F.relu6(a)'),
+      leaky_relu:  { g: G.A, n: 1, params: [{ key: 'slope', label: 'neg_slope', type: 'text', def: '0.01' }], run: (a, _b, p) => { const s = Number(p.slope); return mapUnary(a, x => x >= 0 ? x : s * x); }, code: p => `F.leaky_relu(a, ${p.slope})` },
+      elu:         un(G.A, x => x >= 0 ? x : Math.exp(x) - 1, 'F.elu(a)'),
+      gelu:        un(G.A, x => 0.5 * x * (1 + erf(x / SP2)), 'F.gelu(a)'),
+      silu:        un(G.A, x => x / (1 + Math.exp(-x)), 'F.silu(a)'),
+      softplus:    un(G.A, x => x > 20 ? x : Math.log1p(Math.exp(x)), 'F.softplus(a)'),
+      mish:        un(G.A, x => { const sp = x > 20 ? x : Math.log1p(Math.exp(x)); return x * Math.tanh(sp); }, 'F.mish(a)'),
+      sigmoid:     un(G.A, x => 1 / (1 + Math.exp(-x)), 'torch.sigmoid(a)'),
+      hardsigmoid: un(G.A, x => Math.min(1, Math.max(0, x / 6 + 0.5)), 'F.hardsigmoid(a)'),
+      tanh:        un(G.A, Math.tanh, 'torch.tanh(a)'),
+      hardtanh:    un(G.A, x => Math.min(1, Math.max(-1, x)), 'F.hardtanh(a)'),
+      softsign:    un(G.A, x => x / (1 + Math.abs(x)), 'F.softsign(a)'),
+      softmax:     { g: G.A, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }], run: (a, _b, p) => softmax(a, intOf(p.dim)), code: p => `torch.softmax(a, dim=${p.dim})` },
+      log_softmax: { g: G.A, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }], run: (a, _b, p) => mapUnary(softmax(a, intOf(p.dim)), Math.log), code: p => `torch.log_softmax(a, dim=${p.dim})` },
 
-      reshape:   { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '3, 2' }], run: (a, _b, p) => reshape(a, intList(p.shape)), code: p => `a.reshape(${p.shape})` },
-      view:      { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '3, 2' }], run: (a, _b, p) => reshape(a, intList(p.shape)), code: p => `a.view(${p.shape})` },
-      flatten:   { g: G.S, n: 1, run: a => ({ shape: [numel(a.shape)], data: a.data.slice() }), code: () => 'a.flatten()' },
-      transpose: { g: G.S, n: 1, params: [{ key: 'dim0', label: 'dim0', type: 'text', def: '0' }, { key: 'dim1', label: 'dim1', type: 'text', def: '1' }], run: (a, _b, p) => transpose(a, intOf(p.dim0), intOf(p.dim1)), code: p => `a.transpose(${p.dim0}, ${p.dim1})` },
-      permute:   { g: G.S, n: 1, params: [{ key: 'dims', label: 'dims', type: 'text', def: '1, 0' }], run: (a, _b, p) => permute(a, intList(p.dims)), code: p => `a.permute(${p.dims})` },
-      squeeze:   { g: G.S, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }], run: (a, _b, p) => { if (p.dim === '' || p.dim == null) { const sh = a.shape.filter(s => s !== 1); return { shape: sh, data: a.data.slice() }; } return squeezeAt(a, normDim(intOf(p.dim), a.shape.length)); }, code: p => `a.squeeze(${p.dim !== '' && p.dim != null ? p.dim : ''})` },
-      unsqueeze: { g: G.S, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, _b, p) => unsqueeze(a, intOf(p.dim)), code: p => `a.unsqueeze(${p.dim})` },
-      t:         { g: G.S, n: 1, run: a => { if (a.shape.length > 2) throw new Error('.t() expects a tensor with ≤ 2 dims'); return transpose(a, 0, 1); }, code: () => 'a.t()' },
+      // ---- reductions ----
+      sum:           { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 0, (x, v) => x + v), code: p => `a.sum(${kwDim(p)})` },
+      mean:          { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 0, (x, v) => x + v, (acc, len) => acc / len), code: p => `a.mean(${kwDim(p)})` },
+      prod:          { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, 1, (x, v) => x * v), code: p => `a.prod(${kwDim(p)})` },
+      amax:          { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, -Infinity, Math.max), code: p => `a.amax(${kwDim(p)})` },
+      amin:          { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceDim(a, dimArg(p.dim), p.keepdim, Infinity, Math.min), code: p => `a.amin(${kwDim(p)})` },
+      std:           { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceWith(a, dimArg(p.dim), p.keepdim, v => Math.sqrt(rVar(v, 1))), code: p => `a.std(${kwDim(p)})` },
+      var:           { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceWith(a, dimArg(p.dim), p.keepdim, v => rVar(v, 1)), code: p => `a.var(${kwDim(p)})` },
+      median:        { g: G.R, n: 1, params: DP, run: (a, _b, p) => reduceWith(a, dimArg(p.dim), p.keepdim, median1), code: p => `a.median(${kwDim(p)})` },
+      logsumexp:     { g: G.R, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }, { key: 'keepdim', label: 'keepdim', type: 'bool', def: false }], run: (a, _b, p) => reduceWith(a, intOf(p.dim), p.keepdim, logsumexp1), code: p => `a.logsumexp(dim=${p.dim})` },
+      norm:          { g: G.R, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }, { key: 'p', label: 'p', type: 'text', def: '2' }], run: (a, _b, p) => reduceWith(a, dimArg(p.dim), false, normReducer(p.p)), code: p => `a.norm(${p.p}${p.dim !== '' && p.dim != null ? ', dim=' + p.dim : ''})` },
+      all:           { g: G.R, n: 1, params: DIMOPT, run: (a, _b, p) => reduceWith(a, dimArg(p.dim), false, v => v.every(x => x !== 0) ? 1 : 0), code: p => `a.all(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+      any:           { g: G.R, n: 1, params: DIMOPT, run: (a, _b, p) => reduceWith(a, dimArg(p.dim), false, v => v.some(x => x !== 0) ? 1 : 0), code: p => `a.any(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+      count_nonzero: { g: G.R, n: 1, params: DIMOPT, run: (a, _b, p) => reduceWith(a, dimArg(p.dim), false, v => v.filter(x => x !== 0).length), code: p => `a.count_nonzero(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+      argmax:        { g: G.R, n: 1, params: DIMOPT, run: (a, _b, p) => argmaxDim(a, dimArg(p.dim) == null ? null : intOf(p.dim)), code: p => `a.argmax(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+      argmin:        { g: G.R, n: 1, params: DIMOPT, run: (a, _b, p) => argminDim(a, dimArg(p.dim) == null ? null : intOf(p.dim)), code: p => `a.argmin(${p.dim !== '' && p.dim != null ? 'dim=' + p.dim : ''})` },
+      cumsum:        { g: G.R, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }], run: (a, _b, p) => cumOp(a, intOf(p.dim), (x, y) => x + y), code: p => `a.cumsum(dim=${p.dim})` },
+      cumprod:       { g: G.R, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '-1' }], run: (a, _b, p) => cumOp(a, intOf(p.dim), (x, y) => x * y), code: p => `a.cumprod(dim=${p.dim})` },
 
-      add:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x + y),            code: () => 'a + b' },
-      sub:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x - y),            code: () => 'a - b' },
-      mul:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x * y),            code: () => 'a * b' },
-      div:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => x / y),            code: () => 'a / b' },
-      pow:     { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, (x, y) => Math.pow(x, y)),   code: () => 'a ** b' },
-      maximum: { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, Math.max),                   code: () => 'torch.maximum(a, b)' },
-      minimum: { g: G.B, n: 2, run: (a, b) => broadcastBinary(a, b, Math.min),                   code: () => 'torch.minimum(a, b)' },
-      matmul:  { g: G.B, n: 2, run: (a, b) => matmul(a, b),                                      code: () => 'a @ b' },
+      // ---- shape ----
+      reshape:     { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '3, 2' }], run: (a, _b, p) => reshape(a, intList(p.shape)), code: p => `a.reshape(${p.shape})` },
+      view:        { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '3, 2' }], run: (a, _b, p) => reshape(a, intList(p.shape)), code: p => `a.view(${p.shape})` },
+      flatten:     { g: G.S, n: 1, run: a => ({ shape: [numel(a.shape)], data: a.data.slice() }), code: () => 'a.flatten()' },
+      transpose:   { g: G.S, n: 1, params: [{ key: 'dim0', label: 'dim0', type: 'text', def: '0' }, { key: 'dim1', label: 'dim1', type: 'text', def: '1' }], run: (a, _b, p) => transpose(a, intOf(p.dim0), intOf(p.dim1)), code: p => `a.transpose(${p.dim0}, ${p.dim1})` },
+      swapdims:    { g: G.S, n: 1, params: [{ key: 'dim0', label: 'dim0', type: 'text', def: '0' }, { key: 'dim1', label: 'dim1', type: 'text', def: '1' }], run: (a, _b, p) => transpose(a, intOf(p.dim0), intOf(p.dim1)), code: p => `a.swapdims(${p.dim0}, ${p.dim1})` },
+      t:           { g: G.S, n: 1, run: a => { if (a.shape.length > 2) throw new Error('.t() expects a tensor with ≤ 2 dims'); return transpose(a, 0, 1); }, code: () => 'a.t()' },
+      permute:     { g: G.S, n: 1, params: [{ key: 'dims', label: 'dims', type: 'text', def: '1, 0' }], run: (a, _b, p) => permute(a, intList(p.dims)), code: p => `a.permute(${p.dims})` },
+      movedim:     { g: G.S, n: 1, params: [{ key: 'src', label: 'source', type: 'text', def: '0' }, { key: 'dst', label: 'dest', type: 'text', def: '-1' }], run: (a, _b, p) => { const nd = a.shape.length, s = normDim(intOf(p.src), nd), d = normDim(intOf(p.dst), nd); const order = []; for (let i = 0; i < nd; i++) if (i !== s) order.push(i); order.splice(d, 0, s); return permute(a, order); }, code: p => `a.movedim(${p.src}, ${p.dst})` },
+      squeeze:     { g: G.S, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '', ph: 'all' }], run: (a, _b, p) => { if (p.dim === '' || p.dim == null) { const sh = a.shape.filter(s => s !== 1); return { shape: sh, data: a.data.slice() }; } return squeezeAt(a, normDim(intOf(p.dim), a.shape.length)); }, code: p => `a.squeeze(${p.dim !== '' && p.dim != null ? p.dim : ''})` },
+      unsqueeze:   { g: G.S, n: 1, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, _b, p) => unsqueeze(a, intOf(p.dim)), code: p => `a.unsqueeze(${p.dim})` },
+      flip:        { g: G.S, n: 1, params: [{ key: 'dims', label: 'dims', type: 'text', def: '0' }], run: (a, _b, p) => flip(a, intList(p.dims)), code: p => `a.flip(${p.dims})` },
+      roll:        { g: G.S, n: 1, params: [{ key: 'shifts', label: 'shifts', type: 'text', def: '1' }, { key: 'dims', label: 'dims', type: 'text', def: '', ph: 'flat' }], run: (a, _b, p) => roll(a, intList(p.shifts), p.dims === '' ? [] : intList(p.dims)), code: p => `a.roll(${p.shifts}${p.dims !== '' ? ', dims=' + p.dims : ''})` },
+      repeat:      { g: G.S, n: 1, params: [{ key: 'reps', label: 'reps', type: 'text', def: '2, 1' }], run: (a, _b, p) => repeatT(a, intList(p.reps)), code: p => `a.repeat(${p.reps})` },
+      expand:      { g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '-1, 4' }], run: (a, _b, p) => expandT(a, intList(p.shape)), code: p => `a.expand(${p.shape})` },
+      broadcast_to:{ g: G.S, n: 1, params: [{ key: 'shape', label: 'shape', type: 'text', def: '2, 3' }], run: (a, _b, p) => expandT(a, intList(p.shape)), code: p => `a.broadcast_to((${p.shape}))` },
 
-      cat:   { g: G.J, n: 2, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, b, p) => cat(a, b, intOf(p.dim)),   code: p => `torch.cat([a, b], dim=${p.dim})` },
-      stack: { g: G.J, n: 2, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, b, p) => stack(a, b, intOf(p.dim)), code: p => `torch.stack([a, b], dim=${p.dim})` },
+      // ---- binary (broadcast) ----
+      add:        bin((x, y) => x + y, 'a + b'),
+      sub:        bin((x, y) => x - y, 'a - b'),
+      mul:        bin((x, y) => x * y, 'a * b'),
+      div:        bin((x, y) => x / y, 'a / b'),
+      pow:        bin((x, y) => Math.pow(x, y), 'a ** b'),
+      fmod:       bin((x, y) => x - Math.trunc(x / y) * y, 'a.fmod(b)'),
+      remainder:  bin((x, y) => ((x % y) + y) % y, 'a.remainder(b)'),
+      atan2:      bin((x, y) => Math.atan2(x, y), 'torch.atan2(a, b)'),
+      maximum:    bin(Math.max, 'torch.maximum(a, b)'),
+      minimum:    bin(Math.min, 'torch.minimum(a, b)'),
+      eq:         bin((x, y) => x === y ? 1 : 0, 'a == b'),
+      ne:         bin((x, y) => x !== y ? 1 : 0, 'a != b'),
+      gt:         bin((x, y) => x > y ? 1 : 0, 'a > b'),
+      lt:         bin((x, y) => x < y ? 1 : 0, 'a < b'),
+      ge:         bin((x, y) => x >= y ? 1 : 0, 'a >= b'),
+      le:         bin((x, y) => x <= y ? 1 : 0, 'a <= b'),
+      where:      { g: G.B, n: 3, run: (a, b, _p, c) => broadcastMany([a, b, c], (cond, x, y) => cond !== 0 ? x : y), code: () => 'torch.where(a != 0, b, c)' },
+      masked_fill:{ g: G.B, n: 2, params: [{ key: 'value', label: 'value', type: 'text', def: '0' }], run: (a, b, p) => { const val = Number(p.value); return broadcastBinary(a, b, (x, m) => m !== 0 ? val : x); }, code: p => `a.masked_fill(b != 0, ${p.value})` },
+
+      // ---- linalg ----
+      matmul: { g: G.L, n: 2, run: (a, b) => matmul(a, b), code: () => 'a @ b' },
+      mm:     { g: G.L, n: 2, run: (a, b) => { if (a.shape.length !== 2 || b.shape.length !== 2) throw new Error('mm: both inputs must be 2D'); return matmul(a, b); }, code: () => 'torch.mm(a, b)' },
+      bmm:    { g: G.L, n: 2, run: (a, b) => { if (a.shape.length !== 3 || b.shape.length !== 3) throw new Error('bmm: both inputs must be 3D'); return matmul(a, b); }, code: () => 'torch.bmm(a, b)' },
+      dot:    { g: G.L, n: 2, run: (a, b) => dot(a, b), code: () => 'torch.dot(a, b)' },
+      outer:  { g: G.L, n: 2, run: (a, b) => outer(a, b), code: () => 'torch.outer(a, b)' },
+      trace:  { g: G.L, n: 1, run: a => trace(a), code: () => 'a.trace()' },
+      diag:   { g: G.L, n: 1, params: [{ key: 'offset', label: 'offset', type: 'text', def: '0' }], run: (a, _b, p) => diag(a, intOf(p.offset)), code: p => `torch.diag(a, ${p.offset})` },
+      tril:   { g: G.L, n: 1, params: [{ key: 'diagonal', label: 'diagonal', type: 'text', def: '0' }], run: (a, _b, p) => tri(a, intOf(p.diagonal), true), code: p => `a.tril(${p.diagonal})` },
+      triu:   { g: G.L, n: 1, params: [{ key: 'diagonal', label: 'diagonal', type: 'text', def: '0' }], run: (a, _b, p) => tri(a, intOf(p.diagonal), false), code: p => `a.triu(${p.diagonal})` },
+
+      // ---- join ----
+      cat:    { g: G.J, n: 2, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, b, p) => cat(a, b, intOf(p.dim)), code: p => `torch.cat([a, b], dim=${p.dim})` },
+      stack:  { g: G.J, n: 2, params: [{ key: 'dim', label: 'dim', type: 'text', def: '0' }], run: (a, b, p) => stack(a, b, intOf(p.dim)), code: p => `torch.stack([a, b], dim=${p.dim})` },
+      hstack: { g: G.J, n: 2, run: (a, b) => hstack(a, b), code: () => 'torch.hstack([a, b])' },
+      vstack: { g: G.J, n: 2, run: (a, b) => vstack(a, b), code: () => 'torch.vstack([a, b])' },
     };
 
     // ---- build the <select> grouped by category ----
-    const groupsOrder = [G.B, G.R, G.A, G.S, G.U, G.J];
+    const groupsOrder = [G.L, G.B, G.R, G.A, G.S, G.U, G.J];
     groupsOrder.forEach(gname => {
       const og = document.createElement('optgroup'); og.label = gname;
       Object.keys(OPS).filter(k => OPS[k].g === gname).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k; og.appendChild(o); });
@@ -6719,9 +6917,10 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
 
     // ---- DOM refs ----
     const paramsEl = document.getElementById('sb-params');
-    const aEl = document.getElementById('sb-a'), bEl = document.getElementById('sb-b');
-    const bField = document.getElementById('sb-b-field');
-    const aShape = document.getElementById('sb-a-shape'), bShape = document.getElementById('sb-b-shape');
+    const aEl = document.getElementById('sb-a'), bEl = document.getElementById('sb-b'), cEl = document.getElementById('sb-c');
+    const bField = document.getElementById('sb-b-field'), cField = document.getElementById('sb-c-field');
+    const bLabel = document.getElementById('sb-b-label'), cLabel = document.getElementById('sb-c-label');
+    const aShape = document.getElementById('sb-a-shape'), bShape = document.getElementById('sb-b-shape'), cShape = document.getElementById('sb-c-shape');
     const codeEl = document.getElementById('sb-code'), outEl = document.getElementById('sb-out');
     const outShapeEl = document.getElementById('sb-out-shape'), vizEl = document.getElementById('sb-viz');
 
@@ -6742,36 +6941,62 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
         wrap.appendChild(inp); paramsEl.appendChild(wrap);
       });
     }
-    function pills(container, shape) {
+    function pills(container, shape, animate) {
       container.innerHTML = '';
-      if (shape.length === 0) { const s = document.createElement('span'); s.className = 'dim'; s.textContent = 'scalar'; container.appendChild(s); return; }
-      shape.forEach((d, i) => { if (i > 0) { const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '×'; container.appendChild(sep); } const dim = document.createElement('span'); dim.className = 'dim'; dim.textContent = d; container.appendChild(dim); });
+      if (shape.length === 0) { const s = document.createElement('span'); s.className = 'dim' + (animate ? ' sb-anim' : ''); s.textContent = 'scalar'; container.appendChild(s); return; }
+      shape.forEach((d, i) => {
+        if (i > 0) { const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '×'; container.appendChild(sep); }
+        const dim = document.createElement('span'); dim.className = 'dim' + (animate ? ' sb-anim' : ''); if (animate) dim.style.animationDelay = (i * 50) + 'ms'; dim.textContent = d; container.appendChild(dim);
+      });
     }
     function renderGrid(t) {
       vizEl.innerHTML = '';
       if (t.shape.length > 2 || numel(t.shape) > 256) return;
       const cols = t.shape.length === 2 ? t.shape[1] : (t.shape.length === 1 ? t.shape[0] : 1);
+      const rows = t.shape.length === 2 ? t.shape[0] : 1;
       const isFloat = t.data.some(v => !Number.isInteger(v));
       let mn = Math.min(...t.data), mx = Math.max(...t.data); if (mn === mx) { mn -= 1; mx += 1; }
       const lbl = document.createElement('div'); lbl.className = 'sb-vlabel'; lbl.textContent = 'result · ' + (t.shape.length ? '[' + t.shape.join(' × ') + ']' : 'scalar'); vizEl.appendChild(lbl);
       const grid = document.createElement('div'); grid.className = 'sb-tgrid'; grid.style.gridTemplateColumns = `repeat(${cols}, auto)`;
-      t.data.forEach(v => { const c = document.createElement('div'); c.className = 'sb-cell'; const alpha = 0.1 + 0.72 * ((v - mn) / (mx - mn)); c.style.background = `rgba(238,76,44,${alpha.toFixed(3)})`; c.textContent = fmt(v, isFloat); grid.appendChild(c); });
+      t.data.forEach((v, idx) => {
+        const c = document.createElement('div'); c.className = 'sb-cell sb-anim';
+        const alpha = 0.1 + 0.72 * ((v - mn) / (mx - mn));
+        c.style.background = `rgba(238,76,44,${alpha.toFixed(3)})`;
+        c.style.animationDelay = Math.min(idx * 14, 400) + 'ms';
+        c.dataset.r = Math.floor(idx / cols); c.dataset.c = idx % cols;
+        c.textContent = fmt(v, isFloat);
+        grid.appendChild(c);
+      });
+      // row/col cross-highlight on hover
+      grid.addEventListener('mouseover', e => { const cell = e.target.closest('.sb-cell'); if (!cell) return; const r = cell.dataset.r, col = cell.dataset.c; grid.querySelectorAll('.sb-cell').forEach(x => x.classList.toggle('sb-hl', x.dataset.r === r || x.dataset.c === col)); });
+      grid.addEventListener('mouseleave', () => grid.querySelectorAll('.sb-cell.sb-hl').forEach(x => x.classList.remove('sb-hl')));
       vizEl.appendChild(grid);
+      if (rows * cols > 1) { const leg = document.createElement('div'); leg.className = 'sb-legend'; leg.innerHTML = `<span>${fmt(mn, true)}</span><span class="bar"></span><span>${fmt(mx, true)}</span><span style="margin-left:6px;">hover a cell → row/col</span>`; vizEl.appendChild(leg); }
     }
 
     function compute() {
       const op = OPS[opSel.value];
-      bField.style.display = op.n === 2 ? '' : 'none';
+      bField.style.display = op.n >= 2 ? '' : 'none';
+      cField.style.display = op.n >= 3 ? '' : 'none';
+      // contextual operand labels (where: condition / if-true / if-false)
+      bLabel.textContent = op.n >= 3 ? 'b =  (if a≠0)' : 'b =';
+      cLabel.textContent = 'c =  (if a==0)';
       const P = readParams(op);
-      let A, B;
+      let A, B, C;
       try { A = parseTensor(aEl.value); pills(aShape, A.shape); } catch (e) { return fail('a: ' + e.message); }
-      if (op.n === 2) { try { B = parseTensor(bEl.value); pills(bShape, B.shape); } catch (e) { return fail('b: ' + e.message); } }
+      if (op.n >= 2) { try { B = parseTensor(bEl.value); pills(bShape, B.shape); } catch (e) { return fail('b: ' + e.message); } }
+      if (op.n >= 3) { try { C = parseTensor(cEl.value); pills(cShape, C.shape); } catch (e) { return fail('c: ' + e.message); } }
       let codeStr = '...'; try { codeStr = op.code(P); } catch (e) {}
-      let res; try { res = op.run(A, B, P); } catch (e) { return fail(e.message, codeStr); }
+      let res; try { res = op.run(A, B, P, C); } catch (e) { return fail(e.message, codeStr); }
       codeEl.classList.remove('sb-error'); outEl.classList.remove('sb-error');
       codeEl.textContent = '>>> ' + codeStr;
       outEl.textContent = toStr(res) + '\n# shape: torch.Size([' + res.shape.join(', ') + '])';
-      pills(outShapeEl, res.shape); renderGrid(res);
+      pills(outShapeEl, res.shape, true); renderGrid(res);
+      // visual effects: glow pulse on result pane + scan flash on the code line
+      const pane = outEl.closest('.sb-pane') || outEl;
+      pane.classList.remove('sb-pulse'); codeEl.classList.remove('sb-flash');
+      void pane.offsetWidth;
+      pane.classList.add('sb-pulse'); codeEl.classList.add('sb-flash');
     }
     function fail(msg, codeStr) {
       codeEl.classList.remove('sb-error');
@@ -6781,25 +7006,31 @@ dt = DTensor.<span class="tok-f">from_local</span>(local_tensor, mesh, [<span cl
     }
 
     opSel.addEventListener('change', () => { buildParams(OPS[opSel.value]); compute(); });
-    aEl.addEventListener('input', compute); bEl.addEventListener('input', compute);
+    aEl.addEventListener('input', compute); bEl.addEventListener('input', compute); cEl.addEventListener('input', compute);
 
     // ---- example chips ----
     const EXAMPLES = [
       { label: 'matmul 2×3 @ 3×2', op: 'matmul', a: '[[1, 2, 3], [4, 5, 6]]', b: '[[1, 0], [0, 1], [1, 1]]' },
+      { label: 'batched matmul', op: 'matmul', a: '[[[1, 2], [3, 4]], [[5, 6], [7, 8]]]', b: '[[1, 0], [0, 1]]' },
       { label: 'softmax (dim=-1)', op: 'softmax', a: '[[2.0, 1.0, 0.1]]', p: { dim: '-1' } },
+      { label: 'gelu', op: 'gelu', a: '[[-2, -1, 0, 1, 2]]' },
       { label: 'broadcast add', op: 'add', a: '[[1, 2, 3], [4, 5, 6]]', b: '[10, 20, 30]' },
-      { label: 'mean (dim=0)', op: 'mean', a: '[[1, 2], [3, 4]]', p: { dim: '0' } },
+      { label: 'std (dim=1)', op: 'std', a: '[[1, 2, 3], [4, 5, 6]]', p: { dim: '1' } },
+      { label: 'cumsum', op: 'cumsum', a: '[[1, 2, 3, 4]]', p: { dim: '-1' } },
+      { label: 'where', op: 'where', a: '[[1, 0], [0, 1]]', b: '[[9, 9], [9, 9]]', c: '[[-1, -1], [-1, -1]]' },
+      { label: 'tril', op: 'tril', a: '[[1, 2, 3], [4, 5, 6], [7, 8, 9]]', p: { diagonal: '0' } },
+      { label: 'outer', op: 'outer', a: '[1, 2, 3]', b: '[10, 20]' },
+      { label: 'a > b', op: 'gt', a: '[[1, 5, 3]]', b: '[[2, 2, 2]]' },
+      { label: 'flip', op: 'flip', a: '[[1, 2, 3], [4, 5, 6]]', p: { dims: '1' } },
       { label: 'transpose', op: 'transpose', a: '[[1, 2, 3], [4, 5, 6]]', p: { dim0: '0', dim1: '1' } },
       { label: 'reshape → 3×2', op: 'reshape', a: '[[1, 2, 3], [4, 5, 6]]', p: { shape: '3, 2' } },
-      { label: 'relu', op: 'relu', a: '[[-1, 2], [-3, 4]]' },
-      { label: 'batched matmul', op: 'matmul', a: '[[[1, 2], [3, 4]], [[5, 6], [7, 8]]]', b: '[[1, 0], [0, 1]]' },
     ];
     const chipsEl = document.getElementById('sb-chips');
     EXAMPLES.forEach(ex => {
       const btn = document.createElement('button'); btn.textContent = ex.label;
       btn.addEventListener('click', () => {
         opSel.value = ex.op; buildParams(OPS[ex.op]);
-        aEl.value = ex.a; if (ex.b != null) bEl.value = ex.b;
+        aEl.value = ex.a; if (ex.b != null) bEl.value = ex.b; if (ex.c != null) cEl.value = ex.c;
         if (ex.p) Object.keys(ex.p).forEach(k => { const el = document.getElementById('sb-p-' + k); if (el) el.value = ex.p[k]; });
         compute();
       });

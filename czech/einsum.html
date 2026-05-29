@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>torch.einsum · Jeden řetězec pro každou kontrakci tenzorů</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --bg-3: #1a1a26;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --ink-faint: #5a564e;
+    --line: rgba(255, 240, 220, 0.09);
+    --line-soft: rgba(255, 240, 220, 0.05);
+    --grid: rgba(255, 240, 220, 0.035);
+    --accent: #fbbf24;          /* amber — free indices (kept) */
+    --accent-2: #818cf8;        /* indigo — summed indices (contracted) */
+    --good: #a3e635;            /* lime */
+    --bad: #fb7185;             /* rose */
+    --warn: #fbbf24;
+    --code-bg: #08101e;
+    --serif: 'Fraunces', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at 80% -10%, rgba(251, 191, 36, 0.10), transparent 55%),
+      radial-gradient(ellipse at 0% 110%, rgba(129, 140, 248, 0.07), transparent 50%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection { background: var(--accent); color: #050510; }
+
+  /* ============ STICKY TOP ============ */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 80;
+    background: rgba(10, 10, 15, 0.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 16px 32px; max-width: 1280px; margin: 0 auto;
+  }
+  .brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.32em;
+    text-transform: uppercase; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .brand .mark { color: var(--accent); font-size: 13px; filter: drop-shadow(0 0 6px var(--accent)); }
+  .brand b { font-weight: 700; }
+  .progress-bar-outer {
+    flex: 1; min-width: 140px; height: 2px;
+    background: rgba(255, 240, 220, 0.12); position: relative; overflow: hidden;
+  }
+  .progress-bar-inner {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 16px var(--accent);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--ink-dim); display: flex; align-items: baseline; gap: 5px; white-space: nowrap;
+  }
+  .stat .num { font-family: var(--serif); font-weight: 600; font-size: 22px; color: var(--ink); font-feature-settings: "tnum"; }
+  .stat .num#scoreNum { color: var(--accent); }
+  .stat .lbl { text-transform: uppercase; font-size: 9px; letter-spacing: 0.22em; }
+  .streak { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 5px; }
+  .streak .num { font-family: var(--serif); font-weight: 600; color: var(--accent-2); font-size: 18px; }
+  .help-btn {
+    font-family: var(--mono); font-size: 13px; width: 30px; height: 30px;
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--line); cursor: pointer; transition: all 0.15s;
+  }
+  .help-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  nav.tabs {
+    display: flex; gap: 2px; flex-wrap: wrap;
+    padding: 0 32px; max-width: 1280px; margin: 0 auto;
+    border-top: 1px solid var(--line-soft);
+  }
+  nav.tabs button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 14px 15px; cursor: pointer; transition: all 0.18s;
+  }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .tnum { color: var(--ink-faint); margin-right: 7px; transition: color 0.18s; }
+  nav.tabs button.active .tnum { color: var(--accent-2); }
+  nav.tabs button .check { color: var(--good); margin-left: 7px; }
+
+  /* ============ LAYOUT ============ */
+  main { max-width: 1280px; margin: 0 auto; padding: 56px 32px 120px; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: rise 0.45s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--accent); display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ''; width: 34px; height: 1px; background: var(--accent); }
+
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-size: clamp(44px, 7vw, 96px);
+    line-height: 0.94; letter-spacing: -0.035em; margin-bottom: 26px; max-width: 16ch;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+
+  .lede {
+    font-size: clamp(16px, 1.9vw, 20px); max-width: 760px; line-height: 1.55;
+    color: var(--ink-dim); font-weight: 300; margin-bottom: 8px;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .lede em { font-style: italic; color: var(--ink); }
+  .lede code, p code, li code { font-family: var(--mono); font-size: 0.88em; color: var(--accent-2); background: var(--code-bg); padding: 1px 6px; border-radius: 2px; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--ink-dim);
+    display: flex; align-items: center; gap: 16px; margin: 56px 0 28px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  h3 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 24px; margin-bottom: 12px; letter-spacing: -0.01em; }
+  p { color: var(--ink-dim); max-width: 760px; margin-bottom: 14px; }
+  p strong, .ink { color: var(--ink); font-weight: 600; }
+  p em { font-style: italic; color: var(--ink); }
+  ul { color: var(--ink-dim); margin: 0; padding-left: 0; list-style: none; }
+  ul li { margin: 9px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- panel w/ corner brackets ---------- */
+  .panel { background: var(--bg-2); border: 1px solid var(--line); padding: 32px; margin: 22px 0; position: relative; }
+  .panel.tight { padding: 22px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 22px; height: 22px; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .panel-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+
+  /* ---------- idea cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 26px 0; }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 820px) { .cards, .cards.three { grid-template-columns: 1fr; } }
+  .idea { background: var(--bg-2); padding: 28px 26px; position: relative; }
+  .idea .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .idea h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 21px; margin-bottom: 10px; }
+  .idea p { font-size: 14px; margin: 0; }
+  .idea code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+
+  /* ---------- shape pills ---------- */
+  .shapes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0; font-family: var(--mono); }
+  .pill {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em;
+    background: var(--bg-3); border: 1px solid var(--line); color: var(--ink);
+    padding: 5px 11px; border-radius: 2px; white-space: nowrap;
+  }
+  .pill b { color: var(--accent); font-weight: 700; }
+  .pill.out b { color: var(--good); }
+  .pill.dim { color: var(--ink-dim); }
+  .shapes .to { color: var(--ink-faint); font-family: var(--serif); font-style: italic; font-size: 20px; }
+  .shapes .plus { color: var(--accent); font-family: var(--serif); font-size: 22px; }
+  .shapes .times { color: var(--accent-2); font-family: var(--serif); font-size: 22px; }
+
+  /* ---------- note ---------- */
+  .note {
+    border-left: 2px solid var(--accent); background: rgba(251, 191, 36, 0.06);
+    padding: 14px 20px; margin: 22px 0; font-size: 14px; color: var(--ink-dim); max-width: 860px;
+  }
+  .note strong { color: var(--accent); }
+  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+  .note.mint { border-left-color: var(--good); background: rgba(163, 230, 53, 0.05); }
+  .note.mint strong { color: var(--good); }
+  .note.warn { border-left-color: var(--warn); background: rgba(251, 191, 36, 0.06); }
+  .note.warn strong { color: var(--warn); }
+  .note.indigo { border-left-color: var(--accent-2); background: rgba(129, 140, 248, 0.07); }
+  .note.indigo strong { color: var(--accent-2); }
+
+  /* ---------- formula panel ---------- */
+  .formula-panel {
+    background: var(--code-bg); border: 1px solid var(--line);
+    padding: 26px 28px; margin: 20px 0; text-align: center; overflow-x: auto;
+  }
+  .katex { color: var(--ink); }
+  .katex-display { margin: 14px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+  /* ---------- recipe gallery ---------- */
+  .recipes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .recipes { grid-template-columns: 1fr; } }
+  .recipe { background: var(--bg-2); padding: 22px 22px; position: relative; }
+  .recipe .eq {
+    font-family: var(--mono); font-size: 16px; color: var(--ink); margin-bottom: 8px;
+    background: var(--code-bg); border: 1px solid var(--line); padding: 8px 12px; display: inline-block; border-radius: 2px;
+  }
+  .recipe .eq .free { color: var(--accent); font-weight: 700; }
+  .recipe .eq .sum { color: var(--accent-2); font-weight: 700; }
+  .recipe .eq .pun { color: var(--ink-faint); }
+  .recipe h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 19px; margin: 6px 0 6px; }
+  .recipe p { font-size: 13px; margin: 0 0 6px; }
+  .recipe .alt { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
+  .recipe .alt b { color: var(--accent-2); font-weight: 500; }
+  .recipe .try {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s; margin-top: 10px;
+  }
+  .recipe .try:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- rules grid ---------- */
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .mini-grid { grid-template-columns: 1fr; } }
+  .mini { background: var(--bg-2); padding: 22px 20px; }
+  .mini .op { font-family: var(--serif); font-size: 34px; font-weight: 300; color: var(--accent); line-height: 1; }
+  .mini h4 { font-family: var(--serif); font-style: italic; font-size: 18px; font-weight: 600; margin: 8px 0 8px; }
+  .mini p { font-size: 13px; margin: 0; }
+  .mini code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); }
+
+  /* ---------- code ---------- */
+  pre.code, pre.exercise {
+    background: var(--code-bg); border-left: 2px solid var(--accent);
+    padding: 20px 24px; font-family: var(--mono); font-size: 13px; line-height: 1.85;
+    overflow-x: auto; margin: 0; color: var(--ink-dim);
+  }
+  pre.exercise { font-size: 14px; line-height: 2.15; }
+  .kw { color: #f0abfc; } .fn { color: #5eead4; } .st { color: #fbbf24; } .nm2 { color: #f4f0e6; }
+  .cm { color: var(--ink-faint); font-style: italic; }
+  .copy-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* ============ PLAYGROUND ============ */
+  .pg-eq-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .eq-input {
+    font-family: var(--mono); font-size: 22px; letter-spacing: 0.04em;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--ink);
+    padding: 12px 16px; border-radius: 3px; flex: 1; min-width: 220px; outline: none;
+  }
+  .eq-input:focus { box-shadow: 0 0 0 2px rgba(251,191,36,0.28); }
+  .eq-input.bad { border-color: var(--bad); box-shadow: 0 0 0 2px rgba(251,113,133,0.25); }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
+  .preset {
+    font-family: var(--mono); font-size: 11px; background: var(--bg-3); border: 1px solid var(--line);
+    color: var(--ink-dim); padding: 5px 11px; cursor: pointer; transition: all 0.15s; border-radius: 2px;
+  }
+  .preset:hover { color: var(--accent); border-color: var(--accent); }
+
+  .idx-controls { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0 6px; }
+  .idx-ctrl { display: flex; align-items: center; gap: 8px; background: var(--bg-3); border: 1px solid var(--line); padding: 6px 8px 6px 12px; border-radius: 3px; }
+  .idx-ctrl .lt { font-family: var(--mono); font-size: 17px; font-weight: 700; }
+  .idx-ctrl .lt.free { color: var(--accent); }
+  .idx-ctrl .lt.sum { color: var(--accent-2); }
+  .idx-ctrl .role { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+  .idx-ctrl .stp { display: flex; align-items: center; gap: 4px; }
+  .idx-ctrl button {
+    font-family: var(--mono); font-size: 14px; width: 22px; height: 22px; line-height: 1;
+    background: var(--code-bg); border: 1px solid var(--line); color: var(--ink-dim); cursor: pointer; border-radius: 2px;
+  }
+  .idx-ctrl button:hover { color: var(--accent); border-color: var(--accent); }
+  .idx-ctrl .sz { font-family: var(--mono); font-size: 14px; color: var(--ink); min-width: 16px; text-align: center; }
+
+  .eq-render { font-family: var(--mono); font-size: 30px; letter-spacing: 0.05em; margin: 18px 0 8px; line-height: 1.4; }
+  .eq-render .free { color: var(--accent); font-weight: 700; }
+  .eq-render .sum { color: var(--accent-2); font-weight: 700; }
+  .eq-render .pun { color: var(--ink-faint); }
+  .role-legend { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-dim); margin-bottom: 8px; }
+  .role-legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .role-legend .sw.free { background: var(--accent); }
+  .role-legend .sw.sum { background: var(--accent-2); }
+
+  .breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 18px 0; }
+  @media (max-width: 760px) { .breakdown { grid-template-columns: 1fr; } }
+  .bcell { background: var(--bg-2); padding: 18px 18px; }
+  .bcell .bk { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+  .bcell .bv { font-family: var(--serif); font-style: italic; font-size: 20px; color: var(--ink); }
+  .bcell .bv b { color: var(--accent); font-style: normal; font-family: var(--mono); font-size: 16px; }
+  .bcell .bv b.sum { color: var(--accent-2); }
+  .bcell .bv b.out { color: var(--good); }
+
+  .pg-error { font-family: var(--mono); font-size: 13px; color: var(--bad); margin: 10px 0; min-height: 16px; }
+
+  /* tensor render */
+  .tensors { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; margin: 10px 0; }
+  .tblock { }
+  .tblock .tname { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin-bottom: 8px; }
+  .tblock .tname b { color: var(--accent); }
+  .tblock .tname .sh { color: var(--accent-2); }
+  .tgrid { display: inline-grid; gap: 3px; background: transparent; }
+  .tcell {
+    font-family: var(--mono); font-size: 12px; width: 30px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--line); border-radius: 2px; color: var(--ink);
+  }
+  .tslices { display: flex; gap: 14px; flex-wrap: wrap; }
+  .tslice { }
+  .tslice .sl { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-bottom: 4px; }
+  .tscalar {
+    font-family: var(--mono); font-size: 18px; min-width: 44px; height: 36px; padding: 0 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--good); border-radius: 2px; color: var(--good); background: rgba(163,230,53,0.06);
+  }
+  .tblock.result .tcell { border-color: rgba(163,230,53,0.5); color: var(--good); background: rgba(163,230,53,0.05); }
+  .eqmark { font-family: var(--serif); font-style: italic; font-size: 30px; color: var(--accent); align-self: center; }
+
+  /* ============ DRILLS ============ */
+  .drill {
+    background: var(--bg-2); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    padding: 22px 24px; margin: 16px 0; transition: border-color 0.2s;
+  }
+  .drill.solved { border-left-color: var(--good); background: linear-gradient(100deg, rgba(163,230,53,0.05), transparent 60%); }
+  .drill .prompt { font-size: 16px; color: var(--ink); margin-bottom: 14px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .drill .prompt .pn { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: 0 0 auto; }
+  .drill.solved .prompt .pn { color: var(--good); }
+  .drill .prompt code { font-family: var(--mono); font-size: 14px; color: var(--accent-2); }
+  pre.exercise .blank, .drill .blank {
+    display: inline-block; min-width: 64px; max-width: 260px; padding: 3px 10px;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--accent);
+    font-family: var(--mono); font-size: 14px; text-align: center; outline: none; border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .blank:focus { box-shadow: 0 0 0 2px rgba(251,191,36,0.3); background: rgba(251,191,36,0.06); }
+  .blank.correct { border-color: var(--good); color: var(--good); background: rgba(163,230,53,0.08); animation: pop 220ms ease-out; }
+  .blank.wrong { border-color: var(--bad); color: var(--bad); animation: shake 240ms ease-in-out; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.13)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .controls-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+    background: var(--accent); color: #050510; border: none; padding: 9px 18px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  .btn:hover { filter: brightness(1.12); box-shadow: 0 0 18px rgba(251,191,36,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink-dim); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .feedback { margin-top: 12px; font-size: 13px; min-height: 16px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); } .feedback.bad { color: var(--bad); } .feedback.hint { color: var(--ink-faint); font-style: italic; }
+
+  /* ============ CONFETTI / TOAST / HELP ============ */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; background: transparent; border: none; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(48px);
+    background: var(--bg-2); border: 1px solid var(--accent); color: var(--ink);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 12px 22px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 22px rgba(251,191,36,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 160;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,5,8,0.78); backdrop-filter: blur(6px);
+    z-index: 210; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: rise 0.25s ease; }
+  #help-overlay .help-content { background: var(--bg-2); border: 1px solid var(--line); padding: 34px 38px; max-width: 460px; width: 100%; position: relative; }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  #help-overlay h3 { color: var(--accent); font-style: italic; margin-bottom: 16px; }
+  #help-overlay table { width: 100%; font-family: var(--mono); font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--ink-dim); }
+  kbd { font-family: var(--mono); background: var(--code-bg); border: 1px solid var(--line); padding: 2px 9px; color: var(--accent); font-size: 12px; }
+
+  footer {
+    max-width: 1280px; margin: 70px auto 0; padding: 28px 32px 50px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.04em;
+  }
+  footer a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="brand"><span class="mark">∑</span> <b>EINSUM</b></div>
+    <div class="progress-bar-outer" title="celkový postup"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat" title="vyřešená cvičení"><span class="num" id="scoreNum">0</span><span style="color:var(--ink-faint)">/</span><span class="num" id="scoreTot">0</span><span class="lbl">vyřešeno</span></div>
+    <div class="streak" title="série">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="help-btn" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome"><span class="tnum">01</span>Proč</button>
+    <button data-tab="rules"><span class="tnum">02</span>Pravidla</button>
+    <button data-tab="recipes"><span class="tnum">03</span>Recepty</button>
+    <button data-tab="play"><span class="tnum">04</span>Hřiště</button>
+    <button data-tab="drills"><span class="tnum">05</span>Procvičování</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <div class="eyebrow">PyTorch · jeden zápis, který ovládne všechny tenzorové operace</div>
+  <h1>Každá kontrakce v <em>jednom</em> řetězci</h1>
+  <p class="lede">
+    <code>torch.einsum</code> vám umožní zapsat násobení matic, dávkové matmul, transpozici, stopu, skalární součin,
+    vnější součin i skóre pozornosti pomocí <strong>jediného řetězce indexů</strong>, jako je
+    <code>'ik,kj->ij'</code>. Nemusíte si pamatovat, jestli použít <code>@</code>, <code>bmm</code>,
+    <code>matmul</code>, nebo spleť <code>transpose</code> + <code>sum</code> — stačí
+    <em>pojmenovat osy a říct, co si výstup ponechá</em>. Tato stránka ukazuje pravidla, galerii receptů a
+    živé hřiště, které einsum skutečně spočítá na malých tenzorech.
+  </p>
+
+  <h2 class="sec"><span class="num">01</span> Myšlenka v jedné větě</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">co to je</div>
+      <h4>Pojmenuj osy</h4>
+      <p>Každé ose každého vstupu přiřaďte písmeno. <code>'bik,bkj->bij'</code> znamená „operand A je indexován
+      <code>b,i,k</code>; operand B je <code>b,k,j</code>; výsledek si ponechá <code>b,i,j</code>.“</p>
+    </div>
+    <div class="idea">
+      <div class="k">jediné pravidlo</div>
+      <h4>Chybí = sečteno</h4>
+      <p>Každé písmeno, které se objeví vlevo, ale <em>ne</em> ve výstupu, je <strong>sečteno (a zmizí)</strong>.
+      Zde <code>k</code> ve <code>bij</code> chybí, takže se přes <code>k</code> sečte — to je
+      právě matmul.</p>
+    </div>
+  </div>
+
+  <div class="formula-panel">
+    $$\texttt{'ik,kj->ij'} \quad\Longleftrightarrow\quad C_{ij} = \sum_{k} A_{ik}\, B_{kj}$$
+  </div>
+
+  <div class="note">
+    <strong>Čtěte to jako větu.</strong> Indexy <em>jsou</em> přímo Einsteinův sumační vzorec:
+    levá strana vypisuje indexy každého operandu, <code>-&gt;</code> odděluje výstup a sčítání
+    přes opakovaný, ale vypuštěný index je implicitní. <code>einsum</code> tuhle matematiku jen převede na volání.
+  </div>
+
+  <h2 class="sec"><span class="num">01·b</span> Proč po něm lidé sahají</h2>
+  <div class="cards three">
+    <div class="idea">
+      <div class="k">čitelné</div>
+      <h4>Sebedokumentující</h4>
+      <p><code>'bhqd,bhkd->bhqk'</code> vám přesně řekne, co skóre pozornosti dělá — osy jsou rovnou
+      vidět. Hromada <code>permute</code>+<code>matmul</code> to skryje.</p>
+    </div>
+    <div class="idea">
+      <div class="k">univerzální</div>
+      <h4>Jedno API, mnoho operací</h4>
+      <p>Transpozice, součet, stopa, skalární a vnější součin, matmul, dávkové i vícetenzorové kontrakce — to vše
+      se sbalí do téhož volání.</p>
+    </div>
+    <div class="idea">
+      <div class="k">méně chyb</div>
+      <h4>Žádné tiché broadcasty</h4>
+      <p>Každou osu vypíšete, takže nesoulad tvarů je hlasitý — žádné náhodné broadcastování, které dělá něco
+      jiného, než jste zamýšleli.</p>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>Jak tuto stránku používat:</strong> projděte záložky <span class="ink">01 → 05</span>. Záložka 02 jsou
+    tři pravidla; <span class="ink">záložka 03 je galerie receptů</span> — uložte si ji do záložek; záložka 04 je skutečný
+    einsum engine, do kterého můžete psát; záložka 05 vás boduje. Stiskněte <kbd>?</kbd> pro klávesové zkratky.
+  </div>
+</section>
+
+<!-- ========================= RULES ========================= -->
+<section class="tab-section" id="tab-rules">
+  <div class="eyebrow">Celý jazyk ve třech pravidlech</div>
+  <h1>Jak <em>číst</em> indexový řetězec</h1>
+  <p class="lede">
+    Řetězec před <code>-&gt;</code> popisuje vstupy; řetězec za ním popisuje výstup. Tři
+    pravidla pokryjí úplně všechno.
+  </p>
+
+  <div class="mini-grid">
+    <div class="mini">
+      <div class="op">①</div>
+      <h4>Stejné písmeno = zarovnání</h4>
+      <p>Písmeno použité <em>napříč operandy</em> znamená, že se ty osy zarovnají a po prvcích vynásobí
+      podél dané dimenze. V <code>'ik,kj'</code> se <code>k</code> z A spáruje s <code>k</code> z B.</p>
+    </div>
+    <div class="mini">
+      <div class="op">②</div>
+      <h4>Vypuštěné písmeno = součet</h4>
+      <p>Každé vstupní písmeno <em>chybějící ve výstupu</em> se sečte. <code>'ik,kj->ij'</code> vypouští
+      <code>k</code>, takže se přes <code>k</code> sečte — kontrakce.</p>
+    </div>
+    <div class="mini">
+      <div class="op">③</div>
+      <h4>Ponechané písmeno = osa</h4>
+      <p>Písmeno, které se objeví ve výstupu, se stane osou výsledku, a to v pořadí, v jakém jste ho zapsali. Přeházením
+      výstupních písmen transponujete: <code>'ij->ji'</code>.</p>
+    </div>
+  </div>
+
+  <h2 class="sec"><span class="num">02·a</span> Volné vs. sečtené indexy</h2>
+  <p class="lede">
+    Dvě role, dvě barvy používané napříč touto stránkou:
+  </p>
+  <div class="role-legend" style="font-size:14px; margin:14px 0 18px;">
+    <span><span class="sw free"></span><b style="color:var(--accent)">volný</b> — objeví se ve výstupu, stane se osou výsledku</span>
+    <span><span class="sw sum"></span><b style="color:var(--accent-2)">sečtený</b> — jen vlevo, vykontrahuje se (zmizí)</span>
+  </div>
+  <div class="formula-panel">
+    $$\underbrace{C_{\textcolor{#fbbf24}{ij}}}_{\text{free}} = \sum_{\textcolor{#818cf8}{k}} A_{\textcolor{#fbbf24}{i}\textcolor{#818cf8}{k}}\, B_{\textcolor{#818cf8}{k}\textcolor{#fbbf24}{j}}$$
+  </div>
+
+  <h2 class="sec"><span class="num">02·b</span> Implicitní (bezšipková) forma</h2>
+  <div class="panel">
+    <div class="panel-label">když vynecháte <code>-&gt;</code></div>
+    <p style="margin:0 0 12px;">
+      Pokud vynecháte <code>-&gt;výstup</code>, použije einsum <strong>implicitní</strong> pravidlo: každý index,
+      který se vlevo objeví <em>právě jednou</em>, se stane volnou výstupní osou, seřazenou abecedně. Indexy,
+      které se opakují, se sečtou.
+    </p>
+    <ul>
+      <li><span class="pill"><code>'ij'</code></span> &nbsp;→ &nbsp;<code>'ij->ij'</code> &nbsp; identita (každé písmeno jednou).</li>
+      <li><span class="pill"><code>'ii'</code></span> &nbsp;→ &nbsp;<code>'ii->'</code> &nbsp; stopa (<code>i</code> se opakuje, takže se sečte).</li>
+      <li><span class="pill"><code>'ik,kj'</code></span> &nbsp;→ &nbsp;<code>'ik,kj->ij'</code> &nbsp; matmul (<code>k</code> se opakuje → sečte se; <code>i,j</code> seřazeno).</li>
+    </ul>
+    <div class="note warn" style="margin-bottom:0;">
+      <strong>Buďte explicitní.</strong> Implicitní forma se hodí, ale pravidlo abecedního řazení lidi
+      překvapuje. Když výstup po <code>-&gt;</code> napíšete, je záměr jednoznačný — a tak to dělá většina kódu.
+    </div>
+  </div>
+
+  <h2 class="sec"><span class="num">02·c</span> Signatura &amp; záludnosti</h2>
+  <div class="panel">
+    <div class="panel-label">torch.einsum · volání <button class="copy-btn" onclick="copyCode(this)">kopírovat</button></div>
+    <pre class="exercise"><span class="kw">import</span> torch
+
+A = torch.<span class="fn">randn</span>(<span class="st">2</span>, <span class="st">3</span>)        <span class="cm"># [i=2, k=3]</span>
+B = torch.<span class="fn">randn</span>(<span class="st">3</span>, <span class="st">4</span>)        <span class="cm"># [k=3, j=4]</span>
+
+C = torch.<span class="fn">einsum</span>(<span class="st">'ik,kj->ij'</span>, A, B)   <span class="cm"># [i=2, j=4]  == A @ B</span>
+
+<span class="cm"># operandy se předávají za řetězcem, v pořadí</span>
+<span class="cm"># počet písmen každého operandu se musí rovnat počtu jeho dimenzí</span></pre>
+  </div>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">záludnost</div>
+      <h4>Písmena ≠ dimenze</h4>
+      <p>Pokud má operand 3 dimenze, jeho index potřebuje přesně 3 písmena. <code>'ij'</code> pro 3rozměrný tenzor
+      vyhodí chybu.</p>
+    </div>
+    <div class="idea">
+      <div class="k">záludnost</div>
+      <h4>Stejné písmeno, stejná velikost</h4>
+      <p>Opakované písmeno musí mít všude, kde se objeví, stejnou délku — <code>k</code> v obou
+      operandech se musí shodovat, jinak se nedá zarovnat.</p>
+    </div>
+  </div>
+  <div class="note indigo">
+    <strong>Tři tečky <code>...</code>:</strong> pro úvodní „dávkové“ dimenze, které nechcete pojmenovávat, použijte
+    <code>'...ik,...kj->...ij'</code>. <code>...</code> broadcastuje přes libovolný počet úvodních os — skvělé
+    pro kód, který má fungovat na dávkových i nedávkových vstupech.
+  </div>
+</section>
+
+<!-- ========================= RECIPES ========================= -->
+<section class="tab-section" id="tab-recipes">
+  <div class="eyebrow">Galerie k zkopírování</div>
+  <h1>Einsum <em>kuchařka</em></h1>
+  <p class="lede">
+    Ty, které opravdu použijete. <span style="color:var(--accent)">Jantarová</span> písmena se ponechávají (volná);
+    <span style="color:var(--accent-2)">indigová</span> písmena se sečtou pryč. Klikněte na <em>vyzkoušet</em> na libovolné
+    kartě a načtete ji do hřiště.
+  </p>
+
+  <h2 class="sec"><span class="num">03·a</span> Jeden tenzor</h2>
+  <div class="recipes" id="recipes-one"></div>
+
+  <h2 class="sec"><span class="num">03·b</span> Dva tenzory</h2>
+  <div class="recipes" id="recipes-two"></div>
+
+  <h2 class="sec"><span class="num">03·c</span> Blok pozornosti v einsumu</h2>
+  <div class="panel">
+    <div class="panel-label">scaled dot-product attention · rozepsáno <button class="copy-btn" onclick="copyCode(this)">kopírovat</button></div>
+    <pre class="exercise"><span class="cm"># Q,K,V: [B, H, T, d]   (dávka, hlavy, tokeny, dimenze hlavy)</span>
+scores = torch.<span class="fn">einsum</span>(<span class="st">'bhqd,bhkd->bhqk'</span>, Q, K) / math.<span class="fn">sqrt</span>(d)
+attn   = scores.<span class="fn">softmax</span>(dim=-<span class="st">1</span>)                    <span class="cm"># [B,H,q,k]</span>
+out    = torch.<span class="fn">einsum</span>(<span class="st">'bhqk,bhkd->bhqd'</span>, attn, V)  <span class="cm"># [B,H,q,d]</span></pre>
+  </div>
+  <div class="note mint">
+    <strong>Přečtěte si řádek se skóre:</strong> <code>q</code> a <code>k</code> jsou dvě tokenové osy;
+    <code>d</code> (dimenze hlavy) je sdílené a <em>vypuštěné</em>, takže se sečte — to je skalární součin
+    každého dotazu proti každému klíči. <code>b,h</code> jedou s sebou jako dávkové osy.
+  </div>
+</section>
+
+<!-- ========================= PLAYGROUND ========================= -->
+<section class="tab-section" id="tab-play">
+  <div class="eyebrow">Skutečný einsum engine ve vašem prohlížeči</div>
+  <h1>einsum <em>hřiště</em></h1>
+  <p class="lede">
+    Napište indexový řetězec. Stránka obarví indexy podle role, ukáže tvar každého operandu, tvar
+    výstupu, co se sečte — a pak výsledek <strong>skutečně spočítá</strong> na malých celočíselných tenzorech, takže
+    můžete kontrakci sledovat naživo. Velikost každého indexu měňte přepínači.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">indexový řetězec · např. <code>ik,kj-&gt;ij</code></div>
+    <div class="pg-eq-row">
+      <input class="eq-input" id="eqInput" value="ik,kj->ij" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="preset-row" id="presetRow"></div>
+    <div class="pg-error" id="pgError"></div>
+
+    <div class="role-legend">
+      <span><span class="sw free"></span>volný index — ponechán ve výstupu</span>
+      <span><span class="sw sum"></span>sečtený index — vykontrahován pryč</span>
+    </div>
+    <div class="eq-render" id="eqRender"></div>
+
+    <div class="idx-controls" id="idxControls"></div>
+
+    <div class="breakdown" id="breakdown"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">numerický běh · malé celočíselné tenzory <span id="flops"></span></div>
+    <div class="tensors" id="tensors"></div>
+    <div class="note" style="margin-bottom:0; font-size:12.5px;">
+      Hodnoty jsou drobná deterministická celá čísla, aby se dala aritmetika snadno odhadnout od oka.
+      <span style="color:var(--good)">Zelený</span> tenzor je výstup einsumu; u osy operandu, která se
+      sečte, se každá hodnota podél ní přičte do odpovídající výstupní buňky.
+    </div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <div class="eyebrow">Napiš odpověď · získej sérii</div>
+  <h1><em>Procvičování</em></h1>
+  <p class="lede">
+    <kbd>Enter</kbd> kontroluje · <kbd>Hint</kbd> odhalí všechna nevyřešená políčka (přepínač) · <kbd>Tab</kbd> přepíná
+    mezi políčky. Vyřešte je všechna a dokončíte sekci.
+  </p>
+
+  <h2 class="sec"><span class="num">05·a</span> Čtení indexů</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">01</span> Transponujte matici <code>A[i,j]</code> — prohoďte výstupní osy.</div>
+    <pre class="exercise">torch.einsum('ij-><input class="blank" data-answer="ji" size="6" placeholder="?">', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">02</span> Sečtěte přes sloupce <code>j</code>, ponechte jednu hodnotu na řádek <code>i</code> (součty po řádcích).</div>
+    <pre class="exercise">torch.einsum('ij-><input class="blank" data-answer="i" size="6" placeholder="?">', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">03</span> Násobení matic: <code>A[i,k]</code> krát <code>B[?,?]</code> → <code>C[i,j]</code>. Doplňte index B.</div>
+    <pre class="exercise">torch.einsum('ik,<input class="blank" data-answer="kj" size="6" placeholder="?">->ij', A, B)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">05·b</span> Pravidlo sčítání</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">04</span> Doplňte pravidlo: index, který je vlevo, ale chybí ve výstupu, se ______.</div>
+    <pre class="exercise">index se <input class="blank" data-answer="summed|sum|summed|contracted|sečte|sečteno|sečten" size="10" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">05</span> Stopa čtvercové matice (součet diagonály). Doplňte vstupní index.</div>
+    <pre class="exercise">torch.einsum('<input class="blank" data-answer="ii" size="6" placeholder="?">->', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">06</span> Vytáhněte diagonálu jako vektor (ponechte <code>i</code>, žádný součet).</div>
+    <pre class="exercise">torch.einsum('ii-><input class="blank" data-answer="i" size="6" placeholder="?">', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">07</span> Vnější součin vektorů <code>u[i]</code> a <code>v[j]</code> → matice <code>[i,j]</code>.</div>
+    <pre class="exercise">torch.einsum('i,j-><input class="blank" data-answer="ij" size="6" placeholder="?">', u, v)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">05·c</span> Dávkové &amp; pozornost</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">08</span> Dávkový matmul: na dávku <code>b</code>, <code>A[b,i,k] · B[b,k,j]</code>. Doplňte výstup.</div>
+    <pre class="exercise">torch.einsum('bik,bkj-><input class="blank" data-answer="bij" size="7" placeholder="?">', A, B)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">09</span> Skóre pozornosti: <code>Q[b,i,d]</code> skalárně s <code>K[b,j,d]</code> přes dimenzi hlavy <code>d</code>.</div>
+    <pre class="exercise">torch.einsum('bid,bjd-><input class="blank" data-answer="bij" size="7" placeholder="?">', Q, K)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">10</span> Kontextové vektory: zvažte hodnoty pozorností. <code>attn[b,i,j] · V[b,j,d]</code> → <code>[b,i,d]</code>.</div>
+    <pre class="exercise">torch.einsum('bij,<input class="blank" data-answer="bjd" size="7" placeholder="?">->bid', attn, V)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">11</span> Samotná funkce PyTorche — pojmenujte volání.</div>
+    <pre class="exercise">C = torch.<input class="blank" data-answer="einsum" size="9" placeholder="?">('ik,kj->ij', A, B)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note mint" style="margin-top:24px;">
+    <strong>Vyřešili jste všech jedenáct?</strong> Teď umíte číst i psát einsum pro transpozici, redukce, stopu,
+    vnější/skalární součiny, matmul, dávkový matmul i celý blok pozornosti. Celý jazyk je jen:
+    <em>pojmenuj osy, vyjmenuj, co si výstup ponechá, vše ostatní se sečte</em>.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="if(event.target===this)hideHelp()">
+  <div class="help-content">
+    <h3>klávesnice</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>skok na další políčko</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>zkontrolovat aktuální cvičení</td></tr>
+      <tr><td><kbd>1</kbd> … <kbd>5</kbd></td><td>přepnout záložku</td></tr>
+      <tr><td><kbd>?</kbd></td><td>tato nápověda</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>zavřít</td></tr>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>torch.einsum · pojmenuj osy, ponech, co chceš, zbytek se sečte · hřiště počítá skutečný einsum v JS</span>
+  <span><a href="index.html">← všechny taháky</a></span>
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'částečně — ' + newlySolved + ' správně, pokračujte.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'odpovědi skryty — zkuste je napsat sami';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'vše hotovo.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'všechny odpovědi odhaleny · klikněte znovu pro skrytí';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['paráda.', 'správně!', 'vykontrahováno.', '✓ přesně tak.', 'ostrý odhad.', 'to je ta osa.', 'sečteno dobře.', 'einsumováno.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['ještě ne — zkuste to znovu.', 'blízko. mrknout na nápovědu?', 'skoro. zkontrolujte písmena.', 'špatná osa. ještě jednou.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('sekce dokončena! 🎉  +' + drills.length + ' vyřešeno');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#fbbf24','#fcd34d','#818cf8','#a3e635','#a5b4fc','#fde68a','#f4f0e6'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.panel, .card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'zkopírováno!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'kopírovat'; }, 1300);
+  });
+}
+
+// ============== EINSUM ENGINE ==============
+// Parse a subscript string into {operands:[...], out, explicit, error}
+function parseEinsum(raw) {
+  const eq = raw.replace(/\s+/g, '');
+  if (eq.length === 0) return { error: 'prázdné' };
+  if (/[^a-z,>\-]/.test(eq)) return { error: 'povolena jsou jen malá písmena, čárky a ->' };
+  let lhs, rhs, explicit;
+  if (eq.includes('->')) {
+    const parts = eq.split('->');
+    if (parts.length !== 2) return { error: 'použijte jediné ->' };
+    lhs = parts[0]; rhs = parts[1]; explicit = true;
+  } else {
+    lhs = eq; rhs = null; explicit = false;
+  }
+  if (/[->]/.test(lhs) || (rhs && /[,>\-]/.test(rhs))) return { error: 'chybně zapsaný index' };
+  const operands = lhs.split(',');
+  if (operands.some(o => o.length === 0)) return { error: 'některý operand nemá žádné indexy' };
+  // duplicate-letter within a single operand is allowed (e.g. ii) — fine.
+  let out;
+  if (explicit) {
+    out = rhs;
+  } else {
+    const counts = {};
+    for (const op of operands) for (const ch of op) counts[ch] = (counts[ch] || 0) + 1;
+    out = Object.keys(counts).filter(c => counts[c] === 1).sort().join('');
+  }
+  // every output letter must appear on the left
+  const leftLetters = new Set(operands.join('').split(''));
+  for (const ch of out) if (!leftLetters.has(ch)) return { error: `výstupní index '${ch}' se v žádném vstupu neobjevuje` };
+  // duplicate output letters are invalid
+  if (new Set(out.split('')).size !== out.length) return { error: 'výstup má opakovaný index' };
+  return { operands, out, explicit };
+}
+
+// deterministic small int for operand o, flat offset i  -> 1..6
+function detVal(o, i) {
+  const s = Math.sin((o * 91.7 + i * 13.31 + 1) * 9.123) * 9973.17;
+  return 1 + Math.floor(Math.abs(s - Math.floor(s)) * 6); // 1..6
+}
+
+// compute einsum result; returns {result:Float64Array, outDims, operandData:[...], opDims:[...]}
+function runEinsum(operands, out, sizes) {
+  const opDims = operands.map(op => op.split('').map(c => sizes[c]));
+  const operandData = opDims.map((dims, o) => {
+    const n = dims.reduce((a, b) => a * b, 1);
+    const arr = new Float64Array(n);
+    for (let i = 0; i < n; i++) arr[i] = detVal(o, i);
+    return arr;
+  });
+  const outDims = out.split('').map(c => sizes[c]);
+  const outSize = outDims.reduce((a, b) => a * b, 1);
+  const result = new Float64Array(outSize);
+
+  const allIdx = Array.from(new Set((operands.join('') + out).split('')));
+  const dimsAll = allIdx.map(c => sizes[c]);
+  const total = dimsAll.reduce((a, b) => a * b, 1);
+
+  const assign = {};
+  for (let lin = 0; lin < total; lin++) {
+    let rem = lin;
+    for (let k = allIdx.length - 1; k >= 0; k--) { assign[allIdx[k]] = rem % dimsAll[k]; rem = Math.floor(rem / dimsAll[k]); }
+    let prod = 1;
+    for (let o = 0; o < operands.length; o++) {
+      const idx = operands[o]; let off = 0;
+      for (const ch of idx) off = off * sizes[ch] + assign[ch];
+      prod *= operandData[o][off];
+    }
+    let off = 0;
+    for (const ch of out) off = off * sizes[ch] + assign[ch];
+    result[off] += prod;
+  }
+  return { result, outDims, operandData, opDims };
+}
+
+// ---- playground rendering ----
+const idxSizes = {}; // persistent per-letter sizes
+function getSize(c) { return idxSizes[c] || (idxSizes[c] = 2); }
+
+const PG = {
+  input: document.getElementById('eqInput'),
+  err: document.getElementById('pgError'),
+  render: document.getElementById('eqRender'),
+  ctrls: document.getElementById('idxControls'),
+  breakdown: document.getElementById('breakdown'),
+  tensors: document.getElementById('tensors'),
+  flops: document.getElementById('flops'),
+};
+
+function colorEquation(operands, out, sumSet, hostFreeClass) {
+  // returns HTML string of the equation with role-colored letters
+  function letters(str) {
+    return str.split('').map(ch =>
+      `<span class="${sumSet.has(ch) ? 'sum' : 'free'}">${ch}</span>`).join('');
+  }
+  const left = operands.map(letters).join('<span class="pun">,</span>');
+  return `${left}<span class="pun"> → </span>${letters(out) || '<span class="pun">(skalár)</span>'}`;
+}
+
+function tensorEl(dims, data, isResult) {
+  // dims: array; data: Float64Array (row-major)
+  const wrap = document.createElement('div');
+  if (dims.length === 0) {
+    const s = document.createElement('span');
+    s.className = 'tscalar';
+    s.textContent = data[0];
+    wrap.appendChild(s);
+    return wrap;
+  }
+  if (dims.length === 1) {
+    const g = document.createElement('div');
+    g.className = 'tgrid';
+    g.style.gridTemplateColumns = `repeat(${dims[0]}, auto)`;
+    for (let i = 0; i < dims[0]; i++) {
+      const c = document.createElement('div'); c.className = 'tcell'; c.textContent = data[i]; g.appendChild(c);
+    }
+    wrap.appendChild(g);
+    return wrap;
+  }
+  if (dims.length === 2) {
+    const [r, cN] = dims;
+    const g = document.createElement('div');
+    g.className = 'tgrid';
+    g.style.gridTemplateColumns = `repeat(${cN}, auto)`;
+    for (let i = 0; i < r * cN; i++) {
+      const c = document.createElement('div'); c.className = 'tcell'; c.textContent = data[i]; g.appendChild(c);
+    }
+    wrap.appendChild(g);
+    return wrap;
+  }
+  // >=3 dims: split leading axis into slices
+  const lead = dims[0], rest = dims.slice(1);
+  const restSize = rest.reduce((a, b) => a * b, 1);
+  const slices = document.createElement('div'); slices.className = 'tslices';
+  for (let i = 0; i < lead; i++) {
+    const sl = document.createElement('div'); sl.className = 'tslice';
+    const lab = document.createElement('div'); lab.className = 'sl'; lab.textContent = `[${i}]`;
+    sl.appendChild(lab);
+    sl.appendChild(tensorEl(rest, data.subarray(i * restSize, (i + 1) * restSize), isResult));
+    slices.appendChild(sl);
+  }
+  wrap.appendChild(slices);
+  return wrap;
+}
+
+function shapeStr(dims) { return dims.length ? `[${dims.join(', ')}]` : 'skalár'; }
+
+function renderPlayground() {
+  const raw = PG.input.value;
+  const parsed = parseEinsum(raw);
+  if (parsed.error) {
+    PG.input.classList.add('bad');
+    PG.err.textContent = '✗ ' + parsed.error;
+    PG.render.innerHTML = '';
+    PG.ctrls.innerHTML = '';
+    PG.breakdown.innerHTML = '';
+    PG.tensors.innerHTML = '';
+    PG.flops.textContent = '';
+    return;
+  }
+  PG.input.classList.remove('bad');
+  PG.err.textContent = '';
+
+  const { operands, out, explicit } = parsed;
+  const outSet = new Set(out.split(''));
+  const allLetters = Array.from(new Set(operands.join('').split('')));
+  const sumSet = new Set(allLetters.filter(c => !outSet.has(c)));
+
+  // colored equation
+  PG.render.innerHTML = colorEquation(operands, out, sumSet);
+
+  // index size steppers
+  PG.ctrls.innerHTML = '';
+  allLetters.sort().forEach(c => {
+    getSize(c);
+    const role = sumSet.has(c) ? 'sum' : 'free';
+    const roleLabel = role === 'sum' ? 'sečtený' : 'volný';
+    const el = document.createElement('div');
+    el.className = 'idx-ctrl';
+    el.innerHTML =
+      `<span class="lt ${role}">${c}</span>` +
+      `<span class="role">${roleLabel}</span>` +
+      `<span class="stp">` +
+        `<button data-dec="${c}">−</button>` +
+        `<span class="sz" id="sz-${c}">${idxSizes[c]}</span>` +
+        `<button data-inc="${c}">+</button>` +
+      `</span>`;
+    PG.ctrls.appendChild(el);
+  });
+  PG.ctrls.querySelectorAll('button[data-inc]').forEach(b => b.onclick = () => {
+    const c = b.dataset.inc; idxSizes[c] = Math.min(4, idxSizes[c] + 1); renderPlayground();
+  });
+  PG.ctrls.querySelectorAll('button[data-dec]').forEach(b => b.onclick = () => {
+    const c = b.dataset.dec; idxSizes[c] = Math.max(1, idxSizes[c] - 1); renderPlayground();
+  });
+
+  // breakdown cells
+  const opShapes = operands.map(op => `${op} <b>${shapeStr(op.split('').map(c => idxSizes[c]))}</b>`).join(' &nbsp;·&nbsp; ');
+  const outShape = shapeStr(out.split('').map(c => idxSizes[c]));
+  const summedList = Array.from(sumSet).sort();
+  PG.breakdown.innerHTML =
+    `<div class="bcell"><div class="bk">vstupy</div><div class="bv" style="font-size:15px;font-family:var(--mono)">${opShapes}</div></div>` +
+    `<div class="bcell"><div class="bk">sečteno přes</div><div class="bv">${summedList.length ? summedList.map(c => `<b class="sum">${c}</b>`).join(' ') : '<span style="color:var(--ink-faint)">nic</span>'}</div></div>` +
+    `<div class="bcell"><div class="bk">výstup ${explicit ? '(explicitní)' : '(implicitní)'}</div><div class="bv"><b class="out">${out || '∅'}</b> &nbsp;${outShape}</div></div>`;
+
+  // numeric run (guard size)
+  const dimsAll = allLetters.map(c => idxSizes[c]);
+  const total = dimsAll.reduce((a, b) => a * b, 1);
+  PG.tensors.innerHTML = '';
+  if (total > 20000) {
+    PG.tensors.innerHTML = '<p style="margin:0">velikosti jsou příliš velké na zobrazení — zmenšete některý index.</p>';
+    PG.flops.textContent = '';
+    return;
+  }
+  const { result, outDims, operandData, opDims } = runEinsum(operands, out, idxSizes);
+
+  operands.forEach((op, o) => {
+    const block = document.createElement('div'); block.className = 'tblock';
+    const nm = document.createElement('div'); nm.className = 'tname';
+    nm.innerHTML = `<b>${String.fromCharCode(65 + o)}</b> = <span style="color:var(--accent)">${op}</span> <span class="sh">${shapeStr(opDims[o])}</span>`;
+    block.appendChild(nm);
+    block.appendChild(tensorEl(opDims[o], operandData[o], false));
+    PG.tensors.appendChild(block);
+    if (o < operands.length - 1) {
+      const m = document.createElement('div'); m.className = 'eqmark'; m.textContent = '·'; PG.tensors.appendChild(m);
+    }
+  });
+  const eqm = document.createElement('div'); eqm.className = 'eqmark'; eqm.textContent = '='; PG.tensors.appendChild(eqm);
+  const rb = document.createElement('div'); rb.className = 'tblock result';
+  const rnm = document.createElement('div'); rnm.className = 'tname';
+  rnm.innerHTML = `<b style="color:var(--good)">out</b> = <span style="color:var(--good)">${out || '(skalár)'}</span> <span class="sh">${shapeStr(outDims)}</span>`;
+  rb.appendChild(rnm);
+  rb.appendChild(tensorEl(outDims, result, true));
+  PG.tensors.appendChild(rb);
+
+  PG.flops.textContent = `· ${total.toLocaleString()} skalárních násobení-sčítání`;
+}
+
+PG.input.addEventListener('input', renderPlayground);
+
+// ============== RECIPE GALLERY ==============
+const RECIPES_ONE = [
+  { eq: 'ij->ji', title: 'Transpozice', desc: 'Prohození obou os. Výstupní písmena přeházena, nic se nesčítá.', alt: 'A.T' },
+  { eq: 'ij->', title: 'Součet všeho', desc: 'Oba indexy vypuštěny → sečte každý prvek do jednoho skaláru.', alt: 'A.sum()' },
+  { eq: 'ij->i', title: 'Součty po řádcích', desc: 'Vypuštění j → součet přes sloupce, jedna hodnota na řádek.', alt: 'A.sum(dim=1)' },
+  { eq: 'ij->j', title: 'Součty po sloupcích', desc: 'Vypuštění i → součet přes řádky, jedna hodnota na sloupec.', alt: 'A.sum(dim=0)' },
+  { eq: 'ii->', title: 'Stopa', desc: 'Opakované i, vypuštěno → součet diagonály.', alt: 'A.trace()' },
+  { eq: 'ii->i', title: 'Diagonála', desc: 'Opakované i, ponecháno → vytáhne diagonálu jako vektor.', alt: 'A.diagonal()' },
+];
+const RECIPES_TWO = [
+  { eq: 'i,i->', title: 'Skalární součin', desc: 'Sdílené i, vypuštěno → vynásobí po prvcích a sečte.', alt: 'u @ v' },
+  { eq: 'i,j->ij', title: 'Vnější součin', desc: 'Žádné sdílené písmeno; obě ponechána → každá dvojice vynásobena.', alt: 'torch.outer(u, v)' },
+  { eq: 'ik,kj->ij', title: 'Násobení matic', desc: 'Sdílené k vypuštěno → klasická kontrakce.', alt: 'A @ B' },
+  { eq: 'ij,j->i', title: 'Matice · vektor', desc: 'Sdílené j vypuštěno → vážené součty po řádcích.', alt: 'A @ v' },
+  { eq: 'bik,bkj->bij', title: 'Dávkový matmul', desc: 'b jede s sebou jako dávka; k se kontrahuje v rámci každé dávky.', alt: 'torch.bmm(A, B)' },
+  { eq: 'ij,ij->', title: 'Frobeniův součin', desc: 'Obě písmena sdílena a vypuštěna → součet součinů prvků.', alt: '(A*B).sum()' },
+];
+
+function recipeEqHTML(eq) {
+  const parsed = parseEinsum(eq);
+  if (parsed.error) return eq;
+  const outSet = new Set(parsed.out.split(''));
+  const sumSet = new Set(parsed.operands.join('').split('').filter(c => !outSet.has(c)));
+  function letters(str) {
+    return str.split('').map(ch => `<span class="${sumSet.has(ch) ? 'sum' : 'free'}">${ch}</span>`).join('');
+  }
+  const left = parsed.operands.map(letters).join('<span class="pun">,</span>');
+  return `'${left}<span class="pun">-></span>${letters(parsed.out)}'`;
+}
+
+function buildRecipes(hostId, list) {
+  const host = document.getElementById(hostId);
+  host.innerHTML = '';
+  list.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'recipe';
+    card.innerHTML =
+      `<div class="eq">${recipeEqHTML(r.eq)}</div>` +
+      `<h4>${r.title}</h4>` +
+      `<p>${r.desc}</p>` +
+      `<div class="alt">≡ <b>${r.alt}</b></div>` +
+      `<button class="try">vyzkoušet ↗</button>`;
+    card.querySelector('.try').onclick = () => {
+      PG.input.value = r.eq;
+      renderPlayground();
+      switchTab('play');
+    };
+    host.appendChild(card);
+  });
+}
+
+// ============== PRESET CHIPS (playground) ==============
+const PRESETS = ['ik,kj->ij', 'ij->ji', 'ii->', 'i,j->ij', 'bik,bkj->bij', 'bid,bjd->bij', 'ij,ij->', 'ij->i'];
+function buildPresets() {
+  const host = document.getElementById('presetRow');
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'preset'; b.textContent = p;
+    b.onclick = () => { PG.input.value = p; renderPlayground(); };
+    host.appendChild(b);
+  });
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'rules','3':'recipes','4':'play','5':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+buildRecipes('recipes-one', RECIPES_ONE);
+buildRecipes('recipes-two', RECIPES_TWO);
+buildPresets();
+renderPlayground();
+updateProgress();
+</script>
+</body>
+</html>

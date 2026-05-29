@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>torch.einsum · 一條字串搞定所有張量縮並</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --bg-3: #1a1a26;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --ink-faint: #5a564e;
+    --line: rgba(255, 240, 220, 0.09);
+    --line-soft: rgba(255, 240, 220, 0.05);
+    --grid: rgba(255, 240, 220, 0.035);
+    --accent: #fbbf24;          /* amber — free indices (kept) */
+    --accent-2: #818cf8;        /* indigo — summed indices (contracted) */
+    --good: #a3e635;            /* lime */
+    --bad: #fb7185;             /* rose */
+    --warn: #fbbf24;
+    --code-bg: #08101e;
+    --serif: 'Fraunces', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at 80% -10%, rgba(251, 191, 36, 0.10), transparent 55%),
+      radial-gradient(ellipse at 0% 110%, rgba(129, 140, 248, 0.07), transparent 50%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection { background: var(--accent); color: #050510; }
+
+  /* ============ STICKY TOP ============ */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 80;
+    background: rgba(10, 10, 15, 0.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 16px 32px; max-width: 1280px; margin: 0 auto;
+  }
+  .brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.32em;
+    text-transform: uppercase; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .brand .mark { color: var(--accent); font-size: 13px; filter: drop-shadow(0 0 6px var(--accent)); }
+  .brand b { font-weight: 700; }
+  .progress-bar-outer {
+    flex: 1; min-width: 140px; height: 2px;
+    background: rgba(255, 240, 220, 0.12); position: relative; overflow: hidden;
+  }
+  .progress-bar-inner {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 16px var(--accent);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--ink-dim); display: flex; align-items: baseline; gap: 5px; white-space: nowrap;
+  }
+  .stat .num { font-family: var(--serif); font-weight: 600; font-size: 22px; color: var(--ink); font-feature-settings: "tnum"; }
+  .stat .num#scoreNum { color: var(--accent); }
+  .stat .lbl { text-transform: uppercase; font-size: 9px; letter-spacing: 0.22em; }
+  .streak { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 5px; }
+  .streak .num { font-family: var(--serif); font-weight: 600; color: var(--accent-2); font-size: 18px; }
+  .help-btn {
+    font-family: var(--mono); font-size: 13px; width: 30px; height: 30px;
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--line); cursor: pointer; transition: all 0.15s;
+  }
+  .help-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  nav.tabs {
+    display: flex; gap: 2px; flex-wrap: wrap;
+    padding: 0 32px; max-width: 1280px; margin: 0 auto;
+    border-top: 1px solid var(--line-soft);
+  }
+  nav.tabs button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 14px 15px; cursor: pointer; transition: all 0.18s;
+  }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .tnum { color: var(--ink-faint); margin-right: 7px; transition: color 0.18s; }
+  nav.tabs button.active .tnum { color: var(--accent-2); }
+  nav.tabs button .check { color: var(--good); margin-left: 7px; }
+
+  /* ============ LAYOUT ============ */
+  main { max-width: 1280px; margin: 0 auto; padding: 56px 32px 120px; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: rise 0.45s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--accent); display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ''; width: 34px; height: 1px; background: var(--accent); }
+
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-size: clamp(44px, 7vw, 96px);
+    line-height: 0.94; letter-spacing: -0.035em; margin-bottom: 26px; max-width: 16ch;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+
+  .lede {
+    font-size: clamp(16px, 1.9vw, 20px); max-width: 760px; line-height: 1.55;
+    color: var(--ink-dim); font-weight: 300; margin-bottom: 8px;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .lede em { font-style: italic; color: var(--ink); }
+  .lede code, p code, li code { font-family: var(--mono); font-size: 0.88em; color: var(--accent-2); background: var(--code-bg); padding: 1px 6px; border-radius: 2px; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--ink-dim);
+    display: flex; align-items: center; gap: 16px; margin: 56px 0 28px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  h3 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 24px; margin-bottom: 12px; letter-spacing: -0.01em; }
+  p { color: var(--ink-dim); max-width: 760px; margin-bottom: 14px; }
+  p strong, .ink { color: var(--ink); font-weight: 600; }
+  p em { font-style: italic; color: var(--ink); }
+  ul { color: var(--ink-dim); margin: 0; padding-left: 0; list-style: none; }
+  ul li { margin: 9px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- panel w/ corner brackets ---------- */
+  .panel { background: var(--bg-2); border: 1px solid var(--line); padding: 32px; margin: 22px 0; position: relative; }
+  .panel.tight { padding: 22px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 22px; height: 22px; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .panel-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+
+  /* ---------- idea cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 26px 0; }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 820px) { .cards, .cards.three { grid-template-columns: 1fr; } }
+  .idea { background: var(--bg-2); padding: 28px 26px; position: relative; }
+  .idea .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .idea h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 21px; margin-bottom: 10px; }
+  .idea p { font-size: 14px; margin: 0; }
+  .idea code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+
+  /* ---------- shape pills ---------- */
+  .shapes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0; font-family: var(--mono); }
+  .pill {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em;
+    background: var(--bg-3); border: 1px solid var(--line); color: var(--ink);
+    padding: 5px 11px; border-radius: 2px; white-space: nowrap;
+  }
+  .pill b { color: var(--accent); font-weight: 700; }
+  .pill.out b { color: var(--good); }
+  .pill.dim { color: var(--ink-dim); }
+  .shapes .to { color: var(--ink-faint); font-family: var(--serif); font-style: italic; font-size: 20px; }
+  .shapes .plus { color: var(--accent); font-family: var(--serif); font-size: 22px; }
+  .shapes .times { color: var(--accent-2); font-family: var(--serif); font-size: 22px; }
+
+  /* ---------- note ---------- */
+  .note {
+    border-left: 2px solid var(--accent); background: rgba(251, 191, 36, 0.06);
+    padding: 14px 20px; margin: 22px 0; font-size: 14px; color: var(--ink-dim); max-width: 860px;
+  }
+  .note strong { color: var(--accent); }
+  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+  .note.mint { border-left-color: var(--good); background: rgba(163, 230, 53, 0.05); }
+  .note.mint strong { color: var(--good); }
+  .note.warn { border-left-color: var(--warn); background: rgba(251, 191, 36, 0.06); }
+  .note.warn strong { color: var(--warn); }
+  .note.indigo { border-left-color: var(--accent-2); background: rgba(129, 140, 248, 0.07); }
+  .note.indigo strong { color: var(--accent-2); }
+
+  /* ---------- formula panel ---------- */
+  .formula-panel {
+    background: var(--code-bg); border: 1px solid var(--line);
+    padding: 26px 28px; margin: 20px 0; text-align: center; overflow-x: auto;
+  }
+  .katex { color: var(--ink); }
+  .katex-display { margin: 14px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+  /* ---------- recipe gallery ---------- */
+  .recipes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .recipes { grid-template-columns: 1fr; } }
+  .recipe { background: var(--bg-2); padding: 22px 22px; position: relative; }
+  .recipe .eq {
+    font-family: var(--mono); font-size: 16px; color: var(--ink); margin-bottom: 8px;
+    background: var(--code-bg); border: 1px solid var(--line); padding: 8px 12px; display: inline-block; border-radius: 2px;
+  }
+  .recipe .eq .free { color: var(--accent); font-weight: 700; }
+  .recipe .eq .sum { color: var(--accent-2); font-weight: 700; }
+  .recipe .eq .pun { color: var(--ink-faint); }
+  .recipe h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 19px; margin: 6px 0 6px; }
+  .recipe p { font-size: 13px; margin: 0 0 6px; }
+  .recipe .alt { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
+  .recipe .alt b { color: var(--accent-2); font-weight: 500; }
+  .recipe .try {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s; margin-top: 10px;
+  }
+  .recipe .try:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- rules grid ---------- */
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .mini-grid { grid-template-columns: 1fr; } }
+  .mini { background: var(--bg-2); padding: 22px 20px; }
+  .mini .op { font-family: var(--serif); font-size: 34px; font-weight: 300; color: var(--accent); line-height: 1; }
+  .mini h4 { font-family: var(--serif); font-style: italic; font-size: 18px; font-weight: 600; margin: 8px 0 8px; }
+  .mini p { font-size: 13px; margin: 0; }
+  .mini code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); }
+
+  /* ---------- code ---------- */
+  pre.code, pre.exercise {
+    background: var(--code-bg); border-left: 2px solid var(--accent);
+    padding: 20px 24px; font-family: var(--mono); font-size: 13px; line-height: 1.85;
+    overflow-x: auto; margin: 0; color: var(--ink-dim);
+  }
+  pre.exercise { font-size: 14px; line-height: 2.15; }
+  .kw { color: #f0abfc; } .fn { color: #5eead4; } .st { color: #fbbf24; } .nm2 { color: #f4f0e6; }
+  .cm { color: var(--ink-faint); font-style: italic; }
+  .copy-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* ============ PLAYGROUND ============ */
+  .pg-eq-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+  .eq-input {
+    font-family: var(--mono); font-size: 22px; letter-spacing: 0.04em;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--ink);
+    padding: 12px 16px; border-radius: 3px; flex: 1; min-width: 220px; outline: none;
+  }
+  .eq-input:focus { box-shadow: 0 0 0 2px rgba(251,191,36,0.28); }
+  .eq-input.bad { border-color: var(--bad); box-shadow: 0 0 0 2px rgba(251,113,133,0.25); }
+  .preset-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; }
+  .preset {
+    font-family: var(--mono); font-size: 11px; background: var(--bg-3); border: 1px solid var(--line);
+    color: var(--ink-dim); padding: 5px 11px; cursor: pointer; transition: all 0.15s; border-radius: 2px;
+  }
+  .preset:hover { color: var(--accent); border-color: var(--accent); }
+
+  .idx-controls { display: flex; gap: 14px; flex-wrap: wrap; margin: 18px 0 6px; }
+  .idx-ctrl { display: flex; align-items: center; gap: 8px; background: var(--bg-3); border: 1px solid var(--line); padding: 6px 8px 6px 12px; border-radius: 3px; }
+  .idx-ctrl .lt { font-family: var(--mono); font-size: 17px; font-weight: 700; }
+  .idx-ctrl .lt.free { color: var(--accent); }
+  .idx-ctrl .lt.sum { color: var(--accent-2); }
+  .idx-ctrl .role { font-family: var(--mono); font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+  .idx-ctrl .stp { display: flex; align-items: center; gap: 4px; }
+  .idx-ctrl button {
+    font-family: var(--mono); font-size: 14px; width: 22px; height: 22px; line-height: 1;
+    background: var(--code-bg); border: 1px solid var(--line); color: var(--ink-dim); cursor: pointer; border-radius: 2px;
+  }
+  .idx-ctrl button:hover { color: var(--accent); border-color: var(--accent); }
+  .idx-ctrl .sz { font-family: var(--mono); font-size: 14px; color: var(--ink); min-width: 16px; text-align: center; }
+
+  .eq-render { font-family: var(--mono); font-size: 30px; letter-spacing: 0.05em; margin: 18px 0 8px; line-height: 1.4; }
+  .eq-render .free { color: var(--accent); font-weight: 700; }
+  .eq-render .sum { color: var(--accent-2); font-weight: 700; }
+  .eq-render .pun { color: var(--ink-faint); }
+  .role-legend { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-dim); margin-bottom: 8px; }
+  .role-legend .sw { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .role-legend .sw.free { background: var(--accent); }
+  .role-legend .sw.sum { background: var(--accent-2); }
+
+  .breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 18px 0; }
+  @media (max-width: 760px) { .breakdown { grid-template-columns: 1fr; } }
+  .bcell { background: var(--bg-2); padding: 18px 18px; }
+  .bcell .bk { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 8px; }
+  .bcell .bv { font-family: var(--serif); font-style: italic; font-size: 20px; color: var(--ink); }
+  .bcell .bv b { color: var(--accent); font-style: normal; font-family: var(--mono); font-size: 16px; }
+  .bcell .bv b.sum { color: var(--accent-2); }
+  .bcell .bv b.out { color: var(--good); }
+
+  .pg-error { font-family: var(--mono); font-size: 13px; color: var(--bad); margin: 10px 0; min-height: 16px; }
+
+  /* tensor render */
+  .tensors { display: flex; flex-wrap: wrap; gap: 26px; align-items: flex-start; margin: 10px 0; }
+  .tblock { }
+  .tblock .tname { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin-bottom: 8px; }
+  .tblock .tname b { color: var(--accent); }
+  .tblock .tname .sh { color: var(--accent-2); }
+  .tgrid { display: inline-grid; gap: 3px; background: transparent; }
+  .tcell {
+    font-family: var(--mono); font-size: 12px; width: 30px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--line); border-radius: 2px; color: var(--ink);
+  }
+  .tslices { display: flex; gap: 14px; flex-wrap: wrap; }
+  .tslice { }
+  .tslice .sl { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-bottom: 4px; }
+  .tscalar {
+    font-family: var(--mono); font-size: 18px; min-width: 44px; height: 36px; padding: 0 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--good); border-radius: 2px; color: var(--good); background: rgba(163,230,53,0.06);
+  }
+  .tblock.result .tcell { border-color: rgba(163,230,53,0.5); color: var(--good); background: rgba(163,230,53,0.05); }
+  .eqmark { font-family: var(--serif); font-style: italic; font-size: 30px; color: var(--accent); align-self: center; }
+
+  /* ============ DRILLS ============ */
+  .drill {
+    background: var(--bg-2); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    padding: 22px 24px; margin: 16px 0; transition: border-color 0.2s;
+  }
+  .drill.solved { border-left-color: var(--good); background: linear-gradient(100deg, rgba(163,230,53,0.05), transparent 60%); }
+  .drill .prompt { font-size: 16px; color: var(--ink); margin-bottom: 14px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .drill .prompt .pn { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: 0 0 auto; }
+  .drill.solved .prompt .pn { color: var(--good); }
+  .drill .prompt code { font-family: var(--mono); font-size: 14px; color: var(--accent-2); }
+  pre.exercise .blank, .drill .blank {
+    display: inline-block; min-width: 64px; max-width: 260px; padding: 3px 10px;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--accent);
+    font-family: var(--mono); font-size: 14px; text-align: center; outline: none; border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .blank:focus { box-shadow: 0 0 0 2px rgba(251,191,36,0.3); background: rgba(251,191,36,0.06); }
+  .blank.correct { border-color: var(--good); color: var(--good); background: rgba(163,230,53,0.08); animation: pop 220ms ease-out; }
+  .blank.wrong { border-color: var(--bad); color: var(--bad); animation: shake 240ms ease-in-out; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.13)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .controls-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+    background: var(--accent); color: #050510; border: none; padding: 9px 18px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  .btn:hover { filter: brightness(1.12); box-shadow: 0 0 18px rgba(251,191,36,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink-dim); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .feedback { margin-top: 12px; font-size: 13px; min-height: 16px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); } .feedback.bad { color: var(--bad); } .feedback.hint { color: var(--ink-faint); font-style: italic; }
+
+  /* ============ CONFETTI / TOAST / HELP ============ */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; background: transparent; border: none; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(48px);
+    background: var(--bg-2); border: 1px solid var(--accent); color: var(--ink);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 12px 22px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 22px rgba(251,191,36,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 160;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,5,8,0.78); backdrop-filter: blur(6px);
+    z-index: 210; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: rise 0.25s ease; }
+  #help-overlay .help-content { background: var(--bg-2); border: 1px solid var(--line); padding: 34px 38px; max-width: 460px; width: 100%; position: relative; }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  #help-overlay h3 { color: var(--accent); font-style: italic; margin-bottom: 16px; }
+  #help-overlay table { width: 100%; font-family: var(--mono); font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--ink-dim); }
+  kbd { font-family: var(--mono); background: var(--code-bg); border: 1px solid var(--line); padding: 2px 9px; color: var(--accent); font-size: 12px; }
+
+  footer {
+    max-width: 1280px; margin: 70px auto 0; padding: 28px 32px 50px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.04em;
+  }
+  footer a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="brand"><span class="mark">∑</span> <b>EINSUM</b></div>
+    <div class="progress-bar-outer" title="整體進度"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat" title="已解題數"><span class="num" id="scoreNum">0</span><span style="color:var(--ink-faint)">/</span><span class="num" id="scoreTot">0</span><span class="lbl">已解</span></div>
+    <div class="streak" title="連勝">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="help-btn" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome"><span class="tnum">01</span>為什麼</button>
+    <button data-tab="rules"><span class="tnum">02</span>規則</button>
+    <button data-tab="recipes"><span class="tnum">03</span>食譜</button>
+    <button data-tab="play"><span class="tnum">04</span>遊樂場</button>
+    <button data-tab="drills"><span class="tnum">05</span>練習</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <div class="eyebrow">PyTorch · 一套記法統治所有張量運算</div>
+  <h1>所有縮並，<em>一</em>條字串搞定</h1>
+  <p class="lede">
+    <code>torch.einsum</code> 讓你用<strong>一條下標字串</strong>（像 <code>'ik,kj->ij'</code>）就能寫出矩陣相乘、批次 matmul、轉置、跡、內積、
+    外積以及注意力分數。不用再記到底該用 <code>@</code>、<code>bmm</code>、
+    <code>matmul</code>，還是一堆糾纏的 <code>transpose</code> + <code>sum</code> —— 你只要
+    <em>替每個軸命名，再說輸出要保留哪些</em>。本頁帶你看規則、一份食譜集，還有一個
+    真的會在小張量上跑 einsum 的即時遊樂場。
+  </p>
+
+  <h2 class="sec"><span class="num">01</span> 一句話的核心概念</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">這是什麼</div>
+      <h4>替每個軸命名</h4>
+      <p>給每個輸入的每個軸一個字母。<code>'bik,bkj->bij'</code> 的意思是「運算元 A 的下標是
+      <code>b,i,k</code>；運算元 B 是 <code>b,k,j</code>；結果保留 <code>b,i,j</code>。」</p>
+    </div>
+    <div class="idea">
+      <div class="k">唯一的規則</div>
+      <h4>沒出現 = 被加總</h4>
+      <p>任何出現在左側、卻<em>沒</em>出現在輸出的字母，都會被<strong>加總掉</strong>。
+      這裡 <code>bij</code> 裡少了 <code>k</code>，所以會對 <code>k</code> 加總 —— 這就是
+      矩陣相乘。</p>
+    </div>
+  </div>
+
+  <div class="formula-panel">
+    $$\texttt{'ik,kj->ij'} \quad\Longleftrightarrow\quad C_{ij} = \sum_{k} A_{ik}\, B_{kj}$$
+  </div>
+
+  <div class="note">
+    <strong>把它當成一句話來讀。</strong>這些下標<em>就是</em>愛因斯坦求和公式：
+    左側列出每個運算元的索引，<code>-&gt;</code> 隔開輸出，而對那個
+    重複但被丟掉的索引做加總則是隱含的。<code>einsum</code> 只是把這個數學寫成一次函式呼叫。
+  </div>
+
+  <h2 class="sec"><span class="num">01·b</span> 為什麼大家愛用它</h2>
+  <div class="cards three">
+    <div class="idea">
+      <div class="k">易讀</div>
+      <h4>自帶文件</h4>
+      <p><code>'bhqd,bhkd->bhqk'</code> 一眼就告訴你注意力分數在做什麼 —— 軸全都
+      寫在那裡。一堆 <code>permute</code>+<code>matmul</code> 反而把它藏起來。</p>
+    </div>
+    <div class="idea">
+      <div class="k">通用</div>
+      <h4>一個 API，多種運算</h4>
+      <p>轉置、加總、跡、內積、外積、matmul、批次運算，以及多張量縮並，全都歸到
+      同一個呼叫。</p>
+    </div>
+    <div class="idea">
+      <div class="k">更少 bug</div>
+      <h4>沒有無聲的廣播</h4>
+      <p>你把每個軸都明白寫出來，所以形狀不對就會直接報錯 —— 不會有意外的廣播做出
+      你沒打算做的事。</p>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>怎麼用這一頁：</strong>依序走完分頁 <span class="ink">01 → 05</span>。02 是
+    三條規則；<span class="ink">03 是食譜集</span> —— 把它加進書籤；04 是一個你可以直接打字進去的
+    真 einsum 引擎；05 會替你計分。按 <kbd>?</kbd> 查看快捷鍵。
+  </div>
+</section>
+
+<!-- ========================= RULES ========================= -->
+<section class="tab-section" id="tab-rules">
+  <div class="eyebrow">整套語言，三條規則</div>
+  <h1>怎麼<em>讀</em>一條下標</h1>
+  <p class="lede">
+    <code>-&gt;</code> 之前的字串描述輸入；之後的字串描述輸出。三條
+    規則就涵蓋一切。
+  </p>
+
+  <div class="mini-grid">
+    <div class="mini">
+      <div class="op">①</div>
+      <h4>同字母 = 對齊</h4>
+      <p>一個字母<em>跨運算元</em>重複使用，代表那些軸要對齊，並沿著該維度逐元素相乘。
+      在 <code>'ik,kj'</code> 裡，A 的 <code>k</code> 與 B 的 <code>k</code> 配對。</p>
+    </div>
+    <div class="mini">
+      <div class="op">②</div>
+      <h4>被丟掉的字母 = 加總</h4>
+      <p>任何<em>沒出現在輸出</em>的輸入字母都會被加總掉。<code>'ik,kj->ij'</code> 丟掉了
+      <code>k</code>，所以會對 <code>k</code> 加總 —— 這就是縮並。</p>
+    </div>
+    <div class="mini">
+      <div class="op">③</div>
+      <h4>保留的字母 = 軸</h4>
+      <p>出現在輸出的字母會成為結果的一個軸，順序就照你寫的來。把輸出字母重新排序就能
+      轉置：<code>'ij->ji'</code>。</p>
+    </div>
+  </div>
+
+  <h2 class="sec"><span class="num">02·a</span> 自由索引 vs. 被加總索引</h2>
+  <p class="lede">
+    兩種角色、兩種顏色，貫穿整頁：
+  </p>
+  <div class="role-legend" style="font-size:14px; margin:14px 0 18px;">
+    <span><span class="sw free"></span><b style="color:var(--accent)">自由（free）</b> —— 出現在輸出，成為結果的一個軸</span>
+    <span><span class="sw sum"></span><b style="color:var(--accent-2)">被加總（summed）</b> —— 只在左側出現，會被縮並掉</span>
+  </div>
+  <div class="formula-panel">
+    $$\underbrace{C_{\textcolor{#fbbf24}{ij}}}_{\text{free}} = \sum_{\textcolor{#818cf8}{k}} A_{\textcolor{#fbbf24}{i}\textcolor{#818cf8}{k}}\, B_{\textcolor{#818cf8}{k}\textcolor{#fbbf24}{j}}$$
+  </div>
+
+  <h2 class="sec"><span class="num">02·b</span> 隱含（無箭頭）形式</h2>
+  <div class="panel">
+    <div class="panel-label">當你省略 <code>-&gt;</code> 時</div>
+    <p style="margin:0 0 12px;">
+      如果你略掉 <code>-&gt;輸出</code>，einsum 會套用<strong>隱含</strong>規則：左側
+      <em>恰好出現一次</em>的每個索引都會成為自由輸出軸，並依字母順序排序。重複出現的
+      索引則會被加總。
+    </p>
+    <ul>
+      <li><span class="pill"><code>'ij'</code></span> &nbsp;→ &nbsp;<code>'ij->ij'</code> &nbsp; 恆等（每個字母各一次）。</li>
+      <li><span class="pill"><code>'ii'</code></span> &nbsp;→ &nbsp;<code>'ii->'</code> &nbsp; 跡（<code>i</code> 重複，所以被加總）。</li>
+      <li><span class="pill"><code>'ik,kj'</code></span> &nbsp;→ &nbsp;<code>'ik,kj->ij'</code> &nbsp; 矩陣相乘（<code>k</code> 重複 → 被加總；<code>i,j</code> 依序排）。</li>
+    </ul>
+    <div class="note warn" style="margin-bottom:0;">
+      <strong>明確寫出來。</strong>隱含形式雖然方便，但字母排序規則常讓人意外。
+      把 <code>-&gt;</code> 輸出寫出來能讓意圖毫不含糊，也是多數程式碼庫的做法。
+    </div>
+  </div>
+
+  <h2 class="sec"><span class="num">02·c</span> 函式簽名與陷阱</h2>
+  <div class="panel">
+    <div class="panel-label">torch.einsum · 這個呼叫 <button class="copy-btn" onclick="copyCode(this)">複製</button></div>
+    <pre class="exercise"><span class="kw">import</span> torch
+
+A = torch.<span class="fn">randn</span>(<span class="st">2</span>, <span class="st">3</span>)        <span class="cm"># [i=2, k=3]</span>
+B = torch.<span class="fn">randn</span>(<span class="st">3</span>, <span class="st">4</span>)        <span class="cm"># [k=3, j=4]</span>
+
+C = torch.<span class="fn">einsum</span>(<span class="st">'ik,kj->ij'</span>, A, B)   <span class="cm"># [i=2, j=4]  == A @ B</span>
+
+<span class="cm"># 運算元依序接在字串之後傳入</span>
+<span class="cm"># 每個運算元的字母數必須等於它的維度數</span></pre>
+  </div>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">陷阱</div>
+      <h4>字母數 ≠ 維度數</h4>
+      <p>如果一個運算元有 3 個維度，它的下標就要剛好有 3 個字母。對一個 3 維張量寫
+      <code>'ij'</code> 會報錯。</p>
+    </div>
+    <div class="idea">
+      <div class="k">陷阱</div>
+      <h4>同字母，同長度</h4>
+      <p>重複的字母在每個出現的地方長度都必須一致 —— 兩個運算元裡的 <code>k</code>
+      必須相符，否則無法對齊。</p>
+    </div>
+  </div>
+  <div class="note indigo">
+    <strong>省略號 <code>...</code>：</strong>對於你不想命名的前置「批次」維度，可以用
+    <code>'...ik,...kj->...ij'</code>。<code>...</code> 會在任意數量的前置軸上廣播 —— 對於
+    既要支援批次又要支援非批次輸入的程式碼非常好用。
+  </div>
+</section>
+
+<!-- ========================= RECIPES ========================= -->
+<section class="tab-section" id="tab-recipes">
+  <div class="eyebrow">複製貼上集</div>
+  <h1>einsum <em>食譜書</em></h1>
+  <p class="lede">
+    你實際會用到的那些。<span style="color:var(--accent)">琥珀色</span>字母是被保留的（自由）；
+    <span style="color:var(--accent-2)">靛色</span>字母會被加總掉。在任一張卡片上按
+    <em>試一試</em>，就能把它載入遊樂場。
+  </p>
+
+  <h2 class="sec"><span class="num">03·a</span> 單一張量</h2>
+  <div class="recipes" id="recipes-one"></div>
+
+  <h2 class="sec"><span class="num">03·b</span> 兩個張量</h2>
+  <div class="recipes" id="recipes-two"></div>
+
+  <h2 class="sec"><span class="num">03·c</span> 用 einsum 寫出的注意力區塊</h2>
+  <div class="panel">
+    <div class="panel-label">縮放點積注意力 · 完整拆解 <button class="copy-btn" onclick="copyCode(this)">複製</button></div>
+    <pre class="exercise"><span class="cm"># Q,K,V: [B, H, T, d]   (批次、頭數、token、頭維度)</span>
+scores = torch.<span class="fn">einsum</span>(<span class="st">'bhqd,bhkd->bhqk'</span>, Q, K) / math.<span class="fn">sqrt</span>(d)
+attn   = scores.<span class="fn">softmax</span>(dim=-<span class="st">1</span>)                    <span class="cm"># [B,H,q,k]</span>
+out    = torch.<span class="fn">einsum</span>(<span class="st">'bhqk,bhkd->bhqd'</span>, attn, V)  <span class="cm"># [B,H,q,d]</span></pre>
+  </div>
+  <div class="note mint">
+    <strong>讀一下 scores 那一行：</strong><code>q</code> 和 <code>k</code> 是兩個 token 軸；
+    <code>d</code>（頭維度）被共用且被<em>丟掉</em>，所以會被加總 —— 這就是
+    每個 query 對每個 key 的點積。<code>b,h</code> 則作為批次軸隨行。
+  </div>
+</section>
+
+<!-- ========================= PLAYGROUND ========================= -->
+<section class="tab-section" id="tab-play">
+  <div class="eyebrow">在你瀏覽器裡的真 einsum 引擎</div>
+  <h1>einsum <em>遊樂場</em></h1>
+  <p class="lede">
+    打一條下標字串。本頁會依角色替索引上色、顯示每個運算元的形狀、輸出
+    形狀、有哪些會被加總 —— 然後在小整數張量上<strong>真的計算</strong>結果，讓
+    你親眼看到縮並發生。用加減鈕調整每個索引的大小。
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">下標字串 · 例如 <code>ik,kj-&gt;ij</code></div>
+    <div class="pg-eq-row">
+      <input class="eq-input" id="eqInput" value="ik,kj->ij" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="preset-row" id="presetRow"></div>
+    <div class="pg-error" id="pgError"></div>
+
+    <div class="role-legend">
+      <span><span class="sw free"></span>自由索引 —— 保留在輸出中</span>
+      <span><span class="sw sum"></span>被加總索引 —— 被縮並掉</span>
+    </div>
+    <div class="eq-render" id="eqRender"></div>
+
+    <div class="idx-controls" id="idxControls"></div>
+
+    <div class="breakdown" id="breakdown"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">數值執行 · 小整數張量 <span id="flops"></span></div>
+    <div class="tensors" id="tensors"></div>
+    <div class="note" style="margin-bottom:0; font-size:12.5px;">
+      這些值是微小的確定性整數，方便你用眼睛核對算式。
+      <span style="color:var(--good)">綠色</span>張量是 einsum 的輸出；對於某個被加總的
+      運算元軸，沿著它的每個值都會被加進對應的輸出格。
+    </div>
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <div class="eyebrow">打出答案 · 累積連勝</div>
+  <h1><em>練習</em></h1>
+  <p class="lede">
+    <kbd>Enter</kbd> 檢查 · <kbd>Hint</kbd> 顯示所有未解的空格（可切換） · <kbd>Tab</kbd> 在
+    空格間移動。全部解開就完成這個章節。
+  </p>
+
+  <h2 class="sec"><span class="num">05·a</span> 讀懂下標</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">01</span> 轉置矩陣 <code>A[i,j]</code> —— 交換輸出的軸。</div>
+    <pre class="exercise">torch.einsum('ij-><input class="blank" data-answer="ji" size="6" placeholder="?">', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">02</span> 對各欄 <code>j</code> 加總，每一列 <code>i</code> 保留一個值（列加總）。</div>
+    <pre class="exercise">torch.einsum('ij-><input class="blank" data-answer="i" size="6" placeholder="?">', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">03</span> 矩陣相乘：<code>A[i,k]</code> 乘上 <code>B[?,?]</code> → <code>C[i,j]</code>。填入 B 的下標。</div>
+    <pre class="exercise">torch.einsum('ik,<input class="blank" data-answer="kj" size="6" placeholder="?">->ij', A, B)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">05·b</span> 加總規則</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">04</span> 完成這條規則：出現在左側、卻沒出現在輸出的索引，會被 ______ 掉。</div>
+    <pre class="exercise">it is <input class="blank" data-answer="summed|sum|summed|contracted|加總|加總掉|縮並" size="10" placeholder="?"> over</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">05</span> 方陣的跡（對角線元素之和）。填入輸入下標。</div>
+    <pre class="exercise">torch.einsum('<input class="blank" data-answer="ii" size="6" placeholder="?">->', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">06</span> 把對角線取出成一個向量（保留 <code>i</code>，不加總）。</div>
+    <pre class="exercise">torch.einsum('ii-><input class="blank" data-answer="i" size="6" placeholder="?">', A)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">07</span> 向量 <code>u[i]</code> 與 <code>v[j]</code> 的外積 → 矩陣 <code>[i,j]</code>。</div>
+    <pre class="exercise">torch.einsum('i,j-><input class="blank" data-answer="ij" size="6" placeholder="?">', u, v)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">05·c</span> 批次運算與注意力</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">08</span> 批次 matmul：對每個批次 <code>b</code>，<code>A[b,i,k] · B[b,k,j]</code>。填入輸出。</div>
+    <pre class="exercise">torch.einsum('bik,bkj-><input class="blank" data-answer="bij" size="7" placeholder="?">', A, B)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">09</span> 注意力分數：<code>Q[b,i,d]</code> 與 <code>K[b,j,d]</code> 在頭維度 <code>d</code> 上做點積。</div>
+    <pre class="exercise">torch.einsum('bid,bjd-><input class="blank" data-answer="bij" size="7" placeholder="?">', Q, K)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">10</span> 脈絡向量：用注意力對 values 加權。<code>attn[b,i,j] · V[b,j,d]</code> → <code>[b,i,d]</code>。</div>
+    <pre class="exercise">torch.einsum('bij,<input class="blank" data-answer="bjd" size="7" placeholder="?">->bid', attn, V)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">11</span> PyTorch 函式本身 —— 寫出這個呼叫的名稱。</div>
+    <pre class="exercise">C = torch.<input class="blank" data-answer="einsum" size="9" placeholder="?">('ik,kj->ij', A, B)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">檢查</button><button class="btn ghost" onclick="hintDrill(this)">提示</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note mint" style="margin-top:24px;">
+    <strong>十一題全解開了？</strong>現在你已經能讀也能寫 einsum 來做轉置、降維、跡、
+    外積／內積、matmul、批次 matmul，以及完整的注意力區塊。整套語言其實就是：
+    <em>替每個軸命名、列出輸出要保留哪些，其餘全部加總</em>。
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="if(event.target===this)hideHelp()">
+  <div class="help-content">
+    <h3>鍵盤</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>跳到下一個空格</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>檢查目前的練習</td></tr>
+      <tr><td><kbd>1</kbd> … <kbd>5</kbd></td><td>切換分頁</td></tr>
+      <tr><td><kbd>?</kbd></td><td>這份說明</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>關閉</td></tr>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>torch.einsum · 替每個軸命名、保留你要的、其餘全部加總 · 遊樂場用 JS 跑真正的 einsum</span>
+  <span><a href="index.html">← 所有速查表</a></span>
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '部分正確 —— 答對 ' + newlySolved + ' 個，繼續加油。';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '答案已隱藏 —— 試著自己打出來';
+    updateProgress();
+    return;
+  }
+
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '全部完成。'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '已顯示全部答案 · 再按一次可隱藏';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['漂亮。', '正確！', '縮並成功。', '✓ 完全正確。', '俐落。', '抓到那個軸了。', '加總得對。', 'einsum 上手了。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['還不太對 —— 再試一次。', '很接近了。要看一下提示嗎？', '差一點。檢查一下字母。', '軸錯了。再來一次。'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('章節完成！🎉  +' + drills.length + ' 題解開');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#fbbf24','#fcd34d','#818cf8','#a3e635','#a5b4fc','#fde68a','#f4f0e6'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.panel, .card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  navigator.clipboard.writeText(code.innerText).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = '已複製！';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '複製'; }, 1300);
+  });
+}
+
+// ============== EINSUM ENGINE ==============
+// Parse a subscript string into {operands:[...], out, explicit, error}
+function parseEinsum(raw) {
+  const eq = raw.replace(/\s+/g, '');
+  if (eq.length === 0) return { error: '空字串' };
+  if (/[^a-z,>\-]/.test(eq)) return { error: '只允許小寫字母、逗號與 ->' };
+  let lhs, rhs, explicit;
+  if (eq.includes('->')) {
+    const parts = eq.split('->');
+    if (parts.length !== 2) return { error: '只能使用一個 ->' };
+    lhs = parts[0]; rhs = parts[1]; explicit = true;
+  } else {
+    lhs = eq; rhs = null; explicit = false;
+  }
+  if (/[->]/.test(lhs) || (rhs && /[,>\-]/.test(rhs))) return { error: '下標格式錯誤' };
+  const operands = lhs.split(',');
+  if (operands.some(o => o.length === 0)) return { error: '有一個運算元沒有任何索引' };
+  // duplicate-letter within a single operand is allowed (e.g. ii) — fine.
+  let out;
+  if (explicit) {
+    out = rhs;
+  } else {
+    const counts = {};
+    for (const op of operands) for (const ch of op) counts[ch] = (counts[ch] || 0) + 1;
+    out = Object.keys(counts).filter(c => counts[c] === 1).sort().join('');
+  }
+  // every output letter must appear on the left
+  const leftLetters = new Set(operands.join('').split(''));
+  for (const ch of out) if (!leftLetters.has(ch)) return { error: `輸出索引 '${ch}' 從未出現在任何輸入中` };
+  // duplicate output letters are invalid
+  if (new Set(out.split('')).size !== out.length) return { error: '輸出有重複的索引' };
+  return { operands, out, explicit };
+}
+
+// deterministic small int for operand o, flat offset i  -> 1..6
+function detVal(o, i) {
+  const s = Math.sin((o * 91.7 + i * 13.31 + 1) * 9.123) * 9973.17;
+  return 1 + Math.floor(Math.abs(s - Math.floor(s)) * 6); // 1..6
+}
+
+// compute einsum result; returns {result:Float64Array, outDims, operandData:[...], opDims:[...]}
+function runEinsum(operands, out, sizes) {
+  const opDims = operands.map(op => op.split('').map(c => sizes[c]));
+  const operandData = opDims.map((dims, o) => {
+    const n = dims.reduce((a, b) => a * b, 1);
+    const arr = new Float64Array(n);
+    for (let i = 0; i < n; i++) arr[i] = detVal(o, i);
+    return arr;
+  });
+  const outDims = out.split('').map(c => sizes[c]);
+  const outSize = outDims.reduce((a, b) => a * b, 1);
+  const result = new Float64Array(outSize);
+
+  const allIdx = Array.from(new Set((operands.join('') + out).split('')));
+  const dimsAll = allIdx.map(c => sizes[c]);
+  const total = dimsAll.reduce((a, b) => a * b, 1);
+
+  const assign = {};
+  for (let lin = 0; lin < total; lin++) {
+    let rem = lin;
+    for (let k = allIdx.length - 1; k >= 0; k--) { assign[allIdx[k]] = rem % dimsAll[k]; rem = Math.floor(rem / dimsAll[k]); }
+    let prod = 1;
+    for (let o = 0; o < operands.length; o++) {
+      const idx = operands[o]; let off = 0;
+      for (const ch of idx) off = off * sizes[ch] + assign[ch];
+      prod *= operandData[o][off];
+    }
+    let off = 0;
+    for (const ch of out) off = off * sizes[ch] + assign[ch];
+    result[off] += prod;
+  }
+  return { result, outDims, operandData, opDims };
+}
+
+// ---- playground rendering ----
+const idxSizes = {}; // persistent per-letter sizes
+function getSize(c) { return idxSizes[c] || (idxSizes[c] = 2); }
+
+const PG = {
+  input: document.getElementById('eqInput'),
+  err: document.getElementById('pgError'),
+  render: document.getElementById('eqRender'),
+  ctrls: document.getElementById('idxControls'),
+  breakdown: document.getElementById('breakdown'),
+  tensors: document.getElementById('tensors'),
+  flops: document.getElementById('flops'),
+};
+
+function colorEquation(operands, out, sumSet, hostFreeClass) {
+  // returns HTML string of the equation with role-colored letters
+  function letters(str) {
+    return str.split('').map(ch =>
+      `<span class="${sumSet.has(ch) ? 'sum' : 'free'}">${ch}</span>`).join('');
+  }
+  const left = operands.map(letters).join('<span class="pun">,</span>');
+  return `${left}<span class="pun"> → </span>${letters(out) || '<span class="pun">(純量)</span>'}`;
+}
+
+function tensorEl(dims, data, isResult) {
+  // dims: array; data: Float64Array (row-major)
+  const wrap = document.createElement('div');
+  if (dims.length === 0) {
+    const s = document.createElement('span');
+    s.className = 'tscalar';
+    s.textContent = data[0];
+    wrap.appendChild(s);
+    return wrap;
+  }
+  if (dims.length === 1) {
+    const g = document.createElement('div');
+    g.className = 'tgrid';
+    g.style.gridTemplateColumns = `repeat(${dims[0]}, auto)`;
+    for (let i = 0; i < dims[0]; i++) {
+      const c = document.createElement('div'); c.className = 'tcell'; c.textContent = data[i]; g.appendChild(c);
+    }
+    wrap.appendChild(g);
+    return wrap;
+  }
+  if (dims.length === 2) {
+    const [r, cN] = dims;
+    const g = document.createElement('div');
+    g.className = 'tgrid';
+    g.style.gridTemplateColumns = `repeat(${cN}, auto)`;
+    for (let i = 0; i < r * cN; i++) {
+      const c = document.createElement('div'); c.className = 'tcell'; c.textContent = data[i]; g.appendChild(c);
+    }
+    wrap.appendChild(g);
+    return wrap;
+  }
+  // >=3 dims: split leading axis into slices
+  const lead = dims[0], rest = dims.slice(1);
+  const restSize = rest.reduce((a, b) => a * b, 1);
+  const slices = document.createElement('div'); slices.className = 'tslices';
+  for (let i = 0; i < lead; i++) {
+    const sl = document.createElement('div'); sl.className = 'tslice';
+    const lab = document.createElement('div'); lab.className = 'sl'; lab.textContent = `[${i}]`;
+    sl.appendChild(lab);
+    sl.appendChild(tensorEl(rest, data.subarray(i * restSize, (i + 1) * restSize), isResult));
+    slices.appendChild(sl);
+  }
+  wrap.appendChild(slices);
+  return wrap;
+}
+
+function shapeStr(dims) { return dims.length ? `[${dims.join(', ')}]` : '純量'; }
+
+function renderPlayground() {
+  const raw = PG.input.value;
+  const parsed = parseEinsum(raw);
+  if (parsed.error) {
+    PG.input.classList.add('bad');
+    PG.err.textContent = '✗ ' + parsed.error;
+    PG.render.innerHTML = '';
+    PG.ctrls.innerHTML = '';
+    PG.breakdown.innerHTML = '';
+    PG.tensors.innerHTML = '';
+    PG.flops.textContent = '';
+    return;
+  }
+  PG.input.classList.remove('bad');
+  PG.err.textContent = '';
+
+  const { operands, out, explicit } = parsed;
+  const outSet = new Set(out.split(''));
+  const allLetters = Array.from(new Set(operands.join('').split('')));
+  const sumSet = new Set(allLetters.filter(c => !outSet.has(c)));
+
+  // colored equation
+  PG.render.innerHTML = colorEquation(operands, out, sumSet);
+
+  // index size steppers
+  PG.ctrls.innerHTML = '';
+  allLetters.sort().forEach(c => {
+    getSize(c);
+    const role = sumSet.has(c) ? 'sum' : 'free';
+    const el = document.createElement('div');
+    el.className = 'idx-ctrl';
+    el.innerHTML =
+      `<span class="lt ${role}">${c}</span>` +
+      `<span class="role">${role}</span>` +
+      `<span class="stp">` +
+        `<button data-dec="${c}">−</button>` +
+        `<span class="sz" id="sz-${c}">${idxSizes[c]}</span>` +
+        `<button data-inc="${c}">+</button>` +
+      `</span>`;
+    PG.ctrls.appendChild(el);
+  });
+  PG.ctrls.querySelectorAll('button[data-inc]').forEach(b => b.onclick = () => {
+    const c = b.dataset.inc; idxSizes[c] = Math.min(4, idxSizes[c] + 1); renderPlayground();
+  });
+  PG.ctrls.querySelectorAll('button[data-dec]').forEach(b => b.onclick = () => {
+    const c = b.dataset.dec; idxSizes[c] = Math.max(1, idxSizes[c] - 1); renderPlayground();
+  });
+
+  // breakdown cells
+  const opShapes = operands.map(op => `${op} <b>${shapeStr(op.split('').map(c => idxSizes[c]))}</b>`).join(' &nbsp;·&nbsp; ');
+  const outShape = shapeStr(out.split('').map(c => idxSizes[c]));
+  const summedList = Array.from(sumSet).sort();
+  PG.breakdown.innerHTML =
+    `<div class="bcell"><div class="bk">輸入</div><div class="bv" style="font-size:15px;font-family:var(--mono)">${opShapes}</div></div>` +
+    `<div class="bcell"><div class="bk">加總的索引</div><div class="bv">${summedList.length ? summedList.map(c => `<b class="sum">${c}</b>`).join(' ') : '<span style="color:var(--ink-faint)">無</span>'}</div></div>` +
+    `<div class="bcell"><div class="bk">輸出 ${explicit ? '(明確)' : '(隱含)'}</div><div class="bv"><b class="out">${out || '∅'}</b> &nbsp;${outShape}</div></div>`;
+
+  // numeric run (guard size)
+  const dimsAll = allLetters.map(c => idxSizes[c]);
+  const total = dimsAll.reduce((a, b) => a * b, 1);
+  PG.tensors.innerHTML = '';
+  if (total > 20000) {
+    PG.tensors.innerHTML = '<p style="margin:0">尺寸太大無法顯示 —— 請縮小某個索引。</p>';
+    PG.flops.textContent = '';
+    return;
+  }
+  const { result, outDims, operandData, opDims } = runEinsum(operands, out, idxSizes);
+
+  operands.forEach((op, o) => {
+    const block = document.createElement('div'); block.className = 'tblock';
+    const nm = document.createElement('div'); nm.className = 'tname';
+    nm.innerHTML = `<b>${String.fromCharCode(65 + o)}</b> = <span style="color:var(--accent)">${op}</span> <span class="sh">${shapeStr(opDims[o])}</span>`;
+    block.appendChild(nm);
+    block.appendChild(tensorEl(opDims[o], operandData[o], false));
+    PG.tensors.appendChild(block);
+    if (o < operands.length - 1) {
+      const m = document.createElement('div'); m.className = 'eqmark'; m.textContent = '·'; PG.tensors.appendChild(m);
+    }
+  });
+  const eqm = document.createElement('div'); eqm.className = 'eqmark'; eqm.textContent = '='; PG.tensors.appendChild(eqm);
+  const rb = document.createElement('div'); rb.className = 'tblock result';
+  const rnm = document.createElement('div'); rnm.className = 'tname';
+  rnm.innerHTML = `<b style="color:var(--good)">out</b> = <span style="color:var(--good)">${out || '(純量)'}</span> <span class="sh">${shapeStr(outDims)}</span>`;
+  rb.appendChild(rnm);
+  rb.appendChild(tensorEl(outDims, result, true));
+  PG.tensors.appendChild(rb);
+
+  PG.flops.textContent = `· ${total.toLocaleString()} 次純量乘加`;
+}
+
+PG.input.addEventListener('input', renderPlayground);
+
+// ============== RECIPE GALLERY ==============
+const RECIPES_ONE = [
+  { eq: 'ij->ji', title: '轉置', desc: '交換兩個軸。輸出字母重新排序，沒有加總。', alt: 'A.T' },
+  { eq: 'ij->', title: '全部加總', desc: '兩個索引都丟掉 → 把每個元素加總成一個純量。', alt: 'A.sum()' },
+  { eq: 'ij->i', title: '列加總', desc: '丟掉 j → 對各欄加總，每列一個值。', alt: 'A.sum(dim=1)' },
+  { eq: 'ij->j', title: '欄加總', desc: '丟掉 i → 對各列加總，每欄一個值。', alt: 'A.sum(dim=0)' },
+  { eq: 'ii->', title: '跡', desc: 'i 重複且被丟掉 → 對角線元素之和。', alt: 'A.trace()' },
+  { eq: 'ii->i', title: '對角線', desc: 'i 重複且被保留 → 把對角線取出成一個向量。', alt: 'A.diagonal()' },
+];
+const RECIPES_TWO = [
+  { eq: 'i,i->', title: '內積', desc: '共用 i 且被丟掉 → 逐元素相乘再加總。', alt: 'u @ v' },
+  { eq: 'i,j->ij', title: '外積', desc: '沒有共用字母；兩者都保留 → 每一對都相乘。', alt: 'torch.outer(u, v)' },
+  { eq: 'ik,kj->ij', title: '矩陣相乘', desc: '共用 k 被丟掉 → 經典的縮並。', alt: 'A @ B' },
+  { eq: 'ij,j->i', title: '矩陣 · 向量', desc: '共用 j 被丟掉 → 加權的列加總。', alt: 'A @ v' },
+  { eq: 'bik,bkj->bij', title: '批次 matmul', desc: 'b 作為批次隨行；k 在每個批次內被縮並。', alt: 'torch.bmm(A, B)' },
+  { eq: 'ij,ij->', title: 'Frobenius 內積', desc: '兩個字母都共用且被丟掉 → 元素乘積之和。', alt: '(A*B).sum()' },
+];
+
+function recipeEqHTML(eq) {
+  const parsed = parseEinsum(eq);
+  if (parsed.error) return eq;
+  const outSet = new Set(parsed.out.split(''));
+  const sumSet = new Set(parsed.operands.join('').split('').filter(c => !outSet.has(c)));
+  function letters(str) {
+    return str.split('').map(ch => `<span class="${sumSet.has(ch) ? 'sum' : 'free'}">${ch}</span>`).join('');
+  }
+  const left = parsed.operands.map(letters).join('<span class="pun">,</span>');
+  return `'${left}<span class="pun">-></span>${letters(parsed.out)}'`;
+}
+
+function buildRecipes(hostId, list) {
+  const host = document.getElementById(hostId);
+  host.innerHTML = '';
+  list.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'recipe';
+    card.innerHTML =
+      `<div class="eq">${recipeEqHTML(r.eq)}</div>` +
+      `<h4>${r.title}</h4>` +
+      `<p>${r.desc}</p>` +
+      `<div class="alt">≡ <b>${r.alt}</b></div>` +
+      `<button class="try">試一試 ↗</button>`;
+    card.querySelector('.try').onclick = () => {
+      PG.input.value = r.eq;
+      renderPlayground();
+      switchTab('play');
+    };
+    host.appendChild(card);
+  });
+}
+
+// ============== PRESET CHIPS (playground) ==============
+const PRESETS = ['ik,kj->ij', 'ij->ji', 'ii->', 'i,j->ij', 'bik,bkj->bij', 'bid,bjd->bij', 'ij,ij->', 'ij->i'];
+function buildPresets() {
+  const host = document.getElementById('presetRow');
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'preset'; b.textContent = p;
+    b.onclick = () => { PG.input.value = p; renderPlayground(); };
+    host.appendChild(b);
+  });
+}
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'rules','3':'recipes','4':'play','5':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+});
+
+// ============== INIT ==============
+buildRecipes('recipes-one', RECIPES_ONE);
+buildRecipes('recipes-two', RECIPES_TWO);
+buildPresets();
+renderPlayground();
+updateProgress();
+</script>
+</body>
+</html>

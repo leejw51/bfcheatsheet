@@ -1452,8 +1452,29 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
           <span class="br">[</span><span class="dim b">2</span>, <span class="dim s">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
-      <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, S, h, d_k]</span>
-out = out.<span class="tok-f">reshape</span>(B, S, d_model)              <span class="tok-c"># [B, S, d_model]</span></code></pre>
+      <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, S, h, d_k] — heads now adjacent</span>
+out = out.<span class="tok-f">reshape</span>(B, S, d_model)              <span class="tok-c"># reshape merges the 8 heads end-to-end = Concat(head_0..head_7)</span></code></pre>
+      <div class="note pink">
+        <strong>The reshape <em>is</em> the concat.</strong> The paper writes
+        $\mathrm{MHA}(Q,K,V) = \mathrm{Concat}(\text{head}_1,\dots,\text{head}_h)\,W^O$, but there's
+        no literal <code>torch.cat</code> here. After <code>transpose(1,2)</code> the
+        <span class="dim h">h&nbsp;=&nbsp;8</span> heads sit adjacent in the last two axes for each of the
+        <span class="dim s">S&nbsp;=&nbsp;10</span> token positions:
+        <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim s">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span></span>.
+        <code>reshape</code> then flattens those last two axes
+        ($h\cdot d_k = 8\cdot 64 = $ <span class="dim d">512</span>), laying the heads end-to-end along the
+        feature dimension. That side-by-side layout over contiguous memory is exactly concatenation —
+        so concat isn't omitted, it's precisely what the reshape does (<code>.contiguous()</code> just
+        makes the reshape valid after the transpose). Each token's <span class="dim d">512</span>-vector is:
+      </div>
+      <div style="margin: 6px 0;">
+        <span class="shape">
+          <span class="br">[</span><span class="dim d">512</span><span class="br">]</span>
+          <span class="arrow">=</span>
+          <span class="br">[</span><span class="dim h">head₀</span> <span class="dim k">64</span><span class="br">]</span><span class="dim h">‖</span><span class="br">[</span><span class="dim h">head₁</span> <span class="dim k">64</span><span class="br">]</span><span class="dim h">‖</span> … <span class="dim h">‖</span><span class="br">[</span><span class="dim h">head₇</span> <span class="dim k">64</span><span class="br">]</span>
+        </span>
+        <span class="pill">equivalently <code>torch.cat([head_0, …, head_7], dim=-1)</code></span>
+      </div>
       <div class="tensor-row" id="tv-concat"></div>
     </div>
   </div>

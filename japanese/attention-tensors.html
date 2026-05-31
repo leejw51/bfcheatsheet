@@ -966,6 +966,62 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
     また、ヘッドを分割するため1回、結合するため1回の計2回リシェイプします。
   </p>
 
+  <div class="note green">
+    <strong>すべての形状が明確に読める理由：</strong> ここでは <em>h&nbsp;=&nbsp;8</em> ヘッド、
+    <em>S&nbsp;=&nbsp;10</em> シーケンス位置、<em>d_k&nbsp;=&nbsp;64</em> — 各次元が異なる数字を持つため、
+    どの軸がどれかを常に判別できます。（以前のバージョンではシーケンス長に8を使用しており、8ヘッドと衝突していました：
+    <code>[2, 8, 8, 64]</code> は判読不能でした。S=10にすると <code>[2, 8, 10, 64]</code> — 一目瞭然です。）
+  </div>
+
+  <!-- ===== インタラクティブ: ヘッドへの分割 ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">A</span> ヘッドへの再形成 — インタラクティブ</p>
+    <div class="panel-title"><em>[B, S, d_model]</em> が <em>[B, h, S, d_k]</em> に分割される様子</div>
+    <p class="panel-sub">ヘッドにカーソルを合わせるかクリックして、そのヘッドの
+      <span style="color:var(--dim-s)">S</span>×<span style="color:var(--dim-k)">d_k</span> スライスをスポットライト表示します。
+      同じデータが再グループ化されているだけ — <strong>新しいパラメーターなし</strong>。</p>
+
+    <div class="headsplit-wrap">
+      <div style="text-align:center;">
+        <div id="hs-before" class="matbox dim-d" style="width:200px;height:120px;--cell:10px;"></div>
+        <div class="matlabel">変換前 · <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim s">10</span>, <span class="dim d">512</span><span class="br">]</span></span></div>
+      </div>
+      <div style="font-size:26px;color:var(--accent);">→</div>
+      <div style="text-align:center;">
+        <div id="hs-heads" class="head-grid" style="width:300px;"></div>
+        <div class="matlabel">変換後 · <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim s">10</span>, <span class="dim k">64</span><span class="br">]</span></span></div>
+      </div>
+    </div>
+    <div id="hs-readout" class="hm-readout" style="text-align:center;">ヘッドをクリックしてスライスを確認</div>
+  </div>
+
+  <!-- ===== インタラクティブ: QKᵀ アテンションヒートマップ ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">B</span> Q Kᵀ アテンションマップ — インタラクティブ</p>
+    <div class="panel-title">S × S スコアグリッド · ヘッドごとに1つ</div>
+    <p class="panel-sub">各セル <em>(i, j)</em> = クエリ位置 <em>i</em> がキー位置 <em>j</em> にどれだけ注目するか。
+      すべての<strong>行は合計が1になるsoftmax</strong>です。ヘッドを選択すると —
+      <span style="color:var(--dim-h)">h = 8</span> の独立した
+      <span style="color:var(--dim-s)">10×10</span> マップのうちの1つを見ています。（重みはサンプルです。）</p>
+    <div class="head-selector" id="hm-headsel"></div>
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="hm-axis" style="writing-mode:vertical-rl; transform:rotate(180deg);">クエリ i →</span>
+          <div id="hm-grid" class="heatmap"></div>
+        </div>
+        <div class="hm-axis" style="margin-left:24px; margin-top:4px;">キー j →</div>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <div id="hm-readout" class="hm-readout"><b>セルにカーソルを合わせると</b>クエリ→キーの重みを確認できます。</div>
+        <div style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">
+          scores shape <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim s">10</span>, <span class="dim s">10</span><span class="br">]</span></span><br>
+          1行ハイライト = 1つのsoftmax分布。
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-head"><div class="card-title">ステージ4 · Q、K、V 射影</div></div>
     <div class="card-body">
@@ -976,7 +1032,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">X</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">Wᵠ</span>
@@ -985,7 +1041,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">Q</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code><span class="tok-c"># 3つの線形レイヤー、論文ではバイアスなしだが実装上はバイアスありでも可</span>
@@ -1013,11 +1069,11 @@ V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</sp
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
           <span class="arrow">view→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">transpose(1,2)→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>B, T, d_model = Q.shape
@@ -1047,16 +1103,16 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">Q</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">Kᵀ</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">scores</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>scores = Q @ K.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)   <span class="tok-c"># [B, h, T, T]</span>
@@ -1077,9 +1133,9 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
           <span class="arrow">÷ √64</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="pill">形状は変わらず</span>
       </div>
@@ -1100,9 +1156,9 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
           <span class="arrow">→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="pill green">各行の合計=1</span>
       </div>
@@ -1125,16 +1181,16 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">A</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">V</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">out</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>head_out = A @ V                  <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
@@ -1150,11 +1206,11 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">transpose→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">reshape→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]</span>
@@ -1175,9 +1231,9 @@ out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span c
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
           <span class="arrow">·W_O</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># さらに262 144パラメーター</span>
@@ -1368,6 +1424,63 @@ out = ln2(X_post + ffn_out)       <span class="tok-c"># [B, T, d_model]</span></
 <span class="tok-c"># dec_in  : "&lt;sos&gt; die katze sitzt"     ← 右シフト（入力）</span>
 <span class="tok-c"># labels  : "die katze sitzt &lt;eos&gt;"     ← 予測対象</span></code></pre>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== インタラクティブ: マスキング解説 ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">A</span> マスキング — インタラクティブ</p>
+    <div class="panel-title">デコーダーが<em>未来を参照できない</em>理由</div>
+    <p class="panel-sub">
+      学習時にデコーダーはターゲット全体を一度に見ます（ティーチャーフォーシング）。それでも
+      「次のトークンを予測する」ことを学習するため、位置 <em>i</em> がそれ以降の位置
+      <em>j&nbsp;&gt;&nbsp;i</em> に注目することを禁止します — それらのセルはsoftmax<strong>前に</strong>
+      <em>−∞</em> に設定されるため、softmax後は正確に0になります。マスクを切り替えてクエリ位置をスライドさせて確認してください。
+    </p>
+
+    <div class="stepper-controls">
+      <div class="switch on" id="mask-toggle" onclick="toggleMask()">
+        <span class="track"><span class="knob2"></span></span>
+        <span id="mask-toggle-label">因果マスク: オン</span>
+      </div>
+      <label class="hm-axis" style="display:flex;align-items:center;gap:8px;">
+        クエリ位置 i = <b id="mask-i-val" style="color:var(--accent)">3</b>
+        <input type="range" class="glow" id="mask-i" min="0" max="6" value="3" oninput="renderMask()">
+      </label>
+    </div>
+
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="hm-axis" style="writing-mode:vertical-rl; transform:rotate(180deg);">クエリ i →</span>
+          <div id="mask-grid" class="mask-grid"></div>
+        </div>
+        <div class="hm-axis" style="margin-left:22px; margin-top:4px;">キー j →  (S_tgt = 7)</div>
+      </div>
+      <div style="flex:1; min-width:240px;">
+        <div id="mask-readout" class="hm-readout"></div>
+        <div class="legend" style="margin-top:10px;">
+          <span><span class="dot" style="background: rgba(74,222,128,0.5)"></span> 許可 (j ≤ i)</span>
+          <span><span class="dot" style="background: rgba(248,113,113,0.4)"></span> ブロック (−∞)</span>
+        </div>
+        <p style="color:var(--muted);font-size:12.5px;margin:10px 0 0;">
+          マスクがオフの場合、すべてのクエリがすべてのキーを見ることができます — これがエンコーダー自己アテンションです。
+          オンにすると、グリッドは下三角形になります：位置0は自身のみを見て、位置6はすべての7つを見ます。
+          これがモデルをすべての位置で並列学習しながらも、推論時に左から右へ生成できるようにする仕組みです。
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
+      <div class="panel-title" style="font-size:16px;">パディングマスク</div>
+      <p class="panel-sub" style="margin-bottom:8px;">
+        別途、<span style="color:var(--dim-s)">S_src = 10</span> のソースには末尾の
+        <strong>パディングゼロ</strong>がありました（行0：実トークン9個 + パッド1個；行1：実3個 + パッド7個）。
+        それらの位置もアテンションがパディングに流れ込まないよう −∞ にマスクされます。キー位置をクリックして
+        パディングとして切り替え、その列全体が黒くなる様子を確認してください。
+      </p>
+      <div id="pad-row" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <div id="pad-readout" class="hm-readout"></div>
     </div>
   </div>
 
@@ -2134,6 +2247,26 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
     <div class="pipeline" id="pipeline"></div>
 
     <div class="total-params" id="totalParams"></div>
+  </div>
+
+  <!-- ===== インタラクティブ: アテンション・プレイグラウンド ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">★</span> アテンション・プレイグラウンド</p>
+    <div class="panel-title">文を入力してクエリトークンを選択</div>
+    <p class="panel-sub">単純な空白トークン化（テキストはエスケープ済み）。任意のチップをクリックして
+      <strong>クエリ</strong>にします；バーは他のトークンに対するサンプルの<em>おもちゃ</em>アテンション分布を示します
+      （単純な位置 + 共有文字の類似度をsoftmax処理 — 直感のためだけで、実際のモデルではありません）。</p>
+    <input type="text" id="pg-input" value="the cat sat on the mat"
+      style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+             padding:9px 12px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;"
+      oninput="renderPlayground()">
+    <div style="margin:10px 0;">
+      <span class="shape"><span class="lbl">ids</span><span class="br">[</span><span class="dim b">B=1</span>, <span class="dim s" id="pg-S">S=6</span><span class="br">]</span></span>
+      <span class="arrow" style="color:var(--muted)">→ embed →</span>
+      <span class="shape"><span class="br">[</span><span class="dim b">1</span>, <span class="dim s" id="pg-S2">6</span>, <span class="dim d">512</span><span class="br">]</span></span>
+    </div>
+    <div id="pg-chips" style="margin:8px 0;"></div>
+    <div id="pg-bars" style="margin-top:10px;"></div>
   </div>
 
   <div class="note">

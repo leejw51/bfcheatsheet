@@ -969,6 +969,62 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
     přetvarujeme: jednou pro rozdělení hlav, jednou pro jejich zpětné slepení.
   </p>
 
+  <div class="note green">
+    <strong>Proč jsou nyní všechny tvary čitelné:</strong> zde <em>h&nbsp;=&nbsp;8</em> hlav,
+    <em>S&nbsp;=&nbsp;10</em> pozic sekvence, <em>d_k&nbsp;=&nbsp;64</em> — každá dimenze má odlišné číslo,
+    takže vždy poznáte, která osa je která. (Dřívější verze používaly délku sekvence 8, která kolidovala
+    s 8 hlavami: <code>[2, 8, 8, 64]</code> bylo nečitelné. S S=10 se stane <code>[2, 8, 10, 64]</code> — nezaměnitelné.)
+  </div>
+
+  <!-- ===== INTERACTIVE: split into heads ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">A</span> Přetvarování na hlavy — interaktivní</p>
+    <div class="panel-title">Sledujte, jak se <em>[B, S, d_model]</em> rozdělí na <em>[B, h, S, d_k]</em></div>
+    <p class="panel-sub">Najeďte nebo klikněte na hlavu pro zvýraznění právě toho řezu
+      <span style="color:var(--dim-s)">S</span>×<span style="color:var(--dim-k)">d_k</span> dané hlavy.
+      Stejná data, přeskupena — <strong>žádné nové parametry</strong>.</p>
+
+    <div class="headsplit-wrap">
+      <div style="text-align:center;">
+        <div id="hs-before" class="matbox dim-d" style="width:200px;height:120px;--cell:10px;"></div>
+        <div class="matlabel">před · <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim s">10</span>, <span class="dim d">512</span><span class="br">]</span></span></div>
+      </div>
+      <div style="font-size:26px;color:var(--accent);">→</div>
+      <div style="text-align:center;">
+        <div id="hs-heads" class="head-grid" style="width:300px;"></div>
+        <div class="matlabel">po · <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim s">10</span>, <span class="dim k">64</span><span class="br">]</span></span></div>
+      </div>
+    </div>
+    <div id="hs-readout" class="hm-readout" style="text-align:center;">klikněte na hlavu pro zobrazení řezu</div>
+  </div>
+
+  <!-- ===== INTERACTIVE: QKᵀ attention heatmap ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">B</span> Mapa pozornosti Q Kᵀ — interaktivní</p>
+    <div class="panel-title">Mřížka skóre <em>S × S</em> · jedna na hlavu</div>
+    <p class="panel-sub">Každá buňka <em>(i, j)</em> = kolik pozornosti věnuje pozice dotazu <em>i</em> pozici klíče
+      <em>j</em>. Každý <strong>řádek je softmax se součtem 1</strong>. Vyberte hlavu — díváte se na jednu
+      z <span style="color:var(--dim-h)">h = 8</span> samostatných
+      <span style="color:var(--dim-s)">10×10</span> map. (Váhy jsou ilustrativní.)</p>
+    <div class="head-selector" id="hm-headsel"></div>
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="hm-axis" style="writing-mode:vertical-rl; transform:rotate(180deg);">dotaz i →</span>
+          <div id="hm-grid" class="heatmap"></div>
+        </div>
+        <div class="hm-axis" style="margin-left:24px; margin-top:4px;">klíč j →</div>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <div id="hm-readout" class="hm-readout"><b>najeďte na buňku</b> pro zobrazení váhy dotaz→klíč.</div>
+        <div style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">
+          scores shape <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim s">10</span>, <span class="dim s">10</span><span class="br">]</span></span><br>
+          jeden zvýrazněný řádek = jedna softmax distribuce.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-head"><div class="card-title">krok 4 · projekce Q, K, V</div></div>
     <div class="card-body">
@@ -979,7 +1035,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">X</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">Wᵠ</span>
@@ -988,7 +1044,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">Q</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code><span class="tok-c"># tři lineární vrstvy, bez bias v článku, ale v praxi bias nevadí</span>
@@ -1016,11 +1072,11 @@ V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</sp
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
           <span class="arrow">view→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">transpose(1,2)→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>B, T, d_model = Q.shape
@@ -1051,16 +1107,16 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">Q</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">Kᵀ</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">scores</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>scores = Q @ K.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)   <span class="tok-c"># [B, h, T, T]</span>
@@ -1081,9 +1137,9 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
           <span class="arrow">÷ √64</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="pill">tvar beze změny</span>
       </div>
@@ -1104,9 +1160,9 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
           <span class="arrow">→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="pill green">řádky se sčítají na 1</span>
       </div>
@@ -1129,16 +1185,16 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">A</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">V</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">out</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>head_out = A @ V                  <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
@@ -1154,11 +1210,11 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">transpose→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">reshape→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]</span>
@@ -1179,9 +1235,9 @@ out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span c
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
           <span class="arrow">·W_O</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># dalších 262 144 parametrů</span>
@@ -1402,6 +1458,63 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
         <span style="color: var(--muted);">= [2, 8, 7, 7]</span>
         <span style="color: var(--muted); margin-left:auto;">horní trojúhelník = 0 po softmaxu</span>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== INTERACTIVE: masking explainer ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">A</span> Maskování — interaktivní</p>
+    <div class="panel-title">Proč dekodér <em>nemůže nahlédnout</em> do budoucnosti</div>
+    <p class="panel-sub">
+      Během trénování vidí dekodér celý cíl najednou (teacher forcing). Aby se stále učil
+      „predikovat další token", zakazujeme pozici <em>i</em> navštěvovat jakoukoli pozdější pozici
+      <em>j&nbsp;&gt;&nbsp;i</em> — tyto buňky jsou nastaveny na <em>−∞</em> <strong>před</strong> softmaxem,
+      takže po softmaxu jsou přesně 0. Přepínejte masku a posuňte pozici dotazu, abyste to pocítili.
+    </p>
+
+    <div class="stepper-controls">
+      <div class="switch on" id="mask-toggle" onclick="toggleMask()">
+        <span class="track"><span class="knob2"></span></span>
+        <span id="mask-toggle-label">kauzální maska: ZAPNUTO</span>
+      </div>
+      <label class="hm-axis" style="display:flex;align-items:center;gap:8px;">
+        pozice dotazu i = <b id="mask-i-val" style="color:var(--accent)">3</b>
+        <input type="range" class="glow" id="mask-i" min="0" max="6" value="3" oninput="renderMask()">
+      </label>
+    </div>
+
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="hm-axis" style="writing-mode:vertical-rl; transform:rotate(180deg);">dotaz i →</span>
+          <div id="mask-grid" class="mask-grid"></div>
+        </div>
+        <div class="hm-axis" style="margin-left:22px; margin-top:4px;">klíč j →  (S_tgt = 7)</div>
+      </div>
+      <div style="flex:1; min-width:240px;">
+        <div id="mask-readout" class="hm-readout"></div>
+        <div class="legend" style="margin-top:10px;">
+          <span><span class="dot" style="background: rgba(74,222,128,0.5)"></span> povoleno (j ≤ i)</span>
+          <span><span class="dot" style="background: rgba(248,113,113,0.4)"></span> blokováno (−∞)</span>
+        </div>
+        <p style="color:var(--muted);font-size:12.5px;margin:10px 0 0;">
+          Když je maska VYPNUTO, každý dotaz může vidět každý klíč — to je vlastní pozornost enkodéru. Když je
+          ZAPNUTO, mřížka je dolně trojúhelníková: pozice 0 vidí pouze sebe, pozice 6 vidí všech 7. To je přesně
+          to, co umožňuje trénovat model na všech pozicích paralelně, přičemž stále generuje zleva doprava při inferenci.
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
+      <div class="panel-title" style="font-size:16px;">Maska výplně</div>
+      <p class="panel-sub" style="margin-bottom:8px;">
+        Zvlášť, <span style="color:var(--dim-s)">S_src = 10</span> zdrojová sekvence měla koncové
+        <strong>nuly výplně</strong> (řádek 0: 9 skutečných tokenů + 1 výplň; řádek 1: 3 skutečné + 7 výplní). Tyto
+        pozice jsou také maskovány na −∞, takže pozornost nikdy neplyne <em>do</em> výplně. Klikněte na pozici klíče
+        pro přepnutí jako výplň a sledujte, jak celý sloupec zčerná.
+      </p>
+      <div id="pad-row" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <div id="pad-readout" class="hm-readout"></div>
     </div>
   </div>
 
@@ -2139,6 +2252,27 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
     <div class="pipeline" id="pipeline"></div>
 
     <div class="total-params" id="totalParams"></div>
+  </div>
+
+  <!-- ===== INTERACTIVE: attention playground ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">★</span> Hřiště pozornosti</p>
+    <div class="panel-title">Zadejte větu, vyberte token dotazu</div>
+    <p class="panel-sub">Naivní tokenizace bílými znaky (text je escapovaný). Klikněte na libovolný čip pro
+      nastavení jako <strong>dotaz</strong>; pruhy zobrazují ilustrativní <em>hračkové</em> rozdělení pozornosti nad
+      ostatními tokeny (jednoduchá podobnost pozice + sdílených znaků, soft-maxovaná — čistě pro
+      intuici, nikoli skutečný model).</p>
+    <input type="text" id="pg-input" value="the cat sat on the mat"
+      style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+             padding:9px 12px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;"
+      oninput="renderPlayground()">
+    <div style="margin:10px 0;">
+      <span class="shape"><span class="lbl">ids</span><span class="br">[</span><span class="dim b">B=1</span>, <span class="dim s" id="pg-S">S=6</span><span class="br">]</span></span>
+      <span class="arrow" style="color:var(--muted)">→ embed →</span>
+      <span class="shape"><span class="br">[</span><span class="dim b">1</span>, <span class="dim s" id="pg-S2">6</span>, <span class="dim d">512</span><span class="br">]</span></span>
+    </div>
+    <div id="pg-chips" style="margin:8px 0;"></div>
+    <div id="pg-bars" style="margin-top:10px;"></div>
   </div>
 
   <div class="note">

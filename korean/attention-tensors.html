@@ -960,6 +960,62 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
     헤드 분할과 헤드 재결합.
   </p>
 
+  <div class="note green">
+    <strong>모든 형태를 명확하게 읽는 이유:</strong> 여기서 <em>h&nbsp;=&nbsp;8</em> 헤드,
+    <em>S&nbsp;=&nbsp;10</em> 시퀀스 위치, <em>d_k&nbsp;=&nbsp;64</em> — 모든 차원이 서로 다른 숫자를 가지므로
+    어느 축인지 항상 알 수 있습니다. (이전 버전에서는 시퀀스 길이 8을 사용했는데, 8개의 헤드와 충돌했습니다:
+    <code>[2, 8, 8, 64]</code>는 읽기 어려웠습니다. S=10이면 <code>[2, 8, 10, 64]</code>로 — 명확합니다.)
+  </div>
+
+  <!-- ===== INTERACTIVE: split into heads ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">A</span> 헤드로 재형성 — 인터랙티브</p>
+    <div class="panel-title"><em>[B, S, d_model]</em>이 <em>[B, h, S, d_k]</em>로 분할되는 것을 확인하세요</div>
+    <p class="panel-sub">헤드에 마우스를 올리거나 클릭하면 해당 헤드의
+      <span style="color:var(--dim-s)">S</span>×<span style="color:var(--dim-k)">d_k</span> 슬라이스만
+      강조됩니다. 같은 데이터를 재편성한 것 — <strong>새로운 파라미터 없음</strong>.</p>
+
+    <div class="headsplit-wrap">
+      <div style="text-align:center;">
+        <div id="hs-before" class="matbox dim-d" style="width:200px;height:120px;--cell:10px;"></div>
+        <div class="matlabel">이전 · <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim s">10</span>, <span class="dim d">512</span><span class="br">]</span></span></div>
+      </div>
+      <div style="font-size:26px;color:var(--accent);">→</div>
+      <div style="text-align:center;">
+        <div id="hs-heads" class="head-grid" style="width:300px;"></div>
+        <div class="matlabel">이후 · <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim s">10</span>, <span class="dim k">64</span><span class="br">]</span></span></div>
+      </div>
+    </div>
+    <div id="hs-readout" class="hm-readout" style="text-align:center;">헤드를 클릭하면 해당 슬라이스를 확인할 수 있습니다</div>
+  </div>
+
+  <!-- ===== INTERACTIVE: QKᵀ attention heatmap ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">B</span> Q Kᵀ 어텐션 맵 — 인터랙티브</p>
+    <div class="panel-title"><em>S × S</em> 점수 격자 · 헤드당 하나</div>
+    <p class="panel-sub">각 셀 <em>(i, j)</em> = 쿼리 위치 <em>i</em>가 키 위치 <em>j</em>에 얼마나
+      집중하는지. 모든 <strong>행은 합이 1인 softmax</strong>입니다. 헤드를 선택하면 —
+      <span style="color:var(--dim-h)">h = 8</span>개의 별도
+      <span style="color:var(--dim-s)">10×10</span> 맵 중 하나를 보고 있는 것입니다. (가중치는 예시용입니다.)</p>
+    <div class="head-selector" id="hm-headsel"></div>
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="hm-axis" style="writing-mode:vertical-rl; transform:rotate(180deg);">쿼리 i →</span>
+          <div id="hm-grid" class="heatmap"></div>
+        </div>
+        <div class="hm-axis" style="margin-left:24px; margin-top:4px;">키 j →</div>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <div id="hm-readout" class="hm-readout"><b>셀에 마우스를 올리면</b> 쿼리→키 가중치를 확인합니다.</div>
+        <div style="margin-top:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);">
+          scores shape <span class="shape"><span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim s">10</span>, <span class="dim s">10</span><span class="br">]</span></span><br>
+          한 행 강조 = softmax 분포 하나.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-head"><div class="card-title">단계 4 · Q, K, V 투영</div></div>
     <div class="card-body">
@@ -970,7 +1026,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">X</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">Wᵠ</span>
@@ -979,7 +1035,7 @@ X = X + PE[:T]            <span class="tok-c"># [B, T, d_model] + [T, d_model] -
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">Q</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code><span class="tok-c"># 세 선형 레이어, 논문엔 편향 없지만 실제로는 있어도 됨</span>
@@ -1006,11 +1062,11 @@ V = Wv(X)                              <span class="tok-c"># [B, T, d_model]</sp
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
           <span class="arrow">view→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">transpose(1,2)→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>B, T, d_model = Q.shape
@@ -1038,16 +1094,16 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">Q</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">Kᵀ</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim k">64</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">scores</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>scores = Q @ K.transpose(-<span class="tok-n">2</span>, -<span class="tok-n">1</span>)   <span class="tok-c"># [B, h, T, T]</span>
@@ -1066,9 +1122,9 @@ V = V.view(B, T, h, d_k).transpose(<span class="tok-n">1</span>, <span class="to
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
           <span class="arrow">÷ √64</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="pill">형태 유지</span>
       </div>
@@ -1088,9 +1144,9 @@ scores = scores / math.<span class="tok-f">sqrt</span>(d_k)   <span class="tok-c
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
           <span class="arrow">→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="pill green">각 행의 합 = 1</span>
       </div>
@@ -1111,16 +1167,16 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       <div style="margin: 6px 0;">
         <span class="shape">
           <span class="lbl">A</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim t">8</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim t">10</span><span class="br">]</span>
         </span>
         <span class="shape">
           <span class="lbl">V</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
         <span class="arrow">→</span>
         <span class="shape">
           <span class="lbl">out</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>head_out = A @ V                  <span class="tok-c"># [B, h, T, d_k]</span></code></pre>
@@ -1135,11 +1191,11 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
       </p>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim h">8</span>, <span class="dim t">10</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">transpose→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim h">8</span>, <span class="dim k">64</span><span class="br">]</span>
           <span class="arrow">reshape→</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>out = head_out.transpose(<span class="tok-n">1</span>, <span class="tok-n">2</span>).contiguous()   <span class="tok-c"># [B, T, h, d_k]  헤드 이동</span>
@@ -1158,9 +1214,9 @@ out = out.<span class="tok-f">reshape</span>(B, T, d_model)              <span c
       </div>
       <div style="margin: 6px 0;">
         <span class="shape">
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
           <span class="arrow">·W_O</span>
-          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">8</span>, <span class="dim d">512</span><span class="br">]</span>
+          <span class="br">[</span><span class="dim b">2</span>, <span class="dim t">10</span>, <span class="dim d">512</span><span class="br">]</span>
         </span>
       </div>
       <pre class="code"><code>Wo = nn.<span class="tok-f">Linear</span>(d_model, d_model)   <span class="tok-c"># 추가 262 144 params</span>
@@ -1366,6 +1422,63 @@ A = F.<span class="tok-f">softmax</span>(scores, dim=-<span class="tok-n">1</spa
         <span style="color: var(--muted);">= [2, 8, 7, 7]</span>
         <span style="color: var(--muted); margin-left:auto;">상삼각 = softmax 후 0</span>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== INTERACTIVE: masking explainer ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">A</span> 마스킹 — 인터랙티브</p>
+    <div class="panel-title">디코더가 <em>미래를 볼 수 없는</em> 이유</div>
+    <p class="panel-sub">
+      학습 중 디코더는 타깃 전체를 한 번에 봅니다(교사 강제). 그럼에도 '다음 토큰 예측'을 학습하기 위해,
+      위치 <em>i</em>가 이후의 위치 <em>j&nbsp;&gt;&nbsp;i</em>에 어텐션하는 것을 금지합니다 —
+      해당 셀들은 softmax <strong>이전에</strong> <em>−∞</em>로 설정되어,
+      softmax 이후에는 정확히 0이 됩니다. 마스크를 켜고 끄거나 쿼리 위치를 슬라이드해서 직접 느껴보세요.
+    </p>
+
+    <div class="stepper-controls">
+      <div class="switch on" id="mask-toggle" onclick="toggleMask()">
+        <span class="track"><span class="knob2"></span></span>
+        <span id="mask-toggle-label">인과 마스크: 켜짐</span>
+      </div>
+      <label class="hm-axis" style="display:flex;align-items:center;gap:8px;">
+        쿼리 위치 i = <b id="mask-i-val" style="color:var(--accent)">3</b>
+        <input type="range" class="glow" id="mask-i" min="0" max="6" value="3" oninput="renderMask()">
+      </label>
+    </div>
+
+    <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap;">
+      <div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="hm-axis" style="writing-mode:vertical-rl; transform:rotate(180deg);">쿼리 i →</span>
+          <div id="mask-grid" class="mask-grid"></div>
+        </div>
+        <div class="hm-axis" style="margin-left:22px; margin-top:4px;">키 j →  (S_tgt = 7)</div>
+      </div>
+      <div style="flex:1; min-width:240px;">
+        <div id="mask-readout" class="hm-readout"></div>
+        <div class="legend" style="margin-top:10px;">
+          <span><span class="dot" style="background: rgba(74,222,128,0.5)"></span> 허용 (j ≤ i)</span>
+          <span><span class="dot" style="background: rgba(248,113,113,0.4)"></span> 차단 (−∞)</span>
+        </div>
+        <p style="color:var(--muted);font-size:12.5px;margin:10px 0 0;">
+          마스크가 꺼지면, 모든 쿼리가 모든 키를 볼 수 있습니다 — 이것이 인코더 셀프-어텐션입니다. 켜지면,
+          격자는 하삼각형이 됩니다: 위치 0은 자기 자신만 보고, 위치 6은 7개 전부를 봅니다.
+          이것이 모델이 모든 위치를 병렬로 학습하면서도 추론 시에는 왼쪽에서 오른쪽으로 생성할 수 있게 해주는 원리입니다.
+        </p>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
+      <div class="panel-title" style="font-size:16px;">패딩 마스크</div>
+      <p class="panel-sub" style="margin-bottom:8px;">
+        별도로, <span style="color:var(--dim-s)">S_src = 10</span> 소스에는 뒤쪽에
+        <strong>패딩 0</strong>이 있었습니다 (행 0: 실제 토큰 9개 + 패딩 1개; 행 1: 실제 3개 + 패딩 7개).
+        어텐션이 패딩으로 <em>흘러들어가지</em> 않도록 해당 위치도 −∞로 마스킹됩니다.
+        키 위치를 클릭하여 패딩으로 전환하고 열 전체가 검게 변하는 것을 확인하세요.
+      </p>
+      <div id="pad-row" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <div id="pad-readout" class="hm-readout"></div>
     </div>
   </div>
 
@@ -2083,6 +2196,26 @@ generated_ids.shape    <span class="tok-c"># (B=1, n_generated=3)</span></code><
     <div class="pipeline" id="pipeline"></div>
 
     <div class="total-params" id="totalParams"></div>
+  </div>
+
+  <!-- ===== INTERACTIVE: attention playground ===== -->
+  <div class="panel">
+    <p class="eyebrow"><span class="sec-no">★</span> 어텐션 플레이그라운드</p>
+    <div class="panel-title">문장을 입력하고 쿼리 토큰을 선택하세요</div>
+    <p class="panel-sub">단순 공백 토크나이저 사용 (텍스트 이스케이프 처리). 칩을 클릭하면 <strong>쿼리</strong>로 지정되며,
+      막대는 다른 토큰들에 대한 예시적인 <em>장난감</em> 어텐션 분포를 보여줍니다
+      (위치와 문자 공유 유사도의 단순 조합, softmax 적용 — 직관을 위한 것이며 실제 모델이 아닙니다).</p>
+    <input type="text" id="pg-input" value="the cat sat on the mat"
+      style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);
+             padding:9px 12px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;"
+      oninput="renderPlayground()">
+    <div style="margin:10px 0;">
+      <span class="shape"><span class="lbl">ids</span><span class="br">[</span><span class="dim b">B=1</span>, <span class="dim s" id="pg-S">S=6</span><span class="br">]</span></span>
+      <span class="arrow" style="color:var(--muted)">→ embed →</span>
+      <span class="shape"><span class="br">[</span><span class="dim b">1</span>, <span class="dim s" id="pg-S2">6</span>, <span class="dim d">512</span><span class="br">]</span></span>
+    </div>
+    <div id="pg-chips" style="margin:8px 0;"></div>
+    <div id="pg-bars" style="margin-top:10px;"></div>
   </div>
 
   <div class="note">

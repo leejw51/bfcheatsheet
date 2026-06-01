@@ -1,0 +1,1320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Temperature &amp; Top-k · Interactive</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c12;
+    --bg-2:#0e1119;
+    --panel:#12151f;
+    --panel2:#171b27;
+    --ink:#eef2f8;
+    --ink-dim:#93a0b4;
+    --line:#252b3a;
+    --hot:#ff6b3d;        /* high temperature — flame */
+    --hot-2:#ffb43d;      /* ember */
+    --cold:#38bdf8;       /* low temperature — cool */
+    --cold-2:#7c9bff;     /* ice violet */
+    --accent:#ff6b3d;
+    --accent2:#38bdf8;
+    --good:#3ddc97;
+    --bad:#ff6b6b;
+    --warn:#ffd166;
+    --cut:#4a5568;
+    --grid:rgba(255,240,220,0.04);
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --serif:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  body{
+    background-image:
+      radial-gradient(ellipse at 90% -10%, rgba(255,107,61,0.13), transparent 55%),
+      radial-gradient(ellipse at -10% 110%, rgba(56,189,248,0.10), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:100% 100%,100% 100%,34px 34px,34px 34px;
+    min-height:100vh;
+  }
+  a{color:var(--accent)}
+  code,kbd{font-family:var(--mono)}
+  .grain{position:fixed;inset:0;pointer-events:none;opacity:.035;z-index:100;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 24px 120px}
+
+  /* ---------- HERO ---------- */
+  header.hero{position:relative;padding:52px 30px 40px;border-radius:22px;background:
+    radial-gradient(900px 420px at 92% -20%,rgba(255,107,61,.20),transparent 60%),
+    radial-gradient(720px 320px at -8% 120%,rgba(56,189,248,.20),transparent 60%),
+    linear-gradient(135deg,#14161f,#0c0e15);
+    border:1px solid var(--line);overflow:hidden}
+  header.hero .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--accent);text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:12px}
+  header.hero .eyebrow::before{content:'';width:30px;height:1px;background:var(--accent)}
+  header.hero h1{margin:0 0 12px;font-family:var(--serif);font-weight:300;font-size:clamp(34px,6.5vw,76px);line-height:.96;letter-spacing:-.03em}
+  header.hero h1 em{font-style:italic;font-weight:900;color:var(--accent);font-variation-settings:"opsz" 144}
+  header.hero h1 .b{font-style:italic;font-weight:900;color:var(--accent2);font-variation-settings:"opsz" 144}
+  header.hero p.lede{margin:0;color:var(--ink-dim);max-width:66ch;font-size:17px}
+  header.hero p.lede strong{color:var(--ink);font-weight:600}
+  .thermo{position:absolute;right:24px;top:-6px;font-size:150px;line-height:1;color:rgba(255,255,255,.04);pointer-events:none;user-select:none;font-family:var(--serif)}
+
+  .hud{display:flex;flex-wrap:wrap;gap:10px;margin:24px 0 4px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:13px;color:var(--ink-dim);font-family:var(--mono)}
+  .chip b{color:var(--ink);font-weight:700}
+  .chip.lvl{background:linear-gradient(135deg,rgba(255,107,61,.16),rgba(56,189,248,.16));border-color:rgba(255,107,61,.4);color:#ffe3d6}
+  .chip.combo{background:linear-gradient(135deg,rgba(255,209,102,.12),rgba(255,107,61,.10));border-color:rgba(255,209,102,.35);color:#ffeec0}
+  .xpbar{flex:1;min-width:160px;height:10px;border-radius:999px;background:#161a26;border:1px solid var(--line);overflow:hidden;position:relative}
+  .xpbar>div{height:100%;width:0%;background:linear-gradient(90deg,var(--cold),var(--hot));transition:width .35s ease}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);border-radius:10px;padding:8px 12px;font-size:12px;cursor:pointer;font-family:var(--mono)}
+  button.ghost:hover{color:var(--ink);border-color:#3a4154}
+
+  nav.toc{position:sticky;top:8px;z-index:20;background:rgba(10,12,18,.82);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:14px;padding:10px;margin:22px 0;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{color:var(--ink-dim);text-decoration:none;font-size:12.5px;padding:6px 10px;border-radius:8px;border:1px solid transparent;font-family:var(--mono)}
+  nav.toc a:hover{color:var(--ink);border-color:var(--line);background:var(--panel)}
+
+  section{margin:26px 0;padding:26px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,var(--panel),var(--panel2))}
+  section h2{margin:0 0 8px;font-size:23px;letter-spacing:-.01em;font-family:var(--serif);font-weight:600}
+  section h2 .num{display:inline-block;min-width:34px;height:26px;padding:0 8px;line-height:26px;text-align:center;border-radius:8px;background:rgba(255,107,61,.12);color:var(--accent);font-size:12px;margin-right:10px;border:1px solid rgba(255,107,61,.3);font-weight:700;font-family:var(--mono)}
+  section p{color:#cdd3df}
+  .lead{color:var(--ink-dim)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media (max-width:880px){.grid2{grid-template-columns:1fr}}
+  .card{background:#0e1119;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h3{margin:0 0 8px;font-size:15px;color:#f3f5f9;letter-spacing:.01em}
+  .card ul,.card ol{margin:8px 0;padding-left:20px}
+  .card li{margin:5px 0;color:#cdd3df}
+  .small{font-size:12.5px;color:var(--ink-dim)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:#1a1d27;border:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--ink-dim)}
+  .kbd{font-family:var(--mono);font-size:11.5px;padding:1px 6px;border-radius:5px;background:#1a1d27;border:1px solid var(--line);color:#dfe5ef}
+  .hot-txt{color:var(--hot);font-weight:700}
+  .cold-txt{color:var(--cold);font-weight:700}
+
+  /* ---------- NEXT-TOKEN LAB ---------- */
+  .lab{position:relative;background:linear-gradient(180deg,#0d1018,#0b0e15);border:1px solid var(--line);border-radius:16px;padding:24px}
+  .lab::before{content:'';position:absolute;top:-1px;left:-1px;width:22px;height:22px;border-top:2px solid var(--hot);border-left:2px solid var(--hot);border-top-left-radius:16px}
+  .lab::after{content:'';position:absolute;bottom:-1px;right:-1px;width:22px;height:22px;border-bottom:2px solid var(--cold);border-right:2px solid var(--cold);border-bottom-right-radius:16px}
+  .lab-prompt{font-family:var(--mono);font-size:14px;color:var(--ink-dim);margin-bottom:18px}
+  .lab-prompt b{color:#fff}
+  .lab-prompt .blankt{color:var(--hot);border-bottom:2px dashed var(--hot);padding:0 8px}
+  .sliderRow{display:grid;grid-template-columns:120px 1fr 92px;gap:12px;align-items:center;padding:7px 0}
+  .sliderRow label{font-family:var(--mono);color:var(--ink-dim);font-size:13px}
+  .sliderRow .val{font-family:var(--mono);text-align:right;color:var(--ink);font-size:14px;font-weight:600}
+  input[type=range]{-webkit-appearance:none;width:100%;height:3px;background:rgba(255,240,220,.16);outline:none;cursor:pointer;border-radius:3px}
+  input[type=range]#tau{background:linear-gradient(90deg,var(--cold),var(--hot))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#fff;cursor:pointer;box-shadow:0 0 0 1px var(--bg),0 0 16px var(--accent);transition:transform .12s}
+  input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
+  input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:#fff;border:none;cursor:pointer;box-shadow:0 0 0 1px var(--bg),0 0 16px var(--accent)}
+
+  .toks{margin-top:18px;display:flex;flex-direction:column;gap:7px}
+  .tok{display:grid;grid-template-columns:96px 70px 1fr 66px 58px;gap:10px;align-items:center;padding:5px 8px;border-radius:9px;border:1px solid transparent;transition:background .15s,border-color .15s}
+  .tok.kept{background:rgba(255,255,255,.015)}
+  .tok.cut{opacity:.4}
+  .tok.flash{background:rgba(255,180,61,.18);border-color:rgba(255,180,61,.55)}
+  .tok .name{font-family:var(--mono);font-size:14px;color:#fff}
+  .tok .logit{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);text-align:right}
+  .tok .track{height:18px;background:#161a26;border:1px solid var(--line);border-radius:7px;overflow:hidden;position:relative}
+  .tok .fill{height:100%;width:0%;border-radius:6px;background:linear-gradient(90deg,var(--cold),var(--hot));transition:width .3s cubic-bezier(.2,.7,.2,1.2)}
+  .tok.cut .fill{background:var(--cut)}
+  .tok .pv{font-family:var(--mono);font-size:12.5px;text-align:right;color:#fff}
+  .tok .badge{font-family:var(--mono);font-size:10px;text-align:center;padding:2px 0;border-radius:5px}
+  .tok.kept .badge{color:var(--good)}
+  .tok.cut .badge{color:var(--cut);background:rgba(74,85,104,.18)}
+  .tok.argmax{background:linear-gradient(90deg,rgba(255,180,61,.14),rgba(255,180,61,.04));border-color:rgba(255,180,61,.5);box-shadow:0 0 0 1px rgba(255,180,61,.18) inset}
+  .tok.argmax .name{color:var(--hot-2)}
+  .tok.argmax .badge{color:var(--hot-2)!important;background:rgba(255,180,61,.14)!important;font-weight:700}
+  .tok.argmax .fill{background:linear-gradient(90deg,var(--hot-2),var(--hot))!important}
+
+  .readout{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:stretch}
+  .metric{flex:1;min-width:120px;background:#0c0f17;border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+  .metric .k{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim)}
+  .metric .v{font-family:var(--serif);font-size:28px;font-weight:600;line-height:1.1;margin-top:4px}
+  .metric .v em{font-style:italic;color:var(--accent)}
+  .metric .sub{font-family:var(--mono);font-size:10.5px;color:var(--ink-dim);margin-top:2px}
+
+  .btnrow{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center}
+  .btn{appearance:none;border:1px solid var(--line);background:#171a24;color:var(--ink);padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;font-family:var(--sans);transition:transform .06s ease,border-color .15s,background .15s}
+  .btn:hover{border-color:#3b3f4f;background:#1c2030}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--hot),var(--hot-2));border-color:transparent;color:#1a0e06}
+  .btn.cool{background:linear-gradient(135deg,var(--cold),var(--cold-2));border-color:transparent;color:#04121c}
+  .btn.argmax{background:linear-gradient(135deg,var(--hot-2),#ffe08a);border-color:transparent;color:#1a0e06}
+  .argmax-note{margin-top:12px;padding:12px 14px;border:1px dashed rgba(255,180,61,.4);border-radius:11px;background:rgba(255,180,61,.05);font-size:12.5px;color:#cdd3df;line-height:1.55}
+
+  .histo{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:14px;background:#0c0f17}
+  .histo h4{margin:0 0 4px;font-size:12px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-dim)}
+  .histo .hrow{display:grid;grid-template-columns:96px 1fr 54px;gap:10px;align-items:center;padding:3px 0}
+  .histo .hrow .hn{font-family:var(--mono);font-size:12.5px;color:#cdd3df}
+  .histo .htrack{height:14px;background:#161a26;border-radius:6px;overflow:hidden}
+  .histo .hfill{height:100%;width:0%;background:linear-gradient(90deg,var(--hot-2),var(--hot));transition:width .25s}
+  .histo .hc{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);text-align:right}
+
+  .formulaBox{margin-top:14px;padding:14px;border:1px dashed var(--line);border-radius:12px;background:#0c0f17;overflow-x:auto}
+
+  /* chart */
+  .chartWrap{background:#0c0f17;border:1px solid var(--line);border-radius:14px;padding:16px}
+  canvas#curve{width:100%;height:300px;display:block}
+  .legend{display:flex;gap:18px;margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);flex-wrap:wrap}
+  .legend i{display:inline-block;width:22px;height:3px;border-radius:3px;margin-right:6px;vertical-align:middle}
+
+  /* inline temperature demo (section 2) */
+  .tempdemo{margin-top:20px;background:
+      radial-gradient(620px 240px at 100% -10%,rgba(255,107,61,.10),transparent 60%),
+      radial-gradient(620px 240px at 0% 110%,rgba(56,189,248,.10),transparent 60%),
+      #0b0e15;
+    border:1px solid var(--line);border-radius:16px;padding:22px;position:relative;overflow:hidden}
+  .tempdemo::before{content:'';position:absolute;top:-1px;left:-1px;width:20px;height:20px;border-top:2px solid var(--hot);border-left:2px solid var(--hot);border-top-left-radius:16px}
+  .tempdemo::after{content:'';position:absolute;bottom:-1px;right:-1px;width:20px;height:20px;border-bottom:2px solid var(--cold);border-right:2px solid var(--cold);border-bottom-right-radius:16px}
+  .tempdemo-head{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+  .tempgauge{width:16px;height:70px;border-radius:9px;background:#161a26;border:1px solid var(--line);position:relative;overflow:hidden;flex:none;box-shadow:inset 0 0 8px rgba(0,0,0,.5)}
+  .tempgauge-fill{position:absolute;left:0;right:0;bottom:0;height:30%;background:var(--hot);transition:height .3s,background .3s;box-shadow:0 0 14px currentColor}
+  .tempdemo-tau{font-family:var(--mono);font-size:25px;font-weight:700;color:#fff;line-height:1.05}
+  .tempdemo-label{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim);margin-top:3px}
+  .td-pill{font-family:var(--mono);font-size:11px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;transition:.3s}
+
+  .tempdemo input[type=range]{margin:10px 0 16px;background:linear-gradient(90deg,var(--cold),var(--hot))}
+
+  /* plot: y-axis + chart column */
+  .td-plot{display:flex;gap:10px;align-items:stretch}
+  .td-ytitle{writing-mode:vertical-rl;transform:rotate(180deg);font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--ink-dim);text-transform:uppercase;display:flex;align-items:center;flex:none}
+  .td-yaxis{display:flex;flex-direction:column;justify-content:space-between;height:210px;flex:none;width:34px;text-align:right}
+  .td-yaxis span{font-family:var(--mono);font-size:10px;color:var(--ink-dim);line-height:1;transform:translateY(-4px)}
+  .td-chartcol{flex:1;min-width:0}
+  .td-chart{display:flex;align-items:flex-end;gap:7px;height:210px;position:relative;overflow:visible;
+    background-image:repeating-linear-gradient(to top,transparent 0,transparent calc(25% - 1px),rgba(255,255,255,.07) calc(25% - 1px),rgba(255,255,255,.07) 25%);
+    border-bottom:1px solid var(--line);border-left:1px solid var(--line)}
+  .td-bar{flex:1;min-height:2px;border-radius:6px 6px 0 0;background:var(--cold);transition:height .32s cubic-bezier(.2,.7,.2,1.2),background .3s;position:relative;box-shadow:0 0 12px -2px currentColor}
+  .td-bar .td-cap{position:absolute;top:-16px;left:-4px;right:-4px;text-align:center;font-family:var(--mono);font-size:9.5px;color:#cdd3df;opacity:0;transition:opacity .2s;pointer-events:none}
+  .td-bar.peak .td-cap{opacity:1;color:#fff;font-weight:700}
+  .td-bar:hover{filter:brightness(1.25)}
+  .td-bar:hover .td-cap{opacity:1}
+  .td-xlabels{display:flex;gap:7px;margin-top:6px;padding-left:1px}
+  .td-xlabels span{flex:1;text-align:center;font-family:var(--mono);font-size:9.5px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .td-xtitle{text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-dim);margin:8px 0 0 44px}
+
+  .td-presets{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+  .td-presets .btn{padding:7px 11px;font-size:12px}
+  .td-readout{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:12px;color:var(--ink-dim);align-items:center}
+  .td-readout b{color:var(--ink)}
+
+  /* use-case picker (section 6) */
+  .usecase-picker{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 16px}
+  .uc-btn{cursor:pointer}
+  .uc-btn.active{border-color:var(--accent);background:rgba(255,107,61,.14);color:#fff;box-shadow:0 0 0 1px rgba(255,107,61,.25) inset}
+  .usecase-result{background:radial-gradient(500px 180px at 100% -20%,rgba(255,107,61,.10),transparent 60%),#0e1119;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:12px;padding:18px 20px;transition:.2s}
+  .uc-strategy{font-family:var(--serif);font-size:25px;font-weight:600;color:#fff;line-height:1.1}
+  .uc-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .uc-pill{font-family:var(--mono);font-size:11.5px;padding:4px 11px;border-radius:999px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.32);color:#bfe6ff}
+
+  /* code */
+  .code-block{background:#070a10;border-left:2px solid var(--accent);padding:20px 22px;font-family:var(--mono);font-size:13px;line-height:1.7;overflow-x:auto;border-radius:0 12px 12px 0;color:#cdd3df;white-space:pre}
+  .code-block .kw{color:#ff6b3d}.code-block .num{color:#ffd166}.code-block .str{color:#3ddc97}.code-block .cm{color:#5d6b80;font-style:italic}.code-block .fn{color:#7c9bff}
+
+  /* practice */
+  .drillCard{display:flex;flex-direction:column;gap:10px}
+  .prompt{font-size:15px;color:#eef1f7}
+  .answerRow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  input.ti,textarea.ti{background:#0c0f17;border:1px solid var(--line);color:var(--ink);padding:10px 12px;border-radius:10px;font-family:var(--mono);font-size:14px;outline:none;min-width:140px;transition:border-color .15s,box-shadow .15s}
+  input.ti:focus,textarea.ti:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,107,61,.18)}
+  textarea.ti{min-width:280px;min-height:54px;font-family:var(--sans)}
+  input.ti.tri{min-width:80px;text-align:right}
+  .feedback{font-size:13px;color:var(--ink-dim);min-height:18px}
+  .feedback.ok{color:var(--good)}
+  .feedback.no{color:var(--bad)}
+  .preview{padding:12px;border:1px dashed var(--line);border-radius:10px;background:#0c0f17;min-height:44px;font-size:14px}
+  .qbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .qbar .qnum{font-family:var(--mono);font-size:12.5px;color:var(--ink-dim)}
+  .qbar .qtag{font-size:11px;padding:3px 8px;border-radius:999px;background:rgba(56,189,248,.15);color:#bfe6ff;border:1px solid rgba(56,189,248,.35);text-transform:uppercase;letter-spacing:.08em}
+  .nav{display:flex;justify-content:space-between;gap:10px;margin-top:10px}
+  .progressDots{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 12px}
+  .dot{width:14px;height:14px;border-radius:50%;background:#1a1d27;border:1px solid var(--line);cursor:pointer}
+  .dot.done{background:var(--good);border-color:var(--good)}
+  .dot.cur{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px rgba(255,107,61,.25)}
+  .dot.miss{background:var(--bad);border-color:var(--bad)}
+
+  /* boss */
+  .boss{padding:18px;border-radius:14px;border:1px solid rgba(255,107,61,.45);background:radial-gradient(800px 200px at 50% -50%,rgba(255,107,61,.18),transparent 60%),#0e1119;text-align:center}
+  .boss .timer{font-family:var(--mono);font-size:42px;color:var(--accent);font-weight:800;letter-spacing:-.02em}
+  .boss .qbig{font-size:21px;margin:8px 0;color:#f6f8fc}
+  .boss input{font-size:18px;padding:12px;text-align:center;min-width:160px}
+
+  /* achievements */
+  .achGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-top:8px}
+  .ach{padding:12px;border:1px solid var(--line);border-radius:12px;background:#0e1119;display:flex;gap:10px;align-items:flex-start;opacity:.42;filter:grayscale(.6);transition:.25s}
+  .ach.unlocked{opacity:1;filter:none;border-color:rgba(255,209,102,.45);box-shadow:0 0 0 1px rgba(255,209,102,.25) inset}
+  .ach .em{font-size:22px;flex:none}
+  .ach .t{font-size:13.5px;font-weight:700}
+  .ach .d{font-size:12px;color:var(--ink-dim)}
+
+  /* effects */
+  .shake{animation:shake .35s linear}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}}
+  .pulse{animation:pulse .45s ease}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(61,220,151,.6)}100%{box-shadow:0 0 0 18px rgba(61,220,151,0)}}
+  #confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+  #toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(20px);background:#1c2030;border:1px solid var(--line);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;transition:.25s;z-index:60;max-width:80vw;text-align:center;font-size:14px}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  details{margin-top:10px}details>summary{cursor:pointer;color:var(--ink-dim)}details>summary:hover{color:var(--ink)}
+  footer{color:var(--ink-dim);text-align:center;padding:34px 0 0;font-size:12.5px;font-family:var(--mono)}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+<div class="wrap">
+
+<header class="hero">
+  <div class="thermo">🌡</div>
+  <div class="eyebrow">Decoding · Sampling · LLM generation</div>
+  <h1>Temperature<br>&amp; <em>Top</em>-<span class="b">k</span></h1>
+  <p class="lede">Two knobs that decide <strong>which token comes next</strong>. Temperature reshapes the whole probability curve — <span class="cold-txt">cold</span> &amp; confident or <span class="hot-txt">hot</span> &amp; wild. Top-k throws away the long tail of junk and keeps only the <strong>k</strong> best candidates. Drag the sliders, sample tokens, watch the distribution breathe.</p>
+  <div class="hud">
+    <span class="chip lvl">LVL <b id="lvl">1</b></span>
+    <span class="chip">XP <b id="xp">0</b></span>
+    <div class="xpbar"><div id="xpfill"></div></div>
+    <span class="chip combo">combo <b id="combo">0</b></span>
+    <span class="chip">acc <b id="acc">—</b></span>
+    <button class="ghost" id="resetBtn">reset progress</button>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#s1">1 · why</a>
+  <a href="#s2">2 · temperature</a>
+  <a href="#s3">3 · top-k</a>
+  <a href="#lab">⚗ next-token lab</a>
+  <a href="#s5">4 · graphs</a>
+  <a href="#s6">5 · vs top-p</a>
+  <a href="#s8">6 · in practice</a>
+  <a href="#s7">7 · code</a>
+  <a href="#play">⌨ practice</a>
+  <a href="#boss">★ boss</a>
+  <a href="#ach">trophies</a>
+</nav>
+
+<!-- 1 -->
+<section id="s1">
+  <h2><span class="num">1</span>Why we need these knobs</h2>
+  <p class="lead">A language model's final layer produces a <b>logit</b> for every token in its vocabulary — tens of thousands of raw scores. Softmax turns those into a probability distribution over &ldquo;what comes next.&rdquo; But raw softmax sampling has problems, and these two knobs fix them.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>The greedy trap</h3>
+      <p>Always taking the single highest-probability token (<span class="tag">argmax</span>) is deterministic and safe — but it produces flat, repetitive, lifeless text and gets stuck in loops (&ldquo;the the the&rdquo;). Real generation needs <b>controlled randomness</b>.</p>
+      <p><span class="hot-txt">Temperature</span> is the dial for <i>how much</i> randomness.</p>
+    </div>
+    <div class="card">
+      <h3>The long-tail trap</h3>
+      <p>A 50,000-token vocabulary means tens of thousands of tokens each get a tiny probability. Summed together that junk tail can hold real mass — and occasionally you sample a nonsense token that derails the whole sentence.</p>
+      <p><span class="cold-txt">Top-k</span> (and its cousin top-p) is the filter that <b>deletes the tail</b> before you roll the dice.</p>
+    </div>
+  </div>
+  <p class="small">Mental model: <b>temperature reshapes the curve</b>, <b>top-k truncates it</b>. They are applied together in every real sampler — temperature first, then truncation, then a random draw.</p>
+</section>
+
+<!-- 2 -->
+<section id="s2">
+  <h2><span class="num">2</span>Temperature — rescaling the logits</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>τ divides the logits before softmax</h3>
+      $$p_i \;=\; \frac{e^{\,z_i/\tau}}{\sum_j e^{\,z_j/\tau}}$$
+      <p>One scalar $\tau>0$ divides every logit <i>before</i> the exponential. Because softmax depends on logit <i>differences</i>, dividing by $\tau$ stretches or squashes every gap by the same factor.</p>
+      <ul>
+        <li><span class="cold-txt">$\tau \to 0^{+}$</span> — gaps blow up; the top logit wins everything. Distribution collapses to a <b>one-hot at argmax</b>. This is pure <b>greedy</b> decoding.</li>
+        <li><b>$\tau = 1$</b> — the model's own, un-modified distribution.</li>
+        <li><span class="hot-txt">$\tau \to \infty$</span> — every $z_i/\tau \to 0$, all exponentials equal. Distribution becomes <b>uniform</b> $1/V$. Maximum chaos.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Cold vs hot, intuitively</h3>
+      <p>The name comes from statistical physics — it <i>is</i> the temperature in the Boltzmann distribution $p_i \propto e^{-E_i/kT}$.</p>
+      <ul>
+        <li><span class="cold-txt">Low τ (≈0.2–0.7)</span> — focused, deterministic, &ldquo;confident.&rdquo; Good for code, math, factual answers.</li>
+        <li><span class="hot-txt">High τ (≈1.0–1.5)</span> — diverse, surprising, &ldquo;creative.&rdquo; Good for brainstorming, poetry, story ideas. Too high → incoherent.</li>
+      </ul>
+      <p class="small">A key fact you'll prove in the lab: temperature only <i>reshapes</i> probabilities — it never changes the <b>ranking</b> of tokens, because dividing by a positive number is monotonic.</p>
+    </div>
+  </div>
+
+  <p class="lead" style="margin-top:22px">⬇ <b>Drag the temperature</b> — same 9 logits every time, only τ changes. Watch the spike melt into a flat plateau and the bars warm from <span class="cold-txt">blue</span> to <span class="hot-txt">red</span>.</p>
+  <div class="tempdemo">
+    <div class="tempdemo-head">
+      <div class="tempgauge"><div class="tempgauge-fill" id="tg-fill"></div></div>
+      <div style="flex:1">
+        <div class="tempdemo-tau" id="td-tau">τ = 1.00</div>
+        <div class="tempdemo-label" id="td-label">the model's own distribution</div>
+      </div>
+      <div class="td-pill" id="td-pill">neutral</div>
+    </div>
+    <input id="td-slider" type="range" min="0.1" max="3" step="0.05" value="1.0">
+
+    <div class="td-plot">
+      <div class="td-ytitle">probability&nbsp; p&#8202;<sub>i</sub></div>
+      <div class="td-yaxis"><span>1.0</span><span>0.75</span><span>0.5</span><span>0.25</span><span>0</span></div>
+      <div class="td-chartcol">
+        <div class="td-chart" id="td-bars"></div>
+        <div class="td-xlabels" id="td-xlabels"></div>
+      </div>
+    </div>
+    <div class="td-xtitle">↑ Y = softmax probability&nbsp;·&nbsp; X = the 9 candidate tokens (fixed logits z&#8202;<sub>i</sub>)</div>
+
+    <div class="formulaBox" id="td-formula"></div>
+
+    <div class="td-presets">
+      <button class="btn ghost" data-tau="0.2">❄ Frozen · 0.2</button>
+      <button class="btn ghost" data-tau="0.7">Cold · 0.7</button>
+      <button class="btn ghost" data-tau="1.0">Neutral · 1.0</button>
+      <button class="btn ghost" data-tau="1.6">Warm · 1.6</button>
+      <button class="btn ghost" data-tau="2.6">🔥 Boiling · 2.6</button>
+    </div>
+    <div class="td-readout">
+      <span>peak height <b id="td-max">—</b></span>
+      <span>entropy <b id="td-ent">—</b> bits</span>
+      <span>spread <b id="td-spread">—</b></span>
+      <span class="small">hover any bar for its probability</span>
+    </div>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="s3">
+  <h2><span class="num">3</span>Top-k — keep the best k, drop the rest</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>The algorithm</h3>
+      <ol>
+        <li>Sort tokens by logit, descending.</li>
+        <li>Keep the top <b>k</b>. Set every other logit to $-\infty$.</li>
+        <li>Re-run softmax over just the survivors so the kept probabilities <b>renormalize to sum to 1</b>.</li>
+        <li>Sample from this truncated distribution.</li>
+      </ol>
+      $$p^{\text{top-}k}_i = \begin{cases}\dfrac{e^{z_i/\tau}}{\sum_{j\in K} e^{z_j/\tau}} & i \in K\\[6pt] 0 & \text{otherwise}\end{cases}$$
+      <p class="small">$K$ = the set of indices with the $k$ largest logits.</p>
+    </div>
+    <div class="card">
+      <h3>What it buys you</h3>
+      <ul>
+        <li><b>Kills the junk tail.</b> The thousands of near-zero-probability tokens can never be sampled, no matter how unlucky the roll.</li>
+        <li><b>k = 1</b> is exactly <b>greedy</b> decoding (only the top token survives).</li>
+        <li><b>k = vocab size</b> disables truncation — back to plain (temperature-scaled) softmax.</li>
+        <li>Typical values: <span class="tag">k = 40</span> for open-ended text, smaller for focused tasks.</li>
+      </ul>
+      <p class="small"><b>Order matters but the survivor set doesn't depend on τ.</b> Since $z/\tau$ keeps the same ranking as $z$, whichever tokens are in the top-k stay in the top-k for <i>any</i> temperature — only their relative shares move.</p>
+    </div>
+  </div>
+</section>
+
+<!-- LAB -->
+<section id="lab">
+  <h2><span class="num">⚗</span>Next-token lab</h2>
+  <p class="lead">A toy 8-token vocabulary. Drag <span class="hot-txt">τ</span> to reshape the curve and <span class="cold-txt">k</span> to truncate it. Greyed rows are <b>cut</b>. Hit <span class="kbd">Sample</span> to draw a token and build the histogram — watch how low τ repeats and high τ explores.</p>
+  <div class="lab">
+    <div class="lab-prompt">prompt: <b>&ldquo;The cat sat on the</b> <span class="blankt">?</span><b>&rdquo;</b></div>
+    <div class="sliderRow">
+      <label>temperature τ</label>
+      <input id="tau" type="range" min="0.1" max="2.5" step="0.05" value="1.0">
+      <span class="val" id="tauv">1.00</span>
+    </div>
+    <div class="sliderRow">
+      <label>top-k</label>
+      <input id="topk" type="range" min="1" max="8" step="1" value="4">
+      <span class="val" id="topkv">4</span>
+    </div>
+
+    <div class="toks" id="toks"></div>
+
+    <div class="readout">
+      <div class="metric"><div class="k">kept set</div><div class="v" id="m-kept"><em>4</em></div><div class="sub">tokens survive</div></div>
+      <div class="metric"><div class="k">entropy</div><div class="v" id="m-ent"><em>0.0</em></div><div class="sub">bits · randomness</div></div>
+      <div class="metric"><div class="k">eff. choices</div><div class="v" id="m-eff"><em>0</em></div><div class="sub">2^entropy</div></div>
+      <div class="metric"><div class="k">top token p</div><div class="v" id="m-top"><em>0.0</em></div><div class="sub" id="m-topname">—</div></div>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn primary" id="sampleBtn">🎲 Sample 1</button>
+      <button class="btn cool" id="sample20Btn">Sample ×20</button>
+      <button class="btn argmax" id="argmaxBtn">👑 Argmax (greedy)</button>
+      <button class="btn ghost" id="resetHisto">clear histogram</button>
+      <button class="btn ghost" id="resetLab">reset sliders</button>
+      <span class="small" id="lastDraw">last draw: —</span>
+    </div>
+    <div class="argmax-note">
+      <b>👑 = argmax</b> — the single highest-probability survivor.
+      <b class="hot-txt">Sampling</b> rolls the dice across <i>all</i> kept bars (creativity);
+      <b style="color:var(--hot-2)">argmax / greedy</b> always emits the crowned token (deterministic, ignores the dice).
+      At <span class="kbd">top-k = 1</span> only the argmax survives — so sampling and argmax become the same thing.
+    </div>
+
+    <div class="histo">
+      <h4>sampled tokens — <span id="histoTotal">0</span> draws</h4>
+      <div id="histoRows"></div>
+    </div>
+
+    <div class="formulaBox" id="labFormula"></div>
+  </div>
+</section>
+
+<!-- 4 -->
+<section id="s5">
+  <h2><span class="num">4</span>Graphs — how τ bends the curve</h2>
+  <p class="lead">Sweep temperature across the whole range (all 8 tokens, no truncation). As τ rises, the winner's probability <span class="hot-txt">falls</span> and the entropy <span class="cold-txt">climbs</span> toward its uniform maximum. The dashed line marks your current τ from the lab.</p>
+  <div class="chartWrap">
+    <canvas id="curve" width="1000" height="300"></canvas>
+    <div class="legend">
+      <span><i style="background:var(--hot)"></i>P(top token) — peaks when cold, flattens when hot</span>
+      <span><i style="background:var(--cold)"></i>normalized entropy — 0 = certain, 1 = uniform</span>
+      <span><i style="background:#ffffff"></i>your current τ</span>
+    </div>
+  </div>
+  <p class="small">Notice the curves <b>cross</b>: there's no single &ldquo;best&rdquo; temperature — it's a trade-off between confidence and diversity. That trade-off is the whole art of decoding.</p>
+</section>
+
+<!-- 5 -->
+<section id="s6">
+  <h2><span class="num">5</span>Top-k vs top-p (nucleus) vs temperature</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>They do different jobs</h3>
+      <ul>
+        <li><b>Temperature</b> — <i>reshapes</i> the distribution. Changes how peaked vs flat it is. Doesn't remove any token.</li>
+        <li><b>Top-k</b> — <i>truncates</i> by a <b>fixed count</b>. Always keep exactly k tokens, however confident the model is.</li>
+        <li><b>Top-p (nucleus)</b> — truncates by <b>cumulative probability</b>. Keep the smallest set whose probabilities add up to ≥ p. The count <i>adapts</i>: few tokens when confident, many when uncertain.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>The real pipeline</h3>
+      <p>Production samplers chain them, in this order:</p>
+      <ol>
+        <li>Apply <b>temperature</b>: $z \leftarrow z/\tau$.</li>
+        <li>Apply <b>top-k</b> and/or <b>top-p</b> truncation (mask the losers to $-\infty$).</li>
+        <li><b>Softmax</b> the survivors → renormalize.</li>
+        <li><b>Pick</b> one token: either <b>sample</b> from the distribution (random, creative) or take the <b>argmax</b> — the single highest-probability survivor (greedy, deterministic).</li>
+      </ol>
+      <p class="small">That last step is the fork: <b>argmax</b> always emits the top token, so the same prompt always gives the same word. <b>Sampling</b> spreads the choice across the kept bars. Try the <span class="kbd">👑 Argmax</span> button in the lab — it locks onto the crowned token no matter how many times you press it, while <span class="kbd">🎲 Sample</span> wanders.</p>
+      <p class="small">Top-k's weakness: a fixed k is too generous when the model is sure (one obvious token + 39 bad ones) and too strict when it's torn (many good options). Top-p fixes that by adapting the count — which is why nucleus sampling is the more common default today.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="s8">
+  <h2><span class="num">6</span>Which do real models use — sampling or argmax?</h2>
+  <p class="lead">Neither is part of the model. The transformer only outputs <b>logits</b>; <b>sampling vs argmax is a decoding choice made at inference time</b> by the application (and it's unrelated to training). Pick a use case to see the typical setup.</p>
+  <div class="usecase-picker" id="usecasePicker"></div>
+  <div class="usecase-result" id="usecaseResult"></div>
+  <div class="grid2" style="margin-top:18px">
+    <div class="card">
+      <h3>temperature = 0 ⇒ argmax</h3>
+      <p>In most APIs, setting <code>temperature = 0</code> is exactly greedy decoding. As τ→0 the top logit takes all the mass, so the model emits its <b>argmax</b> every time — <b>deterministic, reproducible</b> output. Use it when you need the same answer on every run (tests, structured extraction, factual lookups).</p>
+      <p class="small">This is why <b>temperature is a dead knob under argmax</b> (you proved it in the lab): dividing by τ never changes the ranking, so the winner never changes.</p>
+    </div>
+    <div class="card">
+      <h3>Beam search — the third option</h3>
+      <p>Deterministic like argmax, but instead of greedily taking the single best <i>next</i> token it keeps several candidate sequences (&ldquo;beams&rdquo;) alive and returns the most likely <b>whole sentence</b>. Strong for <b>translation &amp; summarization</b> where global fluency matters.</p>
+      <p class="small">Rarely used for open-ended chat — it tends to produce safe, generic, low-diversity text. There, sampling wins.</p>
+    </div>
+  </div>
+  <p class="small" style="margin-top:14px"><b>One-line takeaway:</b> creative / conversational → <span class="hot-txt">sampling</span> (temperature + top-p), the modern default · accuracy / reproducibility → <span class="cold-txt">argmax</span> (temperature 0) or low temperature · translation / summary → <b>beam search</b>.</p>
+</section>
+
+<!-- 7 -->
+<section id="s7">
+  <h2><span class="num">7</span>In code</h2>
+  <div class="card">
+    <div class="code-block"><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">def</span> <span class="fn">sample_next</span>(logits, temperature=<span class="num">1.0</span>, top_k=<span class="num">40</span>):
+    <span class="cm"># logits: (vocab,) raw scores from the model</span>
+
+    <span class="cm"># 1) temperature — divide logits BEFORE softmax</span>
+    logits = logits / max(temperature, <span class="num">1e-6</span>)
+
+    <span class="cm"># 2) top-k — keep the k largest, mask the rest to -inf</span>
+    <span class="kw">if</span> top_k <span class="kw">is not</span> <span class="kw">None</span>:
+        kth = torch.topk(logits, top_k).values[-<span class="num">1</span>]   <span class="cm"># k-th largest logit</span>
+        logits = logits.masked_fill(logits < kth, <span class="kw">float</span>(<span class="str">"-inf"</span>))
+
+    <span class="cm"># 3) softmax over survivors -> renormalized probabilities</span>
+    probs = F.softmax(logits, dim=-<span class="num">1</span>)
+
+    <span class="cm"># 4) draw one token from the categorical distribution</span>
+    <span class="kw">return</span> torch.multinomial(probs, num_samples=<span class="num">1</span>)
+</div>
+    <p class="small">Note <code>temperature</code> divides <i>before</i> softmax, and <code>-inf</code> in a logit becomes exactly <code>0</code> after softmax — so masked tokens can never be sampled. Setting <code>top_k=1</code> reduces this to greedy <code>argmax</code>; <code>temperature→0</code> does the same thing.</p>
+  </div>
+</section>
+
+<!-- Practice -->
+<section id="play">
+  <h2><span class="num">⌨</span>Practice mode</h2>
+  <p class="lead">Type to answer. <span class="kbd">Enter</span> submits. Combos give bonus XP. Click a dot to jump.</p>
+  <div id="dots" class="progressDots"></div>
+  <div id="drillHost"></div>
+</section>
+
+<!-- Boss -->
+<section id="boss">
+  <h2><span class="num">★</span>Decoding Boss</h2>
+  <p class="lead">Rapid round: 8 quickfire questions, 60 seconds. Triple XP. Unlocks the final trophy.</p>
+  <div class="boss" id="bossBox">
+    <div class="timer" id="bossTimer">60</div>
+    <div class="qbig" id="bossQ">Press start to summon the boss.</div>
+    <input class="ti" id="bossA" placeholder="answer…" />
+    <div style="margin-top:10px"><button class="btn primary" id="bossStart">Start boss round</button></div>
+    <div class="small" id="bossScore" style="margin-top:8px">score: 0 / 8</div>
+  </div>
+</section>
+
+<!-- Achievements -->
+<section id="ach">
+  <h2><span class="num">♛</span>Trophies</h2>
+  <div class="achGrid" id="achGrid"></div>
+</section>
+
+<footer>built for studying · 🌡 · keyboard-friendly · sibling of softmax.html</footer>
+</div>
+
+<script>
+/* ============================================================
+   STATE + PERSISTENCE
+   ============================================================ */
+const LS_KEY = "temp-topk-trainer-v1";
+const defaultState = {
+  xp:0, lvl:1, combo:0, bestCombo:0,
+  correct:0, attempts:0,
+  done:{}, ach:{}, bossDone:false
+};
+let S = loadState();
+function loadState(){
+  try{ const v = JSON.parse(localStorage.getItem(LS_KEY)); return Object.assign({},defaultState,v||{},{done:Object.assign({},(v&&v.done)||{}),ach:Object.assign({},(v&&v.ach)||{})}); }
+  catch(_){ return JSON.parse(JSON.stringify(defaultState)); }
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(S)); }
+function xpForLevel(l){ return 50 + (l-1)*30; }
+function addXP(n){
+  S.xp += n;
+  while(S.xp >= xpForLevel(S.lvl)){ S.xp -= xpForLevel(S.lvl); S.lvl++; toast(`Level up! → LVL ${S.lvl}`); }
+  refreshHUD(); saveState();
+}
+function refreshHUD(){
+  document.getElementById("lvl").textContent = S.lvl;
+  document.getElementById("xp").textContent  = S.xp;
+  document.getElementById("combo").textContent = S.combo;
+  const need = xpForLevel(S.lvl);
+  document.getElementById("xpfill").style.width = Math.min(100,(S.xp/need)*100)+"%";
+  const acc = S.attempts ? Math.round(100*S.correct/S.attempts) : null;
+  document.getElementById("acc").textContent = acc===null ? "—" : (acc+"%");
+}
+document.getElementById("resetBtn").onclick = ()=>{
+  if(!confirm("Wipe all XP, combos, drill progress, and trophies?")) return;
+  S = JSON.parse(JSON.stringify(defaultState));
+  saveState(); location.reload();
+};
+
+/* ============================================================
+   TOAST + EFFECTS
+   ============================================================ */
+const toastEl = document.getElementById("toast");
+let toastT;
+function toast(msg, ms=1800){
+  toastEl.textContent = msg; toastEl.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(()=>toastEl.classList.remove("show"), ms);
+}
+const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const conf = document.getElementById("confetti");
+const cctx = conf.getContext("2d");
+function sizeConf(){ conf.width = innerWidth; conf.height = innerHeight; }
+sizeConf(); addEventListener("resize", sizeConf);
+let particles = [];
+function confetti(n=80){
+  if(reduceMotion) return;
+  const colors = ["#ff6b3d","#ffb43d","#38bdf8","#7c9bff","#3ddc97","#ffffff"];
+  for(let i=0;i<n;i++){
+    particles.push({
+      x: innerWidth/2 + (Math.random()-.5)*60, y: innerHeight/2,
+      vx:(Math.random()-.5)*9, vy:-Math.random()*9-3,
+      g:0.28+Math.random()*0.15, s:4+Math.random()*5,
+      r:Math.random()*Math.PI, vr:(Math.random()-.5)*0.3,
+      c:colors[(Math.random()*colors.length)|0], life:90+Math.random()*30
+    });
+  }
+}
+function tickConf(){
+  cctx.clearRect(0,0,conf.width,conf.height);
+  particles = particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.r+=p.vr; p.life--;
+    cctx.save(); cctx.translate(p.x,p.y); cctx.rotate(p.r);
+    cctx.fillStyle=p.c; cctx.globalAlpha=Math.max(0,Math.min(1,p.life/40));
+    cctx.fillRect(-p.s/2,-p.s/2,p.s,p.s*0.6); cctx.restore();
+  }
+  requestAnimationFrame(tickConf);
+}
+tickConf();
+function shake(el){ if(reduceMotion) return; el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake"); }
+function pulse(el){ if(reduceMotion) return; el.classList.remove("pulse"); void el.offsetWidth; el.classList.add("pulse"); }
+
+/* ============================================================
+   MATH HELPERS
+   ============================================================ */
+function softmaxT(z, tau=1){
+  const t = Math.max(tau, 1e-6);
+  const m = Math.max(...z);
+  const ex = z.map(v => Math.exp((v - m)/t));
+  const s = ex.reduce((a,b)=>a+b,0);
+  return ex.map(v=>v/s);
+}
+function entropyBits(p){
+  let h=0; for(const x of p){ if(x>1e-12) h -= x*Math.log2(x); } return h;
+}
+function fmt(x,d=3){ return Number(x).toFixed(d); }
+function near(a,b,tol){ return Math.abs(a-b)<=tol; }
+function parseNum(s){ const x=parseFloat(String(s).trim()); return isNaN(x)?null:x; }
+function normSpaces(s){ return String(s).replace(/\s+/g,"").toLowerCase(); }
+function eqTex(user,target){
+  const norm = s => s
+    .replace(/\\,|\\;|\\!|\\:/g,"").replace(/\\left|\\right/g,"")
+    .replace(/\\mathrm\{[^}]*\}/g,"").replace(/\s+/g,"")
+    .replace(/\\cdot/g,"*").replace(/\\times/g,"*").toLowerCase();
+  return norm(user)===norm(target);
+}
+
+/* ============================================================
+   INLINE TEMPERATURE DEMO  (section 2 — drag τ, graph reshapes)
+   ============================================================ */
+const TD_LOGITS = [0.2,0.8,1.6,2.6,3.4,2.6,1.6,0.8,0.2]; // symmetric peak
+const tdSlider=document.getElementById("td-slider");
+const tdBars=document.getElementById("td-bars");
+const tdTauEl=document.getElementById("td-tau");
+const tdLabelEl=document.getElementById("td-label");
+const tdFill=document.getElementById("tg-fill");
+const tdMaxEl=document.getElementById("td-max");
+const tdEntEl=document.getElementById("td-ent");
+const tdSpreadEl=document.getElementById("td-spread");
+const tdPill=document.getElementById("td-pill");
+const tdFormula=document.getElementById("td-formula");
+const tdXlabels=document.getElementById("td-xlabels");
+const TD_PEAK=TD_LOGITS.indexOf(Math.max(...TD_LOGITS));
+TD_LOGITS.forEach((z,i)=>{
+  const b=document.createElement("div"); b.className="td-bar"; b.id="tdbar"+i;
+  b.innerHTML=`<span class="td-cap" id="tdcap${i}"></span>`;
+  b.title=`token t${i+1} · logit z=${z.toFixed(1)}`;
+  tdBars.appendChild(b);
+  const x=document.createElement("span"); x.textContent=z.toFixed(1); tdXlabels.appendChild(x);
+});
+function tdLerp(a,b,t){ return a+(b-a)*t; }
+function tdColor(tau){
+  const t=Math.min(1,Math.max(0,(tau-0.1)/(3-0.1)));
+  const c1=[56,189,248], c2=[255,107,61];           // cold -> hot
+  return `rgb(${Math.round(tdLerp(c1[0],c2[0],t))},${Math.round(tdLerp(c1[1],c2[1],t))},${Math.round(tdLerp(c1[2],c2[2],t))})`;
+}
+function tdRegime(tau){
+  if(tau<=0.3) return ["❄ frozen","near-greedy — one dominant spike"];
+  if(tau<=0.7) return ["cold","sharp & confident"];
+  if(tau<=1.2) return ["neutral","the model's own distribution"];
+  if(tau<=2.0) return ["warm","diverse & creative"];
+  return ["🔥 boiling","flattening toward uniform 1/9"];
+}
+function renderTD(){
+  const tau=+tdSlider.value;
+  const p=softmaxT(TD_LOGITS,tau);
+  const mx=Math.max(...p), mn=Math.min(...p);
+  const col=tdColor(tau);
+  p.forEach((v,i)=>{
+    const bar=document.getElementById("tdbar"+i);
+    bar.style.height=Math.min(100, v*100)+"%";   // fixed scale: prob 1.0 == full chart height (Y axis)
+    bar.style.background=col;
+    bar.classList.toggle("peak", i===TD_PEAK);
+    document.getElementById("tdcap"+i).textContent=v.toFixed(2);
+  });
+  tdTauEl.textContent="τ = "+tau.toFixed(2);
+  const [name,desc]=tdRegime(tau);
+  tdLabelEl.textContent=desc;
+  tdPill.textContent=name;
+  tdPill.style.color=col; tdPill.style.borderColor=col;
+  tdFill.style.height=((tau-0.1)/(3-0.1)*100)+"%";
+  tdFill.style.background=col; tdFill.style.color=col;
+  tdMaxEl.textContent=mx.toFixed(2);
+  tdEntEl.textContent=entropyBits(p).toFixed(2);
+  tdSpreadEl.textContent="×"+(mx/mn).toFixed(0)+" (max/min)";
+  // live formula with the current τ and the peak token's worked value
+  if(window.katex){
+    const zpk=TD_LOGITS[TD_PEAK].toFixed(1), t=tau.toFixed(2);
+    const tex=`\\displaystyle p_i=\\frac{e^{z_i/\\tau}}{\\sum_j e^{z_j/\\tau}}`+
+      `\\;\\;\\Rightarrow\\;\\;`+
+      `p_{\\text{peak}}=\\frac{e^{${zpk}/${t}}}{\\sum_j e^{z_j/${t}}}=${mx.toFixed(2)}`;
+    try{ katex.render(tex, tdFormula, {displayMode:true,throwOnError:false}); }catch(_){}
+  }
+}
+tdSlider.addEventListener("input",()=>{
+  renderTD();
+  const t=+tdSlider.value;
+  if(t<=0.15) unlock("frozen");
+  if(t>=2.85) unlock("boiling");
+  if(unlocked("frozen") && unlocked("boiling")) unlock("temptamer");
+});
+document.querySelectorAll(".td-presets [data-tau]").forEach(b=>{
+  b.onclick=()=>{ tdSlider.value=b.dataset.tau; tdSlider.dispatchEvent(new Event("input")); };
+});
+
+/* ============================================================
+   NEXT-TOKEN LAB
+   ============================================================ */
+const TOKENS = [
+  {name:"mat",      z:3.2},
+  {name:"floor",    z:2.4},
+  {name:"sofa",     z:2.1},
+  {name:"rug",      z:1.6},
+  {name:"table",    z:1.1},
+  {name:"roof",     z:0.4},
+  {name:"moon",     z:-1.2},
+  {name:"equation", z:-3.5},
+];
+const tauEl = document.getElementById("tau");
+const topkEl = document.getElementById("topk");
+const tauvEl = document.getElementById("tauv");
+const topkvEl = document.getElementById("topkv");
+const toksBox = document.getElementById("toks");
+const labFormula = document.getElementById("labFormula");
+const histoRows = document.getElementById("histoRows");
+const histoTotal = document.getElementById("histoTotal");
+let histoCounts = TOKENS.map(()=>0);
+let histoN = 0;
+let lastProbs = TOKENS.map(()=>0);   // current truncated+renormalized distribution
+let keptFlags = TOKENS.map(()=>true);
+
+/* build token rows once */
+toksBox.innerHTML = "";
+TOKENS.forEach((t,i)=>{
+  const row = document.createElement("div");
+  row.className="tok"; row.id="tok"+i;
+  row.innerHTML =
+    `<div class="name">${t.name}</div>`+
+    `<div class="logit">z=${t.z.toFixed(1)}</div>`+
+    `<div class="track"><div class="fill" id="fill${i}"></div></div>`+
+    `<div class="pv" id="pv${i}">0.000</div>`+
+    `<div class="badge" id="bd${i}">keep</div>`;
+  toksBox.appendChild(row);
+});
+
+function computeLab(){
+  const tau = +tauEl.value;
+  const k = +topkEl.value;
+  tauvEl.textContent = fmt(tau,2);
+  topkvEl.textContent = k;
+
+  // rank by logit (temperature-independent — monotonic). Survivor set depends ONLY on k.
+  const idxByLogit = TOKENS.map((t,i)=>i).sort((a,b)=> TOKENS[b].z - TOKENS[a].z);
+  const keepSet = new Set(idxByLogit.slice(0,k));
+  keptFlags = TOKENS.map((_,i)=> keepSet.has(i));
+
+  // masked logits -> softmax with temperature over survivors only
+  const masked = TOKENS.map((t,i)=> keepSet.has(i) ? t.z : -Infinity);
+  const probs = softmaxT(masked, tau);
+  lastProbs = probs;
+
+  // render rows
+  let topI=0, topP=-1;
+  TOKENS.forEach((t,i)=>{
+    const row = document.getElementById("tok"+i);
+    const fill = document.getElementById("fill"+i);
+    const pv = document.getElementById("pv"+i);
+    const bd = document.getElementById("bd"+i);
+    const kept = keepSet.has(i);
+    row.classList.toggle("kept", kept);
+    row.classList.toggle("cut", !kept);
+    fill.style.width = (probs[i]*100).toFixed(1)+"%";
+    pv.textContent = fmt(probs[i],3);
+    bd.textContent = kept ? "keep" : "✕ cut";
+    if(kept && probs[i]>topP){ topP=probs[i]; topI=i; }
+  });
+
+  // crown the argmax survivor — the token greedy decoding emits AFTER top-k
+  TOKENS.forEach((t,i)=>{
+    const row=document.getElementById("tok"+i);
+    const bd=document.getElementById("bd"+i);
+    const isArg = (i===topI);
+    row.classList.toggle("argmax", isArg);
+    if(isArg) bd.textContent = "👑 argmax";
+  });
+
+  // metrics
+  const keptProbs = probs.filter((p,i)=>keepSet.has(i));
+  const H = entropyBits(keptProbs);
+  document.getElementById("m-kept").innerHTML = `<em>${k}</em>`;
+  document.getElementById("m-ent").innerHTML  = `<em>${fmt(H,2)}</em>`;
+  document.getElementById("m-eff").innerHTML  = `<em>${fmt(Math.pow(2,H),1)}</em>`;
+  document.getElementById("m-top").innerHTML  = `<em>${fmt(topP,2)}</em>`;
+  document.getElementById("m-topname").textContent = TOKENS[topI].name;
+
+  // live formula
+  const tex = `p_i=\\frac{e^{z_i/${fmt(tau,2)}}}{\\sum_{j\\in K}e^{z_j/${fmt(tau,2)}}}\\quad |K|=${k}`;
+  if(window.katex){ try{ katex.render(tex, labFormula, {displayMode:true,throwOnError:false}); }catch(_){} }
+
+  drawCurve();   // keep the graph's τ marker in sync
+}
+
+function renderHisto(){
+  histoTotal.textContent = histoN;
+  const maxC = Math.max(1, ...histoCounts);
+  histoRows.innerHTML = "";
+  TOKENS.forEach((t,i)=>{
+    const pct = histoN ? (histoCounts[i]/histoN*100) : 0;
+    const row = document.createElement("div");
+    row.className="hrow";
+    row.innerHTML =
+      `<div class="hn">${t.name}</div>`+
+      `<div class="htrack"><div class="hfill" style="width:${(histoCounts[i]/maxC*100).toFixed(1)}%"></div></div>`+
+      `<div class="hc">${histoCounts[i]} · ${pct.toFixed(0)}%</div>`;
+    histoRows.appendChild(row);
+  });
+}
+function drawOne(){
+  // sample from lastProbs (already truncated+renormalized)
+  let r = Math.random(), acc=0, pick=0;
+  for(let i=0;i<lastProbs.length;i++){ acc+=lastProbs[i]; if(r<=acc){ pick=i; break; } pick=i; }
+  histoCounts[pick]++; histoN++;
+  return pick;
+}
+function flashTok(i){
+  const row = document.getElementById("tok"+i);
+  if(reduceMotion){ return; }
+  row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+  setTimeout(()=>row.classList.remove("flash"), 450);
+}
+document.getElementById("sampleBtn").onclick = ()=>{
+  const i = drawOne();
+  flashTok(i);
+  document.getElementById("lastDraw").textContent = "last draw: "+TOKENS[i].name;
+  renderHisto();
+  if(histoN>=1) unlock("firstSample");
+  if(histoN>=50) unlock("sampler50");
+};
+document.getElementById("sample20Btn").onclick = ()=>{
+  let last=0;
+  for(let n=0;n<20;n++){ last = drawOne(); }
+  flashTok(last);
+  document.getElementById("lastDraw").textContent = "last draw: "+TOKENS[last].name+" (batch ×20)";
+  renderHisto();
+  if(histoN>=50) unlock("sampler50");
+};
+document.getElementById("argmaxBtn").onclick = ()=>{
+  // argmax = the single highest-probability survivor (deterministic — no dice)
+  let bi=0,bp=-1; lastProbs.forEach((p,i)=>{ if(p>bp){ bp=p; bi=i; } });
+  flashTok(bi);
+  document.getElementById("lastDraw").textContent =
+    `argmax → ${TOKENS[bi].name}  (greedy · p=${lastProbs[bi].toFixed(2)} · deterministic)`;
+  unlock("argmaxer");
+};
+document.getElementById("resetHisto").onclick = ()=>{
+  histoCounts = TOKENS.map(()=>0); histoN=0; renderHisto();
+  document.getElementById("lastDraw").textContent = "last draw: —";
+};
+document.getElementById("resetLab").onclick = ()=>{
+  tauEl.value=1.0; topkEl.value=4; computeLab();
+};
+tauEl.addEventListener("input", ()=>{
+  computeLab();
+  const t=+tauEl.value;
+  if(t<=0.15) unlock("frozen");
+  if(t>=2.4)  unlock("boiling");
+  if(unlocked("frozen") && unlocked("boiling")) unlock("temptamer");
+});
+topkEl.addEventListener("input", ()=>{
+  computeLab();
+  if(+topkEl.value===1) unlock("greedy");
+});
+
+/* ============================================================
+   TEMPERATURE CURVE CHART  (full vocab, no truncation)
+   ============================================================ */
+const cv = document.getElementById("curve");
+const ctx = cv.getContext("2d");
+function drawCurve(){
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  const padL=46, padR=16, padT=18, padB=34;
+  const x0=padL, x1=W-padR, y0=H-padB, y1=padT;
+  const tauMin=0.1, tauMax=2.5;
+  const tx = tau => x0 + (tau-tauMin)/(tauMax-tauMin)*(x1-x0);
+  const vy = v   => y0 + v*(y1-y0);    // v in [0,1]
+
+  // grid + axes
+  ctx.strokeStyle="rgba(255,255,255,.06)"; ctx.lineWidth=1; ctx.font="11px 'JetBrains Mono',monospace"; ctx.fillStyle="#93a0b4";
+  for(let g=0; g<=1.0001; g+=0.25){
+    const y=vy(g); ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x1,y); ctx.stroke();
+    ctx.textAlign="right"; ctx.fillText(g.toFixed(2), x0-8, y+4);
+  }
+  ctx.textAlign="center";
+  for(let tk=0.5; tk<=2.5001; tk+=0.5){
+    const x=tx(tk); ctx.fillText(tk.toFixed(1), x, y0+18);
+  }
+  // axis titles
+  ctx.fillStyle="#cdd3df"; ctx.font="11px 'JetBrains Mono',monospace";
+  ctx.textAlign="center"; ctx.fillText("X →  temperature τ", (x0+x1)/2, H-4);
+  ctx.save(); ctx.translate(13,(y0+y1)/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText("Y →  value in [0,1]", 0, 0); ctx.restore();
+
+  const allZ = TOKENS.map(t=>t.z);
+  const Vlog = Math.log2(TOKENS.length);
+  // build two curves
+  const N=120;
+  const ptsTop=[], ptsEnt=[];
+  for(let i=0;i<=N;i++){
+    const tau = tauMin + (tauMax-tauMin)*i/N;
+    const p = softmaxT(allZ, tau);
+    ptsTop.push([tx(tau), vy(Math.max(...p))]);
+    ptsEnt.push([tx(tau), vy(entropyBits(p)/Vlog)]);
+  }
+  const line = (pts,color)=>{
+    ctx.strokeStyle=color; ctx.lineWidth=2.5; ctx.beginPath();
+    pts.forEach((p,i)=> i? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]));
+    ctx.stroke();
+  };
+  line(ptsEnt, getCSS("--cold"));
+  line(ptsTop, getCSS("--hot"));
+
+  // current-τ marker
+  const curTau = +tauEl.value;
+  const mx = tx(Math.min(tauMax,Math.max(tauMin,curTau)));
+  ctx.strokeStyle="rgba(255,255,255,.85)"; ctx.lineWidth=1.5; ctx.setLineDash([5,4]);
+  ctx.beginPath(); ctx.moveTo(mx,y1); ctx.lineTo(mx,y0); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.fillText("τ="+curTau.toFixed(2), mx, y1-4 < 14 ? y1+12 : y1-4);
+}
+function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim() || "#888"; }
+
+/* ============================================================
+   USE-CASE PICKER  (section 6 — sampling vs argmax in practice)
+   ============================================================ */
+const USECASES=[
+  {key:"chat",  emoji:"🗨", label:"Chat & writing",        strat:"Sampling",
+   pills:["τ ≈ 0.7–1.0","top-p ≈ 0.9"],
+   why:"Diverse, natural, non-repetitive text — the modern default for assistants and creative writing."},
+  {key:"code",  emoji:"💻", label:"Code & math",            strat:"Low temperature → argmax",
+   pills:["τ ≈ 0–0.2"],
+   why:"Accuracy and reproducibility matter; low τ avoids hallucinated, off-distribution tokens."},
+  {key:"qa",    emoji:"📚", label:"Factual Q&A",            strat:"Low temperature / greedy",
+   pills:["τ ≈ 0–0.3"],
+   why:"Prefers the safest, best-supported token over a surprising one."},
+  {key:"mt",    emoji:"🌐", label:"Translation & summary",  strat:"Beam search",
+   pills:["deterministic","beams ≈ 4–8"],
+   why:"Keeps several candidate paths and returns the most likely whole sentence, not just the best next word."},
+  {key:"repro", emoji:"🔁", label:"Reproducible output",    strat:"Argmax (temperature = 0)",
+   pills:["τ = 0","deterministic"],
+   why:"Same input always produces the same output — exactly argmax / greedy decoding."},
+];
+const ucPicker=document.getElementById("usecasePicker");
+const ucResult=document.getElementById("usecaseResult");
+let ucActive="chat";
+function renderUsecases(){
+  ucPicker.innerHTML="";
+  USECASES.forEach(u=>{
+    const b=document.createElement("button");
+    b.className="btn ghost uc-btn"+(u.key===ucActive?" active":"");
+    b.innerHTML=`${u.emoji} ${u.label}`;
+    b.onclick=()=>{ ucActive=u.key; renderUsecases(); };
+    ucPicker.appendChild(b);
+  });
+  const u=USECASES.find(x=>x.key===ucActive);
+  ucResult.innerHTML=
+    `<div class="uc-strategy">${u.emoji} ${u.strat}</div>`+
+    `<div class="uc-pills">${u.pills.map(p=>`<span class="uc-pill">${p}</span>`).join("")}</div>`+
+    `<p class="small" style="margin-top:10px">${u.why}</p>`;
+}
+
+/* ============================================================
+   PRACTICE DRILLS
+   ============================================================ */
+const drills = [
+  { id:"d1", tag:"concept",
+    prompt:"As τ → 0⁺, the temperature-scaled softmax collapses to which decoding strategy? (one word)",
+    kind:"text", target:"greedy", altTargets:["argmax","arg max","one-hot","onehot","deterministic"],
+    explain:"Greedy / argmax. Tiny τ blows up the logit gaps so the single largest logit takes essentially all the probability." },
+  { id:"d2", tag:"concept",
+    prompt:"As τ → ∞, the distribution approaches what? (one word)",
+    kind:"text", target:"uniform", altTargets:["uniform distribution","1/v","1/k","flat"],
+    explain:"Uniform: every z_i/τ → 0, so all exponentials are equal and each token gets 1/V." },
+  { id:"d3", tag:"formula",
+    prompt:"Type the temperature-softmax numerator and denominator in LaTeX. Use e^{z_i/\\tau} and \\sum_j e^{z_j/\\tau}.",
+    kind:"latex", target:"e^{z_i/\\tau}/\\sum_je^{z_j/\\tau}",
+    altTargets:["\\frac{e^{z_i/\\tau}}{\\sum_je^{z_j/\\tau}}","e^{z_i/\\tau}/\\sum_{j}e^{z_j/\\tau}","\\frac{e^{z_{i}/\\tau}}{\\sum_{j}e^{z_{j}/\\tau}}"],
+    explain:"p_i = e^{z_i/τ} / Σ_j e^{z_j/τ}. Temperature divides every logit before the exponential." },
+  { id:"d4", tag:"compute",
+    prompt:"softmax([2, 1, 0]) at τ=1 ≈ ? (three values, 2 dp)",
+    kind:"triple", inputs:3, target: softmaxT([2,1,0],1),
+    explain:"exp([2,1,0]) after subtracting max=2 → [1, 0.368, 0.135] → /1.503 ≈ [0.665, 0.245, 0.090]." },
+  { id:"d5", tag:"compute",
+    prompt:"Same logits [2,1,0] but τ=0.5 — sharper or flatter? Give the new top probability (2 dp).",
+    kind:"triple", inputs:3, target: softmaxT([2,1,0],0.5),
+    explain:"τ<1 sharpens. z/τ = [4,2,0] → exp [54.6,7.39,1] → /62.99 ≈ [0.867, 0.117, 0.016]. The winner grew from 0.67 to 0.87." },
+  { id:"d6", tag:"top-k",
+    prompt:"With top-k = 1, decoding is equivalent to ___ . (one word)",
+    kind:"text", target:"greedy", altTargets:["argmax","arg max"],
+    explain:"k=1 keeps only the single highest logit, so you always emit the argmax — greedy decoding." },
+  { id:"d7", tag:"top-k",
+    prompt:"Top-k keeps the k tokens with the largest ___ , masks the rest to -inf, then renormalizes. (one word)",
+    kind:"text", target:"logits", altTargets:["logit","probabilities","probability","scores","score"],
+    explain:"The k largest logits (equivalently the k largest probabilities — ranking is the same) survive; everything else is set to -inf." },
+  { id:"d8", tag:"top-k",
+    prompt:"After keeping probs [0.6, 0.3] and dropping the rest, renormalize. New values? (two, 2 dp)",
+    kind:"triple", inputs:2, target:[0.6/0.9, 0.3/0.9],
+    explain:"Divide each by their sum 0.9 → [0.667, 0.333]. Renormalization makes survivors sum to 1 again." },
+  { id:"d9", tag:"concept",
+    prompt:"True or False: raising τ changes WHICH tokens survive a fixed top-k cutoff.",
+    kind:"tf", target:"false",
+    explain:"False. Dividing by τ>0 is monotonic — it never reorders tokens, so the top-k survivor set is identical for every temperature. Only the shares within it move." },
+  { id:"d10", tag:"concept",
+    prompt:"True or False: higher temperature generally makes output more diverse/creative.",
+    kind:"tf", target:"true",
+    explain:"True. Higher τ flattens the distribution, spreading probability mass so rarer tokens get sampled more often." },
+  { id:"d11", tag:"top-p",
+    prompt:"Top-p (nucleus) keeps the smallest set of tokens whose cumulative ___ is ≥ p. (one word)",
+    kind:"text", target:"probability", altTargets:["probabilities","prob","mass","probability mass"],
+    explain:"Cumulative probability. Unlike top-k's fixed count, top-p adapts the number of tokens to the model's confidence." },
+  { id:"d12", tag:"top-p",
+    prompt:"True or False: top-k keeps a fixed COUNT of tokens while top-p keeps a fixed cumulative probability.",
+    kind:"tf", target:"true",
+    explain:"True. That's the core distinction: top-k = fixed k; top-p = adaptive count chosen to reach probability mass p." },
+  { id:"d13", tag:"pipeline",
+    prompt:"In the sampling pipeline, is temperature applied BEFORE or AFTER softmax? (one word)",
+    kind:"text", target:"before", altTargets:["prior","beforehand"],
+    explain:"Before. You divide the logits by τ, THEN exponentiate/normalize. Scaling after softmax wouldn't give a valid distribution." },
+  { id:"d14", tag:"pipeline",
+    prompt:"A masked logit of -inf becomes what probability after softmax? (a number)",
+    kind:"text", target:"0", altTargets:["zero","0.0"],
+    explain:"e^{-inf} = 0, so masked tokens get probability 0 and can never be sampled." },
+  { id:"d15", tag:"compute",
+    prompt:"softmax([3, 0]) at τ=1 ≈ ? (two values, 2 dp)",
+    kind:"triple", inputs:2, target: softmaxT([3,0],1),
+    explain:"exp([3,0]) = [20.09, 1] → /21.09 ≈ [0.95, 0.05]." },
+  { id:"d16", tag:"concept",
+    prompt:"Entropy of the next-token distribution as τ increases: goes up or down? (up/down)",
+    kind:"text", target:"up", altTargets:["increases","rises","higher","increase"],
+    explain:"Up. A flatter distribution is more uncertain, and entropy peaks at the uniform distribution." },
+  { id:"d17", tag:"pipeline",
+    prompt:"After top-k truncation, GREEDY decoding picks the token with the highest probability. What operation is that? (one word)",
+    kind:"text", target:"argmax", altTargets:["arg max","max","maximum"],
+    explain:"Argmax — it returns the index of the maximum. Applied after top-k, it deterministically emits the single best survivor (same as top-k=1)." },
+  { id:"d18", tag:"pipeline",
+    prompt:"True or False: argmax decoding is deterministic — the same logits always give the same token.",
+    kind:"tf", target:"true",
+    explain:"True. Argmax has no randomness; only sampling does. That's why greedy output is reproducible but can feel repetitive." },
+];
+
+const host = document.getElementById("drillHost");
+const dotsBox = document.getElementById("dots");
+let curIdx = 0;
+function renderDots(){
+  dotsBox.innerHTML="";
+  drills.forEach((d,i)=>{
+    const el=document.createElement("div"); el.className="dot";
+    if(S.done[d.id]==="ok") el.classList.add("done");
+    else if(S.done[d.id]==="miss") el.classList.add("miss");
+    if(i===curIdx) el.classList.add("cur");
+    el.title = d.tag+" — "+(S.done[d.id]||"untouched");
+    el.onclick=()=>{ curIdx=i; renderDrill(); renderDots(); };
+    dotsBox.appendChild(el);
+  });
+}
+function renderDrill(){
+  const d = drills[curIdx];
+  host.innerHTML="";
+  const card=document.createElement("div"); card.className="card drillCard"; card.id="drillCard";
+  const qbar=document.createElement("div"); qbar.className="qbar";
+  qbar.innerHTML=`<span class="qnum">drill ${curIdx+1} / ${drills.length}</span><span class="qtag">${d.tag}</span>`;
+  card.appendChild(qbar);
+  const prompt=document.createElement("div"); prompt.className="prompt"; prompt.innerHTML=d.prompt; card.appendChild(prompt);
+  const row=document.createElement("div"); row.className="answerRow"; card.appendChild(row);
+  let inputs=[]; let preview=null;
+
+  if(d.kind==="triple"){
+    for(let i=0;i<d.inputs;i++){
+      const ip=document.createElement("input"); ip.className="ti tri"; ip.placeholder=`p${i+1}`; ip.inputMode="decimal";
+      row.appendChild(ip); inputs.push(ip);
+    }
+  } else if(d.kind==="latex"){
+    const ip=document.createElement("input"); ip.className="ti"; ip.style.minWidth="340px"; ip.placeholder="e^{z_i/\\tau}/\\sum_j e^{z_j/\\tau}";
+    row.appendChild(ip); inputs.push(ip);
+    preview=document.createElement("div"); preview.className="preview"; preview.textContent="(live preview)"; card.appendChild(preview);
+    ip.addEventListener("input",()=>{ try{ katex.render(ip.value||"\\;",preview,{displayMode:true,throwOnError:false}); }catch(_){ preview.textContent=ip.value; } });
+  } else if(d.kind==="tf"){
+    const ip=document.createElement("input"); ip.className="ti"; ip.placeholder="True / False"; row.appendChild(ip); inputs.push(ip);
+  } else {
+    const ip=document.createElement("input"); ip.className="ti"; ip.style.minWidth="260px"; ip.placeholder="answer"; row.appendChild(ip); inputs.push(ip);
+  }
+
+  const fb=document.createElement("div"); fb.className="feedback"; card.appendChild(fb);
+  const nav=document.createElement("div"); nav.className="nav";
+  const submit=document.createElement("button"); submit.className="btn primary"; submit.textContent="Check";
+  const next=document.createElement("button"); next.className="btn"; next.textContent="Next →";
+  const prev=document.createElement("button"); prev.className="btn ghost"; prev.textContent="← Prev";
+  const reveal=document.createElement("button"); reveal.className="btn ghost"; reveal.textContent="Reveal";
+  const left=document.createElement("div"); left.append(prev);
+  const right=document.createElement("div"); right.append(reveal,submit,next);
+  nav.append(left,right); card.appendChild(nav);
+
+  prev.onclick=()=>{ curIdx=(curIdx-1+drills.length)%drills.length; renderDrill(); renderDots(); };
+  next.onclick=()=>{ curIdx=(curIdx+1)%drills.length; renderDrill(); renderDots(); };
+  reveal.onclick=()=>{ fb.className="feedback"; fb.innerHTML="<i>"+d.explain+"</i>"; };
+
+  function check(){
+    let ok=false;
+    if(d.kind==="triple"){
+      const vals=inputs.map(x=>parseNum(x.value));
+      if(vals.some(v=>v===null)){ fb.className="feedback no"; fb.textContent="Type a number in each box."; return; }
+      ok = vals.length===d.target.length && vals.every((v,i)=>near(v,d.target[i],0.02));
+    } else if(d.kind==="latex"){
+      const u=inputs[0].value; ok=eqTex(u,d.target)||(d.altTargets||[]).some(t=>eqTex(u,t));
+    } else if(d.kind==="tf"){
+      const u=normSpaces(inputs[0].value);
+      ok=(u===d.target)||(u==="t"&&d.target==="true")||(u==="f"&&d.target==="false")||(u==="yes"&&d.target==="true")||(u==="no"&&d.target==="false");
+    } else {
+      const u=normSpaces(inputs[0].value), t=normSpaces(d.target);
+      ok=(u===t)||(d.altTargets||[]).some(a=>normSpaces(a)===u);
+    }
+    S.attempts++;
+    if(ok){
+      S.correct++; S.combo++; S.bestCombo=Math.max(S.bestCombo,S.combo);
+      const base=(d.tag==="compute")?14:10;
+      const bonus=Math.min(20, Math.floor(S.combo/3)*3);
+      addXP(base+bonus); S.done[d.id]="ok";
+      fb.className="feedback ok"; fb.textContent=`Correct  +${base+bonus} XP  · combo ×${S.combo}`;
+      pulse(card); confetti(60); checkProgressAchievements();
+    } else {
+      S.combo=0; S.done[d.id]="miss";
+      fb.className="feedback no"; fb.textContent="Not quite. Hit Reveal for the worked answer.";
+      shake(card);
+    }
+    saveState(); refreshHUD(); renderDots();
+  }
+  submit.onclick=check;
+  inputs.forEach(ip=>ip.addEventListener("keydown",ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); check(); } }));
+  host.appendChild(card);
+  setTimeout(()=>inputs[0]&&inputs[0].focus(),30);
+}
+
+/* ============================================================
+   ACHIEVEMENTS
+   ============================================================ */
+const ACHIEVEMENTS = [
+  {id:"first",     em:"♟", t:"First Step",        d:"Answer your first drill correctly."},
+  {id:"firstSample",em:"🎲",t:"Roll the Dice",     d:"Sample your first token in the lab."},
+  {id:"sampler50", em:"📊", t:"Law of Large Numbers", d:"Reach 50 samples in the histogram."},
+  {id:"frozen",    em:"❄", t:"Frozen",            d:"Push τ to its minimum."},
+  {id:"boiling",   em:"🔥", t:"Boiling",           d:"Push τ to its maximum."},
+  {id:"temptamer", em:"🌡", t:"Temperature Tamer", d:"Visit both τ extremes."},
+  {id:"greedy",    em:"🥇", t:"Greedy",            d:"Set top-k = 1 (argmax decoding)."},
+  {id:"argmaxer",  em:"👑", t:"Crowned",           d:"Take the greedy argmax token in the lab."},
+  {id:"computer",  em:"🧮", t:"Number Cruncher",   d:"Solve every compute drill."},
+  {id:"theorist",  em:"📐", t:"Theorist",          d:"Solve every concept drill."},
+  {id:"combo10",   em:"⚡", t:"Streak ×10",        d:"Reach a combo of 10."},
+  {id:"bossSlayer",em:"☄", t:"Decoding Boss",      d:"Survive the boss round."},
+];
+function unlocked(id){ return !!S.ach[id]; }
+function unlock(id){
+  if(S.ach[id]) return;
+  S.ach[id]=true; saveState();
+  const a=ACHIEVEMENTS.find(x=>x.id===id);
+  if(a){ toast(`Trophy: ${a.em} ${a.t}`); confetti(40); }
+  renderAchievements();
+}
+function renderAchievements(){
+  const g=document.getElementById("achGrid"); g.innerHTML="";
+  for(const a of ACHIEVEMENTS){
+    const el=document.createElement("div");
+    el.className="ach"+(unlocked(a.id)?" unlocked":"");
+    el.innerHTML=`<div class="em">${a.em}</div><div><div class="t">${a.t}</div><div class="d">${a.d}</div></div>`;
+    g.appendChild(el);
+  }
+}
+function checkProgressAchievements(){
+  if(S.correct>=1) unlock("first");
+  if(["d4","d5","d8","d15"].every(k=>S.done[k]==="ok")) unlock("computer");
+  if(["d1","d2","d9","d10","d16"].every(k=>S.done[k]==="ok")) unlock("theorist");
+  if(S.combo>=10) unlock("combo10");
+}
+
+/* ============================================================
+   BOSS ROUND
+   ============================================================ */
+const bossBank = [
+  {q:"τ → 0⁺ gives which decoding? (one word)", ans:"greedy", alts:["argmax","arg max","one-hot","deterministic"]},
+  {q:"τ → ∞ gives which distribution? (one word)", ans:"uniform", alts:["flat","1/v","1/k"]},
+  {q:"top-k = 1 is the same as ___ ?", ans:"greedy", alts:["argmax","arg max"]},
+  {q:"Is temperature applied before or after softmax?", ans:"before", alts:["prior"]},
+  {q:"Top-p truncates by cumulative ___ ?", ans:"probability", alts:["prob","mass","probabilities"]},
+  {q:"A -inf logit → what probability after softmax?", ans:"0", alts:["zero"]},
+  {q:"softmax([2,1,0]) top prob at τ=1 ≈ ? (2 dp)", ans:"0.67", tol:0.03},
+  {q:"Does raising τ reorder the tokens? (yes/no)", ans:"no", alts:["false","n"]},
+];
+const bossTimerEl=document.getElementById("bossTimer");
+const bossQEl=document.getElementById("bossQ");
+const bossAEl=document.getElementById("bossA");
+const bossScoreEl=document.getElementById("bossScore");
+const bossStartBtn=document.getElementById("bossStart");
+let bossIdx=0, bossScore=0, bossTimer=null, bossActive=false;
+function bossNext(){ if(bossIdx>=bossBank.length){ bossEnd(); return; } bossQEl.textContent=bossBank[bossIdx].q; bossAEl.value=""; bossAEl.focus(); }
+function bossSubmit(){
+  if(!bossActive) return;
+  const cur=bossBank[bossIdx]; const u=bossAEl.value.trim(); let ok=false;
+  if(cur.tol!=null){ const v=parseNum(u); ok=v!==null&&near(v,parseFloat(cur.ans),cur.tol); }
+  else { const n=normSpaces(u); ok=n===normSpaces(cur.ans)||(cur.alts||[]).some(a=>normSpaces(a)===n); }
+  if(ok){ bossScore++; addXP(15); confetti(30); pulse(document.getElementById("bossBox")); }
+  else { S.combo=0; saveState(); refreshHUD(); shake(document.getElementById("bossBox")); }
+  bossIdx++; bossScoreEl.textContent=`score: ${bossScore} / ${bossBank.length}`; bossNext();
+}
+bossAEl.addEventListener("keydown",ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); bossSubmit(); } });
+function bossEnd(){
+  bossActive=false; clearInterval(bossTimer);
+  bossQEl.textContent=`Boss down. ${bossScore}/${bossBank.length} correct.`;
+  if(bossScore>=Math.ceil(bossBank.length*0.6)) unlock("bossSlayer");
+  S.bossDone=true; saveState();
+}
+bossStartBtn.onclick=()=>{
+  bossIdx=0; bossScore=0; bossActive=true; bossScoreEl.textContent=`score: 0 / ${bossBank.length}`;
+  let t=60; bossTimerEl.textContent=t; clearInterval(bossTimer);
+  bossTimer=setInterval(()=>{ t--; bossTimerEl.textContent=t; if(t<=0){ bossEnd(); } },1000);
+  bossNext();
+};
+
+/* ============================================================
+   TAB / KEY NAV  (1..N jump to sections)
+   ============================================================ */
+document.addEventListener("keydown",(e)=>{
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  const map={"1":"s1","2":"s2","3":"s3","4":"s5","5":"s6","6":"s8","7":"s7"};
+  if(map[e.key]){ document.getElementById(map[e.key]).scrollIntoView({behavior:"smooth"}); }
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init(){
+  renderTD();
+  renderUsecases();
+  computeLab();
+  renderHisto();
+  renderDrill(); renderDots();
+  renderAchievements();
+  refreshHUD();
+}
+init();
+// re-render formula + curve once KaTeX is ready
+const kxReady = setInterval(()=>{ if(window.katex){ clearInterval(kxReady); computeLab(); renderTD(); } }, 80);
+addEventListener("resize", ()=>{ drawCurve(); });
+</script>
+</body>
+</html>

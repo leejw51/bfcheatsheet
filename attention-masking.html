@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention Masking · Interactive</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {
+    delimiters: [
+      {left:'$$', right:'$$', display:true},
+      {left:'$', right:'$', display:false}
+    ],
+    throwOnError: false
+  })"></script>
+<style>
+  :root {
+    --bg: #090b16;          --bg-2: #10131f;
+    --panel: #141828;       --panel-2: #1a1f33;
+    --code-bg: #070912;
+    --ink: #e9ecff;         --muted: #93a0c4;
+    --line: rgba(255,255,255,0.07);
+    --grid: rgba(129, 140, 248, 0.035);
+    --accent: #818cf8;      --accent-2: #38bdf8;
+    --amber: #fbbf24;       --good: #4ade80;   --bad: #f87171;
+    --warn: #fbbf24;        --violet: #c084fc; --orange: #fb923c;
+    --comment: #7d86a8;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.7; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  body {
+    background-image:
+      radial-gradient(ellipse at top right, rgba(129, 140, 248, 0.12), transparent 55%),
+      radial-gradient(ellipse at bottom left, rgba(56, 189, 248, 0.07), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    min-height: 100vh;
+  }
+
+  .grain { position: fixed; inset: 0; pointer-events: none; opacity: 0.04; z-index: 200; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  .scanlines { position: fixed; inset: 0; pointer-events: none; opacity: 0.30; z-index: 199; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0 1px, transparent 1px 3px); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  .sticky-top { position: sticky; top: 0; z-index: 50; background: rgba(9, 11, 22, 0.82); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+  header { max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 18px; padding: 14px 24px 12px; flex-wrap: wrap; }
+  .logo { font-family: var(--serif); font-weight: 600; font-size: 18px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 9px; color: var(--ink); }
+  .logo .spark { filter: drop-shadow(0 0 6px var(--accent)); }
+  .logo em { font-style: italic; color: var(--accent); font-weight: 900; }
+  .badge { font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--bg); background: linear-gradient(135deg, var(--accent), var(--accent-2)); padding: 3px 8px; border-radius: 999px; font-weight: 700; }
+  .progress-bar-outer { flex: 1; min-width: 90px; height: 7px; border-radius: 999px; background: #0e1120; border: 1px solid var(--line); overflow: hidden; }
+  .progress-bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px var(--accent); transition: width 0.5s cubic-bezier(.2,.8,.2,1); }
+  .stat { font-family: var(--mono); font-size: 13px; color: var(--muted); display: flex; align-items: baseline; gap: 2px; }
+  .stat .num { color: var(--accent); font-weight: 700; font-size: 15px; }
+  .stat .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 4px; }
+  .streak { font-family: var(--mono); font-size: 14px; color: var(--warn); white-space: nowrap; }
+  .streak .num { font-weight: 700; }
+
+  .btn { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #0a0c18; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: var(--mono); font-size: 13px; font-weight: 600; transition: transform .12s, box-shadow .2s; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(129,140,248,0.28); }
+  .btn:active { transform: translateY(0); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--accent); box-shadow: none; }
+  .btn.ghost.on { color: var(--accent); border-color: var(--accent); background: rgba(129,140,248,0.10); }
+  .btn.tiny { padding: 5px 11px; font-size: 12px; }
+  .btn.copied { background: var(--good); color: #06121b; }
+
+  nav.tabs { max-width: 1080px; margin: 0 auto; display: flex; gap: 4px; padding: 0 16px 0; overflow-x: auto; scrollbar-width: thin; }
+  nav.tabs button { background: none; border: none; cursor: pointer; white-space: nowrap; color: var(--muted); font-family: var(--mono); font-size: 12.5px; padding: 11px 14px; border-bottom: 2px solid transparent; transition: color .2s, border-color .2s; display: flex; align-items: center; gap: 6px; }
+  nav.tabs button:hover { color: var(--ink); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .check { color: var(--good); font-size: 12px; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 36px 24px 120px; }
+  .tab-section { display: none; animation: fadeUp .35s ease; }
+  .tab-section.active { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .eyebrow::before { content: ''; width: 30px; height: 1px; background: var(--accent); }
+  .display-h { font-family: var(--serif); font-weight: 300; letter-spacing: -0.03em; font-size: clamp(34px, 6vw, 58px); line-height: 0.98; margin-bottom: 14px; }
+  .display-h em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+  .lede { font-size: 17px; max-width: 680px; color: var(--muted); font-weight: 300; margin-bottom: 34px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  h2.sec { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); margin: 40px 0 22px; display: flex; align-items: center; gap: 14px; }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px; margin-bottom: 22px; position: relative; }
+  .card.accented::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); border-radius: 14px 0 0 0; }
+  .card.accented::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 22px; height: 22px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); border-radius: 0 0 14px 0; }
+  .card h3 { font-family: var(--serif); font-size: 1.35rem; font-weight: 600; color: var(--ink); margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tag { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em; background: var(--accent); color: #0a0c18; padding: 3px 9px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+  .tag.green { background: var(--good); color:#06121b; }
+  .tag.violet { background: var(--violet); }
+  .tag.orange { background: var(--orange); }
+  .tag.sky { background: var(--accent-2); color:#06121b; }
+  p.desc { color: var(--muted); font-size: 0.95rem; margin-bottom: 14px; }
+
+  .math-block { background: var(--code-bg); border: 1px solid rgba(129, 140, 248, 0.20); border-radius: 12px; padding: 20px 26px; margin: 14px 0; text-align: center; overflow-x: auto; }
+  .math-block .katex { font-size: 1.22em; color: #e6e9ff; }
+  .math-block .caption { margin-top: 9px; font-size: 0.78rem; color: var(--muted); font-style: italic; }
+  .katex { color: var(--amber); }
+
+  .intuition { background: rgba(129, 140, 248, 0.06); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 0.9rem; color: #cdd4f0; }
+  .intuition strong { color: var(--accent); }
+
+  .context-box { background: var(--bg-2); border: 1px dashed rgba(255,255,255,0.18); border-radius: 10px; padding: 18px; margin: 14px 0; font-size: 0.9rem; color: var(--muted); font-family: var(--mono); line-height: 1.9; }
+  .context-box .hl { color: var(--amber); font-weight: 600; }
+  .context-box code { color: var(--accent-2); }
+  .context-box .kw { color: var(--accent); }
+  .context-box .num2 { color: var(--amber); }
+  .context-box .cm { color: var(--comment); font-style: italic; }
+
+  .note { background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #bbf7d0; margin: 14px 0; }
+  .warn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #fecaca; margin: 14px 0; }
+
+  .slider-group { margin: 14px 0; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
+  .slider-label span { color: var(--accent); font-weight: 700; }
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 3px; border-radius: 999px; background: rgba(255,255,255,0.14); outline: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); transition: transform .15s; }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+  input[type=range]::-moz-range-thumb { width: 17px; height: 17px; border: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); }
+
+  .output { background: var(--bg-2); border-radius: 10px; padding: 14px 18px; margin-top: 14px; border: 1px solid var(--line); }
+  .output-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 0.88rem; }
+  .output-row .key { color: var(--muted); }
+  .output-row .val { color: var(--amber); font-family: var(--mono); font-weight: 600; }
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+  .ctl-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.06em; margin-right: 4px; }
+
+  /* ATTENTION MATRIX */
+  .attn-scroll { overflow-x: auto; padding: 6px 2px 2px; }
+  .attn-grid { display: inline-grid; gap: 4px; }
+  .acell { width: 50px; height: 44px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 0.72rem; font-weight: 600; position: relative; background: #11141f; border: 1px solid var(--line); color: var(--ink); transition: background .35s, color .35s, transform .2s; }
+  .acell.hdr { background: transparent; border: none; color: var(--muted); font-weight: 700; font-size: 0.68rem; }
+  .acell.corner { background: transparent; border: none; }
+  .acell.qhdr { justify-content: flex-end; padding-right: 6px; width: 64px; }
+  .acell.masked { background: #0c0e18; color: #3a3f55; border-style: dashed; }
+  .acell.masked::after { content: '🔒'; position: absolute; font-size: 0.7rem; opacity: 0.5; }
+  .acell.masked span { opacity: 0; }
+  .acell.pad { opacity: 0.55; }
+  .grid-axis { font-family: var(--mono); font-size: 11px; color: var(--muted); margin: 6px 0; }
+  .grid-axis .q { color: var(--accent); } .grid-axis .k { color: var(--accent-2); }
+
+  .heatlegend { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 10px; }
+  .heatbar { height: 12px; width: 160px; border-radius: 6px; background: linear-gradient(90deg, #11141f, var(--accent)); border: 1px solid var(--line); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; margin: 16px 0; }
+  @media(max-width:640px){ .statgrid { grid-template-columns: repeat(2, 1fr); } }
+  .statcell { background: var(--panel); padding: 22px 18px; }
+  .statcell .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .statcell .v { font-family: var(--serif); font-size: 28px; font-weight: 300; line-height: 1; font-feature-settings: "tnum"; }
+  .statcell .v em { font-style: italic; font-weight: 900; color: var(--accent); }
+
+  /* multi-head mini grids */
+  .heads-wrap { display: flex; gap: 16px; flex-wrap: wrap; margin: 14px 0; }
+  .head-mini { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .head-mini .hlabel { font-family: var(--mono); font-size: 10px; color: var(--accent); margin-bottom: 8px; letter-spacing: 0.1em; }
+  .mini-grid { display: inline-grid; gap: 2px; }
+  .mcell { width: 16px; height: 16px; border-radius: 3px; background: #11141f; }
+  .mcell.masked { background: #0c0e18; border: 1px dashed #2a2f45; }
+
+  /* DRILLS */
+  .drill { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; transition: border-color .3s, box-shadow .3s; }
+  .drill.solved { border-color: rgba(74,222,128,0.5); box-shadow: 0 0 24px rgba(74,222,128,0.10); }
+  .drill .prompt { font-size: 0.96rem; color: var(--ink); margin-bottom: 12px; display: flex; gap: 9px; align-items: baseline; }
+  .drill .prompt .num { font-family: var(--mono); font-size: 12px; color: var(--accent); border: 1px solid rgba(129,140,248,0.4); border-radius: 6px; padding: 1px 7px; flex-shrink: 0; }
+  pre.exercise { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; font-family: var(--mono); font-size: 0.86rem; color: #cdd4f0; overflow-x: auto; line-height: 2.1; white-space: pre-wrap; }
+  .blank { font-family: var(--mono); font-size: 0.84rem; background: #11141f; border: none; border-bottom: 2px solid var(--accent); color: var(--amber); text-align: center; padding: 3px 4px; border-radius: 5px 5px 0 0; outline: none; transition: all .2s; min-width: 44px; }
+  .blank:focus { background: #171b2b; box-shadow: 0 2px 12px rgba(129,140,248,0.25); }
+  .blank.correct { color: var(--good); border-bottom-color: var(--good); background: rgba(74,222,128,0.08); }
+  .blank.wrong { color: var(--bad); border-bottom-color: var(--bad); }
+  .blank.pop { animation: pop .3s ease; }
+  .blank.shake { animation: shake .35s ease; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .controls { display: flex; gap: 8px; margin-top: 14px; }
+  .feedback { margin-top: 11px; font-size: 0.85rem; min-height: 18px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--warn); }
+
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; }
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(120px); background: var(--panel-2); border: 1px solid var(--accent); color: var(--ink); padding: 13px 22px; border-radius: 12px; font-family: var(--mono); font-size: 14px; z-index: 160; box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: transform .4s cubic-bezier(.2,.9,.3,1.2); opacity: 0; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #help-overlay { position: fixed; inset: 0; background: rgba(6,8,16,0.78); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 180; }
+  #help-overlay.show { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  #help-overlay .help-content { background: var(--panel); border: 1px solid var(--accent); border-radius: 16px; padding: 30px 34px; max-width: 440px; width: 90%; }
+  #help-overlay h3 { font-family: var(--serif); margin: 0 0 16px; color: var(--accent); font-size: 1.4rem; }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--muted); }
+  #help-overlay kbd { font-family: var(--mono); background: var(--bg-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 8px; color: var(--ink); font-size: 12px; }
+
+  footer { max-width: 1080px; margin: 0 auto; padding: 30px 24px 60px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="scanlines"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="spark">⚡</span> Attention <em>Masking</em> <span class="badge">Type to Learn</span></div>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat"><span class="num" id="scoreNum">0</span><span style="margin:0 2px">/</span><span class="num" id="scoreTot">0</span><span class="lbl">solved</span></div>
+    <div class="streak">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="why">1 · Why mask?</button>
+    <button data-tab="how">2 · The mechanism</button>
+    <button data-tab="causal">3 · Causal mask</button>
+    <button data-tab="padding">4 · Padding mask</button>
+    <button data-tab="multihead">5 · Multi-head</button>
+    <button data-tab="practice">✦ Practice</button>
+  </nav>
+</div>
+
+<main>
+  <div class="eyebrow">Attention Is All You Need · Vaswani et al. · 2017</div>
+  <h1 class="display-h">Masking in<br><em>Attention</em></h1>
+  <p class="lede">Attention lets every token look at every other token — but sometimes it <strong>mustn't</strong>. Masking adds $-\infty$ to forbidden scores so softmax zeroes them out: no peeking at the future, no attending to padding. <strong>Flip the masks live</strong> below, then prove it on the <strong>Practice</strong> tab.</p>
+
+  <!-- ==================== WHY ==================== -->
+  <section class="tab-section active" id="tab-why">
+    <h2 class="sec"><span class="num">01</span> Why mask at all?</h2>
+
+    <div class="card accented">
+      <h3>Scaled dot-product attention, with a mask <span class="tag">the core formula</span></h3>
+      <p class="desc">Every query scores every key, we scale by $\sqrt{d_k}$, softmax into weights, and mix the values. The <strong>mask $M$</strong> is added to the scores <em>before</em> softmax.</p>
+      <div class="math-block">
+        $$\text{Attention}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V$$
+        <div class="caption">$M_{ij} = 0$ if query $i$ may attend to key $j$, &nbsp; $M_{ij} = -\infty$ if it may not.</div>
+      </div>
+      <div class="intuition">
+        <strong>The whole trick in one line:</strong> $\text{softmax}(\dots + (-\infty)) \to 0$. Adding $-\infty$ to a score makes its $e^{-\infty}=0$, so that key receives <em>exactly</em> zero attention weight — and contributes nothing to the output. Allowed positions are untouched ($+0$).
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Two masks you actually use</h3>
+      <div class="two-col">
+        <div class="context-box" style="margin:0">
+          <strong style="color:var(--accent)">Causal / look-ahead mask</strong><br>
+          Hides <em>future</em> tokens in decoder self-attention.<br>
+          Lower-triangular: token $i$ sees only $j \le i$.<br>
+          <span class="cm"># so generation can't cheat by reading ahead</span>
+        </div>
+        <div class="context-box" style="margin:0">
+          <strong style="color:var(--accent-2)">Padding mask</strong><br>
+          Hides <em>&lt;pad&gt;</em> tokens added to batch shorter<br>
+          sequences to equal length.<br>
+          <span class="cm"># so meaningless padding gets no attention</span>
+        </div>
+      </div>
+      <div class="note">They compose: a decoder processing a padded batch uses <strong>both</strong> (causal AND padding) at once — a position is allowed only if it passes both tests.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Where it lives in the paper</h3>
+      <div class="context-box">
+        Vaswani et al. (2017), §3.2.3:<br><br>
+        “We implement this inside scaled dot-product attention by <span class="hl">masking out (setting to −∞)</span> all values in the input of the softmax which correspond to illegal connections.”<br><br>
+        <span class="cm"># the decoder's masked multi-head self-attention is</span><br>
+        <span class="cm"># the only sub-layer that needs the causal mask.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== HOW (mechanism) ==================== -->
+  <section class="tab-section" id="tab-how">
+    <h2 class="sec"><span class="num">02</span> The mechanism — scores → mask → softmax</h2>
+
+    <div class="card accented">
+      <h3>Watch a row get masked</h3>
+      <p class="desc">Rows = <span style="color:var(--accent)">queries</span>, columns = <span style="color:var(--accent-2)">keys</span>. Step through the three stages and toggle the mask. In <strong>Softmax</strong> stage, each row sums to 1 and masked cells are exactly 0.</p>
+
+      <div class="preset-row">
+        <span class="ctl-label">stage</span>
+        <button class="btn ghost tiny stage-btn on" data-stage="scores" onclick="setStage('scores')">1 · scores</button>
+        <button class="btn ghost tiny stage-btn" data-stage="masked" onclick="setStage('masked')">2 · + mask</button>
+        <button class="btn ghost tiny stage-btn" data-stage="weights" onclick="setStage('weights')">3 · softmax</button>
+      </div>
+      <div class="preset-row">
+        <span class="ctl-label">mask</span>
+        <button class="btn ghost tiny mask-btn on" data-mask="none" onclick="setMask('none')">none</button>
+        <button class="btn ghost tiny mask-btn" data-mask="causal" onclick="setMask('causal')">causal</button>
+        <button class="btn ghost tiny mask-btn" data-mask="padding" onclick="setMask('padding')">padding</button>
+        <button class="btn ghost tiny mask-btn" data-mask="both" onclick="setMask('both')">both</button>
+        <button class="btn tiny" onclick="resampleScores()">🎲 resample</button>
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">Sequence length $T$: <span id="seq-val">6</span></div>
+        <input type="range" id="seq-slider" min="4" max="7" step="1" value="6" oninput="onSeq(this)">
+      </div>
+      <div class="slider-group" id="pad-group">
+        <div class="slider-label">&lt;pad&gt; tokens at the end: <span id="pad-val">2</span></div>
+        <input type="range" id="pad-slider" min="0" max="3" step="1" value="2" oninput="onPad(this)">
+      </div>
+
+      <div class="grid-axis">keys <span class="k">j →</span> across the top · queries <span class="q">i ↓</span> down the side</div>
+      <div class="attn-scroll"><div class="attn-grid" id="attn-grid"></div></div>
+      <div class="heatlegend"><span>0</span><div class="heatbar"></div><span>1</span><span style="margin-left:14px">🔒 = masked (−∞ → weight 0)</span></div>
+
+      <div class="output">
+        <div class="output-row"><span class="key">current stage</span><span class="val" id="info-stage">scores</span></div>
+        <div class="output-row"><span class="key">row 0 weight sum (after softmax)</span><span class="val" id="info-rowsum">—</span></div>
+        <div class="output-row"><span class="key">allowed cells / total</span><span class="val" id="info-allowed">—</span></div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>In code — masked_fill before softmax</h3>
+      <div class="context-box">
+        scores = Q @ K.transpose(-2, -1) / math.sqrt(d_k)   <span class="cm"># [B,H,T,T]</span><br>
+        scores = scores.<span class="kw">masked_fill</span>(mask, <span class="kw">float</span>(<span class="num2">'-inf'</span>))  <span class="cm"># forbidden → −∞</span><br>
+        attn = scores.<span class="kw">softmax</span>(dim=-<span class="num2">1</span>)                  <span class="cm"># forbidden → 0</span><br>
+        out  = attn @ V                                <span class="cm"># mix only allowed values</span>
+      </div>
+      <div class="intuition"><strong>Why add, not multiply?</strong> Multiplying weights by 0 <em>after</em> softmax would break normalisation (rows wouldn't sum to 1). Adding $-\infty$ <em>before</em> softmax removes those keys from the competition, so the remaining weights still sum to 1.</div>
+    </div>
+  </section>
+
+  <!-- ==================== CAUSAL ==================== -->
+  <section class="tab-section" id="tab-causal">
+    <h2 class="sec"><span class="num">03</span> Causal mask — no peeking ahead</h2>
+
+    <div class="card accented">
+      <h3>Lower-triangular by design <span class="tag violet">decoder self-attention</span></h3>
+      <p class="desc">When a language model predicts token $i{+}1$ from tokens $\le i$, position $i$ must not see anything to its right. The mask allows key $j$ only when $j \le i$ — a lower-triangular pattern.</p>
+      <div class="math-block">
+        $$M^{\text{causal}}_{ij} = \begin{cases} 0 & j \le i \quad(\text{past or self}) \\ -\infty & j > i \quad(\text{future}) \end{cases}$$
+      </div>
+      <div class="context-box">
+        <span class="cm"># build it once, reuse every step</span><br>
+        mask = torch.<span class="kw">triu</span>(torch.ones(T, T), diagonal=<span class="num2">1</span>).<span class="kw">bool</span>()<br>
+        <span class="cm"># triu(…, diagonal=1) = strictly-upper triangle = the future = True (masked)</span>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — see the triangle fill in</h3>
+      <p class="desc">This grid shows the causal attention <em>weights</em>. Notice each query row spreads weight only over itself and earlier keys; the upper triangle is locked at 0. Row 0 can only attend to itself.</p>
+      <div class="preset-row">
+        <button class="btn tiny" onclick="resampleCausal()">🎲 resample scores</button>
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">Sequence length $T$: <span id="cz-val">6</span></div>
+        <input type="range" id="cz-slider" min="3" max="8" step="1" value="6" oninput="onCz(this)">
+      </div>
+      <div class="grid-axis">keys <span class="k">j →</span> · queries <span class="q">i ↓</span></div>
+      <div class="attn-scroll"><div class="attn-grid" id="causal-grid"></div></div>
+      <div class="output">
+        <div class="output-row"><span class="key">query 0 attends to</span><span class="val" id="cz-q0">—</span></div>
+        <div class="output-row"><span class="key">last query attends to</span><span class="val" id="cz-qn">—</span></div>
+        <div class="output-row"><span class="key">allowed cells (of $T^2$)</span><span class="val" id="cz-allowed">—</span></div>
+      </div>
+      <div class="note">The number of allowed cells is $T(T{+}1)/2$ — exactly the lower triangle including the diagonal. Half the matrix (minus the diagonal) is masked away.</div>
+    </div>
+  </section>
+
+  <!-- ==================== PADDING ==================== -->
+  <section class="tab-section" id="tab-padding">
+    <h2 class="sec"><span class="num">04</span> Padding mask — ignore the filler</h2>
+
+    <div class="card accented">
+      <h3>Batches need equal length <span class="tag sky">encoder &amp; decoder</span></h3>
+      <p class="desc">To batch sentences of different lengths we pad the short ones with a special <code>&lt;pad&gt;</code> token. Those positions carry no meaning, so every query must give them <strong>zero</strong> attention — mask out the padded <em>key</em> columns.</p>
+      <div class="math-block">
+        $$M^{\text{pad}}_{ij} = \begin{cases} 0 & \text{key } j \text{ is a real token} \\ -\infty & \text{key } j \text{ is } \texttt{<pad>} \end{cases}$$
+        <div class="caption">Padding masks whole <em>columns</em> $j$ — independent of the query row $i$.</div>
+      </div>
+      <div class="context-box">
+        <span class="cm"># key_padding_mask: True where the token is padding</span><br>
+        pad = (tokens == PAD_ID)            <span class="cm"># [B, T]</span><br>
+        scores = scores.<span class="kw">masked_fill</span>(pad[:, <span class="kw">None</span>, <span class="kw">None</span>, :], <span class="kw">float</span>(<span class="num2">'-inf'</span>))
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — pad columns go dark</h3>
+      <p class="desc">Slide the number of trailing <code>&lt;pad&gt;</code> tokens. Their key columns get locked to 0 for every query, so attention re-normalises over the real tokens only.</p>
+      <div class="preset-row"><button class="btn tiny" onclick="resamplePad()">🎲 resample scores</button></div>
+      <div class="slider-group">
+        <div class="slider-label">&lt;pad&gt; tokens (of 6): <span id="pz-val">2</span></div>
+        <input type="range" id="pz-slider" min="0" max="4" step="1" value="2" oninput="onPz(this)">
+      </div>
+      <div class="grid-axis">keys <span class="k">j →</span> · queries <span class="q">i ↓</span></div>
+      <div class="attn-scroll"><div class="attn-grid" id="pad-grid"></div></div>
+      <div class="output">
+        <div class="output-row"><span class="key">real tokens attended</span><span class="val" id="pz-real">—</span></div>
+        <div class="output-row"><span class="key">padded columns masked</span><span class="val" id="pz-pad">—</span></div>
+        <div class="output-row"><span class="key">each row still sums to</span><span class="val" id="pz-sum">—</span></div>
+      </div>
+      <div class="warn">Forgetting the padding mask lets the model waste attention on meaningless <code>&lt;pad&gt;</code> tokens — it learns spurious patterns and accuracy drops, especially with lots of padding.</div>
+    </div>
+  </section>
+
+  <!-- ==================== MULTI-HEAD ==================== -->
+  <section class="tab-section" id="tab-multihead">
+    <h2 class="sec"><span class="num">05</span> In multi-head attention</h2>
+
+    <div class="card accented">
+      <h3>One mask, broadcast to every head <span class="tag">[B, H, T, T]</span></h3>
+      <p class="desc">Multi-head attention runs $H$ attention computations in parallel on different projections of $Q,K,V$. The scores have shape $[B, H, T, T]$ — but the mask is the <strong>same</strong> $[T,T]$ pattern, broadcast across the batch and head dimensions.</p>
+      <div class="math-block">
+        $$\text{scores}: [B, H, T, T] \;+\; \underbrace{M}_{[1,\,1,\,T,\,T]} \;\Rightarrow\; \text{same legality for all heads}$$
+        <div class="caption">Broadcasting copies the one mask over the $B$ and $H$ axes — you never build $H$ separate masks.</div>
+      </div>
+      <div class="intuition">
+        <strong>Heads differ in content, not in legality.</strong> Each head learns to attend to different relationships, but <em>which</em> positions are even allowed is identical — the future is the future for every head.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — same mask across H heads</h3>
+      <p class="desc">Each mini-grid is one head's causal attention. The coloured weights differ head to head (different learned content), but the locked cells — the mask — line up perfectly.</p>
+      <div class="slider-group">
+        <div class="slider-label">Number of heads $H$: <span id="mh-h">4</span></div>
+        <input type="range" id="mh-slider" min="1" max="8" step="1" value="4" oninput="onMH(this)">
+      </div>
+      <div class="preset-row"><button class="btn tiny" onclick="resampleHeads()">🎲 reshuffle heads</button></div>
+      <div class="heads-wrap" id="heads-wrap"></div>
+      <div class="statgrid">
+        <div class="statcell"><div class="l">Heads</div><div class="v"><em id="mh-count">4</em></div></div>
+        <div class="statcell"><div class="l">Scores shape</div><div class="v" style="font-size:18px" id="mh-shape">[B,4,6,6]</div></div>
+        <div class="statcell"><div class="l">Masks built</div><div class="v"><em>1</em></div></div>
+        <div class="statcell"><div class="l">Mask shape</div><div class="v" style="font-size:18px">[1,1,T,T]</div></div>
+      </div>
+      <div class="context-box">
+        <span class="cm"># multi-head: split into H heads, one shared mask</span><br>
+        Q = Q.view(B, T, H, d_k).transpose(<span class="num2">1</span>, <span class="num2">2</span>)   <span class="cm"># [B,H,T,d_k]</span><br>
+        scores = (Q @ K.transpose(-<span class="num2">2</span>,-<span class="num2">1</span>)) / math.sqrt(d_k)<br>
+        scores = scores.masked_fill(mask, <span class="kw">float</span>(<span class="num2">'-inf'</span>))  <span class="cm"># mask broadcasts over H</span><br>
+        attn = scores.softmax(-<span class="num2">1</span>)                    <span class="cm"># per-head, per-row → sums to 1</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== PRACTICE ==================== -->
+  <section class="tab-section" id="tab-practice">
+    <h2 class="sec"><span class="num">06</span> Practice — type to learn</h2>
+    <p class="lede" style="margin-bottom:24px">Recall the masking essentials from memory. Correct answers grow your score and streak; a wrong one resets the streak. Stuck? <strong>Hint</strong> reveals the answer — but typing it sticks better. Case-insensitive.</p>
+
+    <div class="statgrid">
+      <div class="statcell"><div class="l">Total blanks</div><div class="v"><em id="pr-total">0</em></div></div>
+      <div class="statcell"><div class="l">Solved</div><div class="v" id="pr-solved">0</div></div>
+      <div class="statcell"><div class="l">Streak</div><div class="v" id="pr-streak">0</div></div>
+      <div class="statcell"><div class="l">Complete</div><div class="v" id="pr-pct">0<span style="font-size:18px;color:var(--muted)">%</span></div></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">The mechanism</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">1</span> Scaled dot-product scores — fill the scaling denominator.</div>
+      <pre class="exercise">scores = Q @ K.transpose(-2,-1) / math.sqrt(<input class="blank" data-answer="d_k|dk|d_model|d" size="5" placeholder="?">)</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">2</span> Masked positions are set to which value before softmax?</div>
+      <pre class="exercise">scores = scores.masked_fill(mask, float('<input class="blank" data-answer="-inf|-infinity|-∞" size="6" placeholder="?">'))</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">3</span> Softmax of a $-\infty$ score gives what weight?</div>
+      <pre class="exercise">softmax(-inf)  →  <input class="blank" data-answer="0|0.0|zero" size="4" placeholder="?">     <span style="color:var(--comment)"># that key is ignored</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">4</span> Apply softmax over the last axis (the keys), then mix the values.</div>
+      <pre class="exercise">attn = scores.softmax(dim=<input class="blank" data-answer="-1" size="4" placeholder="?">)
+out  = attn @ <input class="blank" data-answer="V|v|values" size="4" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Causal &amp; padding</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">5</span> The causal mask allows key $j$ for query $i$ only when…</div>
+      <pre class="exercise">allowed = j <input class="blank" data-answer="<=|≤" size="4" placeholder="?"> i      <span style="color:var(--comment)"># past or self, never future</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">6</span> Build a causal mask: the strict upper triangle (the future) is masked.</div>
+      <pre class="exercise">mask = torch.<input class="blank" data-answer="triu" size="6" placeholder="?">(torch.ones(T, T), diagonal=<input class="blank" data-answer="1" size="3" placeholder="?">).bool()</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">7</span> A causal-masked attention matrix has this triangular shape.</div>
+      <pre class="exercise">shape = "<input class="blank" data-answer="lower|lower-triangular|lower triangular" size="7" placeholder="?">-triangular"   <span style="color:var(--comment)"># incl. the diagonal</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">8</span> The padding mask hides the columns of which special token?</div>
+      <pre class="exercise">mask = (tokens == <input class="blank" data-answer="PAD_ID|pad_id|pad|PAD" size="7" placeholder="?">)   <span style="color:var(--comment)"># True where padding</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">9</span> The masked decoder self-attention uses which mask type?</div>
+      <pre class="exercise">decoder_self_attn uses the <input class="blank" data-answer="causal|look-ahead|lookahead|look ahead" size="8" placeholder="?"> mask</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Multi-head &amp; normalisation</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">10</span> The scores tensor in multi-head attention has shape [B, H, T, …].</div>
+      <pre class="exercise">scores.shape == (B, H, T, <input class="blank" data-answer="T|t" size="3" placeholder="?">)   <span style="color:var(--comment)"># query × key</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">11</span> The mask broadcasts over the head axis — fill the size-1 dims.</div>
+      <pre class="exercise">mask.shape == (<input class="blank" data-answer="1" size="3" placeholder="?">, 1, T, T)   <span style="color:var(--comment)"># shared by every head</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">12</span> After masking + softmax, each query row of weights still sums to…</div>
+      <pre class="exercise">attn[i].sum()  →  <input class="blank" data-answer="1|1.0|one" size="4" placeholder="?">     <span style="color:var(--comment)"># normalisation preserved</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="note" style="margin-top:20px">Clear every blank to fire the confetti. Switch tabs with keys <strong>1–6</strong>, press <strong>?</strong> for shortcuts.</div>
+  </section>
+</main>
+
+<footer>
+  <span><a href="index.html">← all cheatsheets</a> · Browser-side · no build step · ⚡ scores → −∞ → softmax → 0</span>
+  <span>Companion to <a href="attention-tensors.html">attention-tensors.html</a> · <a href="softmax_crossentropy.html">softmax_crossentropy.html</a></span>
+</footer>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">Click anywhere to dismiss.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabBtns = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function switchTab(name) {
+  tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== SHARED HELPERS ==============
+const TOKENS = ['The','cat','sat','on','the','mat','.'];
+function tokLabel(j, T, nPad) { return j >= T - nPad ? '⟨pad⟩' : (TOKENS[j] || ('t'+j)); }
+function randScore() { return Math.random() * 4 - 1; }      // -1..3
+function makeScores(T) { return Array.from({length:T}, () => Array.from({length:T}, randScore)); }
+function softmaxRow(row) {
+  const finite = row.filter(v => isFinite(v));
+  const m = finite.length ? Math.max(...finite) : 0;
+  const ex = row.map(v => isFinite(v) ? Math.exp(v - m) : 0);
+  const s = ex.reduce((a,b)=>a+b, 0) || 1;
+  return ex.map(v => v / s);
+}
+// heat color from weight 0..1
+function heat(w) {
+  // interpolate panel-dark → accent (#818cf8)
+  const a = Math.min(1, Math.max(0, w));
+  const r = Math.round(17 + (129-17)*a);
+  const g = Math.round(20 + (140-20)*a);
+  const b = Math.round(31 + (248-31)*a);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ============== MECHANISM GRID (tab 2) ==============
+let stage = 'scores', maskType = 'none', seqT = 6, nPad = 2;
+let baseScores = makeScores(7);
+
+function allowed(i, j, T, mt, pad) {
+  let ok = true;
+  if (mt === 'causal' || mt === 'both') ok = ok && (j <= i);
+  if (mt === 'padding' || mt === 'both') ok = ok && (j < T - pad);
+  return ok;
+}
+function setStage(s) {
+  stage = s;
+  document.querySelectorAll('.stage-btn').forEach(b => b.classList.toggle('on', b.dataset.stage === s));
+  renderAttn();
+}
+function setMask(m) {
+  maskType = m;
+  document.querySelectorAll('.mask-btn').forEach(b => b.classList.toggle('on', b.dataset.mask === m));
+  document.getElementById('pad-group').style.display = (m === 'padding' || m === 'both') ? '' : 'none';
+  renderAttn();
+}
+function onSeq(el) { seqT = parseInt(el.value); document.getElementById('seq-val').textContent = seqT; if (nPad > seqT-1){nPad=seqT-1; document.getElementById('pad-slider').value=nPad; document.getElementById('pad-val').textContent=nPad;} renderAttn(); }
+function onPad(el) { nPad = Math.min(parseInt(el.value), seqT-1); document.getElementById('pad-val').textContent = nPad; renderAttn(); }
+function resampleScores() { baseScores = makeScores(7); renderAttn(); }
+
+function renderAttn() {
+  const T = seqT, pad = nPad, g = document.getElementById('attn-grid');
+  g.style.gridTemplateColumns = `64px repeat(${T}, 50px)`;
+  let html = '<div class="acell corner"></div>';
+  for (let j = 0; j < T; j++) html += `<div class="acell hdr${j>=T-pad&&(maskType==='padding'||maskType==='both')?' pad':''}">${tokLabel(j,T,pad)}</div>`;
+  let allowedCount = 0, row0sum = 0;
+  for (let i = 0; i < T; i++) {
+    html += `<div class="acell hdr qhdr">${tokLabel(i,T,pad)}</div>`;
+    const scoreRow = baseScores[i].slice(0, T).map((v,j) => allowed(i,j,T,maskType,pad) ? v : -Infinity);
+    const weights = softmaxRow(scoreRow);
+    for (let j = 0; j < T; j++) {
+      const ok = allowed(i,j,T,maskType,pad);
+      if (ok) allowedCount++;
+      if (i === 0) row0sum += weights[j];
+      if (!ok && (stage === 'masked' || stage === 'weights')) {
+        html += `<div class="acell masked"><span>·</span></div>`;
+      } else if (stage === 'scores') {
+        html += `<div class="acell">${baseScores[i][j].toFixed(1)}</div>`;
+      } else if (stage === 'masked') {
+        html += `<div class="acell">${scoreRow[j].toFixed(1)}</div>`;
+      } else { // weights
+        const w = weights[j];
+        html += `<div class="acell" style="background:${heat(w)};color:${w>0.5?'#0a0c18':'#e9ecff'}">${w.toFixed(2)}</div>`;
+      }
+    }
+  }
+  g.innerHTML = html;
+  document.getElementById('info-stage').textContent =
+    stage === 'scores' ? 'raw scores QKᵀ/√dₖ' : stage === 'masked' ? 'scores + mask (−∞)' : 'softmax weights (rows sum to 1)';
+  document.getElementById('info-rowsum').textContent = row0sum.toFixed(4);
+  document.getElementById('info-allowed').textContent = `${allowedCount} / ${T*T}`;
+}
+
+// ============== CAUSAL GRID (tab 3) ==============
+let czT = 6, czScores = makeScores(8);
+function onCz(el) { czT = parseInt(el.value); document.getElementById('cz-val').textContent = czT; renderCausal(); }
+function resampleCausal() { czScores = makeScores(8); renderCausal(); }
+function renderCausal() {
+  const T = czT, g = document.getElementById('causal-grid');
+  g.style.gridTemplateColumns = `52px repeat(${T}, 44px)`;
+  let html = '<div class="acell corner"></div>';
+  for (let j = 0; j < T; j++) html += `<div class="acell hdr">k${j}</div>`;
+  let allowedCount = 0;
+  for (let i = 0; i < T; i++) {
+    html += `<div class="acell hdr qhdr">q${i}</div>`;
+    const row = czScores[i].slice(0, T).map((v,j) => j <= i ? v : -Infinity);
+    const w = softmaxRow(row);
+    for (let j = 0; j < T; j++) {
+      if (j <= i) { allowedCount++; html += `<div class="acell" style="background:${heat(w[j])};color:${w[j]>0.5?'#0a0c18':'#e9ecff'}">${w[j].toFixed(2)}</div>`; }
+      else html += `<div class="acell masked"><span>·</span></div>`;
+    }
+  }
+  g.innerHTML = html;
+  document.getElementById('cz-q0').textContent = 'k0 only (itself)';
+  document.getElementById('cz-qn').textContent = `k0 … k${T-1} (all)`;
+  document.getElementById('cz-allowed').textContent = `${allowedCount} / ${T*T}  =  T(T+1)/2`;
+}
+
+// ============== PADDING GRID (tab 4) ==============
+const PZ_T = 6;
+let pzPad = 2, pzScores = makeScores(6);
+function onPz(el) { pzPad = parseInt(el.value); document.getElementById('pz-val').textContent = pzPad; renderPad(); }
+function resamplePad() { pzScores = makeScores(6); renderPad(); }
+function renderPad() {
+  const T = PZ_T, pad = pzPad, g = document.getElementById('pad-grid');
+  g.style.gridTemplateColumns = `64px repeat(${T}, 50px)`;
+  let html = '<div class="acell corner"></div>';
+  for (let j = 0; j < T; j++) html += `<div class="acell hdr${j>=T-pad?' pad':''}">${tokLabel(j,T,pad)}</div>`;
+  for (let i = 0; i < T; i++) {
+    html += `<div class="acell hdr qhdr">${tokLabel(i,T,pad)}</div>`;
+    const row = pzScores[i].slice(0, T).map((v,j) => j < T - pad ? v : -Infinity);
+    const w = softmaxRow(row);
+    for (let j = 0; j < T; j++) {
+      if (j < T - pad) html += `<div class="acell" style="background:${heat(w[j])};color:${w[j]>0.5?'#0a0c18':'#e9ecff'}">${w[j].toFixed(2)}</div>`;
+      else html += `<div class="acell masked"><span>·</span></div>`;
+    }
+  }
+  g.innerHTML = html;
+  document.getElementById('pz-real').textContent = `${T - pad} real token${T-pad===1?'':'s'}`;
+  document.getElementById('pz-pad').textContent = `${pad} column${pad===1?'':'s'}`;
+  document.getElementById('pz-sum').textContent = '1.0000';
+}
+
+// ============== MULTI-HEAD (tab 5) ==============
+let mhH = 4, mhT = 6;
+let headScores = [];
+function buildHeads() { headScores = Array.from({length:8}, () => makeScores(mhT)); }
+function onMH(el) { mhH = parseInt(el.value); document.getElementById('mh-h').textContent = mhH; renderHeads(); }
+function resampleHeads() { buildHeads(); renderHeads(); }
+function renderHeads() {
+  const T = mhT, wrap = document.getElementById('heads-wrap');
+  let html = '';
+  for (let h = 0; h < mhH; h++) {
+    let cells = '';
+    for (let i = 0; i < T; i++) {
+      const row = headScores[h][i].map((v,j) => j <= i ? v : -Infinity);
+      const w = softmaxRow(row);
+      for (let j = 0; j < T; j++) {
+        cells += (j <= i)
+          ? `<div class="mcell" style="background:${heat(w[j])}"></div>`
+          : `<div class="mcell masked"></div>`;
+      }
+    }
+    html += `<div class="head-mini"><div class="hlabel">head ${h+1}</div><div class="mini-grid" style="grid-template-columns:repeat(${T},16px)">${cells}</div></div>`;
+  }
+  wrap.innerHTML = html;
+  document.getElementById('mh-count').textContent = mhH;
+  document.getElementById('mh-shape').textContent = `[B,${mhH},${T},${T}]`;
+}
+
+// ============== PRACTICE / DRILLS ==============
+let solved = 0;
+const totalDrills = document.querySelectorAll('.blank').length;
+let streak = 0;
+const sectionsCompleted = new Set();
+document.getElementById('scoreTot').textContent = totalDrills;
+document.getElementById('pr-total').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+  document.getElementById('pr-solved').textContent = solved;
+  document.getElementById('pr-streak').textContent = streak;
+  document.getElementById('pr-pct').innerHTML = Math.round(solved/totalDrills*100) + '<span style="font-size:18px;color:var(--muted)">%</span>';
+}
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong', 'pop', 'shake');
+    void b.offsetWidth;
+    if (ok) b.classList.add('correct', 'pop');
+    else b.classList.add('wrong', 'shake');
+  });
+  let newlySolved = 0;
+  blanks.forEach(b => { if (b.classList.contains('correct') && b.dataset.solved !== '1') { b.dataset.solved = '1'; b.disabled = true; newlySolved++; } });
+  if (Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good'; fb.textContent = randomGood();
+    if (newlySolved > 0) { solved += newlySolved; streak += newlySolved; sparkle(drill); updateProgress(); checkSectionComplete(); }
+  } else if (newlySolved > 0) {
+    solved += newlySolved; streak += newlySolved;
+    fb.className = 'feedback good'; fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0; fb.className = 'feedback bad'; fb.textContent = randomBad(); updateProgress();
+  }
+}
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = ''; b.classList.remove('correct', 'wrong'); b.disabled = false;
+        b.dataset.revealed = ''; b.dataset.solved = ''; solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved'); drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint'; fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress(); return;
+  }
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want; b.classList.remove('wrong'); b.classList.add('correct');
+    b.dataset.solved = '1'; b.dataset.revealed = '1'; b.disabled = true; revealedCount++;
+  });
+  if (revealedCount === 0) { fb.className = 'feedback hint'; fb.textContent = 'all done.'; return; }
+  solved += revealedCount; streak = 0; drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) { drill.classList.add('solved'); sparkle(drill); }
+  fb.className = 'feedback hint'; fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+function randomGood() {
+  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'clean.', 'no peeking ahead!'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'masked out. retry.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('all drills complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span'); c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+let toastTimer = null;
+function showToast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400); }
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `position:fixed;left:${rect.left + rect.width/2}px;top:${rect.top + 20}px;width:6px;height:6px;border-radius:50%;background:radial-gradient(circle,#fff,var(--accent));pointer-events:none;z-index:170;box-shadow:0 0 10px var(--accent);`;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200, dy = -Math.random() * 80 - 40;
+    s.animate([{ transform: 'translate(0,0) scale(1)', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() { confCanvas.width = window.innerWidth; confCanvas.height = window.innerHeight; }
+sizeConf(); window.addEventListener('resize', sizeConf);
+let particles = [], confettiRunning = false;
+function burstConfetti() {
+  const colors = ['#818cf8','#38bdf8','#c084fc','#a5b4fc','#4ade80','#fbbf24','#ffffff'];
+  for (let i = 0; i < 150; i++) {
+    particles.push({ x: window.innerWidth/2 + (Math.random()-0.5)*80, y: window.innerHeight/3, vx: (Math.random()-0.5)*14, vy: -Math.random()*12 - 4, g: 0.32, size: Math.random()*5 + 3, color: colors[Math.floor(Math.random()*colors.length)], rot: Math.random()*Math.PI*2, vr: (Math.random()-0.5)*0.4, life: 120 + Math.random()*40 });
+  }
+  if (!confettiRunning) runConfetti();
+}
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => { p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--; confCtx.save(); confCtx.translate(p.x, p.y); confCtx.rotate(p.rot); confCtx.fillStyle = p.color; confCtx.fillRect(-p.size, -p.size/2, p.size*2, p.size); confCtx.restore(); });
+    if (particles.length > 0) requestAnimationFrame(frame); else confettiRunning = false;
+  }
+  frame();
+}
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+const TAB_ORDER = ['why','how','causal','padding','multihead','practice'];
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') { e.preventDefault(); const drill = e.target.closest('[data-drill]'); if (drill) { const cb = drill.querySelector('.btn:not(.ghost)'); if (cb) cb.click(); } }
+    return;
+  }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  else if (e.key === 'Escape') hideHelp();
+  else if (/^[1-6]$/.test(e.key)) switchTab(TAB_ORDER[parseInt(e.key) - 1]);
+});
+
+// ============== INIT ==============
+setMask('none'); renderAttn();
+renderCausal();
+renderPad();
+buildHeads(); renderHeads();
+updateProgress();
+</script>
+</body>
+</html>

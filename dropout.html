@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dropout · Interactive</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {
+    delimiters: [
+      {left:'$$', right:'$$', display:true},
+      {left:'$', right:'$', display:false}
+    ],
+    throwOnError: false
+  })"></script>
+<style>
+  :root {
+    --bg: #0c0a14;          --bg-2: #14101f;
+    --panel: #181228;       --panel-2: #1f1733;
+    --code-bg: #0a0712;
+    --ink: #f3ecff;         --muted: #a394bd;
+    --line: rgba(255,255,255,0.07);
+    --grid: rgba(244, 114, 182, 0.035);
+    --accent: #f472b6;      --accent-2: #c084fc;
+    --amber: #fde68a;       --good: #4ade80;   --bad: #f87171;
+    --warn: #fbbf24;        --blue: #38bdf8;   --orange: #fb923c;
+    --comment: #8a7da6;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    line-height: 1.7; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at top right, rgba(244, 114, 182, 0.12), transparent 55%),
+      radial-gradient(ellipse at bottom left, rgba(192, 132, 252, 0.08), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    min-height: 100vh;
+  }
+
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.04; z-index: 200;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.30; z-index: 199;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0 1px, transparent 1px 3px);
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* STICKY HEADER */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(12, 10, 20, 0.82); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 18px;
+    padding: 14px 24px 12px; flex-wrap: wrap;
+  }
+  .logo {
+    font-family: var(--serif); font-weight: 600; font-size: 18px; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 9px; color: var(--ink);
+  }
+  .logo .spark { filter: drop-shadow(0 0 6px var(--accent)); }
+  .logo em { font-style: italic; color: var(--accent); font-weight: 900; }
+  .badge {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--bg); background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    padding: 3px 8px; border-radius: 999px; font-weight: 700;
+  }
+  .progress-bar-outer { flex: 1; min-width: 90px; height: 7px; border-radius: 999px; background: #160f24; border: 1px solid var(--line); overflow: hidden; }
+  .progress-bar-inner { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px var(--accent); transition: width 0.5s cubic-bezier(.2,.8,.2,1); }
+  .stat { font-family: var(--mono); font-size: 13px; color: var(--muted); display: flex; align-items: baseline; gap: 2px; }
+  .stat .num { color: var(--accent); font-weight: 700; font-size: 15px; }
+  .stat .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 4px; }
+  .streak { font-family: var(--mono); font-size: 14px; color: var(--warn); white-space: nowrap; }
+  .streak .num { font-weight: 700; }
+
+  .btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #1a0a14; border: none;
+    padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: var(--mono); font-size: 13px;
+    font-weight: 600; transition: transform .12s, box-shadow .2s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(244,114,182,0.28); }
+  .btn:active { transform: translateY(0); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--accent); box-shadow: none; }
+  .btn.ghost.on { color: var(--accent); border-color: var(--accent); background: rgba(244,114,182,0.08); }
+  .btn.tiny { padding: 5px 11px; font-size: 12px; }
+  .btn.copied { background: var(--good); color: #06121b; }
+
+  /* TAB NAV */
+  nav.tabs { max-width: 1080px; margin: 0 auto; display: flex; gap: 4px; padding: 0 16px 0; overflow-x: auto; scrollbar-width: thin; }
+  nav.tabs button {
+    background: none; border: none; cursor: pointer; white-space: nowrap; color: var(--muted);
+    font-family: var(--mono); font-size: 12.5px; padding: 11px 14px; border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s; display: flex; align-items: center; gap: 6px;
+  }
+  nav.tabs button:hover { color: var(--ink); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .check { color: var(--good); font-size: 12px; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 36px 24px 120px; }
+  .tab-section { display: none; animation: fadeUp .35s ease; }
+  .tab-section.active { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 12px; }
+  .eyebrow::before { content: ''; width: 30px; height: 1px; background: var(--accent); }
+
+  .display-h { font-family: var(--serif); font-weight: 300; letter-spacing: -0.03em; font-size: clamp(34px, 6vw, 60px); line-height: 0.98; margin-bottom: 14px; }
+  .display-h em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+  .lede { font-size: 17px; max-width: 660px; color: var(--muted); font-weight: 300; margin-bottom: 34px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  h2.sec { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.28em; text-transform: uppercase; color: var(--muted); margin: 40px 0 22px; display: flex; align-items: center; gap: 14px; }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 28px; margin-bottom: 22px; position: relative; }
+  .card.accented::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); border-radius: 14px 0 0 0; }
+  .card.accented::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 22px; height: 22px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); border-radius: 0 0 14px 0; }
+  .card h3 { font-family: var(--serif); font-size: 1.35rem; font-weight: 600; color: var(--ink); margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tag { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em; background: var(--accent); color: #1a0a14; padding: 3px 9px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+  .tag.green  { background: var(--good); color:#06121b; }
+  .tag.purple { background: var(--accent-2); }
+  .tag.orange { background: var(--orange); }
+  .tag.blue   { background: var(--blue); color:#06121b; }
+  p.desc { color: var(--muted); font-size: 0.95rem; margin-bottom: 14px; }
+
+  .math-block { background: var(--code-bg); border: 1px solid rgba(244, 114, 182, 0.20); border-radius: 12px; padding: 20px 26px; margin: 14px 0; text-align: center; overflow-x: auto; }
+  .math-block .katex { font-size: 1.22em; color: #ffe9f4; }
+  .math-block .caption { margin-top: 9px; font-size: 0.78rem; color: var(--muted); font-style: italic; }
+  .katex { color: var(--amber); }
+
+  .intuition { background: rgba(244, 114, 182, 0.06); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 0.9rem; color: #d9cdeb; }
+  .intuition strong { color: var(--accent); }
+
+  .context-box { background: var(--bg-2); border: 1px dashed rgba(255,255,255,0.18); border-radius: 10px; padding: 18px; margin: 14px 0; font-size: 0.9rem; color: var(--muted); font-family: var(--mono); line-height: 1.9; }
+  .context-box .hl { color: var(--amber); font-weight: 600; }
+  .context-box code { color: var(--accent-2); }
+  .context-box .kw { color: var(--accent); }
+  .context-box .num2 { color: var(--amber); }
+  .context-box .cm { color: var(--comment); font-style: italic; }
+
+  .note { background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #bbf7d0; margin: 14px 0; }
+  .warn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #fecaca; margin: 14px 0; }
+
+  .slider-group { margin: 14px 0; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
+  .slider-label span { color: var(--accent); font-weight: 700; }
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 3px; border-radius: 999px; background: rgba(255,255,255,0.14); outline: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); transition: transform .15s; }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+  input[type=range]::-moz-range-thumb { width: 17px; height: 17px; border: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); }
+
+  .output { background: var(--bg-2); border-radius: 10px; padding: 14px 18px; margin-top: 14px; border: 1px solid var(--line); }
+  .output-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 0.88rem; }
+  .output-row .key { color: var(--muted); }
+  .output-row .val { color: var(--amber); font-family: var(--mono); font-weight: 600; }
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+
+  /* NEURON GRID */
+  .neuron-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin: 18px 0; }
+  @media(max-width:560px){ .neuron-grid { grid-template-columns: repeat(6, 1fr); } }
+  .neuron {
+    aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 0.74rem; font-weight: 700; position: relative;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff;
+    box-shadow: 0 0 16px rgba(244,114,182,0.30); transition: all .3s cubic-bezier(.2,.8,.2,1);
+  }
+  .neuron.dropped {
+    background: #1a1426; color: #4a3d5e; box-shadow: none; transform: scale(0.86);
+    border: 1px dashed #3a2f4d;
+  }
+  .neuron.dropped::after { content: '✕'; position: absolute; font-size: 1.1rem; color: #5a4a72; }
+  .neuron.dropped span { opacity: 0; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+
+  /* TENSOR HEATMAP — before / mask / after */
+  .tensor-viz { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 10px; align-items: center; margin: 18px 0; }
+  @media(max-width:680px){ .tensor-viz { grid-template-columns: 1fr; } .tensor-arrow { transform: rotate(90deg); justify-self: center; padding: 2px 0; } }
+  .tensor-panel { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .tensor-panel .ttitle { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .tensor-panel .tshape { font-family: var(--mono); font-size: 10px; color: var(--accent-2); background: rgba(192,132,252,0.12); padding: 1px 7px; border-radius: 999px; letter-spacing: 0; }
+  .tensor-grid { display: grid; gap: 4px; }
+  .tcell { aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 0.62rem; font-weight: 600; color: #fff; position: relative; transition: background .35s cubic-bezier(.2,.8,.2,1), transform .35s cubic-bezier(.2,.8,.2,1); border: 1px solid rgba(255,255,255,0.05); text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
+  .tcell.zero { color: #5a4a72; background: #140e20 !important; border: 1px dashed #3a2f4d; transform: scale(0.9); text-shadow: none; }
+  .tensor-arrow { font-size: 18px; color: var(--accent); text-align: center; line-height: 1; }
+  .tensor-arrow .lbl { display: block; font-family: var(--mono); font-size: 8.5px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 3px; }
+
+  table.tbl { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 0.84rem; }
+  table.tbl th { background: var(--bg-2); color: var(--accent); padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 0.74rem; }
+  table.tbl th:first-child { text-align: left; }
+  table.tbl td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: var(--mono); text-align: right; }
+  table.tbl td:first-child { text-align: left; color: var(--muted); }
+  table.tbl tr.dropped td { color: #5a4a72; }
+  td.pos { color: var(--good); } td.neg { color: var(--bad); } td.zero { color: #5a4a72; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; margin: 16px 0; }
+  @media(max-width:640px){ .statgrid { grid-template-columns: repeat(2, 1fr); } }
+  .statcell { background: var(--panel); padding: 22px 18px; }
+  .statcell .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .statcell .v { font-family: var(--serif); font-size: 30px; font-weight: 300; line-height: 1; font-feature-settings: "tnum"; }
+  .statcell .v em { font-style: italic; font-weight: 900; color: var(--accent); }
+
+  .bar-row { display: flex; align-items: center; gap: 12px; margin: 7px 0; }
+  .bar-label { width: 70px; font-size: 0.78rem; color: var(--muted); text-align: right; font-family: var(--mono); }
+  .bar-wrap { flex: 1; background: #120c1e; border-radius: 5px; height: 22px; overflow: hidden; border: 1px solid var(--line); }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s cubic-bezier(.2,.8,.2,1); }
+  .bar-fill.a { background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 12px rgba(244,114,182,0.4); }
+  .bar-fill.g { background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 12px rgba(74,222,128,0.4); }
+  .bar-val { width: 80px; font-size: 0.78rem; color: var(--ink); font-family: var(--mono); text-align: right; }
+
+  /* DRILLS */
+  .drill { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; transition: border-color .3s, box-shadow .3s; }
+  .drill.solved { border-color: rgba(74,222,128,0.5); box-shadow: 0 0 24px rgba(74,222,128,0.10); }
+  .drill .prompt { font-size: 0.96rem; color: var(--ink); margin-bottom: 12px; display: flex; gap: 9px; align-items: baseline; }
+  .drill .prompt .num { font-family: var(--mono); font-size: 12px; color: var(--accent); border: 1px solid rgba(244,114,182,0.4); border-radius: 6px; padding: 1px 7px; flex-shrink: 0; }
+  pre.exercise { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; font-family: var(--mono); font-size: 0.86rem; color: #d9cdeb; overflow-x: auto; line-height: 2.1; white-space: pre-wrap; }
+  .blank { font-family: var(--mono); font-size: 0.84rem; background: #160f24; border: none; border-bottom: 2px solid var(--accent); color: var(--amber); text-align: center; padding: 3px 4px; border-radius: 5px 5px 0 0; outline: none; transition: all .2s; min-width: 44px; }
+  .blank:focus { background: #1d1430; box-shadow: 0 2px 12px rgba(244,114,182,0.25); }
+  .blank.correct { color: var(--good); border-bottom-color: var(--good); background: rgba(74,222,128,0.08); }
+  .blank.wrong { color: var(--bad); border-bottom-color: var(--bad); }
+  .blank.pop { animation: pop .3s ease; }
+  .blank.shake { animation: shake .35s ease; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .controls { display: flex; gap: 8px; margin-top: 14px; }
+  .feedback { margin-top: 11px; font-size: 0.85rem; min-height: 18px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--warn); }
+
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; }
+  .toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(120px); background: var(--panel-2); border: 1px solid var(--accent); color: var(--ink); padding: 13px 22px; border-radius: 12px; font-family: var(--mono); font-size: 14px; z-index: 160; box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: transform .4s cubic-bezier(.2,.9,.3,1.2); opacity: 0; }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #help-overlay { position: fixed; inset: 0; background: rgba(8,5,14,0.78); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 180; }
+  #help-overlay.show { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  #help-overlay .help-content { background: var(--panel); border: 1px solid var(--accent); border-radius: 16px; padding: 30px 34px; max-width: 440px; width: 90%; }
+  #help-overlay h3 { font-family: var(--serif); margin: 0 0 16px; color: var(--accent); font-size: 1.4rem; }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--muted); }
+  #help-overlay kbd { font-family: var(--mono); background: var(--bg-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 8px; color: var(--ink); font-size: 12px; }
+
+  footer { max-width: 1080px; margin: 0 auto; padding: 30px 24px 60px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="scanlines"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="spark">⚡</span> <em>Dropout</em> <span class="badge">Type to Learn</span></div>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat"><span class="num" id="scoreNum">0</span><span style="margin:0 2px">/</span><span class="num" id="scoreTot">0</span><span class="lbl">solved</span></div>
+    <div class="streak">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="what">1 · What is it?</button>
+    <button data-tab="mask">2 · The mask</button>
+    <button data-tab="inverted">3 · Inverted dropout</button>
+    <button data-tab="why">4 · Why it works</button>
+    <button data-tab="code">5 · In code</button>
+    <button data-tab="practice">✦ Practice</button>
+  </nav>
+</div>
+
+<main>
+  <div class="eyebrow">Regularization · Srivastava et al. · 2014</div>
+  <h1 class="display-h">Drop neurons.<br><em>Generalize better.</em></h1>
+  <p class="lede">Dropout randomly switches off a fraction of neurons on every training step, so the network can't lean on any single unit. <strong>Flip the mask</strong>, watch activations vanish and rescale, see why the expectation is preserved — then lock it in on the <strong>Practice</strong> tab.</p>
+
+  <!-- ==================== WHAT ==================== -->
+  <section class="tab-section active" id="tab-what">
+    <h2 class="sec"><span class="num">01</span> What is dropout?</h2>
+
+    <div class="card accented">
+      <h3>The one-line idea <span class="tag">randomly zero activations</span></h3>
+      <p class="desc">On each forward pass during <strong>training</strong>, every neuron is independently kept with probability $1-p$ or set to <strong>zero</strong> with probability $p$ (the "drop probability"). A different random subset is dropped every step.</p>
+      <div class="math-block">
+        $$m_i \sim \text{Bernoulli}(1-p), \qquad \tilde h_i = m_i \, h_i$$
+        <div class="caption">$h_i$ = activation of neuron $i$ · $m_i \in \{0,1\}$ = random mask · $p$ = drop probability</div>
+      </div>
+      <div class="intuition">
+        <strong>Why on earth would you delete neurons?</strong> If a unit can always rely on a specific partner to fix its mistakes, the two <em>co-adapt</em> and the network memorises instead of generalising. Randomly removing units forces every neuron to be useful on its own — a powerful, almost-free regulariser.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Two phases — train vs. eval</h3>
+      <div class="two-col">
+        <div class="math-block" style="margin:0">
+          $$\textbf{train:}\;\; \tilde h = \frac{m \odot h}{1-p}$$
+          <div class="caption">mask on · rescale so the expected output is unchanged</div>
+        </div>
+        <div class="math-block" style="margin:0">
+          $$\textbf{eval:}\;\; \tilde h = h$$
+          <div class="caption">dropout is the identity — nothing is dropped</div>
+        </div>
+      </div>
+      <div class="warn">Forgetting to switch a PyTorch model to <code>model.eval()</code> at inference is a classic bug: dropout stays on and your predictions become random. Always toggle <code>train()</code> / <code>eval()</code>.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Where it sits in a network</h3>
+      <div class="context-box">
+        <span class="cm"># a typical block — dropout after the activation</span><br>
+        x = <span class="kw">relu</span>(linear1(x))<br>
+        x = <span class="kw">dropout</span>(x, p=<span class="num2">0.5</span>)   <span class="cm"># ← zero a random 50%, rescale the rest</span><br>
+        x = linear2(x)<br><br>
+        <span class="cm"># transformers sprinkle small dropout (p≈0.1) on</span><br>
+        <span class="cm"># attention weights, residual paths, and embeddings</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== MASK ==================== -->
+  <section class="tab-section" id="tab-mask">
+    <h2 class="sec"><span class="num">02</span> The mask — see neurons drop</h2>
+
+    <div class="card accented">
+      <h3>Interactive — flip the dropout mask</h3>
+      <p class="desc">A layer of 24 neurons. Each one is independently dropped with probability $p$. Move the slider, then resample to draw a fresh Bernoulli mask — exactly what happens on every training step.</p>
+      <div class="preset-row">
+        <button class="btn tiny" onclick="resampleMask()">🎲 resample mask</button>
+        <button class="btn ghost tiny" onclick="setP(0.2)">p=0.2</button>
+        <button class="btn ghost tiny" onclick="setP(0.5)">p=0.5</button>
+        <button class="btn ghost tiny" onclick="setP(0.8)">p=0.8</button>
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">Drop probability $p$: <span id="p-val">0.50</span></div>
+        <input type="range" id="p-slider" min="0" max="0.9" step="0.05" value="0.5" oninput="onPslider(this)">
+      </div>
+      <div class="neuron-grid" id="neuron-grid"></div>
+      <div class="legend">
+        <div><span class="sw" style="background:linear-gradient(135deg,var(--accent),var(--accent-2))"></span>kept (active)</div>
+        <div><span class="sw" style="background:#1a1426;border:1px dashed #3a2f4d"></span>dropped (= 0)</div>
+      </div>
+      <div class="statgrid">
+        <div class="statcell"><div class="l">Kept</div><div class="v"><em id="m-kept">—</em></div></div>
+        <div class="statcell"><div class="l">Dropped</div><div class="v" id="m-dropped">—</div></div>
+        <div class="statcell"><div class="l">Keep rate 1−p</div><div class="v" id="m-keep">—</div></div>
+        <div class="statcell"><div class="l">Scale 1/(1−p)</div><div class="v" id="m-scale">—</div></div>
+      </div>
+      <div class="note">The empirical keep rate jitters around $1-p$ because each mask is random — over many steps it averages out exactly to $1-p$.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Masked tensor — before → mask → after <span class="tag purple">heatmap</span></h3>
+      <p class="desc">A small activation tensor $\mathbf{h}$ flows through dropout. The <strong>mask</strong> $\mathbf{m}$ zeroes a random subset; the <strong>after</strong> tensor $\tilde{\mathbf{h}}$ shows those cells turned to <strong>0</strong> (the survivors optionally rescaled by $1/(1-p)$). Resample to redraw the Bernoulli mask — exactly what happens on each training step.</p>
+      <div class="preset-row">
+        <button class="btn tiny" onclick="resampleTensorMask()">🎲 resample mask</button>
+        <button class="btn ghost tiny" onclick="resampleTensorVals()">↻ new values</button>
+        <button class="btn ghost tiny on" id="rescale-toggle" onclick="toggleRescale()">rescale 1/(1−p): on</button>
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">Drop probability $p$: <span id="t-p-val">0.50</span></div>
+        <input type="range" id="t-p-slider" min="0" max="0.9" step="0.05" value="0.5" oninput="onTensorP(this)">
+      </div>
+      <div class="tensor-viz">
+        <div class="tensor-panel">
+          <div class="ttitle"><span>before · h</span><span class="tshape">[4, 6]</span></div>
+          <div class="tensor-grid" id="t-before" style="grid-template-columns:repeat(6,1fr)"></div>
+        </div>
+        <div class="tensor-arrow">⊙<span class="lbl">mask</span></div>
+        <div class="tensor-panel">
+          <div class="ttitle"><span>mask · m</span><span class="tshape">[4, 6]</span></div>
+          <div class="tensor-grid" id="t-mask" style="grid-template-columns:repeat(6,1fr)"></div>
+        </div>
+        <div class="tensor-arrow">=<span class="lbl">apply</span></div>
+        <div class="tensor-panel">
+          <div class="ttitle"><span>after · h̃</span><span class="tshape">[4, 6]</span></div>
+          <div class="tensor-grid" id="t-after" style="grid-template-columns:repeat(6,1fr)"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <div><span class="sw" style="background:rgba(244,114,182,0.85)"></span>positive value</div>
+        <div><span class="sw" style="background:rgba(56,189,248,0.85)"></span>negative value</div>
+        <div><span class="sw" style="background:#140e20;border:1px dashed #3a2f4d"></span>dropped → 0</div>
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">units kept</span><span class="val" id="t-kept">—</span></div>
+        <div class="output-row"><span class="key">$\sum h$ (before)</span><span class="val" id="t-sumb">—</span></div>
+        <div class="output-row"><span class="key">$\sum \tilde h$ (after)</span><span class="val" id="t-suma">—</span></div>
+        <div class="output-row"><span class="key">scale applied to survivors</span><span class="val" id="t-scale">—</span></div>
+      </div>
+      <div class="note" id="t-note">With rescale <strong>on</strong>, $\sum\tilde h$ stays close to $\sum h$ on average — inverted dropout keeping the signal honest. Toggle it <strong>off</strong> to watch the sum collapse toward $(1-p)\sum h$.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Forward pass on a real vector</h3>
+      <p class="desc">Watch a small activation vector $\mathbf{h}$ pass through the same mask. Standard dropout zeros the dropped units; that's it for the forward math.</p>
+      <div class="preset-row"><button class="btn tiny" onclick="resampleVec()">🎲 resample</button></div>
+      <table class="tbl" id="vec-table"></table>
+      <div class="output">
+        <div class="output-row"><span class="key">units kept</span><span class="val" id="vec-kept">—</span></div>
+        <div class="output-row"><span class="key">$\sum h_i$ (before)</span><span class="val" id="vec-sumh">—</span></div>
+        <div class="output-row"><span class="key">$\sum \tilde h_i$ (after, no rescale)</span><span class="val" id="vec-sumy">—</span></div>
+      </div>
+      <div class="warn">Notice the sum <em>shrinks</em> after dropping — roughly by a factor $1-p$. The next layer suddenly sees weaker signals. That's the problem inverted dropout fixes.</div>
+    </div>
+  </section>
+
+  <!-- ==================== INVERTED ==================== -->
+  <section class="tab-section" id="tab-inverted">
+    <h2 class="sec"><span class="num">03</span> Inverted dropout — keep the scale honest</h2>
+
+    <div class="card accented">
+      <h3>Rescale during training <span class="tag purple">what frameworks actually do</span></h3>
+      <p class="desc">If we drop a fraction $p$ of units, the surviving activations are too weak on average. <strong>Inverted dropout</strong> divides the kept units by $1-p$ during training, so the expected output equals the original — and test time needs no changes at all.</p>
+      <div class="math-block">
+        $$\tilde h_i = \frac{m_i \, h_i}{1-p}, \qquad \mathbb{E}[\tilde h_i] = \frac{(1-p)\,h_i}{1-p} = h_i$$
+        <div class="caption">The $1-p$ in the denominator exactly cancels the $1-p$ chance of survival.</div>
+      </div>
+      <div class="intuition">
+        <strong>Why "inverted"?</strong> The original 2014 paper scaled <em>down</em> at test time (multiply by $1-p$). Frameworks flipped it: scale <em>up</em> at train time instead. Same expectation, but inference is left as a clean identity — faster and bug-resistant.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — expectation is preserved</h3>
+      <p class="desc">Apply inverted dropout to a fixed vector thousands of times and average the result per unit. The empirical mean converges to the original $\mathbf{h}$ — the rescale keeps the network's signal honest.</p>
+      <div class="slider-group">
+        <div class="slider-label">Drop probability $p$: <span id="inv-p-val">0.50</span></div>
+        <input type="range" id="inv-p-slider" min="0.05" max="0.9" step="0.05" value="0.5" oninput="onInvP(this)">
+      </div>
+      <div class="preset-row">
+        <button class="btn tiny" onclick="runExpectation(2000)">▶ run 2000 samples</button>
+        <button class="btn ghost tiny" onclick="resetExpectation()">↺ reset</button>
+        <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">samples: <span id="inv-count" style="color:var(--accent)">0</span></span>
+      </div>
+      <table class="tbl" id="inv-table"></table>
+      <div class="output">
+        <div class="output-row"><span class="key">mean abs error  |mean(ỹ) − h|</span><span class="val" id="inv-err">—</span></div>
+        <div class="output-row"><span class="key">scale factor 1/(1−p)</span><span class="val" id="inv-scale">—</span></div>
+      </div>
+      <div class="note">More samples → smaller error. The estimator is unbiased: averaged over masks, inverted dropout is the identity in expectation.</div>
+    </div>
+  </section>
+
+  <!-- ==================== WHY ==================== -->
+  <section class="tab-section" id="tab-why">
+    <h2 class="sec"><span class="num">04</span> Why it works</h2>
+
+    <div class="card accented">
+      <h3>An ensemble of exponentially many networks <span class="tag blue">ensemble view</span></h3>
+      <p class="desc">Each dropout mask defines a different "thinned" sub-network sharing the same weights. A layer of $n$ neurons has $2^n$ possible on/off patterns — training with dropout approximately trains all of them at once and averages them at test time.</p>
+      <div class="math-block">
+        $$\#\text{sub-networks} = 2^{\,n}$$
+        <div class="caption">$n$ = number of units that can be dropped</div>
+      </div>
+      <div class="slider-group">
+        <div class="slider-label">Neurons $n$: <span id="ens-n">20</span></div>
+        <input type="range" id="ens-slider" min="1" max="64" step="1" value="20" oninput="onEns(this)">
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">distinct sub-networks $2^n$</span><span class="val" id="ens-count">—</span></div>
+        <div class="output-row"><span class="key">in words</span><span class="val" id="ens-words">—</span></div>
+      </div>
+      <div class="intuition">
+        At test time we don't sample — we use the full network with all units present (scaled). That single pass is a cheap approximation to <em>averaging the whole ensemble</em>, which is exactly what makes ensembles generalise.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Breaking co-adaptation</h3>
+      <p class="desc">Without dropout, neurons form fragile cliques: unit A learns to correct a quirk of unit B, which only works if B is present. Drop B at random and A must instead learn a feature that stands on its own.</p>
+      <div class="two-col">
+        <div class="context-box" style="margin:0">
+          <strong style="color:var(--bad)">Without dropout</strong><br>
+          • neurons co-adapt<br>
+          • brittle, memorises noise<br>
+          • big train/val gap (overfit)
+        </div>
+        <div class="context-box" style="margin:0">
+          <strong style="color:var(--good)">With dropout</strong><br>
+          • redundant, robust features<br>
+          • acts like an ensemble<br>
+          • smaller train/val gap
+        </div>
+      </div>
+      <div class="note">Dropout adds noise, so the <strong>training</strong> loss is usually higher/noisier — but the <strong>validation</strong> loss is lower. That widening-then-closing gap is the whole point.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Cousins &amp; cautions</h3>
+      <div class="context-box">
+        <span class="kw">DropConnect</span> — drop individual weights instead of whole activations.<br>
+        <span class="kw">Spatial / 2D dropout</span> — drop entire feature maps in CNNs.<br>
+        <span class="kw">DropPath / stochastic depth</span> — drop whole residual blocks.<br><br>
+        <span class="cm"># caution: dropout + BatchNorm can fight each other.</span><br>
+        <span class="cm"># modern CNNs often prefer BN/augmentation; transformers keep p≈0.1.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CODE ==================== -->
+  <section class="tab-section" id="tab-code">
+    <h2 class="sec"><span class="num">05</span> In code — PyTorch</h2>
+
+    <div class="card accented">
+      <h3>nn.Dropout in a module</h3>
+      <div class="context-box">
+        <span class="kw">import</span> torch.nn <span class="kw">as</span> nn<br><br>
+        <span class="kw">class</span> <span style="color:var(--blue)">MLP</span>(nn.Module):<br>
+        &nbsp;&nbsp;<span class="kw">def</span> __init__(self):<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;self.fc1 = nn.Linear(<span class="num2">784</span>, <span class="num2">256</span>)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;self.drop = nn.Dropout(p=<span class="num2">0.5</span>)   <span class="cm"># inverted dropout, built in</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;self.fc2 = nn.Linear(<span class="num2">256</span>, <span class="num2">10</span>)<br><br>
+        &nbsp;&nbsp;<span class="kw">def</span> forward(self, x):<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;x = torch.relu(self.fc1(x))<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;x = self.drop(x)            <span class="cm"># active only in training mode</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> self.fc2(x)
+      </div>
+      <div class="intuition">
+        <code>nn.Dropout</code> already implements <strong>inverted</strong> dropout and reads the module's mode flag. You never rescale by hand — you just flip the model between <code>train()</code> and <code>eval()</code>.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>The mode switch that matters</h3>
+      <div class="context-box">
+        model.<span class="kw">train</span>()      <span class="cm"># dropout ON  → masks + rescale</span><br>
+        out = model(x)<br>
+        loss.backward()<br><br>
+        model.<span class="kw">eval</span>()       <span class="cm"># dropout OFF → identity pass</span><br>
+        <span class="kw">with</span> torch.no_grad():<br>
+        &nbsp;&nbsp;preds = model(x)   <span class="cm"># deterministic, full network</span>
+      </div>
+      <div class="warn">If validation accuracy is weirdly noisy or worse than training, the #1 suspect is a missing <code>model.eval()</code> — dropout (and BatchNorm) are still in training mode.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Typical drop probabilities</h3>
+      <table class="tbl">
+        <thead><tr><th>Setting</th><th>typical p</th></tr></thead>
+        <tbody>
+          <tr><td>Hidden layers of an MLP</td><td>0.5</td></tr>
+          <tr><td>Input layer</td><td>0.1 – 0.2</td></tr>
+          <tr><td>Transformer (attn / residual / embed)</td><td>0.1</td></tr>
+          <tr><td>Large models with strong aug / data</td><td>0.0 – 0.1</td></tr>
+        </tbody>
+      </table>
+      <div class="note">$p$ is a hyperparameter: too low → still overfits; too high → underfits and trains slowly. 0.5 is the classic default for fully-connected layers.</div>
+    </div>
+  </section>
+
+  <!-- ==================== PRACTICE ==================== -->
+  <section class="tab-section" id="tab-practice">
+    <h2 class="sec"><span class="num">06</span> Practice — type to learn</h2>
+    <p class="lede" style="margin-bottom:24px">Recall the dropout essentials from memory. Correct answers grow your score and streak; a wrong one resets the streak. Stuck? <strong>Hint</strong> reveals the answer — but typing it sticks better. Case-insensitive.</p>
+
+    <div class="statgrid">
+      <div class="statcell"><div class="l">Total blanks</div><div class="v"><em id="pr-total">0</em></div></div>
+      <div class="statcell"><div class="l">Solved</div><div class="v" id="pr-solved">0</div></div>
+      <div class="statcell"><div class="l">Streak</div><div class="v" id="pr-streak">0</div></div>
+      <div class="statcell"><div class="l">Complete</div><div class="v" id="pr-pct">0<span style="font-size:18px;color:var(--muted)">%</span></div></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Core idea</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">1</span> Create a PyTorch dropout layer that drops 50% of units.</div>
+      <pre class="exercise">self.drop = nn.<input class="blank" data-answer="Dropout" size="9" placeholder="?">(p=<input class="blank" data-answer="0.5|.5" size="4" placeholder="?">)</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">2</span> Dropout sets a dropped activation to which value?</div>
+      <pre class="exercise">if dropped:  h_i = <input class="blank" data-answer="0|0.0|zero" size="4" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">3</span> The keep probability in terms of the drop probability $p$.</div>
+      <pre class="exercise">keep_prob = 1 - <input class="blank" data-answer="p" size="3" placeholder="?">     <span style="color:var(--comment)"># mask ~ Bernoulli(keep_prob)</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">4</span> Each mask entry is drawn from which distribution?</div>
+      <pre class="exercise">m_i ~ <input class="blank" data-answer="Bernoulli|bernoulli" size="10" placeholder="?">(1 - p)</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Inverted dropout</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">5</span> Inverted dropout rescales kept units by dividing by…</div>
+      <pre class="exercise">y = (mask * h) / (1 - <input class="blank" data-answer="p" size="3" placeholder="?">)   <span style="color:var(--comment)"># train-time rescale</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">6</span> Because of that rescale, the expected output equals…</div>
+      <pre class="exercise">E[ỹ_i] = <input class="blank" data-answer="h_i|h|hi|h[i]" size="5" placeholder="?">     <span style="color:var(--comment)"># expectation preserved</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">7</span> The scale factor applied to surviving units (in terms of $p$).</div>
+      <pre class="exercise">scale = 1 / (1 - <input class="blank" data-answer="p" size="3" placeholder="?">)</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Train / eval &amp; intuition</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">8</span> Turn dropout OFF for inference by switching the model to…</div>
+      <pre class="exercise">model.<input class="blank" data-answer="eval" size="6" placeholder="?">()      <span style="color:var(--comment)"># dropout becomes identity</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">9</span> Turn dropout back ON for the training loop with…</div>
+      <pre class="exercise">model.<input class="blank" data-answer="train" size="6" placeholder="?">()     <span style="color:var(--comment)"># masks + rescale active</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">10</span> A layer of $n$ droppable units defines how many sub-networks?</div>
+      <pre class="exercise">num_subnets = <input class="blank" data-answer="2" size="3" placeholder="?"> ** <input class="blank" data-answer="n" size="3" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">11</span> Dropout fights overfitting by preventing neuron …-adaptation.</div>
+      <pre class="exercise">— breaks <input class="blank" data-answer="co|co-|coadaptation|co-adaptation" size="8" placeholder="?">-adaptation between units</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">12</span> The conventional drop probability for transformer layers.</div>
+      <pre class="exercise">attn_dropout = <input class="blank" data-answer="0.1|.1" size="4" placeholder="?">     <span style="color:var(--comment)"># residual / attn / embed</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="note" style="margin-top:20px">Clear every blank to fire the confetti. Switch tabs with keys <strong>1–6</strong>, press <strong>?</strong> for shortcuts.</div>
+  </section>
+</main>
+
+<footer>
+  <span><a href="index.html">← all cheatsheets</a> · Browser-side · no build step · ⚡ drop · rescale · generalize</span>
+  <span>Companion to <a href="perceptron.html">perceptron.html</a> · <a href="softmax_crossentropy.html">softmax_crossentropy.html</a></span>
+</footer>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>6</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">Click anywhere to dismiss.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabBtns = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function switchTab(name) {
+  tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== MASK VISUALIZER ==============
+const GRID_N = 24;
+let dropP = 0.5;
+let mask = new Array(GRID_N).fill(1);
+
+function buildGrid() {
+  const g = document.getElementById('neuron-grid');
+  g.innerHTML = mask.map((m,i) =>
+    `<div class="neuron${m ? '' : ' dropped'}" id="nrn${i}"><span>${i+1}</span></div>`).join('');
+}
+function resampleMask() {
+  mask = mask.map(() => Math.random() >= dropP ? 1 : 0);
+  renderMask();
+}
+function renderMask() {
+  mask.forEach((m,i) => {
+    const el = document.getElementById('nrn' + i);
+    if (el) el.className = 'neuron' + (m ? '' : ' dropped');
+  });
+  const kept = mask.reduce((a,b)=>a+b,0);
+  document.getElementById('m-kept').textContent = kept;
+  document.getElementById('m-dropped').textContent = GRID_N - kept;
+  document.getElementById('m-keep').textContent = (1 - dropP).toFixed(2);
+  document.getElementById('m-scale').textContent = (1/(1 - dropP)).toFixed(2);
+}
+function onPslider(el) { dropP = parseFloat(el.value); document.getElementById('p-val').textContent = dropP.toFixed(2); resampleMask(); }
+function setP(v) { const s = document.getElementById('p-slider'); s.value = v; onPslider(s); }
+
+// ============== FORWARD VECTOR ==============
+let vecH = [1.2, -0.5, 2.0, 0.8, -1.1, 1.5, 0.3, -0.7];
+let vecMask = vecH.map(()=>1);
+function resampleVec() { vecMask = vecH.map(() => Math.random() >= dropP ? 1 : 0); renderVec(); }
+function renderVec() {
+  const rows = vecH.map((h,i) => {
+    const m = vecMask[i], y = m * h;
+    const hcls = h > 0 ? 'pos' : 'neg';
+    const ycls = m ? (y > 0 ? 'pos' : 'neg') : 'zero';
+    return `<tr class="${m ? '' : 'dropped'}">
+      <td>h<sub>${i+1}</sub></td>
+      <td class="${hcls}">${h.toFixed(2)}</td>
+      <td>${m}</td>
+      <td class="${ycls}">${m ? y.toFixed(2) : '0.00'}</td></tr>`;
+  }).join('');
+  document.getElementById('vec-table').innerHTML =
+    `<thead><tr><th>unit</th><th>h<sub>i</sub></th><th>mask</th><th>h̃<sub>i</sub> = m·h</th></tr></thead><tbody>${rows}</tbody>`;
+  const kept = vecMask.reduce((a,b)=>a+b,0);
+  const sumh = vecH.reduce((a,b)=>a+b,0);
+  const sumy = vecH.reduce((a,h,i)=>a + vecMask[i]*h, 0);
+  document.getElementById('vec-kept').textContent = `${kept} / ${vecH.length}`;
+  document.getElementById('vec-sumh').textContent = sumh.toFixed(2);
+  document.getElementById('vec-sumy').textContent = sumy.toFixed(2);
+}
+
+// ============== TENSOR BEFORE / MASK / AFTER ==============
+const T_ROWS = 4, T_COLS = 6, T_N = T_ROWS * T_COLS;
+let tensorP = 0.5, tensorRescale = true;
+let tensorH = [], tensorMask = [];
+function randVal() { return Math.round((Math.random() * 4 - 2) * 10) / 10; }   // -2.0 .. 2.0
+function heatColor(v, maxAbs) {
+  const a = 0.15 + Math.min(1, Math.abs(v) / maxAbs) * 0.8;
+  return v >= 0 ? `rgba(244,114,182,${a.toFixed(3)})` : `rgba(56,189,248,${a.toFixed(3)})`;
+}
+function initTensor() {
+  tensorH = Array.from({ length: T_N }, randVal);
+  tensorMask = Array.from({ length: T_N }, () => 1);
+}
+function resampleTensorMask() { tensorMask = Array.from({ length: T_N }, () => Math.random() >= tensorP ? 1 : 0); renderTensor(); }
+function resampleTensorVals() { tensorH = Array.from({ length: T_N }, randVal); renderTensor(); }
+function onTensorP(el) { tensorP = parseFloat(el.value); document.getElementById('t-p-val').textContent = tensorP.toFixed(2); resampleTensorMask(); }
+function toggleRescale() {
+  tensorRescale = !tensorRescale;
+  const b = document.getElementById('rescale-toggle');
+  b.classList.toggle('on', tensorRescale);
+  b.textContent = 'rescale 1/(1−p): ' + (tensorRescale ? 'on' : 'off');
+  renderTensor();
+}
+function renderTensor() {
+  const scale = tensorRescale ? 1 / (1 - tensorP) : 1;
+  const after = tensorH.map((h, i) => tensorMask[i] * h * scale);
+  const maxBefore = Math.max(1e-6, ...tensorH.map(Math.abs));
+  const maxAfter = Math.max(1e-6, ...after.map(Math.abs));
+  document.getElementById('t-before').innerHTML = tensorH.map(h =>
+    `<div class="tcell" style="background:${heatColor(h, maxBefore)}"><span>${h.toFixed(1)}</span></div>`).join('');
+  document.getElementById('t-mask').innerHTML = tensorMask.map(m => m
+    ? `<div class="tcell" style="background:rgba(244,114,182,0.82)"><span>1</span></div>`
+    : `<div class="tcell zero"><span>0</span></div>`).join('');
+  document.getElementById('t-after').innerHTML = after.map((y, i) => tensorMask[i]
+    ? `<div class="tcell" style="background:${heatColor(y, maxAfter)}"><span>${y.toFixed(1)}</span></div>`
+    : `<div class="tcell zero"><span>0</span></div>`).join('');
+  const kept = tensorMask.reduce((a, b) => a + b, 0);
+  const sumB = tensorH.reduce((a, b) => a + b, 0);
+  const sumA = after.reduce((a, b) => a + b, 0);
+  document.getElementById('t-kept').textContent = `${kept} / ${T_N}`;
+  document.getElementById('t-sumb').textContent = sumB.toFixed(2);
+  document.getElementById('t-suma').textContent = sumA.toFixed(2);
+  document.getElementById('t-scale').textContent = tensorRescale ? `×${scale.toFixed(2)}` : '×1.00 (none)';
+}
+
+// ============== INVERTED DROPOUT / EXPECTATION ==============
+let invP = 0.5;
+const invH = [2.0, -1.0, 1.5, 0.5, -0.8];
+let invAccum = invH.map(()=>0);
+let invCount = 0;
+function onInvP(el) { invP = parseFloat(el.value); document.getElementById('inv-p-val').textContent = invP.toFixed(2); resetExpectation(); }
+function resetExpectation() { invAccum = invH.map(()=>0); invCount = 0; renderInv(); }
+function runExpectation(n) {
+  const scale = 1/(1 - invP);
+  for (let s = 0; s < n; s++) {
+    for (let i = 0; i < invH.length; i++) {
+      const keep = Math.random() >= invP ? 1 : 0;
+      invAccum[i] += keep * invH[i] * scale;
+    }
+  }
+  invCount += n;
+  renderInv();
+}
+function renderInv() {
+  const scale = 1/(1 - invP);
+  const means = invAccum.map(a => invCount ? a / invCount : 0);
+  const rows = invH.map((h,i) => {
+    const mean = means[i];
+    const hcls = h > 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>h<sub>${i+1}</sub></td>
+      <td class="${hcls}">${h.toFixed(2)}</td>
+      <td>${invCount ? mean.toFixed(3) : '—'}</td>
+      <td>${invCount ? (mean - h).toFixed(3) : '—'}</td></tr>`;
+  }).join('');
+  document.getElementById('inv-table').innerHTML =
+    `<thead><tr><th>unit</th><th>h<sub>i</sub> (target)</th><th>mean(ỹ<sub>i</sub>)</th><th>error</th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById('inv-count').textContent = invCount.toLocaleString();
+  const err = invCount ? means.reduce((a,m,i)=>a + Math.abs(m - invH[i]), 0) / invH.length : 0;
+  document.getElementById('inv-err').textContent = invCount ? err.toFixed(4) : '—';
+  document.getElementById('inv-scale').textContent = scale.toFixed(3);
+}
+
+// ============== ENSEMBLE COUNT ==============
+function onEns(el) {
+  const n = parseInt(el.value);
+  document.getElementById('ens-n').textContent = n;
+  const count = Math.pow(2, n);
+  document.getElementById('ens-count').textContent =
+    count >= 1e6 ? count.toExponential(2) : count.toLocaleString();
+  document.getElementById('ens-words').textContent = bigWords(n);
+}
+function bigWords(n) {
+  if (n <= 3) return 'just a handful';
+  if (n <= 10) return 'thousands';
+  if (n <= 20) return 'about a million';
+  if (n <= 30) return 'about a billion';
+  if (n <= 40) return 'about a trillion';
+  if (n <= 53) return 'quadrillions';
+  return 'astronomically many';
+}
+
+// ============== PRACTICE / DRILLS ==============
+let solved = 0;
+const totalDrills = document.querySelectorAll('.blank').length;
+let streak = 0;
+const sectionsCompleted = new Set();
+document.getElementById('scoreTot').textContent = totalDrills;
+document.getElementById('pr-total').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+  document.getElementById('pr-solved').textContent = solved;
+  document.getElementById('pr-streak').textContent = streak;
+  document.getElementById('pr-pct').innerHTML = Math.round(solved/totalDrills*100) + '<span style="font-size:18px;color:var(--muted)">%</span>';
+}
+
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong', 'pop', 'shake');
+    void b.offsetWidth;
+    if (ok) b.classList.add('correct', 'pop');
+    else b.classList.add('wrong', 'shake');
+  });
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1'; b.disabled = true; newlySolved++;
+    }
+  });
+  if (Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good'; fb.textContent = randomGood();
+    if (newlySolved > 0) { solved += newlySolved; streak += newlySolved; sparkle(drill); updateProgress(); checkSectionComplete(); }
+  } else if (newlySolved > 0) {
+    solved += newlySolved; streak += newlySolved;
+    fb.className = 'feedback good'; fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0; fb.className = 'feedback bad'; fb.textContent = randomBad(); updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = ''; b.classList.remove('correct', 'wrong'); b.disabled = false;
+        b.dataset.revealed = ''; b.dataset.solved = ''; solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved'); drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint'; fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress(); return;
+  }
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want; b.classList.remove('wrong'); b.classList.add('correct');
+    b.dataset.solved = '1'; b.dataset.revealed = '1'; b.disabled = true; revealedCount++;
+  });
+  if (revealedCount === 0) { fb.className = 'feedback hint'; fb.textContent = 'all done.'; return; }
+  solved += revealedCount; streak = 0; drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) { drill.classList.add('solved'); sparkle(drill); }
+  fb.className = 'feedback hint'; fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'clean.', 'no overfit here.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'dropped that one. retry.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('all drills complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span'); c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `position:fixed;left:${rect.left + rect.width/2}px;top:${rect.top + 20}px;
+      width:6px;height:6px;border-radius:50%;background:radial-gradient(circle,#fff,var(--accent));
+      pointer-events:none;z-index:170;box-shadow:0 0 10px var(--accent);`;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200, dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() { confCanvas.width = window.innerWidth; confCanvas.height = window.innerHeight; }
+sizeConf();
+window.addEventListener('resize', sizeConf);
+let particles = [], confettiRunning = false;
+function burstConfetti() {
+  const colors = ['#f472b6','#c084fc','#fbcfe8','#4ade80','#fbbf24','#38bdf8','#ffffff'];
+  for (let i = 0; i < 150; i++) {
+    particles.push({
+      x: window.innerWidth/2 + (Math.random()-0.5)*80, y: window.innerHeight/3,
+      vx: (Math.random()-0.5)*14, vy: -Math.random()*12 - 4, g: 0.32,
+      size: Math.random()*5 + 3, color: colors[Math.floor(Math.random()*colors.length)],
+      rot: Math.random()*Math.PI*2, vr: (Math.random()-0.5)*0.4, life: 120 + Math.random()*40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      confCtx.save(); confCtx.translate(p.x, p.y); confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color; confCtx.fillRect(-p.size, -p.size/2, p.size*2, p.size); confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame); else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== HELP ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+// ============== KEYBOARD ==============
+const TAB_ORDER = ['what','mask','inverted','why','code','practice'];
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) { const cb = drill.querySelector('.btn:not(.ghost)'); if (cb) cb.click(); }
+    }
+    return;
+  }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  else if (e.key === 'Escape') hideHelp();
+  else if (/^[1-6]$/.test(e.key)) switchTab(TAB_ORDER[parseInt(e.key) - 1]);
+});
+
+// ============== INIT ==============
+buildGrid(); resampleMask();
+initTensor(); resampleTensorMask();
+resampleVec();
+renderInv();
+onEns(document.getElementById('ens-slider'));
+updateProgress();
+</script>
+</body>
+</html>

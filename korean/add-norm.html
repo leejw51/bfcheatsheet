@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add &amp; Norm · 잔차 연결 + LayerNorm 서브레이어</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --bg-3: #1a1a26;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --ink-faint: #5a564e;
+    --line: rgba(255, 240, 220, 0.09);
+    --line-soft: rgba(255, 240, 220, 0.05);
+    --grid: rgba(255, 240, 220, 0.035);
+    --accent: #34d399;          /* emerald — "normalized / stable" */
+    --accent-2: #22d3ee;        /* cyan */
+    --good: #3affb8;            /* mint */
+    --bad: #ff5e7a;             /* rose */
+    --warn: #fbbf24;
+    --code-bg: #08101e;
+    --serif: 'Fraunces', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at 80% -10%, rgba(52, 211, 153, 0.12), transparent 55%),
+      radial-gradient(ellipse at 0% 110%, rgba(34, 211, 238, 0.06), transparent 50%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection { background: var(--accent); color: #050510; }
+
+  /* ============ STICKY TOP ============ */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 80;
+    background: rgba(10, 10, 15, 0.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 16px 32px; max-width: 1280px; margin: 0 auto;
+  }
+  .brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.32em;
+    text-transform: uppercase; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .brand .mark { color: var(--accent); font-size: 13px; filter: drop-shadow(0 0 6px var(--accent)); }
+  .brand b { font-weight: 700; }
+  .progress-bar-outer {
+    flex: 1; min-width: 140px; height: 2px;
+    background: rgba(255, 240, 220, 0.12); position: relative; overflow: hidden;
+  }
+  .progress-bar-inner {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 16px var(--accent);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--ink-dim); display: flex; align-items: baseline; gap: 5px; white-space: nowrap;
+  }
+  .stat .num { font-family: var(--serif); font-weight: 600; font-size: 22px; color: var(--ink); font-feature-settings: "tnum"; }
+  .stat .num#scoreNum { color: var(--accent); }
+  .stat .lbl { text-transform: uppercase; font-size: 9px; letter-spacing: 0.22em; }
+  .streak { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 5px; }
+  .streak .num { font-family: var(--serif); font-weight: 600; color: var(--accent-2); font-size: 18px; }
+  .help-btn {
+    font-family: var(--mono); font-size: 13px; width: 30px; height: 30px;
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--line); cursor: pointer; transition: all 0.15s;
+  }
+  .help-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  nav.tabs {
+    display: flex; gap: 2px; flex-wrap: wrap;
+    padding: 0 32px; max-width: 1280px; margin: 0 auto;
+    border-top: 1px solid var(--line-soft);
+  }
+  nav.tabs button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 14px 15px; cursor: pointer; transition: all 0.18s;
+  }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .tnum { color: var(--ink-faint); margin-right: 7px; transition: color 0.18s; }
+  nav.tabs button.active .tnum { color: var(--accent-2); }
+  nav.tabs button .check { color: var(--good); margin-left: 7px; }
+
+  /* ============ LAYOUT ============ */
+  main { max-width: 1280px; margin: 0 auto; padding: 56px 32px 120px; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: rise 0.45s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--accent); display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ''; width: 34px; height: 1px; background: var(--accent); }
+
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-size: clamp(44px, 7vw, 96px);
+    line-height: 0.94; letter-spacing: -0.035em; margin-bottom: 26px; max-width: 16ch;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+
+  .lede {
+    font-size: clamp(16px, 1.9vw, 20px); max-width: 700px; line-height: 1.55;
+    color: var(--ink-dim); font-weight: 300; margin-bottom: 8px;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .lede em { font-style: italic; color: var(--ink); }
+  .lede code, p code, li code { font-family: var(--mono); font-size: 0.88em; color: var(--accent-2); background: var(--code-bg); padding: 1px 6px; border-radius: 2px; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--ink-dim);
+    display: flex; align-items: center; gap: 16px; margin: 56px 0 28px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  h3 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 24px; margin-bottom: 12px; letter-spacing: -0.01em; }
+  p { color: var(--ink-dim); max-width: 720px; margin-bottom: 14px; }
+  p strong, .ink { color: var(--ink); font-weight: 600; }
+  p em { font-style: italic; color: var(--ink); }
+  ul { color: var(--ink-dim); margin: 0; padding-left: 0; list-style: none; }
+  ul li { margin: 9px 0; }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ---------- panel w/ corner brackets ---------- */
+  .panel { background: var(--bg-2); border: 1px solid var(--line); padding: 32px; margin: 22px 0; position: relative; }
+  .panel.tight { padding: 22px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 22px; height: 22px; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .panel-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* ---------- idea cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 26px 0; }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 820px) { .cards, .cards.three { grid-template-columns: 1fr; } }
+  .idea { background: var(--bg-2); padding: 28px 26px; position: relative; }
+  .idea .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .idea h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 21px; margin-bottom: 10px; }
+  .idea p { font-size: 14px; margin: 0; }
+  .idea code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+
+  /* ---------- shape pills ---------- */
+  .shapes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0; font-family: var(--mono); }
+  .pill {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em;
+    background: var(--bg-3); border: 1px solid var(--line); color: var(--ink);
+    padding: 5px 11px; border-radius: 2px; white-space: nowrap;
+  }
+  .pill b { color: var(--accent); font-weight: 700; }
+  .pill.out b { color: var(--good); }
+  .pill.dim { color: var(--ink-dim); }
+  .shapes .to { color: var(--ink-faint); font-family: var(--serif); font-style: italic; font-size: 20px; }
+  .shapes .plus { color: var(--accent); font-family: var(--serif); font-size: 22px; }
+
+  /* ---------- note ---------- */
+  .note {
+    border-left: 2px solid var(--accent); background: rgba(52, 211, 153, 0.07);
+    padding: 14px 20px; margin: 22px 0; font-size: 14px; color: var(--ink-dim); max-width: 800px;
+  }
+  .note strong { color: var(--accent); }
+  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+  .note.mint { border-left-color: var(--good); background: rgba(58, 255, 184, 0.05); }
+  .note.mint strong { color: var(--good); }
+  .note.warn { border-left-color: var(--warn); background: rgba(251, 191, 36, 0.06); }
+  .note.warn strong { color: var(--warn); }
+
+  /* ---------- formula panel ---------- */
+  .formula-panel {
+    background: var(--code-bg); border: 1px solid var(--line);
+    padding: 26px 28px; margin: 20px 0; text-align: center; overflow-x: auto;
+  }
+  .katex { color: var(--ink); }
+  .katex-display { margin: 14px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+  /* ---------- lab (canvas + controls) ---------- */
+  .lab { display: grid; grid-template-columns: 1.25fr 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 860px) { .lab { grid-template-columns: 1fr; gap: 22px; } }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg); border: 1px solid var(--line);
+  }
+  .cmap-legend { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10px; color: var(--ink-dim); margin-top: 12px; flex-wrap: wrap; }
+  .cmap-bar { height: 10px; flex: 1; min-width: 140px; max-width: 230px; border: 1px solid var(--line); background: linear-gradient(90deg, #22d3ee, #08101e 50%, #34d399); }
+
+  .ctrl { margin-bottom: 22px; }
+  .ctrl-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .ctrl-name { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--ink-dim); }
+  .ctrl-val { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--ink); font-feature-settings: "tnum"; line-height: 1; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 2px;
+    background: rgba(255, 240, 220, 0.15); outline: none; cursor: pointer; margin: 4px 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent);
+    cursor: pointer; border-radius: 0; box-shadow: 0 0 0 1px var(--bg), 0 0 18px var(--accent); transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25) rotate(45deg); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; background: var(--accent); border: none; cursor: pointer;
+    box-shadow: 0 0 0 1px var(--bg), 0 0 18px var(--accent);
+  }
+  .ctrl-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em; margin-top: 6px; }
+  .lab-readout { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+  .lab-readout b { color: var(--accent); }
+  .readout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin-top: 14px; }
+  .readout-grid .rc { background: var(--bg-3); padding: 12px 14px; }
+  .readout-grid .rc .rk { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+  .readout-grid .rc .rv { font-family: var(--serif); font-size: 24px; font-weight: 600; color: var(--ink); font-feature-settings: "tnum"; }
+  .readout-grid .rc .rv.good { color: var(--good); }
+  .readout-grid .rc .rv.warn { color: var(--warn); }
+  .toggle-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .toggle-row button {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-dim); border: 1px solid var(--line);
+    padding: 7px 13px; cursor: pointer; transition: all 0.15s;
+  }
+  .toggle-row button.on { color: #050510; background: var(--accent); border-color: var(--accent); }
+
+  /* ---------- variants compare ---------- */
+  .vcompare { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 900px) { .vcompare { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .vcompare { grid-template-columns: 1fr; } }
+  .vcol { background: var(--bg-2); padding: 24px 20px; }
+  .vcol .vh { font-family: var(--serif); font-style: italic; font-size: 22px; font-weight: 600; margin-bottom: 3px; }
+  .vcol .vsub { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+  .vrow { margin: 12px 0; }
+  .vrow .vk { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 3px; }
+  .vrow .vv { font-size: 13.5px; color: var(--ink); line-height: 1.45; }
+  .vrow .vv code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); background: var(--code-bg); padding: 1px 5px; }
+  .vrow .vv em { font-style: italic; color: var(--accent); }
+
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .mini-grid { grid-template-columns: 1fr; } }
+  .mini { background: var(--bg-2); padding: 22px 20px; }
+  .mini .op { font-family: var(--serif); font-size: 34px; font-weight: 300; color: var(--accent); line-height: 1; }
+  .mini h4 { font-family: var(--serif); font-style: italic; font-size: 18px; font-weight: 600; margin: 8px 0 8px; }
+  .mini p { font-size: 13px; margin: 0; }
+
+  /* ---------- block-flow diagrams (post/pre LN) ---------- */
+  .flow2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .flow2 { grid-template-columns: 1fr; } }
+  .flowcol { background: var(--bg-2); padding: 28px 24px; }
+  .flowcol .fh { font-family: var(--serif); font-style: italic; font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .flowcol .fsub { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 20px; }
+  .fstack { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .fnode {
+    font-family: var(--mono); font-size: 12px; text-align: center; width: 100%; max-width: 240px;
+    padding: 10px 12px; border: 1px solid var(--line); background: var(--bg-3); color: var(--ink);
+  }
+  .fnode.norm { border-color: var(--accent); color: var(--accent); }
+  .fnode.add { border-color: var(--accent-2); color: var(--accent-2); }
+  .fnode.sub { color: var(--ink-dim); }
+  .fnode.io { background: var(--code-bg); color: var(--ink-faint); border-style: dashed; }
+  .farrow { color: var(--ink-faint); font-size: 16px; line-height: 1.4; }
+  .fnote { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); margin-top: 16px; line-height: 1.6; }
+  .fnote b { color: var(--accent); }
+
+  /* ---------- interactive trace (Add & Norm walkthrough) ---------- */
+  .trace-lab { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 860px) { .trace-lab { grid-template-columns: 1fr; gap: 26px; } }
+  .trace-v { display: flex; flex-direction: column; align-items: center; }
+  .skip-wrap { position: relative; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; padding-right: 70px; }
+  .tstage {
+    width: 100%; max-width: 290px; min-height: 56px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1px solid var(--line); background: var(--bg-3); color: var(--ink);
+    font-family: var(--mono); font-size: 13px; text-align: center; border-radius: 2px;
+    transition: border-color .25s, box-shadow .25s, background .25s, opacity .25s;
+  }
+  .tstage code { font-family: var(--mono); font-size: 11px; color: var(--accent-2); }
+  .tstage small { color: var(--ink-faint); font-size: 10px; letter-spacing: .07em; margin-top: 3px; }
+  .tstage.active { border-color: var(--accent); box-shadow: 0 0 22px rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
+  .tstage.active small { color: var(--accent); }
+  .tstage.add.active { border-color: var(--accent-2); box-shadow: 0 0 22px rgba(34,211,238,.35); background: rgba(34,211,238,.08); }
+  .tstage.add.active small { color: var(--accent-2); }
+  .tstage.done { opacity: .45; }
+  .tarrow-v { color: var(--ink-faint); font-size: 17px; line-height: 1; padding: 6px 0; }
+  /* the residual rail: spans exactly input → Add */
+  .skip-rail { position: absolute; top: 28px; bottom: 28px; right: 24px; width: 2px;
+    background: var(--line); color: var(--ink-faint); transition: all .25s; }
+  .skip-rail::before, .skip-rail::after { content: ''; position: absolute; right: 0; width: 40px; height: 2px; background: inherit; }
+  .skip-rail::before { top: 0; }       /* branch out of input */
+  .skip-rail::after  { bottom: 0; }    /* merge into Add */
+  .skip-rail .head { position: absolute; bottom: -7px; right: 35px; font-size: 11px; line-height: 1; color: currentColor; }
+  .skip-rail .lbl { position: absolute; top: 50%; right: 7px; transform: translateY(-50%);
+    writing-mode: vertical-rl; font-family: var(--mono); font-size: 8.5px; letter-spacing: .2em;
+    text-transform: uppercase; color: currentColor; white-space: nowrap; }
+  .skip-rail.active { background: var(--accent-2); color: var(--accent-2); box-shadow: 0 0 14px var(--accent-2); }
+
+  /* scope: the vector at the current stage */
+  .scope-cap { font-size: 15px; color: var(--ink); line-height: 1.5; margin-bottom: 14px; min-height: 66px; }
+  .scope-cap b { color: var(--accent); font-weight: 600; }
+  .scope-op { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); background: var(--code-bg);
+    border: 1px solid var(--line); padding: 10px 12px; margin-bottom: 16px; overflow-x: auto; white-space: nowrap; }
+  .scope-vec { display: flex; align-items: stretch; justify-content: center; gap: 10px; height: 130px; margin-bottom: 6px; }
+  .vcell { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 56px; }
+  .vbar-area { position: relative; width: 26px; height: 96px; }
+  .vbar-mid { position: absolute; left: -7px; right: -7px; top: 50%; height: 1px; background: rgba(138,161,189,.35); }
+  .vbar { position: absolute; left: 0; width: 100%; transition: height .3s, top .3s, bottom .3s, background .3s; }
+  .vnum { font-family: var(--mono); font-size: 11px; color: var(--ink); margin-top: 8px; font-feature-settings: "tnum"; }
+  .trace-ctrls { display: flex; gap: 10px; align-items: center; margin: 4px 0 18px; flex-wrap: wrap; }
+  .step-dots { display: flex; gap: 6px; margin-left: 4px; }
+  .step-dots .d { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: background .2s, box-shadow .2s; }
+  .step-dots .d.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  /* axis explainer (shown at the LayerNorm step) */
+  .axis-box { border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    background: rgba(52,211,153,.06); padding: 14px 16px; margin-top: 16px; font-size: 13px; color: var(--ink-dim); animation: rise .3s ease; }
+  .axis-box .at { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .axis-box code { font-family: var(--mono); color: var(--accent-2); font-size: 12px; }
+  .axis-box b { color: var(--ink); }
+  .axis-box ul { margin: 10px 0 0; }
+  .axis-box li { margin: 6px 0; padding-left: 16px; position: relative; }
+  .axis-box li::before { content: '›'; position: absolute; left: 0; color: var(--accent); }
+  .axis-diagram { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); background: var(--code-bg);
+    border: 1px solid var(--line); padding: 11px 13px; margin: 4px 0 2px; line-height: 1.75; white-space: pre; overflow-x: auto; }
+  .axis-diagram b { color: var(--accent); }
+  .axis-diagram .hl { color: var(--accent-2); }
+
+  /* ---------- code ---------- */
+  pre.code, pre.exercise {
+    background: var(--code-bg); border-left: 2px solid var(--accent);
+    padding: 20px 24px; font-family: var(--mono); font-size: 13px; line-height: 1.85;
+    overflow-x: auto; margin: 0; color: var(--ink-dim);
+  }
+  pre.exercise { font-size: 14px; line-height: 2.15; }
+  .cm { color: var(--ink-faint); font-style: italic; }
+  .copy-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* ============ DRILLS ============ */
+  .drill {
+    background: var(--bg-2); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    padding: 22px 24px; margin: 16px 0; transition: border-color 0.2s;
+  }
+  .drill.solved { border-left-color: var(--good); background: linear-gradient(100deg, rgba(58,255,184,0.05), transparent 60%); }
+  .drill .prompt { font-size: 16px; color: var(--ink); margin-bottom: 14px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .drill .prompt .pn { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: 0 0 auto; }
+  .drill.solved .prompt .pn { color: var(--good); }
+  .drill .prompt code { font-family: var(--mono); font-size: 14px; color: var(--accent-2); }
+  pre.exercise .blank, .drill .blank {
+    display: inline-block; min-width: 64px; max-width: 260px; padding: 3px 10px;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--accent);
+    font-family: var(--mono); font-size: 14px; text-align: center; outline: none; border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .blank:focus { box-shadow: 0 0 0 2px rgba(52,211,153,0.3); background: rgba(52,211,153,0.06); }
+  .blank.correct { border-color: var(--good); color: var(--good); background: rgba(58,255,184,0.08); animation: pop 220ms ease-out; }
+  .blank.wrong { border-color: var(--bad); color: var(--bad); animation: shake 240ms ease-in-out; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.13)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .controls-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+    background: var(--accent); color: #050510; border: none; padding: 9px 18px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  .btn:hover { filter: brightness(1.12); box-shadow: 0 0 18px rgba(52,211,153,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink-dim); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .feedback { margin-top: 12px; font-size: 13px; min-height: 16px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); } .feedback.bad { color: var(--bad); } .feedback.hint { color: var(--ink-faint); font-style: italic; }
+
+  /* ============ CONFETTI / TOAST / HELP ============ */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; background: transparent; border: none; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(48px);
+    background: var(--bg-2); border: 1px solid var(--accent); color: var(--ink);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 12px 22px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 22px rgba(52,211,153,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 160;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,5,8,0.78); backdrop-filter: blur(6px);
+    z-index: 210; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: rise 0.25s ease; }
+  #help-overlay .help-content { background: var(--bg-2); border: 1px solid var(--line); padding: 34px 38px; max-width: 460px; width: 100%; position: relative; }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  #help-overlay h3 { color: var(--accent); font-style: italic; margin-bottom: 16px; }
+  #help-overlay table { width: 100%; font-family: var(--mono); font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--ink-dim); }
+  kbd { font-family: var(--mono); background: var(--code-bg); border: 1px solid var(--line); padding: 2px 9px; color: var(--accent); font-size: 12px; }
+
+  footer {
+    max-width: 1280px; margin: 70px auto 0; padding: 28px 32px 50px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.04em;
+  }
+  footer a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="brand"><span class="mark">◆</span> <b>ADD &amp; NORM</b></div>
+    <div class="progress-bar-outer" title="전체 진행도"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat" title="푼 문제"><span class="num" id="scoreNum">0</span><span style="color:var(--ink-faint)">/</span><span class="num" id="scoreTot">0</span><span class="lbl">해결</span></div>
+    <div class="streak" title="연속 정답">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="help-btn" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome"><span class="tnum">01</span>왜</button>
+    <button data-tab="flow"><span class="tnum">02</span>워크스루</button>
+    <button data-tab="formula"><span class="tnum">03</span>공식</button>
+    <button data-tab="add"><span class="tnum">04</span>Add</button>
+    <button data-tab="norm"><span class="tnum">05</span>Norm</button>
+    <button data-tab="prepost"><span class="tnum">06</span>Pre vs Post</button>
+    <button data-tab="variants"><span class="tnum">07</span>변형</button>
+    <button data-tab="drills"><span class="tnum">08</span>연습</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <div class="eyebrow">논문 3.1절 · 서브레이어를 잇는 접착제</div>
+  <h1><em>Add&nbsp;&amp;&nbsp;Norm</em> 서브레이어</h1>
+  <p class="lede">
+    트랜스포머 다이어그램에서 <strong>"Add &amp; Norm"</strong> 이라고 적힌 모든 박스는 두 연산이
+    겹쳐진 것입니다: 서브레이어의 입력을 출력에 다시 더하는 <em>잔차 연결(residual connection)</em>,
+    그리고 <em>레이어 정규화(layer normalization)</em>. 기호로 쓰면 <strong>각</strong> 서브레이어의
+    출력은 <code>LayerNorm(x + Sublayer(x))</code> 입니다. 언어를 이해하는 부분은 아니고 —
+    어텐션과 피드포워드 블록을 깊게 쌓아도 <strong>학습이 되도록</strong> 만드는 것이 유일한 역할입니다.
+  </p>
+
+  <h2 class="sec"><span class="num">01</span> 한 박스, 두 가지 임무</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">Add — 잔차</div>
+      <h4>그래디언트 고속도로</h4>
+      <p>스킵 경로 <code>x + Sublayer(x)</code> 덕분에 그래디언트가 수십 개 레이어를 거쳐도 소실되지 않고 곧장 거꾸로 흐릅니다. 각 서브레이어는 입력을 처음부터 다시 만들 필요 없이 <em>보정값</em>만 학습하면 됩니다.</p>
+    </div>
+    <div class="idea">
+      <div class="k">Norm — LayerNorm</div>
+      <h4>스케일을 길들이는 장치</h4>
+      <p>각 토큰 벡터를 다시 중심화·재스케일하여 피처들이 평균&nbsp;0, 분산&nbsp;1이 되게 한 뒤, 학습 가능한 <code>γ</code>와 <code>β</code>를 적용합니다. 레이어를 거듭해도 활성값이 건강한 범위에 머뭅니다.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>왜 중요한가:</strong> 원본 트랜스포머는 <em>인코더 6 + 디코더 6</em> 레이어이고
+    각각 서브레이어가 2개라 — <em>스무 개가 넘는</em> 비선형 블록이 쌓여 있습니다. 잔차가 없으면
+    그래디언트 신호가 앞쪽 레이어에 닿기도 전에 죽고, 정규화가 없으면 활성값 크기가 흘러가
+    학습이 발산합니다. Add &amp; Norm이 이 거대한 탑 전체를 안정적으로 유지합니다.
+  </div>
+
+  <h2 class="sec"><span class="num">01·b</span> 블록 안 어디에 있나</h2>
+  <div class="panel">
+    <div class="panel-label">인코더 레이어 하나 · Add &amp; Norm 박스 2개</div>
+    <div class="shapes">
+      <span class="pill dim">x <b>[B, T, D]</b></span>
+      <span class="to">→</span>
+      <span class="pill">Self-Attn</span>
+      <span class="to">→</span>
+      <span class="pill out">Add&amp;Norm</span>
+      <span class="to">→</span>
+      <span class="pill">Feed-Fwd</span>
+      <span class="to">→</span>
+      <span class="pill out">Add&amp;Norm</span>
+      <span class="to">→</span>
+      <span class="pill dim">out <b>[B, T, D]</b></span>
+    </div>
+    <p style="margin:18px 0 0; font-size:14px;">
+      어텐션과 피드포워드 네트워크 둘 다 각자의 Add&nbsp;&amp;&nbsp;Norm으로 감싸집니다.
+      모양 <code>[B, T, D]</code>는 끝까지 보존됩니다 — 덧셈과 정규화는 차원을 절대 바꾸지 않으며,
+      바로 그래서 <code>d_model</code>이 모델 전체에서 일정하게 유지됩니다.
+    </p>
+  </div>
+
+  <div class="note mint">
+    <strong>이 페이지 사용법:</strong> 탭을 <span class="ink">01 → 08</span> 순서로 보세요. 02번 탭은
+    토큰 하나를 박스에 통과시키고, 04번 탭은 잔차를 살아있는 <em>그래디언트 고속도로</em>로 보여주며,
+    05번 탭은 어떤 입력이든 LayerNorm이 평탄화하는 모습을 ([B, T, D] 큐브의 <em>텐서</em> 뷰와 함께)
+    보여줍니다. 06번 탭은 Post-LN vs Pre-LN을 비교하고, 08번 탭이 채점합니다.
+    단축키는 <kbd>?</kbd>.
+  </div>
+</section>
+
+<!-- ========================= WALKTHROUGH ========================= -->
+<section class="tab-section" id="tab-flow">
+  <div class="eyebrow">토큰 하나가 흘러가는 모습</div>
+  <h1>한 박스, <em>한 단계씩</em></h1>
+  <p class="lede">
+    "Add &amp; Norm"이 실제로 무엇을 <em>하는지</em> 아직 흐릿한가요? 토큰 벡터 하나를 박스에 단계별로
+    통과시키며 각 연산을 지켜보세요. <span style="color:var(--accent-2)">오른쪽의 청록색 레일</span>이
+    <strong>잔차 / 스킵</strong>입니다 — 입력을 서브레이어를 <em>우회</em>해 앞으로 복사한 뒤
+    <strong>Add</strong>에서 다시 합칩니다. 이 우회 복사가 핵심 전부입니다.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label"><span>add &amp; norm · 실시간 추적 · D = 4 (간단 예시)</span><span id="stepCounter">단계 1 / 5</span></div>
+    <div class="trace-lab">
+      <!-- left: the block diagram -->
+      <div class="trace-v">
+        <div class="skip-wrap">
+          <div class="skip-rail" id="skipRail"><span class="head">▼</span><span class="lbl">잔차 · 스킵</span></div>
+          <div class="tstage" id="st-0" data-stage="0">x &nbsp;·&nbsp; <code>[B, T, D]</code><small>입력 토큰 시퀀스</small></div>
+          <div class="tarrow-v">↓</div>
+          <div class="tstage" id="st-1" data-stage="1">Sublayer(x) &nbsp;·&nbsp; <code>[B, T, D]</code><small>멀티헤드 어텐션 · 또는 · FFN</small></div>
+          <div class="tarrow-v">↓</div>
+          <div class="tstage add" id="st-2" data-stage="2">Add &nbsp;·&nbsp; <code>[B, T, D]</code><small>x + Sublayer(x)</small></div>
+        </div>
+        <div class="tarrow-v">↓</div>
+        <div class="tstage norm" id="st-3" data-stage="3">LayerNorm &nbsp;·&nbsp; <code>[B, T, D]</code><small>μ→0, σ→1, 그 뒤 ·γ + β</small></div>
+        <div class="tarrow-v">↓</div>
+        <div class="tstage" id="st-4" data-stage="4">out &nbsp;·&nbsp; <code>[B, T, D]</code><small>다음 서브레이어로</small></div>
+      </div>
+
+      <!-- right: the values at this stage -->
+      <div>
+        <div class="trace-ctrls">
+          <button class="btn ghost" onclick="traceStep(-1)" id="tracePrev">◀ 이전</button>
+          <button class="btn" onclick="traceStep(1)" id="traceNext">다음 ▶</button>
+          <button class="btn ghost tiny" onclick="traceReset()">↻</button>
+          <div class="step-dots" id="stepDots"></div>
+        </div>
+        <div class="shapes" style="margin-bottom:14px;">
+          <span class="pill dim">B <b>2</b></span>
+          <span class="pill dim">T <b>5</b></span>
+          <span class="pill dim">D = d_model <b>512</b></span>
+          <span class="to">→</span>
+          <span class="pill out">shape <b>[2, 5, 512]</b></span>
+        </div>
+        <div class="ctrl-meta" style="margin:-6px 0 14px;">Add &amp; Norm은 <b style="color:var(--accent)">모양을 절대 바꾸지 않습니다</b> — 위의 모든 단계에서 <code style="color:var(--accent-2)">[B, T, D]</code>. 아래 막대는 <b style="color:var(--accent)">토큰 하나의 D개 피처</b>를 보여줍니다 (여기선 명확함을 위해 D = 4).</div>
+        <div class="scope-cap" id="traceCap"></div>
+        <div class="scope-op" id="traceOp"></div>
+        <div class="scope-vec" id="traceVec"></div>
+        <div class="readout-grid" id="traceStats" style="display:none; margin-top:14px;">
+          <div class="rc"><div class="rk">D축 평균</div><div class="rv good" id="traceMean">—</div></div>
+          <div class="rc"><div class="rk">D축 표준편차</div><div class="rv good" id="traceStd">—</div></div>
+        </div>
+        <div class="axis-box" id="traceAxis" style="display:none;">
+          <div class="at">LayerNorm이 줄이는 축</div>
+          통계는 <b style="color:var(--accent)">마지막 축 D만</b> 사용하며 — <b>토큰마다</b> 계산됩니다:
+          <div class="axis-diagram">[B, T, D]   B = 배치 · T = 시퀀스 길이 · D = d_model
+
+ 토큰 (b,t):  [ <span class="hl">x₀  x₁  …  x_D-1</span> ]  ──D축으로 reduce──▶  <b>μ(b,t), σ(b,t)</b>
+              y = (x − μ) / √(σ² + ε) · γ + β     → 모양 그대로 [B, T, D]</div>
+          <ul>
+            <li><code>μ</code>, <code>σ</code>는 <b>b, t</b> 인덱스만 가짐 (j 없음) → <b>토큰마다 1쌍</b>, 총 <b>B×T쌍</b>.</li>
+            <li><b>모든</b> B·T·D 원소가 정규화됨; 통계는 각 토큰의 D개 값에서만 나옴.</li>
+            <li><b>B와 T는 통계에 절대 섞이지 않음</b> — BatchNorm과의 핵심 차이.</li>
+            <li>코드: <code>nn.LayerNorm(d_model)</code>은 마지막 차원만 줄임.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>딱 하나만 기억하면:</strong> 서브레이어는 입력을 다시 만들 필요가 없습니다 — 스킵 레일이
+    이미 <code>x</code>를 앞으로 옮겨주니까요. 서브레이어는 작은 <em>업데이트</em>만 학습하고,
+    Add가 그걸 합치며, LayerNorm이 결과를 재스케일해서 다음 박스가 깨끗한 활성값을 받게 합니다.
+    단계 이동은 <kbd>←</kbd> / <kbd>→</kbd>.
+  </div>
+</section>
+
+<!-- ========================= FORMULA ========================= -->
+<section class="tab-section" id="tab-formula">
+  <div class="eyebrow">Vaswani et al. · 2017</div>
+  <h1>한 줄, 두 <em>연산</em></h1>
+  <p class="lede">
+    논문은 이걸 한 문장으로 말합니다: <em>"각 서브레이어의 출력은
+    $\mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))$이며, 여기서 $\mathrm{Sublayer}(x)$는 서브레이어
+    자체가 구현하는 함수다."</em> 안쪽부터 바깥쪽으로 읽어보세요.
+  </p>
+
+  <div class="formula-panel">
+    $$\text{out} = \mathrm{LayerNorm}\big(\underbrace{x}_{\text{residual}} + \underbrace{\mathrm{Sublayer}(x)}_{\text{attn or FFN}}\big)$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">안쪽부터 읽기</div>
+    <ul>
+      <li><span class="pill">Sublayer(x)</span> &nbsp;입력에 멀티헤드 어텐션 <em>또는</em> 피드포워드 네트워크를 실행합니다.</li>
+      <li><span class="pill">x + …</span> &nbsp;<strong>Add</strong> — 잔차 / 스킵 연결이 원래 입력을 다시 더합니다.</li>
+      <li><span class="pill">LayerNorm(…)</span> &nbsp;<strong>Norm</strong> — 합쳐진 벡터를 피처 축으로 정규화합니다.</li>
+    </ul>
+  </div>
+
+  <h2 class="sec"><span class="num">02</span> LayerNorm, 풀어쓰기</h2>
+  <p class="lede">
+    LayerNorm (Ba, Kiros &amp; Hinton, 2016)은 <em>각 토큰</em>을 그 토큰의 $D$개 피처 차원에 대해
+    정규화합니다 — 배치나 다른 토큰과는 무관하게요. 평균&nbsp;과&nbsp;분산은 행(row)마다 계산되고,
+    학습 가능한 두 벡터 $\gamma$(스케일)와 $\beta$(시프트)가 표현력을 되살립니다.
+  </p>
+
+  <div class="formula-panel">
+    $$\mu = \frac1D\sum_{j=1}^{D} x_j, \qquad
+      \sigma^2 = \frac1D\sum_{j=1}^{D} (x_j-\mu)^2$$
+    $$\mathrm{LayerNorm}(x)_j = \gamma_j \cdot \frac{x_j - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta_j$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">서브레이어 전체를 PyTorch로 <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="exercise">class AddNorm(nn.Module):
+    def __init__(self, d_model, dropout=0.1):
+        super().__init__()
+        self.norm = nn.LayerNorm(d_model)      <span class="cm"># [D] 크기의 γ, β 학습</span>
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x, sublayer):
+        <span class="cm"># 2017 논문대로 Post-LN</span>
+        return self.norm(x + self.drop(sublayer(x)))</pre>
+  </div>
+
+  <div class="note">
+    <strong>$\epsilon$ 은:</strong> 제곱근 안에 더하는 아주 작은 상수(예: <code>1e-5</code>)로,
+    어떤 토큰의 피처가 (거의) 일정할 때도 0으로 나누는 일이 없게 합니다.
+  </div>
+  <div class="note warn">
+    <strong>드롭아웃 디테일:</strong> 논문은 각 서브레이어의 <em>출력</em>에, 잔차에 더해 정규화되기
+    <em>전에</em> 드롭아웃을 적용합니다 — 위의 <code>drop(sublayer(x))</code>이지
+    <code>drop(x)</code>가 아닙니다.
+  </div>
+</section>
+
+<!-- ========================= ADD (residual) ========================= -->
+<section class="tab-section" id="tab-add">
+  <div class="eyebrow">스킵 연결</div>
+  <h1>Add — <em>그래디언트 고속도로</em></h1>
+  <p class="lede">
+    레이어를 많이 쌓으면 보통 역방향 그래디언트가 깊이에 따라 기하급수적으로 작아지거나(혹은 폭발하는) —
+    <strong>그래디언트 소실(vanishing gradient)</strong> 문제가 생깁니다. 잔차 연결은 각 레이어의
+    야코비안을 $J$에서 $I + J$로 바꿉니다: 항등 항 $I$가 입력까지 곧장 이어지는 크기&nbsp;1의 경로를
+    보장합니다. 아래에서 깊이와 레이어별 게인을 움직여 두 양상이 갈라지는 걸 보세요.
+  </p>
+
+  <div class="formula-panel">
+    $$\frac{\partial\,\text{out}}{\partial x} = \underbrace{I}_{\text{skip}} + \underbrace{\frac{\partial\,\mathrm{Sublayer}(x)}{\partial x}}_{J}
+      \;\;\Longrightarrow\;\; \text{gradient} \sim (1+g)^{N}\ \text{instead of}\ g^{N}$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">그래디언트 크기 vs 깊이 · 로그 스케일</div>
+    <p style="font-size:13.5px; margin:0 0 16px;">
+      각 레이어는 거꾸로 흐르는 그래디언트에 대략 야코비안 노름 <code>g</code>를 곱합니다.
+      <span style="color:var(--bad)">분홍색</span> 곡선은 잔차 없는 스택(레이어당 계수 <code>g</code>),
+      <span style="color:var(--accent)">에메랄드</span> 곡선은 잔차를 더한 경우(계수 <code>1 + g</code>)입니다.
+    </p>
+    <div class="lab">
+      <div>
+        <canvas id="gradCanvas" width="560" height="320"></canvas>
+        <div class="cmap-legend">
+          <span style="color:var(--bad)">■ 잔차 없음&nbsp; gᴺ</span>
+          <span style="color:var(--accent)">■ 잔차&nbsp; (1+g)ᴺ</span>
+          <span style="margin-left:6px;">y축 = log₁₀(‖grad‖), x축 = 레이어 깊이</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">깊이 · N 레이어</span><span class="ctrl-val" id="depthV">24</span></div>
+          <input type="range" id="depth" min="2" max="60" step="1" value="24">
+          <div class="ctrl-meta">스택이 얼마나 높은지</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">레이어별 게인 · g</span><span class="ctrl-val" id="gainV">0.70</span></div>
+          <input type="range" id="gain" min="0.30" max="1.40" step="0.01" value="0.70">
+          <div class="ctrl-meta">‖∂Sublayer/∂x‖ — 야코비안 노름</div>
+        </div>
+        <div class="readout-grid">
+          <div class="rc"><div class="rk">잔차 없음 · gᴺ</div><div class="rv warn" id="plainRO">—</div></div>
+          <div class="rc"><div class="rk">잔차 · (1+g)ᴺ</div><div class="rv good" id="resRO">—</div></div>
+        </div>
+        <div class="note" style="font-size:12.5px; margin-top:16px;">
+          <strong>해석:</strong> <code>g &lt; 1</code>이면 잔차 없는 그래디언트는 맨 아래 레이어에 가면
+          0으로 무너집니다 — 앞쪽 가중치가 거의 업데이트되지 않죠. 잔차 계수 <code>1 + g</code>는
+          항상&nbsp;1 이상이라 신호가 전체 깊이를 살아서 통과합니다. 그 살아남는 경로가 "고속도로"입니다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>직관:</strong> 잔차 블록은 입력과 원하는 출력 사이의 <em>차이</em>만 학습하면 됩니다
+    (<code>Sublayer(x) = out − x</code>). 작은 보정을 배우는 게 신호 전체를 다시 배우는 것보다 훨씬
+    쉽습니다 — 그래서 초기화 직후 서브레이어가 거의 0이어도 입력이 깔끔하게 그대로 통과합니다.
+  </div>
+</section>
+
+<!-- ========================= NORM (LayerNorm) ========================= -->
+<section class="tab-section" id="tab-norm">
+  <div class="eyebrow">토큰별 피처 정규화</div>
+  <h1>Norm — <em>평탄화</em> 후 재구성</h1>
+  <p class="lede">
+    LayerNorm은 토큰 하나의 $D$개 피처를 가져와 평균을 빼고 표준편차로 나눕니다 — 그래서 <em>무엇이</em>
+    들어오든 평균&nbsp;0, 분산&nbsp;1로 나옵니다. 아래에서는 고정된 피처 패턴을 여러분이 조절하는
+    <code>gain</code>과 <code>bias</code>에 통과시킵니다. 원본(raw) 막대는 크게 요동치는데 정규화된
+    출력은 꿈쩍도 안 하는 걸 보세요 — 그다음 <code>γ</code>와 <code>β</code>로 의도적으로 재구성해 보세요.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">D = 16 피처에 대한 LayerNorm · normalized = (x − μ) / √(σ²+ε)</div>
+    <div class="lab">
+      <div>
+        <canvas id="lnCanvas" width="560" height="300"></canvas>
+        <div class="cmap-legend">
+          <span>원본 입력</span><span>→</span><span>정규화 (μ=0, σ=1)</span><span>→</span>
+          <span style="color:var(--accent)">출력 = γ·n + β</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">입력 gain</span><span class="ctrl-val" id="lnGainV">1.0</span></div>
+          <input type="range" id="lnGain" min="0.2" max="3.0" step="0.1" value="1.0">
+          <div class="ctrl-meta">원본 피처를 스케일 — 출력은 무시함</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">입력 bias</span><span class="ctrl-val" id="lnBiasV">0.0</span></div>
+          <input type="range" id="lnBias" min="-2.0" max="2.0" step="0.1" value="0.0">
+          <div class="ctrl-meta">원본 피처를 시프트 — 출력은 무시함</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">γ · 학습된 스케일</span><span class="ctrl-val" id="gammaV">1.0</span></div>
+          <input type="range" id="gamma" min="0.0" max="2.5" step="0.1" value="1.0">
+          <div class="ctrl-meta">정규화된 벡터를 늘림</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">β · 학습된 시프트</span><span class="ctrl-val" id="betaV">0.0</span></div>
+          <input type="range" id="beta" min="-1.5" max="1.5" step="0.1" value="0.0">
+          <div class="ctrl-meta">출력을 평행이동</div>
+        </div>
+        <div class="readout-grid">
+          <div class="rc"><div class="rk">원본 평균 μ</div><div class="rv" id="rawMeanRO">—</div></div>
+          <div class="rc"><div class="rk">원본 표준편차 σ</div><div class="rv" id="rawStdRO">—</div></div>
+          <div class="rc"><div class="rk">정규화 평균</div><div class="rv good" id="normMeanRO">0.00</div></div>
+          <div class="rc"><div class="rk">정규화 표준편차</div><div class="rv good" id="normStdRO">1.00</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>핵심은 불변성:</strong> <code>gain</code>과 <code>bias</code>를 아무리 극단으로 밀어도 —
+    가운데(정규화) 띠는 그대로이고, <em>정규화 평균</em>은 0, <em>정규화 표준편차</em>는 1을 유지합니다.
+    LayerNorm은 토큰별 스케일과 오프셋을 지워버려, 다음 서브레이어는 항상 똑같이 잘 다듬어진 범위의
+    활성값을 받습니다.
+  </div>
+
+  <h2 class="sec"><span class="num">05·b</span> 어느 슬라이스가 정규화되나?</h2>
+  <p class="lede">
+    트랜스포머 활성값은 <strong>[B, T, D]</strong> 큐브입니다 — 배치 안에 <em>B</em>개 시퀀스,
+    각 시퀀스마다 <em>T</em>개 토큰, 토큰마다 <em>D</em>개 피처. LayerNorm은 <strong>D</strong>축으로
+    reduce합니다: 모든 토큰이 <em>자기만의</em> 평균·표준편차로 독립적으로 정규화됩니다. 슬라이더로
+    슬라이스를 고르고 토글을 눌러, BatchNorm이라면 대신 배치/토큰 축으로 reduce하는 모습을 보세요.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label"><span>텐서 · B = 1 표시, T = 10 토큰, D = 12 피처</span><span id="tnStatRO">μ=0.00 · σ=1.00</span></div>
+    <div class="toggle-row">
+      <button id="tnLN" class="on" onclick="setNormMode('ln')">LayerNorm · 토큰마다 (D축)</button>
+      <button id="tnBN" onclick="setNormMode('bn')">BatchNorm · 피처마다 (토큰축)</button>
+    </div>
+    <div class="lab">
+      <div>
+        <canvas id="tensorCanvas" width="560" height="360"></canvas>
+        <div class="cmap-legend">
+          <span>청록 = 음수</span><span class="cmap-bar"></span><span>에메랄드 = 양수</span>
+          <span style="margin-left:6px;">밝은 띠 = 정규화 중인 슬라이스</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name" id="tnSelName">토큰 · t</span><span class="ctrl-val" id="tnSelV">3</span></div>
+          <input type="range" id="tnSel" min="0" max="9" step="1" value="3">
+          <div class="ctrl-meta" id="tnSelMeta">정규화할 토큰 행</div>
+        </div>
+        <div class="scope-cap" id="tnCap"></div>
+        <div class="readout-grid">
+          <div class="rc"><div class="rk" id="tnRawMeanK">슬라이스 평균 μ</div><div class="rv" id="tnRawMean">—</div></div>
+          <div class="rc"><div class="rk">슬라이스 표준편차 σ</div><div class="rv" id="tnRawStd">—</div></div>
+          <div class="rc"><div class="rk">정규화 후 · 평균</div><div class="rv good" id="tnNormMean">0.00</div></div>
+          <div class="rc"><div class="rk">정규화 후 · 표준편차</div><div class="rv good" id="tnNormStd">1.00</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="axis-box" style="max-width:820px; margin-top:8px;">
+    <div class="at">규칙, 정확히</div>
+    LayerNorm은 <b style="color:var(--accent)">마지막 축 D만</b> reduce합니다 — 토큰당 한 번:
+    <div class="axis-diagram">[B, T, D]   B = 배치 · T = 시퀀스 길이 · D = d_model
+
+ 토큰 (b,t):  [ <span class="hl">x₀  x₁  …  x_D-1</span> ]  ──D축으로 reduce──▶  <b>μ(b,t), σ(b,t)</b>
+              y = (x − μ) / √(σ² + ε) · γ + β     → 모양 그대로 [B, T, D]</div>
+    <ul>
+      <li><code>μ</code>, <code>σ</code>는 <b>b, t</b> 인덱스만 가짐 (j 없음) → <b>토큰당 1쌍</b> → 총 <b>B×T쌍</b> (여기선 <code>1 × 10 = 10</code>번 정규화).</li>
+      <li><b>모든</b> B·T·D 원소가 정규화됨; 통계는 각 토큰의 D개 값에서만 나옴.</li>
+      <li><b>B(배치)와 T(시퀀스 길이)는 통계에 절대 들어가지 않음</b> — 배치/토큰 축으로 모으는 BatchNorm과의 핵심 차이.</li>
+      <li>코드: <code>nn.LayerNorm(d_model)</code>은 마지막 차원만 reduce.</li>
+    </ul>
+  </div>
+
+  <h2 class="sec"><span class="num">05·c</span> LayerNorm vs BatchNorm</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">LayerNorm — 여기서 사용</div>
+      <h4>피처 축으로</h4>
+      <p>$D$축으로, <em>토큰마다</em> 정규화합니다. 배치 크기나 다른 예시에 의존하지 않아 — 학습과 추론에서 동일하게 동작하고, 길이가 제각각인 시퀀스에서도 잘 작동합니다.</p>
+    </div>
+    <div class="idea">
+      <div class="k">BatchNorm — 사용 안 함</div>
+      <h4>배치 축으로</h4>
+      <p>각 피처를 <em>배치</em>에 대해 정규화합니다. 짧거나 가변 길이 시퀀스, 작은 배치에서 불안정하고 추론 시 이동 통계가 필요해 — 시퀀스 모델엔 잘 안 맞습니다. 그래서 LayerNorm을 씁니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= PRE VS POST ========================= -->
+<section class="tab-section" id="tab-prepost">
+  <div class="eyebrow">Norm은 어디에 들어가나?</div>
+  <h1>Post-LN vs <em>Pre-LN</em></h1>
+  <p class="lede">
+    2017 논문은 LayerNorm을 잔차 덧셈 <em>뒤에</em> 둡니다 — <strong>Post-LN</strong>. 이후 연구에서
+    이를 잔차 분기 <em>안쪽</em>, 서브레이어 <em>앞에</em> 두는 <strong>Pre-LN</strong>이 훨씬 안정적으로
+    학습되고 보통 학습률 워밍업이 필요 없다는 게 밝혀졌습니다. 현대의 거의 모든 LLM(GPT-2 이후)이
+    Pre-LN을 씁니다.
+  </p>
+
+  <div class="flow2">
+    <div class="flowcol">
+      <div class="fh">Post-LN</div>
+      <div class="fsub">원본 · 2017</div>
+      <div class="fstack">
+        <div class="fnode io">x</div>
+        <div class="farrow">│ ┌───── skip ─────┐</div>
+        <div class="fnode sub">Sublayer(x)</div>
+        <div class="farrow">↓</div>
+        <div class="fnode add">Add &nbsp;( + x )</div>
+        <div class="farrow">↓</div>
+        <div class="fnode norm">LayerNorm</div>
+        <div class="farrow">↓</div>
+        <div class="fnode io">out</div>
+      </div>
+      <div class="fnote">
+        <b>LayerNorm(x + Sublayer(x))</b><br>
+        Norm이 메인 경로 위에 있음 — 잔차 스트림 자체가 매 레이어 정규화됨.
+      </div>
+    </div>
+    <div class="flowcol">
+      <div class="fh">Pre-LN</div>
+      <div class="fsub">GPT-2, 현대 LLM</div>
+      <div class="fstack">
+        <div class="fnode io">x</div>
+        <div class="farrow">│ ┌───── skip ─────┐</div>
+        <div class="fnode norm">LayerNorm</div>
+        <div class="farrow">↓</div>
+        <div class="fnode sub">Sublayer( · )</div>
+        <div class="farrow">↓</div>
+        <div class="fnode add">Add &nbsp;( + x )</div>
+        <div class="farrow">↓</div>
+        <div class="fnode io">out</div>
+      </div>
+      <div class="fnote">
+        <b>x + Sublayer(LayerNorm(x))</b><br>
+        Norm이 분기 안쪽에 있음 — 스킵 경로는 정규화되지 않은 깨끗한 항등 스트림으로 유지됨.
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Pre-LN이 더 안정적인 이유:</strong> 잔차 스트림이 다시 정규화되지 않아, 항등 고속도로가
+    마지막 레이어부터 첫 레이어까지 막힘없이 이어집니다 — 그래디언트가 앞쪽 레이어까지 온전한 세기로
+    도달하죠. Post-LN의 그래디언트는 깊이에 따라 커질 수 있어서, 원본 트랜스포머는 세심한 워밍업
+    스케줄이 필요했습니다.
+  </div>
+  <div class="note warn">
+    <strong>트레이드오프:</strong> 잘 튜닝된 Post-LN은 최종 품질이 약간 더 좋을 수 있지만 깊게 학습하기
+    까다롭습니다. Pre-LN이 견고한 기본값이고, 일부 기법(예: <em>DeepNorm</em>)은 Post-LN을 다시
+    설계해 수백 레이어까지 확장합니다.
+  </div>
+</section>
+
+<!-- ========================= VARIANTS ========================= -->
+<section class="tab-section" id="tab-variants">
+  <div class="eyebrow">2017 레시피를 넘어서</div>
+  <h1><em>정규화</em>의 네 가지 방식</h1>
+  <p class="lede">
+    Add는 어디서나 그대로입니다; 바뀌는 건 정규화 방식과 그 위치죠. 실제 아키텍처에서 만나게 되는
+    계열들입니다.
+  </p>
+
+  <div class="vcompare">
+    <div class="vcol">
+      <div class="vh">Post-LN</div>
+      <div class="vsub">원본</div>
+      <div class="vrow"><span class="vk">공식</span><div class="vv"><code>LN(x + f(x))</code></div></div>
+      <div class="vrow"><span class="vk">장점</span><div class="vv">튜닝하면 최종 품질이 강력.</div></div>
+      <div class="vrow"><span class="vk">비용</span><div class="vv">워밍업 필요; 깊으면 불안정.</div></div>
+      <div class="vrow"><span class="vk">사용처</span><div class="vv">Transformer, BERT</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">Pre-LN</div>
+      <div class="vsub">분기 안</div>
+      <div class="vrow"><span class="vk">공식</span><div class="vv"><code>x + f(LN(x))</code></div></div>
+      <div class="vrow"><span class="vk">장점</span><div class="vv">안정적; 워밍업 선택적.</div></div>
+      <div class="vrow"><span class="vk">비용</span><div class="vv">보통 헤드 앞에 최종 LN 하나.</div></div>
+      <div class="vrow"><span class="vk">사용처</span><div class="vv">GPT-2/3, ViT</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">RMSNorm</div>
+      <div class="vsub">평균 없음</div>
+      <div class="vrow"><span class="vk">공식</span><div class="vv"><code>x / rms(x) · γ</code></div></div>
+      <div class="vrow"><span class="vk">장점</span><div class="vv">평균 빼기 &amp; β를 <em>생략</em> — 더 싸고 품질은 동일.</div></div>
+      <div class="vrow"><span class="vk">비용</span><div class="vv">재중심화 단계를 버림.</div></div>
+      <div class="vrow"><span class="vk">사용처</span><div class="vv">LLaMA, T5, Gemma</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">DeepNorm</div>
+      <div class="vsub">스케일된 Post-LN</div>
+      <div class="vrow"><span class="vk">공식</span><div class="vv"><code>LN(αx + f(x))</code></div></div>
+      <div class="vrow"><span class="vk">장점</span><div class="vv">잔차를 키워 <em>1000 레이어</em> 모델까지 학습.</div></div>
+      <div class="vrow"><span class="vk">비용</span><div class="vv">깊이에 맞춘 상수 α 추가.</div></div>
+      <div class="vrow"><span class="vk">사용처</span><div class="vv">DeepNet, BLOOM 계열</div></div>
+    </div>
+  </div>
+
+  <div class="mini-grid">
+    <div class="mini"><div class="op">+</div><h4>Add는 절대 안 변함</h4><p>잔차 / 스킵 연결은 모든 변형에 들어 있습니다. 타협 불가능한 그래디언트 고속도로죠.</p></div>
+    <div class="mini"><div class="op">μ</div><h4>평균은 선택</h4><p>RMSNorm은 μ 빼기와 β 시프트를 버립니다 — 그냥 제곱평균제곱근으로 나누고 γ로 스케일.</p></div>
+    <div class="mini"><div class="op">α</div><h4>잔차를 스케일</h4><p>DeepNorm은 스킵 경로에 상수 α를 곱해, 아주 깊은 Post-LN 스택도 안정적으로 유지합니다.</p></div>
+  </div>
+
+  <div class="formula-panel">
+    $$\mathrm{RMSNorm}(x)_j = \gamma_j \cdot \frac{x_j}{\sqrt{\tfrac1D\sum_k x_k^2 + \epsilon}}
+      \qquad\text{(}\mu\text{ 없음, }\beta\text{ 없음)}$$
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <div class="eyebrow">정답을 입력하고 · 연속 기록을 쌓으세요</div>
+  <h1><em>연습</em></h1>
+  <p class="lede">
+    <kbd>Enter</kbd> 채점 · <kbd>Hint</kbd> 안 푼 빈칸 모두 공개(토글) · <kbd>Tab</kbd> 빈칸 사이 이동.
+    전부 풀면 섹션 완료입니다.
+  </p>
+
+  <h2 class="sec"><span class="num">07·a</span> 공식</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">01</span> 표준 Post-LN 서브레이어 식을 채우세요.</div>
+    <pre class="exercise">out = LayerNorm(<input class="blank" data-answer="x" size="4" placeholder="?"> + Sublayer(x))</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">02</span> "Add &amp; Norm" 박스 안의 두 연산.</div>
+    <pre class="exercise">add  = <input class="blank" data-answer="residual|skip|잔차|스킵" size="9" placeholder="?"> connection
+norm = <input class="blank" data-answer="layernorm|layer norm|layer normalization" size="12" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">03</span> LayerNorm은 어느 축으로 정규화하나? (한 단어)</div>
+    <pre class="exercise">통계는 토큰마다 <input class="blank" data-answer="feature|features|d|d_model|channel|피처|특징" size="9" placeholder="?"> 차원으로 계산</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">04</span> 정규화 후, 다시 형태를 잡는 학습 가능한 두 파라미터.</div>
+    <pre class="exercise">y = <input class="blank" data-answer="gamma|γ" size="6" placeholder="?"> * norm + <input class="blank" data-answer="beta|β" size="6" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">05</span> 0으로 나누는 걸 막는, 제곱근 안의 작은 상수.</div>
+    <pre class="exercise">norm = (x - mu) / sqrt(var + <input class="blank" data-answer="eps|epsilon|ε" size="7" placeholder="?">)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·b</span> 잔차</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">06</span> <code>out = x + Sublayer(x)</code>를 미분하면 야코비안에 어떤 행렬이 더해지나?</div>
+    <pre class="exercise">d(out)/dx = <input class="blank" data-answer="I|identity" size="6" placeholder="?"> + d(Sublayer)/dx</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">07</span> 네트워크가 아주 깊어질 때 잔차가 해결하는 문제.</div>
+    <pre class="exercise">스킵이 없으면 그래디언트가 깊이에 따라 <input class="blank" data-answer="vanish|vanishing|소실|소실됨" size="9" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">08</span> Add는 모양을 그대로 둡니다 — 잔차 합의 모양을 채우세요.</div>
+    <pre class="exercise">x[B,T,D] + sublayer(x)[B,T,D]  →  [B, T, <input class="blank" data-answer="D|d|d_model" size="6" placeholder="?">]</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·c</span> Pre / Post &amp; 변형</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">09</span> Pre-LN 형태를 완성하세요 (norm이 분기 안쪽).</div>
+    <pre class="exercise">out = x + Sublayer(<input class="blank" data-answer="LayerNorm(x)|LN(x)|layernorm(x)" size="14" placeholder="?">)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">10</span> 평균 빼기와 β를 생략하는 정규화는? (LLaMA / T5)</div>
+    <pre class="exercise">norm = "<input class="blank" data-answer="rmsnorm|rms norm|rms" size="9" placeholder="?">"   <span class="cm"># x / sqrt(mean(x^2)+eps) * gamma</span></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">11</span> 트랜스포머가 쓰는, 시퀀스 모델에 적합한 정규화 (Batch 아님).</div>
+    <pre class="exercise">self.norm = nn.<input class="blank" data-answer="LayerNorm" size="12" placeholder="?">(d_model)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note mint" style="margin-top:24px;">
+    <strong>열한 개를 다 풀었나요?</strong> 이제 모든 "Add &amp; Norm" 박스가 무엇을 하는지 정확히 압니다:
+    그래디언트를 살려두는 잔차 고속도로 + 활성값을 길들이는 LayerNorm — 그리고 Pre-LN, RMSNorm,
+    DeepNorm이 이 레시피를 어떻게 변형하는지도요.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="if(event.target===this)hideHelp()">
+  <div class="help-content">
+    <h3>키보드</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 문제 채점</td></tr>
+      <tr><td><kbd>1</kbd> … <kbd>8</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>워크스루 단계 이동</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>닫기</td></tr>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>Add &amp; Norm · 인터랙티브 가이드 · 그래디언트 고속도로 &amp; LayerNorm을 JS로 실시간 계산</span>
+  <span><a href="index.html">← 전체 치트시트</a></span>
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속하세요.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = '정답 숨김 — 직접 입력해 보세요';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = '모두 완료.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = '정답 모두 공개 · 다시 누르면 숨김';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답!', '정규화 완료.', '✓ 바로 그거예요.', '날카롭네요.', '그게 정답.', '안정적.', '그래디언트가 흐릅니다.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아쉬워요 — 다시.', '비슷해요. 힌트 볼까요?', '거의 다 왔어요. 철자 확인.', '조금 빗나갔어요. 한 번 더.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('섹션 완료! 🎉  +' + drills.length + ' 해결');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#34d399','#22d3ee','#3affb8','#67e8f9','#a7f3d0','#5eead4','#f4f0e6'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.panel, .card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== SHARED COLOR ==============
+// diverging colormap: v<0 -> cyan, v>0 -> emerald, ~0 -> dark
+function divColor(v) {
+  const a = Math.min(1, Math.abs(v) / 2.2 + 0.05);
+  if (v >= 0) return `rgba(52,211,153,${a})`;    // emerald
+  return `rgba(34,211,238,${a})`;                // cyan
+}
+
+// ============== GRADIENT HIGHWAY LAB (Add) ==============
+const gradCanvas = document.getElementById('gradCanvas');
+function drawGrad() {
+  if (!gradCanvas) return;
+  const ctx = gradCanvas.getContext('2d');
+  const W = gradCanvas.width, H = gradCanvas.height;
+  const N = +document.getElementById('depth').value;
+  const g = +document.getElementById('gain').value;
+  document.getElementById('depthV').textContent = N;
+  document.getElementById('gainV').textContent = g.toFixed(2);
+
+  // gradient magnitude at depth d (counting from output): plain g^d, residual (1+g)^d
+  const plainEnd = Math.pow(g, N);
+  const resEnd = Math.pow(1 + g, N);
+  document.getElementById('plainRO').textContent = fmtSci(plainEnd);
+  document.getElementById('resRO').textContent = fmtSci(resEnd);
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const padL = 46, padR = 14, padT = 14, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  // y-axis: log10 of magnitude. Determine range from both curves.
+  const logVals = [];
+  for (let d = 0; d <= N; d++) {
+    logVals.push(d * Math.log10(Math.max(1e-12, g)));
+    logVals.push(d * Math.log10(1 + g));
+  }
+  let lo = Math.min(...logVals), hi = Math.max(...logVals);
+  if (hi - lo < 1) { hi += 0.5; lo -= 0.5; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+
+  const x = d => padL + (N === 0 ? 0 : (d / N) * plotW);
+  const y = lg => padT + (1 - (lg - lo) / (hi - lo)) * plotH;
+
+  // gridlines at integer log decades
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.textAlign = 'right';
+  const decLo = Math.ceil(lo), decHi = Math.floor(hi);
+  for (let e = decLo; e <= decHi; e++) {
+    const yy = y(e);
+    ctx.strokeStyle = (e === 0) ? 'rgba(138,161,189,0.45)' : 'rgba(138,161,189,0.15)';
+    ctx.lineWidth = (e === 0) ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(padL + plotW, yy); ctx.stroke();
+    ctx.fillStyle = '#8aa1bd';
+    ctx.fillText('1e' + e, padL - 6, yy + 3);
+  }
+
+  // plain curve (rose)
+  drawCurve(ctx, N, x, y, d => d * Math.log10(Math.max(1e-12, g)), '#ff5e7a');
+  // residual curve (emerald)
+  drawCurve(ctx, N, x, y, d => d * Math.log10(1 + g), '#34d399');
+
+  // axis labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('layer depth →', padL + plotW / 2, H - 7);
+  ctx.textAlign = 'left';
+  ctx.fillText('log₁₀ ‖grad‖', padL + 2, padT + 10);
+}
+function drawCurve(ctx, N, x, y, lgFn, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 7;
+  ctx.beginPath();
+  for (let d = 0; d <= N; d++) {
+    const xx = x(d), yy = y(lgFn(d));
+    if (d === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // end dot
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x(N), y(lgFn(N)), 4, 0, Math.PI * 2); ctx.fill();
+}
+function fmtSci(v) {
+  if (v === 0) return '0';
+  if (v >= 1e-3 && v < 1e4) return v.toFixed(v < 10 ? 2 : 0);
+  const e = Math.floor(Math.log10(v));
+  const m = v / Math.pow(10, e);
+  return m.toFixed(1) + 'e' + e;
+}
+['depth', 'gain'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawGrad);
+});
+
+// ============== LAYERNORM LAB (Norm) ==============
+const LN_D = 16, LN_EPS = 1e-5;
+// fixed base feature pattern in ~[-1, 1]
+const lnBase = (() => {
+  const v = new Array(LN_D);
+  for (let k = 0; k < LN_D; k++) {
+    const s = Math.sin((k + 1) * 12.9898) * 43758.5453;
+    v[k] = (s - Math.floor(s)) * 2 - 1;
+  }
+  return v;
+})();
+const lnCanvas = document.getElementById('lnCanvas');
+function drawLN() {
+  if (!lnCanvas) return;
+  const ctx = lnCanvas.getContext('2d');
+  const W = lnCanvas.width, H = lnCanvas.height;
+  const gain = +document.getElementById('lnGain').value;
+  const bias = +document.getElementById('lnBias').value;
+  const gamma = +document.getElementById('gamma').value;
+  const beta = +document.getElementById('beta').value;
+  document.getElementById('lnGainV').textContent = gain.toFixed(1);
+  document.getElementById('lnBiasV').textContent = bias.toFixed(1);
+  document.getElementById('gammaV').textContent = gamma.toFixed(1);
+  document.getElementById('betaV').textContent = beta.toFixed(1);
+
+  // raw = gain * base + bias
+  const raw = lnBase.map(v => gain * v + bias);
+  const mu = raw.reduce((a, b) => a + b, 0) / LN_D;
+  const variance = raw.reduce((a, b) => a + (b - mu) * (b - mu), 0) / LN_D;
+  const std = Math.sqrt(variance + LN_EPS);
+  const norm = raw.map(v => (v - mu) / std);
+  const out = norm.map(v => gamma * v + beta);
+
+  // readouts
+  document.getElementById('rawMeanRO').textContent = mu.toFixed(2);
+  document.getElementById('rawStdRO').textContent = Math.sqrt(variance).toFixed(2);
+  const nMean = norm.reduce((a, b) => a + b, 0) / LN_D;
+  const nVar = norm.reduce((a, b) => a + (b - nMean) * (b - nMean), 0) / LN_D;
+  document.getElementById('normMeanRO').textContent = (Math.abs(nMean) < 0.005 ? 0 : nMean).toFixed(2);
+  document.getElementById('normStdRO').textContent = Math.sqrt(nVar).toFixed(2);
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const rows = [
+    { label: 'raw',  data: raw },
+    { label: 'norm', data: norm },
+    { label: 'out',  data: out }
+  ];
+  const padL = 64, padR = 12;
+  const stripW = W - padL - padR;
+  const cw = stripW / LN_D;
+  const rowH = 64, gap = 18, top = 18;
+  // shared scale across rows so heights are comparable
+  const maxAbs = Math.max(1.2, ...rows.flatMap(r => r.data.map(Math.abs)));
+
+  ctx.font = '12px ui-monospace, monospace';
+  rows.forEach((row, ri) => {
+    const yTop = top + ri * (rowH + gap);
+    const yMid = yTop + rowH / 2;
+    // zero baseline
+    ctx.strokeStyle = 'rgba(138,161,189,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, yMid); ctx.lineTo(padL + stripW, yMid); ctx.stroke();
+    // bars
+    for (let k = 0; k < LN_D; k++) {
+      const v = row.data[k];
+      const h = (v / maxAbs) * (rowH / 2 - 2);
+      ctx.fillStyle = (ri === 2) ? (v >= 0 ? '#34d399' : '#22d3ee') : divColor(v);
+      const bx = padL + k * cw + 1;
+      const bw = Math.max(1, cw - 2);
+      if (v >= 0) ctx.fillRect(bx, yMid - h, bw, h);
+      else ctx.fillRect(bx, yMid, bw, -h);
+    }
+    // label
+    ctx.fillStyle = (ri === 2) ? '#34d399' : '#8aa1bd';
+    ctx.textAlign = 'right';
+    ctx.fillText(row.label, padL - 10, yMid + 4);
+    ctx.textAlign = 'left';
+  });
+}
+['lnGain', 'lnBias', 'gamma', 'beta'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawLN);
+});
+
+// ============== TENSOR AXIS LAB (Norm) ==============
+const TN_T = 10, TN_D = 12;
+let tnMode = 'ln';   // 'ln' = per-token (over D) | 'bn' = per-feature (over tokens)
+// deterministic [T x D] matrix in ~[-1.8, 1.8]
+function tnVal(t, d) {
+  const s = Math.sin((t * 31 + d * 7 + 1) * 12.9898) * 43758.5453;
+  return ((s - Math.floor(s)) * 2 - 1) * 1.8;
+}
+function statsOf(arr) {
+  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const v = arr.reduce((a, b) => a + (b - m) * (b - m), 0) / arr.length;
+  return { mean: m, std: Math.sqrt(v) };
+}
+function setNormMode(mode) {
+  tnMode = mode;
+  document.getElementById('tnLN').classList.toggle('on', mode === 'ln');
+  document.getElementById('tnBN').classList.toggle('on', mode === 'bn');
+  const sel = document.getElementById('tnSel');
+  if (mode === 'ln') {
+    sel.max = TN_T - 1;
+    if (+sel.value > TN_T - 1) sel.value = TN_T - 1;
+    document.getElementById('tnSelName').textContent = '토큰 · t';
+    document.getElementById('tnSelMeta').textContent = '정규화할 토큰 행';
+    document.getElementById('tnRawMeanK').textContent = '슬라이스 평균 μ';
+  } else {
+    sel.max = TN_D - 1;
+    if (+sel.value > TN_D - 1) sel.value = TN_D - 1;
+    document.getElementById('tnSelName').textContent = '피처 · d';
+    document.getElementById('tnSelMeta').textContent = 'BatchNorm이 모을 피처 열';
+    document.getElementById('tnRawMeanK').textContent = '슬라이스 평균 μ';
+  }
+  drawTensor();
+}
+const tensorCanvas = document.getElementById('tensorCanvas');
+function drawTensor() {
+  if (!tensorCanvas) return;
+  const ctx = tensorCanvas.getContext('2d');
+  const W = tensorCanvas.width, H = tensorCanvas.height;
+  const idx = +document.getElementById('tnSel').value;
+  document.getElementById('tnSelV').textContent = idx;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  // grid geometry
+  const padL = 60, padT = 28, padR = 16, padB = 56;
+  const gW = W - padL - padR, gH = H - padT - padB;
+  const cw = gW / TN_D, ch = gH / TN_T;
+
+  // selected slice values
+  const slice = [];
+  if (tnMode === 'ln') { for (let d = 0; d < TN_D; d++) slice.push(tnVal(idx, d)); }
+  else { for (let t = 0; t < TN_T; t++) slice.push(tnVal(t, idx)); }
+
+  // draw cells (dim the ones not in the slice)
+  for (let t = 0; t < TN_T; t++) {
+    for (let d = 0; d < TN_D; d++) {
+      const inSlice = (tnMode === 'ln') ? (t === idx) : (d === idx);
+      const v = tnVal(t, d);
+      ctx.globalAlpha = inSlice ? 1 : 0.28;
+      ctx.fillStyle = divColor(v);
+      ctx.fillRect(padL + d * cw + 1, padT + t * ch + 1, cw - 2, ch - 2);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // highlight band around the slice
+  ctx.strokeStyle = (tnMode === 'ln') ? '#34d399' : '#22d3ee';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10;
+  if (tnMode === 'ln') ctx.strokeRect(padL, padT + idx * ch, gW, ch);
+  else ctx.strokeRect(padL + idx * cw, padT, cw, gH);
+  ctx.shadowBlur = 0;
+
+  // axis labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('D = 피처 →   (' + TN_D + ')', padL + gW / 2, padT + gH + 20);
+  // reduction-direction arrow caption
+  ctx.fillStyle = (tnMode === 'ln') ? '#34d399' : '#22d3ee';
+  ctx.fillText(tnMode === 'ln'
+    ? 'LayerNorm은 이 행을 따라 reduce →  (토큰 1개, 그 D개 피처로)'
+    : 'BatchNorm은 이 열을 따라 reduce ↓  (피처 1개, 모든 토큰으로)',
+    padL + gW / 2, padT + gH + 40);
+  // token axis label (vertical)
+  ctx.save();
+  ctx.translate(16, padT + gH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#8aa1bd';
+  ctx.textAlign = 'center';
+  ctx.fillText('토큰 (T) ↓   (' + TN_T + ')', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'left';
+
+  // stats + caption
+  const st = statsOf(slice);
+  document.getElementById('tnStatRO').textContent = 'μ=' + st.mean.toFixed(2) + ' · σ=' + st.std.toFixed(2);
+  document.getElementById('tnRawMean').textContent = st.mean.toFixed(2);
+  document.getElementById('tnRawStd').textContent = st.std.toFixed(2);
+  document.getElementById('tnCap').innerHTML = (tnMode === 'ln')
+    ? '토큰 <b>' + idx + '</b>은(는) <b>자기 행의 ' + TN_D + '개 값</b>으로 정규화됩니다 — 다른 모든 토큰과 배치와는 무관하게요. μ를 빼고 σ로 나누면 → 평균 0, 분산 1.'
+    : '<b>BatchNorm</b>이라면 대신 피처 <b>' + idx + '</b>을(를) <b>토큰/배치 축</b>으로 모읍니다. 가변 길이 시퀀스와 작은 배치에서는 이 통계가 노이즈가 커서 — 그래서 트랜스포머는 LayerNorm을 씁니다.';
+}
+const tnSelEl = document.getElementById('tnSel');
+if (tnSelEl) tnSelEl.addEventListener('input', drawTensor);
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'flow','3':'formula','4':'add','5':'norm','6':'prepost','7':'variants','8':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+  // ← / → step the walkthrough when the Walkthrough tab is active
+  const flowActive = document.getElementById('tab-flow').classList.contains('active');
+  if (flowActive && e.key === 'ArrowRight') { e.preventDefault(); traceStep(1); }
+  if (flowActive && e.key === 'ArrowLeft')  { e.preventDefault(); traceStep(-1); }
+});
+
+// ============== WALKTHROUGH TRACE (Flow) ==============
+const TR_EPS = 1e-5;
+const trX     = [2.0, -1.0, 0.5, 1.5];          // input token
+const trDelta = [0.3,  0.8, -0.4, 0.1];          // Sublayer(x) — proposed update
+const trSum   = trX.map((v, k) => v + trDelta[k]);
+const trMu    = trSum.reduce((a, b) => a + b, 0) / trSum.length;
+const trVar   = trSum.reduce((a, b) => a + (b - trMu) * (b - trMu), 0) / trSum.length;
+const trStd   = Math.sqrt(trVar + TR_EPS);
+const trNorm  = trSum.map(v => (v - trMu) / trStd);   // γ=1, β=0 here
+
+const fmt = a => '[' + a.map(v => v.toFixed(2)).join(', ') + ']';
+const TRACE = [
+  { stage: 0, vec: trX,
+    cap: '토큰 벡터 <b>x</b> 하나가 박스에 들어옵니다. (여기선 명확함을 위해 <b>D = 4</b> — 실제론 512.)',
+    op: 'x = ' + fmt(trX) },
+  { stage: 1, vec: trDelta,
+    cap: '<b>서브레이어</b> — 멀티헤드 어텐션 또는 피드포워드 네트워크 — 가 x를 제안된 <b>업데이트</b> Sublayer(x)로 바꿉니다.',
+    op: 'Sublayer(x) = ' + fmt(trDelta) },
+  { stage: 2, vec: trSum, skip: true,
+    cap: '<b>Add</b> — 잔차. 스킵 레일이 원래 x를 앞으로 옮겨주고 다시 더합니다: <b>x + Sublayer(x)</b>. 서브레이어는 보정값만 학습하면 됐죠.',
+    op: 'x + Sublayer(x) = ' + fmt(trSum) },
+  { stage: 3, vec: trNorm,
+    cap: '<b>LayerNorm</b> — <b>마지막 축 D만</b> reduce: 이 토큰의 평균을 빼고 표준편차로 나눈 뒤(그 D개 피처로), 학습 가능한 γ, β를 적용합니다(여기선 γ=1, β=0). 토큰마다 자기만의 μ, σ를 가집니다.',
+    op: '(s − μ)/√(σ²+ε):  μ = ' + trMu.toFixed(2) + ',  σ = ' + Math.sqrt(trVar).toFixed(2),
+    stats: true },
+  { stage: 4, vec: trNorm,
+    cap: '<b>출력</b> — 모양 그대로 <b>[B, T, D]</b>, 정규화되어 다음 서브레이어로 갈 준비 완료. 이 경로 전체가 하나의 "Add &amp; Norm" 박스입니다.',
+    op: 'out = ' + fmt(trNorm) + '   ·   모양 [B, T, D]',
+    stats: true },
+];
+let traceCur = 0;
+
+// build the step dots once
+(function buildDots() {
+  const dots = document.getElementById('stepDots');
+  if (!dots) return;
+  TRACE.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'd'; dots.appendChild(d);
+  });
+})();
+
+function drawTrace() {
+  const t = TRACE[traceCur];
+  if (!t) return;
+  // stage boxes
+  for (let i = 0; i <= 4; i++) {
+    const box = document.getElementById('st-' + i);
+    if (!box) continue;
+    box.classList.toggle('active', i === t.stage);
+    box.classList.toggle('done', i < t.stage);
+  }
+  // residual rail glows once the Add merges the skip
+  const rail = document.getElementById('skipRail');
+  if (rail) rail.classList.toggle('active', !!t.skip);
+
+  // counter + dots
+  document.getElementById('stepCounter').textContent = '단계 ' + (traceCur + 1) + ' / ' + TRACE.length;
+  document.querySelectorAll('#stepDots .d').forEach((d, i) => d.classList.toggle('on', i === traceCur));
+
+  // caption + op
+  document.getElementById('traceCap').innerHTML = t.cap;
+  document.getElementById('traceOp').textContent = t.op;
+
+  // vector bars
+  const vecEl = document.getElementById('traceVec');
+  const maxAbs = Math.max(1.0, ...TRACE.flatMap(s => s.vec.map(Math.abs)));
+  vecEl.innerHTML = '';
+  t.vec.forEach(v => {
+    const h = Math.min(48, Math.abs(v) / maxAbs * 48);
+    const pos = v >= 0;
+    const color = pos ? 'var(--accent)' : 'var(--accent-2)';
+    const cell = document.createElement('div');
+    cell.className = 'vcell';
+    cell.innerHTML =
+      '<div class="vbar-area"><div class="vbar-mid"></div>' +
+      '<div class="vbar" style="height:' + h + 'px;' +
+        (pos ? 'bottom:48px;' : 'top:48px;') +
+        'background:' + color + ';"></div></div>' +
+      '<div class="vnum">' + v.toFixed(2) + '</div>';
+    vecEl.appendChild(cell);
+  });
+
+  // stats (only after normalization)
+  const statsEl = document.getElementById('traceStats');
+  if (t.stats) {
+    statsEl.style.display = 'grid';
+    const m = t.vec.reduce((a, b) => a + b, 0) / t.vec.length;
+    const vr = t.vec.reduce((a, b) => a + (b - m) * (b - m), 0) / t.vec.length;
+    document.getElementById('traceMean').textContent = (Math.abs(m) < 0.005 ? 0 : m).toFixed(2);
+    document.getElementById('traceStd').textContent = Math.sqrt(vr).toFixed(2);
+  } else {
+    statsEl.style.display = 'none';
+  }
+  // axis explainer rides along with the normalization steps
+  document.getElementById('traceAxis').style.display = t.stats ? 'block' : 'none';
+
+  // button enable/disable
+  document.getElementById('tracePrev').disabled = (traceCur === 0);
+  document.getElementById('traceNext').disabled = (traceCur === TRACE.length - 1);
+}
+function traceStep(d) {
+  traceCur = Math.max(0, Math.min(TRACE.length - 1, traceCur + d));
+  drawTrace();
+}
+function traceReset() { traceCur = 0; drawTrace(); }
+
+// ============== INIT ==============
+drawGrad();
+drawLN();
+drawTensor();
+drawTrace();
+updateProgress();
+</script>
+</body>
+</html>

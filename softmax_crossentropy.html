@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Softmax &amp; Cross-Entropy · Interactive</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {
+    delimiters: [
+      {left:'$$', right:'$$', display:true},
+      {left:'$', right:'$', display:false}
+    ],
+    throwOnError: false
+  })"></script>
+<style>
+  :root {
+    --bg: #0a0e17;          --bg-2: #0f1626;
+    --panel: #111a2b;       --panel-2: #16213a;
+    --code-bg: #070d18;
+    --ink: #e6f1ff;         --muted: #8aa1bd;
+    --line: rgba(255,255,255,0.07);
+    --grid: rgba(125, 211, 252, 0.035);
+    --accent: #22d3ee;      --accent-2: #38bdf8;
+    --amber: #fde68a;       --good: #4ade80;   --bad: #f87171;
+    --warn: #fbbf24;        --purple: #c084fc; --orange: #fb923c;
+    --comment: #7d8fa6;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at top right, rgba(34, 211, 238, 0.10), transparent 55%),
+      radial-gradient(ellipse at bottom left, rgba(192, 132, 252, 0.07), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    min-height: 100vh;
+  }
+
+  /* film grain overlay */
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.04; z-index: 200;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* subtle scanlines */
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.30; z-index: 199;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0 1px, transparent 1px 3px);
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ---------- STICKY HEADER ---------- */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10, 14, 23, 0.82);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 24px 12px; flex-wrap: wrap;
+  }
+  .logo {
+    font-family: var(--serif); font-weight: 600; font-size: 18px; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 9px; color: var(--ink);
+  }
+  .logo .spark { filter: drop-shadow(0 0 6px var(--accent)); }
+  .logo em { font-style: italic; color: var(--accent); font-weight: 900; }
+  .badge {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--bg); background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    padding: 3px 8px; border-radius: 999px; font-weight: 700;
+  }
+  .progress-bar-outer {
+    flex: 1; min-width: 90px; height: 7px; border-radius: 999px;
+    background: #0d1626; border: 1px solid var(--line); overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    box-shadow: 0 0 14px var(--accent); transition: width 0.5s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
+    display: flex; align-items: baseline; gap: 2px;
+  }
+  .stat .num { color: var(--accent); font-weight: 700; font-size: 15px; }
+  .stat .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 4px; }
+  .streak { font-family: var(--mono); font-size: 14px; color: var(--warn); white-space: nowrap; }
+  .streak .num { font-weight: 700; }
+
+  .btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #06121b; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 13px; font-weight: 600; transition: transform .12s, box-shadow .2s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(34,211,238,0.25); }
+  .btn:active { transform: translateY(0); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 5px 11px; font-size: 12px; }
+  .btn.copied { background: var(--good); color: #06121b; }
+
+  /* ---------- TAB NAV ---------- */
+  nav.tabs {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; gap: 4px; padding: 0 16px 0; overflow-x: auto; scrollbar-width: thin;
+  }
+  nav.tabs button {
+    background: none; border: none; cursor: pointer; white-space: nowrap;
+    color: var(--muted); font-family: var(--mono); font-size: 12.5px; padding: 11px 14px;
+    border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  nav.tabs button:hover { color: var(--ink); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .check { color: var(--good); font-size: 12px; }
+
+  /* ---------- LAYOUT ---------- */
+  main { max-width: 1080px; margin: 0 auto; padding: 36px 24px 120px; }
+  .tab-section { display: none; animation: fadeUp .35s ease; }
+  .tab-section.active { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .eyebrow::before { content: ''; width: 30px; height: 1px; background: var(--accent); }
+
+  .display-h {
+    font-family: var(--serif); font-weight: 300; letter-spacing: -0.03em;
+    font-size: clamp(34px, 6vw, 60px); line-height: 0.98; margin-bottom: 14px;
+  }
+  .display-h em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+  .lede { font-size: 17px; max-width: 660px; color: var(--muted); font-weight: 300; margin-bottom: 34px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--muted); margin: 40px 0 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  /* ---------- PANELS / CARDS ---------- */
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px; margin-bottom: 22px; position: relative;
+  }
+  .card.accented::before {
+    content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px;
+    border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); border-radius: 14px 0 0 0;
+  }
+  .card.accented::after {
+    content: ''; position: absolute; bottom: -1px; right: -1px; width: 22px; height: 22px;
+    border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); border-radius: 0 0 14px 0;
+  }
+  .card h3 {
+    font-family: var(--serif); font-size: 1.35rem; font-weight: 600; color: var(--ink);
+    margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .tag {
+    font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em; background: var(--accent);
+    color: #06121b; padding: 3px 9px; border-radius: 999px; font-weight: 700; white-space: nowrap;
+  }
+  .tag.green  { background: var(--good); }
+  .tag.purple { background: var(--purple); }
+  .tag.orange { background: var(--orange); }
+  .tag.amber  { background: var(--amber); color: #1e293b; }
+
+  p.desc { color: var(--muted); font-size: 0.95rem; margin-bottom: 14px; }
+
+  /* ---------- MATH ---------- */
+  .math-block {
+    background: var(--code-bg); border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 12px; padding: 20px 26px; margin: 14px 0; text-align: center; overflow-x: auto;
+  }
+  .math-block .katex { font-size: 1.22em; color: #fef3c7; }
+  .math-block .caption { margin-top: 9px; font-size: 0.78rem; color: var(--muted); font-style: italic; }
+  .katex { color: var(--amber); }
+
+  .deriv-chain {
+    background: var(--code-bg); border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 12px; padding: 22px 28px; margin: 14px 0; overflow-x: auto;
+  }
+  .deriv-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+  .deriv-row:last-child { border-bottom: none; }
+  .deriv-row .eq { flex: 1; min-width: 200px; }
+  .deriv-row .reason { font-size: 0.76rem; color: var(--muted); font-style: italic; min-width: 140px; text-align: right; }
+  .deriv-row.highlight { background: rgba(74, 222, 128, 0.07); border-radius: 8px; padding: 12px 12px; border-bottom: none; margin-top: 6px; }
+  .deriv-row.highlight .katex { color: #86efac; }
+
+  .intuition {
+    background: rgba(34, 211, 238, 0.06); border-left: 3px solid var(--accent);
+    padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 0.9rem; color: #cbd5e1;
+  }
+  .intuition strong { color: var(--accent); }
+
+  .context-box {
+    background: var(--bg-2); border: 1px dashed rgba(255,255,255,0.18); border-radius: 10px;
+    padding: 18px; margin: 14px 0; font-size: 0.9rem; color: var(--muted); font-family: var(--mono); line-height: 1.9;
+  }
+  .context-box .hl { color: var(--amber); font-weight: 600; }
+  .context-box code { color: var(--accent-2); }
+
+  .note { background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #bbf7d0; margin: 14px 0; }
+  .warn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #fecaca; margin: 14px 0; }
+
+  /* ---------- SLIDERS ---------- */
+  .slider-group { margin: 14px 0; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
+  .slider-label span { color: var(--accent); font-weight: 700; }
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px; border-radius: 999px;
+    background: rgba(255,255,255,0.14); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); transition: transform .15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+  input[type=range]::-moz-range-thumb { width: 17px; height: 17px; border: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); }
+
+  /* ---------- BARS ---------- */
+  .bar-container { margin: 14px 0; }
+  .bar-row { display: flex; align-items: center; gap: 12px; margin: 7px 0; }
+  .bar-label { width: 84px; font-size: 0.8rem; color: var(--muted); text-align: right; font-family: var(--mono); }
+  .bar-wrap { flex: 1; background: #0c1424; border-radius: 5px; height: 24px; overflow: hidden; border: 1px solid var(--line); }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.35s cubic-bezier(.2,.8,.2,1); display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.72rem; font-weight: 700; color: white; min-width: 2px; }
+  .bar-fill.blue   { background: linear-gradient(90deg, #0ea5e9, #38bdf8); box-shadow: 0 0 14px rgba(56,189,248,0.4); }
+  .bar-fill.green  { background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 14px rgba(74,222,128,0.4); }
+  .bar-fill.red    { background: linear-gradient(90deg, #ef4444, #f87171); box-shadow: 0 0 14px rgba(248,113,113,0.4); }
+  .bar-fill.purple { background: linear-gradient(90deg, #a855f7, #c084fc); box-shadow: 0 0 14px rgba(192,132,252,0.4); }
+  .bar-fill.orange { background: linear-gradient(90deg, #f97316, #fb923c); box-shadow: 0 0 14px rgba(251,146,60,0.4); }
+  .bar-val { width: 62px; font-size: 0.8rem; color: var(--ink); font-family: var(--mono); text-align: right; }
+
+  .output { background: var(--bg-2); border-radius: 10px; padding: 14px 18px; margin-top: 14px; border: 1px solid var(--line); }
+  .output-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 0.88rem; }
+  .output-row .key { color: var(--muted); }
+  .output-row .val { color: var(--amber); font-family: var(--mono); font-weight: 600; }
+  .output-row .val.loss { color: var(--bad); }
+
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+
+  .grad-table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 0.85rem; }
+  .grad-table th { background: var(--bg-2); color: var(--accent); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; }
+  .grad-table td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: var(--mono); }
+  .grad-table tr:hover td { background: rgba(255,255,255,0.02); }
+  td.positive { color: var(--good); }
+  td.negative { color: var(--bad); }
+  td.neutral  { color: var(--muted); }
+
+  .big-loss { text-align: center; font-family: var(--serif); font-size: 3.2rem; font-weight: 900; margin: 16px 0; transition: color 0.3s; font-feature-settings: "tnum"; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+
+  .range-bar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; margin: 16px 0; font-size: 0.76rem; font-weight: 700; }
+  .range-seg { display: flex; align-items: center; justify-content: center; color: white; }
+
+  /* stats grid (lora style) */
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; margin: 16px 0; }
+  @media(max-width:640px){ .statgrid { grid-template-columns: repeat(2, 1fr); } }
+  .statcell { background: var(--panel); padding: 22px 18px; }
+  .statcell .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .statcell .v { font-family: var(--serif); font-size: 30px; font-weight: 300; line-height: 1; font-feature-settings: "tnum"; }
+  .statcell .v em { font-style: italic; font-weight: 900; color: var(--accent); }
+
+  /* ---------- DRILLS / PRACTICE ---------- */
+  .drill { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; transition: border-color .3s, box-shadow .3s; }
+  .drill.solved { border-color: rgba(74,222,128,0.5); box-shadow: 0 0 24px rgba(74,222,128,0.10); }
+  .drill .prompt { font-size: 0.96rem; color: var(--ink); margin-bottom: 12px; display: flex; gap: 9px; align-items: baseline; }
+  .drill .prompt .num { font-family: var(--mono); font-size: 12px; color: var(--accent); border: 1px solid rgba(34,211,238,0.4); border-radius: 6px; padding: 1px 7px; flex-shrink: 0; }
+  pre.exercise {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px;
+    font-family: var(--mono); font-size: 0.86rem; color: #cbd5e1; overflow-x: auto; line-height: 2.1; white-space: pre-wrap;
+  }
+  .blank {
+    font-family: var(--mono); font-size: 0.84rem; background: #0c1626; border: none;
+    border-bottom: 2px solid var(--accent); color: var(--amber); text-align: center;
+    padding: 3px 4px; border-radius: 5px 5px 0 0; outline: none; transition: all .2s; min-width: 44px;
+  }
+  .blank:focus { background: #122036; box-shadow: 0 2px 12px rgba(34,211,238,0.25); }
+  .blank.correct { color: var(--good); border-bottom-color: var(--good); background: rgba(74,222,128,0.08); }
+  .blank.wrong { color: var(--bad); border-bottom-color: var(--bad); }
+  .blank.pop { animation: pop .3s ease; }
+  .blank.shake { animation: shake .35s ease; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .controls { display: flex; gap: 8px; margin-top: 14px; }
+  .feedback { margin-top: 11px; font-size: 0.85rem; min-height: 18px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--warn); }
+
+  /* ---------- OVERLAYS / TOAST / CONFETTI ---------- */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(120px);
+    background: var(--panel-2); border: 1px solid var(--accent); color: var(--ink);
+    padding: 13px 22px; border-radius: 12px; font-family: var(--mono); font-size: 14px; z-index: 160;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: transform .4s cubic-bezier(.2,.9,.3,1.2); opacity: 0;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,8,14,0.78); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 180;
+  }
+  #help-overlay.show { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  #help-overlay .help-content { background: var(--panel); border: 1px solid var(--accent); border-radius: 16px; padding: 30px 34px; max-width: 440px; width: 90%; }
+  #help-overlay h3 { font-family: var(--serif); margin: 0 0 16px; color: var(--accent); font-size: 1.4rem; }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--muted); }
+  #help-overlay kbd { font-family: var(--mono); background: var(--bg-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 8px; color: var(--ink); font-size: 12px; }
+
+  footer {
+    max-width: 1080px; margin: 0 auto; padding: 30px 24px 60px;
+    border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="scanlines"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="spark">⚡</span> Softmax <em>×</em> Cross-Entropy <span class="badge">Type to Learn</span></div>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat"><span class="num" id="scoreNum">0</span><span style="margin:0 2px">/</span><span class="num" id="scoreTot">0</span><span class="lbl">solved</span></div>
+    <div class="streak">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="softmax">1 · Softmax</button>
+    <button data-tab="crossentropy">2 · Cross-Entropy</button>
+    <button data-tab="combined">3 · Combined</button>
+    <button data-tab="gradient">4 · Gradient ∂L/∂z</button>
+    <button data-tab="quotient">📐 Quotient</button>
+    <button data-tab="chain">🔗 Chain</button>
+    <button data-tab="lr">🎯 Learning Rate</button>
+    <button data-tab="practice">✦ Practice</button>
+  </nav>
+</div>
+
+<main>
+  <div class="eyebrow">Neural Net Training · From Logits to Loss to Gradient</div>
+  <h1 class="display-h">Softmax &amp; <em>Cross-Entropy</em></h1>
+  <p class="lede">An interactive walk from raw model scores to a single, beautiful gradient. <strong>Drag every slider</strong>, watch probabilities flow, follow the chain-rule derivation step by step — then prove it in the <strong>Practice</strong> tab.</p>
+
+  <!-- ==================== SOFTMAX ==================== -->
+  <section class="tab-section active" id="tab-softmax">
+    <h2 class="sec"><span class="num">01</span> Softmax — logits → probabilities</h2>
+
+    <div class="card accented">
+      <h3>Softmax <span class="tag">logits → probabilities</span></h3>
+      <p class="desc">Given raw scores (logits) from the model, softmax converts them into a valid probability distribution — all values positive, all summing to 1.</p>
+      <div class="math-block">
+        $$\sigma(\mathbf{z})_i \;=\; \frac{e^{z_i}}{\displaystyle\sum_{j=1}^{K} e^{z_j}}$$
+        <div class="caption">$z_i$ = logit for class $i$, &nbsp; $K$ = number of classes (vocab size in GPT-2)</div>
+      </div>
+      <div class="intuition">
+        <strong>Why exponential?</strong> $e^x$ is always positive (ensures valid probabilities) and amplifies differences — a logit 2 units higher becomes $e^2 \approx 7.4\times$ more probable. The denominator normalises everything to sum to 1.
+      </div>
+      <div class="math-block">
+        $$\sum_{i=1}^{K} \sigma(\mathbf{z})_i = 1, \qquad \sigma(\mathbf{z})_i \in (0, 1)$$
+        <div class="caption">These two properties make the output a valid probability distribution.</div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — adjust logits, watch probabilities</h3>
+      <div class="preset-row">
+        <button class="btn tiny ghost" onclick="presetSoftmax('uniform')">⇋ uniform</button>
+        <button class="btn tiny ghost" onclick="presetSoftmax('peak')">▲ one peak</button>
+        <button class="btn tiny ghost" onclick="presetSoftmax('reset')">↺ reset</button>
+        <button class="btn tiny ghost" onclick="presetSoftmax('random')">🎲 random</button>
+      </div>
+      <div id="logit-sliders"></div>
+      <div class="bar-container">
+        <p style="color:var(--accent);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Logits $z_i$ (raw scores):</p>
+        <div id="logit-bar-rows"></div>
+      </div>
+      <div class="bar-container">
+        <p style="color:var(--good);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Softmax output $\sigma(\mathbf{z})_i$ (sum = 1):</p>
+        <div id="softmax-bar-rows"></div>
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">$\sum p_i$</span><span class="val" id="prob-sum">1.0000</span></div>
+        <div class="output-row"><span class="key">$\arg\max p_i$</span><span class="val" id="argmax-token">—</span></div>
+        <div class="output-row"><span class="key">entropy $H = -\sum p_i \log p_i$</span><span class="val" id="entropy-val">—</span></div>
+      </div>
+      <div class="note">Try all logits equal → uniform $1/K$ each (max entropy). Raise one very high → probability collapses toward that token (entropy → 0).</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Temperature scaling <span class="tag amber">sampling knob</span></h3>
+      <p class="desc">Dividing logits by $T$ before softmax controls "sharpness". GPT-2 inference uses this.</p>
+      <div class="math-block">
+        $$\sigma\!\left(\frac{\mathbf{z}}{T}\right)_i = \frac{e^{z_i/T}}{\sum_j e^{z_j/T}}$$
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="preset-row">
+            <button class="btn tiny ghost" onclick="setTemp(0.3)">T=0.3</button>
+            <button class="btn tiny ghost" onclick="setTemp(1)">T=1.0</button>
+            <button class="btn tiny ghost" onclick="setTemp(2)">T=2.0</button>
+          </div>
+          <div class="slider-group">
+            <div class="slider-label">Temperature $T$: <span id="temp-val">1.00</span></div>
+            <input type="range" id="temp-slider" min="0.1" max="3" step="0.05" value="1.0" oninput="updateTemp(this)">
+          </div>
+          <div id="temp-bars"></div>
+          <div class="output" style="margin-top:10px"><div class="output-row"><span class="key">entropy $H$</span><span class="val" id="temp-entropy">—</span></div></div>
+        </div>
+        <div>
+          <div class="intuition" style="margin-top:0">
+            <strong>$T \to 0$:</strong> argmax — always pick the top token<br><br>
+            <strong>$T = 1$:</strong> raw model probabilities<br><br>
+            <strong>$T > 1$:</strong> flatter — more random / creative
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CROSS-ENTROPY ==================== -->
+  <section class="tab-section" id="tab-crossentropy">
+    <h2 class="sec"><span class="num">02</span> Cross-Entropy — measuring surprise</h2>
+
+    <div class="card accented">
+      <h3>Cross-Entropy Loss <span class="tag green">measures prediction quality</span></h3>
+      <p class="desc">Cross-entropy measures how surprised the model is by the true label. Lower = better.</p>
+      <div class="math-block">
+        $$\mathcal{L} \;=\; -\sum_{i=1}^{K} y_i \log p_i$$
+        <div class="caption">General form. $y_i \in \{0,1\}$ is the one-hot label; $p_i$ is the predicted probability.</div>
+      </div>
+      <div class="math-block">
+        $$\mathcal{L} \;=\; -\log p_y$$
+        <div class="caption">Simplified: since $y$ is one-hot, all terms vanish except the correct class $y$.</div>
+      </div>
+      <div class="intuition">
+        <strong>Why $-\log$?</strong> &nbsp; $p_y = 1 \Rightarrow \mathcal{L} = 0$ (perfect). &nbsp; $p_y \to 0 \Rightarrow \mathcal{L} \to \infty$ (catastrophic). The log scale heavily penalises overconfident wrong predictions.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Range of cross-entropy loss</h3>
+      <div class="math-block">
+        $$\mathcal{L} = -\log p_y, \qquad p_y \in (0,\, 1]$$
+        $$\mathcal{L} \;\in\; [0,\; +\infty)$$
+      </div>
+      <div style="margin: 18px 0 6px; font-size:0.83rem; color:var(--muted);font-family:var(--mono)">Visual range (clamped at $\mathcal{L}=5$):</div>
+      <div class="range-bar">
+        <div class="range-seg" style="width:10%;background:#22c55e;">0</div>
+        <div class="range-seg" style="width:20%;background:#4ade80;"></div>
+        <div class="range-seg" style="width:20%;background:#fde68a;color:#1e293b;">ln 2 ≈ 0.69</div>
+        <div class="range-seg" style="width:20%;background:#f97316;">ln 10 ≈ 2.30</div>
+        <div class="range-seg" style="width:30%;background:#ef4444;">→ ∞</div>
+      </div>
+      <table class="grad-table">
+        <thead><tr><th>$p_y$</th><th>$\mathcal{L} = -\log p_y$</th><th>Meaning</th><th>Typical scenario</th></tr></thead>
+        <tbody>
+          <tr><td>1.000</td><td class="positive">0.000</td><td class="positive">Perfect</td><td>100% sure, correct</td></tr>
+          <tr><td>0.990</td><td class="positive">0.010</td><td class="positive">Excellent</td><td>Well-trained GPT-2</td></tr>
+          <tr><td>0.900</td><td class="positive">0.105</td><td class="positive">Good</td><td></td></tr>
+          <tr><td>0.500</td><td class="neutral">0.693 = ln 2</td><td class="neutral">2-class coin flip</td><td>Early training</td></tr>
+          <tr><td>1/K</td><td class="neutral">ln K</td><td class="neutral">Uniform K-class</td><td>Random init (ln 50257 ≈ 10.8)</td></tr>
+          <tr><td>0.100</td><td class="negative">2.303 = ln 10</td><td class="negative">Poor</td><td></td></tr>
+          <tr><td>0.010</td><td class="negative">4.605</td><td class="negative">Very poor</td><td></td></tr>
+          <tr><td>→ 0</td><td class="negative">→ ∞</td><td class="negative">Catastrophic</td><td>Overconfident &amp; wrong</td></tr>
+        </tbody>
+      </table>
+      <div class="note">GPT-2 at random init has $K = 50257$ classes → $\mathcal{L}_0 = \ln 50257 \approx 10.82$. A well-trained model typically reaches $\mathcal{L} \approx 2$–$3$ on text.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — vary prediction confidence</h3>
+      <p class="desc">Drag to change the probability assigned to the correct token. $\mathcal{L} = -\log p_y$.</p>
+      <div class="slider-group">
+        <div class="slider-label">$p_y$ (correct token probability): <span id="pval">0.50</span></div>
+        <input type="range" min="0.01" max="0.9999" step="0.01" value="0.50" oninput="updateCE(this)">
+      </div>
+      <div class="big-loss" id="ce-display">0.6931</div>
+      <div class="bar-container">
+        <div class="bar-row">
+          <div class="bar-label">$\mathcal{L}$</div>
+          <div class="bar-wrap"><div class="bar-fill red" id="ce-bar" style="width:11.5%"></div></div>
+          <div class="bar-val" id="ce-bar-val">0.6931</div>
+        </div>
+      </div>
+      <div class="output"><div class="output-row"><span class="key">model's "surprise"</span><span class="val" id="ce-surprise">—</span></div></div>
+    </div>
+
+    <div class="card accented">
+      <h3>In GPT-2</h3>
+      <div class="context-box">
+        Input: <span class="hl">"The cat sat on the"</span><br>
+        Target next token: <span class="hl">"mat"</span> (vocab index 3456)<br><br>
+        GPT-2 outputs logits $\mathbf{z} \in \mathbb{R}^{50257}$<br>
+        → softmax → $\mathbf{p} \in (0,1)^{50257}$<br>
+        → Loss $= -\log p_{\text{"mat"}}$<br><br>
+        Averaged over all tokens in batch → <span class="hl">mean cross-entropy loss</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== COMBINED ==================== -->
+  <section class="tab-section" id="tab-combined">
+    <h2 class="sec"><span class="num">03</span> Combined — the fused log-sum-exp form</h2>
+
+    <div class="card accented">
+      <h3>Softmax + Cross-Entropy fused <span class="tag purple">log-sum-exp form</span></h3>
+      <p class="desc">Plugging softmax into cross-entropy gives a numerically stable form PyTorch uses internally.</p>
+      <div class="math-block">$$p_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$$</div>
+      <div class="math-block">$$\mathcal{L} = -\log p_y = -\log \frac{e^{z_y}}{\sum_j e^{z_j}}$$</div>
+      <div class="math-block">
+        $$\boxed{\mathcal{L} = -z_y + \log \sum_{j=1}^K e^{z_j}}$$
+        <div class="caption">$z_y$ = logit of the correct class · $\log \sum_j e^{z_j}$ = LogSumExp (the normalising term)</div>
+      </div>
+      <div class="intuition">
+        <strong>Why this form matters:</strong><br>
+        • No explicit softmax needed — avoids overflow from large $e^{z_i}$<br>
+        • PyTorch's <code>F.cross_entropy(logits, targets)</code> computes exactly this<br>
+        • The gradient falls out cleanly (next tab)
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — full pipeline</h3>
+      <p class="desc">Select the correct token, adjust logits, watch the full chain live.</p>
+      <div style="margin-bottom:12px;"><strong style="color:var(--ink);font-size:0.9rem">Correct token $y$: </strong><span id="correct-btns"></span></div>
+      <div id="full-sliders"></div>
+      <div class="two-col" style="margin-top:16px;">
+        <div>
+          <p style="color:var(--accent);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Logits $z_i$:</p>
+          <div id="full-logit-bars"></div>
+        </div>
+        <div>
+          <p style="color:var(--good);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Softmax $p_i$:</p>
+          <div id="full-prob-bars"></div>
+        </div>
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">$z_y$ (correct logit)</span><span class="val" id="zy-val">—</span></div>
+        <div class="output-row"><span class="key">$\log\sum_j e^{z_j}$ (LogSumExp)</span><span class="val" id="lse-val">—</span></div>
+        <div class="output-row"><span class="key">$p_y = \sigma(\mathbf{z})_y$</span><span class="val" id="py-val">—</span></div>
+        <div class="output-row"><span class="key">$\mathcal{L} = -\log p_y$</span><span class="val loss" id="full-loss">—</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== GRADIENT ==================== -->
+  <section class="tab-section" id="tab-gradient">
+    <h2 class="sec"><span class="num">04</span> Gradient ∂L/∂z — the elegant result</h2>
+
+    <div class="card accented">
+      <h3>The elegant result <span class="tag orange">∂L/∂z</span></h3>
+      <p class="desc">Differentiating softmax × cross-entropy collapses to a single elegant formula.</p>
+      <div class="math-block">
+        $$\frac{\partial \mathcal{L}}{\partial z_i} \;=\; p_i - y_i$$
+        <div class="caption">$p_i$ = predicted probability · $y_i \in \{0,1\}$ = one-hot label</div>
+      </div>
+      <div class="two-col">
+        <div class="math-block">
+          $$\frac{\partial \mathcal{L}}{\partial z_y} = p_y - 1 \;<0$$
+          <div class="caption">Correct class: always push logit <strong style="color:var(--good)">up</strong></div>
+        </div>
+        <div class="math-block">
+          $$\frac{\partial \mathcal{L}}{\partial z_i} = p_i \;>0 \quad (i \neq y)$$
+          <div class="caption">Wrong classes: push logit <strong style="color:var(--bad)">down</strong></div>
+        </div>
+      </div>
+      <div class="intuition">
+        <strong>Intuition:</strong> The gradient says "how much did you screw up?" — for the correct token, you were $p_y$ confident but should have been 1.0, so the error is $p_y - 1$. For wrong tokens, you were $p_i$ confident and should have been 0, so the error is $p_i$.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Full chain-rule derivation</h3>
+      <p class="desc">We differentiate $\mathcal{L}$ w.r.t. logit $z_i$ via two cases. First, the softmax Jacobian:</p>
+      <div class="math-block">
+        $$\frac{\partial p_i}{\partial z_j} = \begin{cases} p_i(1 - p_i) & i = j \\ -p_i\, p_j & i \neq j \end{cases}$$
+        <div class="caption">Derived from the quotient rule on $e^{z_i}/\sum_k e^{z_k}$.</div>
+      </div>
+      <div class="intuition">
+        <strong>Quotient rule refresher.</strong> &nbsp; For a fraction $f = \dfrac{u}{v}$:
+        $$f' = \frac{u'\,v - u\,v'}{v^2} \quad\text{“(top}'\times\text{bottom} - \text{top}\times\text{bottom}')\,/\,\text{bottom}^2\text{”}$$
+        Here $u = e^{z_i}$ and $v = S = \sum_k e^{z_k}$. Note <strong>cross-entropy is not involved yet</strong> — this step only asks how the softmax output $p_i$ moves when we nudge a logit $z_j$.
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">Where does the Jacobian come from?</strong> &nbsp; Apply the quotient rule to $p_i = e^{z_i}/S$. The only $z_j$-dependent pieces are the numerator $e^{z_i}$ (its derivative is nonzero only when $i=j$) and $S$ (whose derivative is always $e^{z_j}$).</p>
+      <div class="deriv-chain">
+        <div class="deriv-row">
+          <div class="eq">$p_i = \dfrac{e^{z_i}}{S}, \quad S = \displaystyle\sum_k e^{z_k}$</div>
+          <div class="eq">$\dfrac{\partial S}{\partial z_j} = e^{z_j}$</div>
+          <div class="reason">setup · derivative of the denominator</div>
+        </div>
+        <div class="deriv-row">
+          <div class="eq">$\dfrac{\partial p_i}{\partial z_j}$</div>
+          <div class="eq">$= \dfrac{\dfrac{\partial e^{z_i}}{\partial z_j}\, S \;-\; e^{z_i}\dfrac{\partial S}{\partial z_j}}{S^2}$</div>
+          <div class="reason">quotient rule</div>
+        </div>
+        <div class="deriv-row">
+          <div class="eq">$= \dfrac{[i=j]\,e^{z_i} S - e^{z_i} e^{z_j}}{S^2}$</div>
+          <div class="eq">$= [i=j]\,\dfrac{e^{z_i}}{S} - \dfrac{e^{z_i}}{S}\dfrac{e^{z_j}}{S}$</div>
+          <div class="reason">$\partial e^{z_i}/\partial z_j = e^{z_i}$ iff $i=j$, else $0$</div>
+        </div>
+        <div class="deriv-row">
+          <div class="eq"></div>
+          <div class="eq">$= [i=j]\,p_i - p_i\, p_j$</div>
+          <div class="reason">recognise $e^{z_i}/S = p_i,\; e^{z_j}/S = p_j$</div>
+        </div>
+        <div class="deriv-row highlight">
+          <div class="eq">$i = j:\;\; p_i(1 - p_i)$</div>
+          <div class="eq">$i \neq j:\;\; -p_i\, p_j$</div>
+          <div class="reason">split the indicator $[i=j]$</div>
+        </div>
+      </div>
+      <div class="intuition">
+        <strong>Reading it off:</strong> the $-p_i p_j$ term is always present (raising any logit $z_j$ steals probability from class $i$). When $i = j$ there is an extra $+p_i$, giving $p_i - p_i^2 = p_i(1-p_i)$.
+      </div>
+      <div class="note">
+        <strong>So where does cross-entropy come in?</strong> The Jacobian above is <em>only</em> $\partial p_i/\partial z_j$ — softmax differentiated by itself. Cross-entropy is the <strong>loss we actually differentiate</strong>. Recall it first, then apply the chain rule.
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">Step 0 — the cross-entropy loss itself:</strong></p>
+      <div class="deriv-chain">
+        <div class="deriv-row">
+          <div class="eq">$\mathcal{L}$</div>
+          <div class="eq">$= -\displaystyle\sum_{i=1}^K y_i \log p_i$</div>
+          <div class="reason">cross-entropy, general form</div>
+        </div>
+        <div class="deriv-row highlight">
+          <div class="eq"></div>
+          <div class="eq">$= -\log p_y$</div>
+          <div class="reason">$y$ is one-hot: $y_y=1$, rest $0$</div>
+        </div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">Step 1 — chain rule splits the loss into a CE part × a softmax part:</strong></p>
+      <div class="intuition">
+        <strong>Chain rule refresher.</strong> &nbsp; If $\mathcal{L} = f(p_y)$ and $p_y = g(z_i)$:
+        $$\frac{d}{dx}\,f\big(g(x)\big) = f'\big(g(x)\big)\cdot g'(x), \qquad \frac{\partial \mathcal{L}}{\partial z_i} = \frac{\partial \mathcal{L}}{\partial p_y}\cdot\frac{\partial p_y}{\partial z_i}$$
+      </div>
+      <div class="math-block">
+        $$\frac{\partial \mathcal{L}}{\partial z_i} \;=\; \underbrace{\frac{\partial \mathcal{L}}{\partial p_y}}_{\text{outer: CE}}\cdot \underbrace{\frac{\partial p_y}{\partial z_i}}_{\text{inner: softmax}} \;=\; \underbrace{-\frac{1}{p_y}}_{\text{CE derivative}}\cdot \underbrace{\frac{\partial p_y}{\partial z_i}}_{\text{softmax Jacobian}}$$
+        <div class="caption">The outer CE loss contributes $-\tfrac{1}{p_y}$, since $\frac{d}{dx}(-\log x) = -\tfrac1x$. $p_y$ cancels every time.</div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">Case 1 — correct class ($i = y$):</strong></p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$\dfrac{\partial \mathcal{L}}{\partial z_y}$</div><div class="eq">$= \dfrac{\partial}{\partial z_y}\bigl[-\log p_y\bigr]$</div><div class="reason">definition of $\mathcal{L}$</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot \dfrac{\partial p_y}{\partial z_y}$</div><div class="reason">chain rule</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot p_y(1 - p_y)$</div><div class="reason">softmax Jacobian, $i=j$ case</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= p_y - 1$</div><div class="reason">simplify · always $< 0$</div></div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">Case 2 — wrong class ($i \neq y$):</strong></p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$\dfrac{\partial \mathcal{L}}{\partial z_i}$</div><div class="eq">$= \dfrac{\partial}{\partial z_i}\bigl[-\log p_y\bigr]$</div><div class="reason">definition of $\mathcal{L}$</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot \dfrac{\partial p_y}{\partial z_i}$</div><div class="reason">chain rule</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot \bigl(-p_y \cdot p_i\bigr)$</div><div class="reason">softmax Jacobian, $i \neq j$ case</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= p_i$</div><div class="reason">simplify · always $> 0$</div></div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">Unified (both cases at once):</strong></p>
+      <div class="math-block" style="border-color:var(--good);">
+        $$\boxed{\frac{\partial \mathcal{L}}{\partial z_i} = p_i - y_i}$$
+        <div class="caption">One formula covers both cases because $y_y = 1$ and $y_i = 0$ for $i \neq y$.</div>
+      </div>
+      <div class="note">The $p_y$ cancels perfectly in both cases — that's why the combined softmax + cross-entropy gradient is so clean.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — see gradients live</h3>
+      <p class="desc">Adjust logits and the correct class. Each gradient = $p_i - y_i$.</p>
+      <div style="margin-bottom:12px;"><strong style="color:var(--ink);font-size:0.9rem">Correct class $y$: </strong><span id="grad-correct-btns"></span></div>
+      <div id="grad-sliders"></div>
+      <table class="grad-table" style="margin-top:14px;">
+        <thead><tr><th>Token</th><th>$z_i$</th><th>$p_i$</th><th>$y_i$</th><th>$\partial\mathcal{L}/\partial z_i = p_i - y_i$</th><th>Effect</th></tr></thead>
+        <tbody id="grad-table-body"></tbody>
+      </table>
+      <div class="output">
+        <div class="output-row"><span class="key">$\mathcal{L}$</span><span class="val loss" id="grad-loss">—</span></div>
+        <div class="output-row"><span class="key">$\sum_i \partial\mathcal{L}/\partial z_i$</span><span class="val" id="grad-sum">—</span></div>
+      </div>
+      <div class="note">Gradients always sum to 0 — probability mass shifted away from wrong classes exactly equals mass added to the correct class.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>GPT-2 connection</h3>
+      <div class="context-box">
+        <code>lm_head</code> outputs logits $\mathbf{z} \in \mathbb{R}^{50257}$ for each token position.<br><br>
+        <span class="hl"><code>loss = F.cross_entropy(logits.view(-1, 50257), targets.view(-1))</code></span><br><br>
+        PyTorch fuses softmax + CE internally → during <code>loss.backward()</code> it computes gradients as $p_i - y_i$ directly, then propagates them back through all attention layers.
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== QUOTIENT RULE ==================== -->
+  <section class="tab-section" id="tab-quotient">
+    <h2 class="sec"><span class="num">05</span> Quotient Rule — differentiating a fraction</h2>
+
+    <div class="card accented">
+      <h3>Quotient Rule <span class="tag">differentiating a fraction</span></h3>
+      <p class="desc">When you have a function written as one thing divided by another — like softmax's $e^{z_i}/S$ — this is the rule for its derivative.</p>
+      <div class="math-block">
+        $$f(x) = \frac{u(x)}{v(x)} \quad\Longrightarrow\quad f'(x) = \frac{u'\,v - u\,v'}{v^2}$$
+        <div class="caption">$u$ = top (numerator), &nbsp; $v$ = bottom (denominator)</div>
+      </div>
+      <div class="intuition">
+        <strong>How to remember it:</strong> &nbsp; <em>“low d-high minus high d-low, over low-squared.”</em><br><br>
+        (<strong>top′ × bottom</strong>) − (<strong>top × bottom′</strong>), all divided by <strong>bottom²</strong>.<br><br>
+        Order matters — the $u'v$ term comes <em>first</em>.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Worked example</h3>
+      <p class="desc">Take a concrete fraction and apply the rule step by step.</p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$f(x) = \dfrac{x^2}{x+1}$</div><div class="eq">$u = x^2,\quad v = x+1$</div><div class="reason">identify top &amp; bottom</div></div>
+        <div class="deriv-row"><div class="eq">$u' = 2x$</div><div class="eq">$v' = 1$</div><div class="reason">differentiate each part</div></div>
+        <div class="deriv-row"><div class="eq">$f' = \dfrac{u'v - uv'}{v^2}$</div><div class="eq">$= \dfrac{2x(x+1) - x^2(1)}{(x+1)^2}$</div><div class="reason">plug into the rule</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= \dfrac{x^2 + 2x}{(x+1)^2}$</div><div class="reason">simplify the top</div></div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — verify it numerically</h3>
+      <p class="desc">Move $x$ and compare the <strong>exact</strong> derivative against a <strong>numerical</strong> estimate $\frac{f(x+h)-f(x-h)}{2h}$. They should match.</p>
+      <div class="slider-group">
+        <div class="slider-label">$x$: <span id="qr-x">2.00</span></div>
+        <input type="range" min="0" max="5" step="0.05" value="2.0" oninput="updateQuotient(this)">
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">$u = x^2$</span><span class="val" id="qr-u">—</span></div>
+        <div class="output-row"><span class="key">$v = x+1$</span><span class="val" id="qr-v">—</span></div>
+        <div class="output-row"><span class="key">$u' = 2x$</span><span class="val" id="qr-up">—</span></div>
+        <div class="output-row"><span class="key">$v' = 1$</span><span class="val" id="qr-vp">1.0000</span></div>
+        <div class="output-row"><span class="key">$f(x) = u/v$</span><span class="val" id="qr-f">—</span></div>
+        <div class="output-row"><span class="key">$f'(x)$ — quotient rule (exact)</span><span class="val" id="qr-exact">—</span></div>
+        <div class="output-row"><span class="key">$f'(x)$ — numerical estimate</span><span class="val" id="qr-num">—</span></div>
+      </div>
+      <div class="note" id="qr-match">✓ The two derivatives agree — the quotient rule is correct.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Why softmax needs it <span class="tag green">connection</span></h3>
+      <p class="desc">Softmax is literally a fraction, so its derivative is a quotient-rule problem.</p>
+      <div class="math-block">$$p_i = \frac{\overbrace{e^{z_i}}^{u}}{\underbrace{\textstyle\sum_k e^{z_k}}_{v\,=\,S}}$$</div>
+      <div class="intuition">
+        Here $u = e^{z_i}$ and $v = S = \sum_k e^{z_k}$. Applying <em>exactly</em> the rule above gives the <strong>softmax Jacobian</strong> $\partial p_i/\partial z_j$ shown in the <strong>Gradient</strong> tab.
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CHAIN RULE ==================== -->
+  <section class="tab-section" id="tab-chain">
+    <h2 class="sec"><span class="num">06</span> Chain Rule — nested functions</h2>
+
+    <div class="card accented">
+      <h3>Chain Rule <span class="tag purple">differentiating nested functions</span></h3>
+      <p class="desc">When a function is wrapped inside another — like $\mathcal{L} = -\log(\,p_y(z)\,)$ — this is how you differentiate through the layers.</p>
+      <div class="math-block">
+        $$\frac{d}{dx}\,f\big(g(x)\big) = f'\big(g(x)\big)\cdot g'(x)$$
+        <div class="caption">$f$ = outer function, &nbsp; $g$ = inner function</div>
+      </div>
+      <div class="intuition">
+        <strong>How to remember it:</strong> &nbsp; <em>“derivative of the outside × derivative of the inside.”</em><br><br>
+        Peel it like an onion: differentiate the outermost layer first (leaving the inside untouched), then multiply by the derivative of the inside.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Worked example</h3>
+      <p class="desc">Differentiate $y = (2x+1)^3$ — a cube (outer) wrapped around a line (inner).</p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$y = (2x+1)^3$</div><div class="eq">outer $f(u)=u^3$, &nbsp; inner $u=2x+1$</div><div class="reason">name the layers</div></div>
+        <div class="deriv-row"><div class="eq">$f'(u) = 3u^2$</div><div class="eq">$g'(x) = 2$</div><div class="reason">differentiate each layer</div></div>
+        <div class="deriv-row"><div class="eq">$\dfrac{dy}{dx} = f'(u)\cdot g'(x)$</div><div class="eq">$= 3(2x+1)^2 \cdot 2$</div><div class="reason">outer′ × inner′</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= 6(2x+1)^2$</div><div class="reason">simplify</div></div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — verify it numerically</h3>
+      <p class="desc">Move $x$ and compare the <strong>exact</strong> chain-rule derivative against a <strong>numerical</strong> estimate. They should match.</p>
+      <div class="slider-group">
+        <div class="slider-label">$x$: <span id="cr-x">1.00</span></div>
+        <input type="range" min="-2" max="3" step="0.05" value="1.0" oninput="updateChain(this)">
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">inner $u = 2x+1$</span><span class="val" id="cr-u">—</span></div>
+        <div class="output-row"><span class="key">outer′ $f'(u) = 3u^2$</span><span class="val" id="cr-fp">—</span></div>
+        <div class="output-row"><span class="key">inner′ $g'(x) = 2$</span><span class="val" id="cr-gp">2.0000</span></div>
+        <div class="output-row"><span class="key">$y = (2x+1)^3$</span><span class="val" id="cr-y">—</span></div>
+        <div class="output-row"><span class="key">$dy/dx$ — chain rule (exact)</span><span class="val" id="cr-exact">—</span></div>
+        <div class="output-row"><span class="key">$dy/dx$ — numerical estimate</span><span class="val" id="cr-num">—</span></div>
+      </div>
+      <div class="note">✓ outer′ × inner′ matches the numerical slope.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Why cross-entropy needs it <span class="tag green">connection</span></h3>
+      <p class="desc">The loss is a function of a function of a function — three nested layers.</p>
+      <div class="math-block">$$\mathcal{L} = -\log\big(\,\underbrace{p_y}_{\text{inner}}\,\big), \qquad p_y = \underbrace{\text{softmax}(\mathbf{z})_y}_{\text{depends on logits}}$$</div>
+      <div class="deriv-chain">
+        <div class="deriv-row highlight">
+          <div class="eq">$\dfrac{\partial \mathcal{L}}{\partial z_i} = \dfrac{\partial \mathcal{L}}{\partial p_y}\cdot\dfrac{\partial p_y}{\partial z_i}$</div>
+          <div class="eq">$= \underbrace{-\dfrac{1}{p_y}}_{\text{outer: }-\log}\cdot\underbrace{\dfrac{\partial p_y}{\partial z_i}}_{\text{inner: softmax}}$</div>
+          <div class="reason">outer′ × inner′</div>
+        </div>
+      </div>
+      <div class="intuition">
+        The outer layer $-\log(\cdot)$ contributes $-\tfrac{1}{p_y}$; the inner layer (softmax) contributes its Jacobian. Multiply and $p_y$ cancels, leaving $\partial\mathcal{L}/\partial z_i = p_i - y_i$.
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== LEARNING RATE ==================== -->
+  <section class="tab-section" id="tab-lr">
+    <h2 class="sec"><span class="num">07</span> Learning Rate — how big a step</h2>
+
+    <div class="card accented">
+      <h3>Learning Rate <span class="tag orange">how big a step to take</span></h3>
+      <p class="desc">Once you have the gradient (e.g. $p_i - y_i$), it only tells you the <em>direction</em> to move. The learning rate $\eta$ decides <em>how far</em> you step.</p>
+      <div class="math-block">
+        $$\theta \;\leftarrow\; \theta \;-\; \eta \,\frac{\partial \mathcal{L}}{\partial \theta}$$
+        <div class="caption">$\theta$ = a parameter (weight) · $\eta$ = learning rate · $\partial\mathcal{L}/\partial\theta$ = gradient</div>
+      </div>
+      <div class="intuition">
+        <strong>Why subtract?</strong> The gradient points <em>uphill</em>. We want to <em>decrease</em> loss, so we step the opposite way — hence the minus sign. This is <strong>gradient descent</strong>.<br><br>
+        <strong>Why scale by $\eta$?</strong> The raw gradient can be huge or tiny. $\eta$ turns it into a sensible step size.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>Too small · just right · too large</h3>
+      <table class="grad-table">
+        <thead><tr><th>$\eta$</th><th>What happens</th><th>Picture</th></tr></thead>
+        <tbody>
+          <tr><td class="neutral">too small</td><td>Loss creeps down very slowly — training takes forever.</td><td>🐌 tiny steps</td></tr>
+          <tr><td class="positive">just right</td><td>Loss drops smoothly and quickly to the minimum.</td><td>✅ smooth descent</td></tr>
+          <tr><td class="negative">too large</td><td>Steps overshoot — loss bounces, oscillates, or blows up to ∞.</td><td>💥 diverges</td></tr>
+        </tbody>
+      </table>
+      <div class="warn">A learning rate that is too high is the #1 cause of training that "explodes" (loss → NaN). When in doubt, lower it.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Interactive — gradient descent live</h3>
+      <p class="desc">Minimise a bowl-shaped loss $\mathcal{L}(w) = w^2$ (gradient $= 2w$, min at $w=0$). Pick a learning rate and start, then watch $w \leftarrow w - \eta\cdot 2w$.</p>
+      <div class="two-col">
+        <div>
+          <div class="slider-group">
+            <div class="slider-label">Learning rate $\eta$: <span id="lr-eta">0.10</span></div>
+            <input type="range" min="0.01" max="1.1" step="0.01" value="0.1" oninput="updateLR()">
+          </div>
+          <div class="slider-group">
+            <div class="slider-label">Start $w_0$: <span id="lr-w0">8.0</span></div>
+            <input type="range" min="-10" max="10" step="0.5" value="8" oninput="updateLR()">
+          </div>
+          <div class="output">
+            <div class="output-row"><span class="key">Steps to reach $|w|<0.01$</span><span class="val" id="lr-steps">—</span></div>
+            <div class="output-row"><span class="key">Final $w$ (after 30 steps)</span><span class="val" id="lr-final">—</span></div>
+            <div class="output-row"><span class="key">Final loss $w^2$</span><span class="val loss" id="lr-loss">—</span></div>
+            <div class="output-row"><span class="key">Behaviour</span><span class="val" id="lr-behav">—</span></div>
+          </div>
+        </div>
+        <div>
+          <p style="color:var(--accent);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Loss $w^2$ at each step:</p>
+          <div id="lr-bars"></div>
+        </div>
+      </div>
+      <div class="note" id="lr-note">For $\mathcal{L}=w^2$: $\eta<0.5$ converges, $\eta=0.5$ jumps straight to 0, $0.5<\eta<1$ oscillates inward, $\eta=1$ bounces forever, $\eta>1$ diverges. Try each!</div>
+    </div>
+
+    <div class="card accented">
+      <h3>Connection to softmax + cross-entropy <span class="tag green">the full loop</span></h3>
+      <div class="context-box">
+        Putting every tab together, one training step is:<br><br>
+        1. Forward: logits $\mathbf{z}$ → softmax → $p_i$ → loss $\mathcal{L} = -\log p_y$<br>
+        2. Backward: gradient $\dfrac{\partial \mathcal{L}}{\partial z_i} = p_i - y_i$ &nbsp;(Quotient + Chain rule)<br>
+        3. <span class="hl">Update: every weight $\theta \leftarrow \theta - \eta\,\dfrac{\partial \mathcal{L}}{\partial \theta}$</span><br><br>
+        The gradient $p_i - y_i$ flows back through all layers; $\eta$ controls how big each weight nudge is.
+      </div>
+      <div class="note">GPT-2 / nanoGPT typically use $\eta \approx 3\times10^{-4}$ (with AdamW), plus a <strong>warmup</strong> and <strong>cosine decay</strong>.</div>
+    </div>
+  </section>
+
+  <!-- ==================== PRACTICE ==================== -->
+  <section class="tab-section" id="tab-practice">
+    <h2 class="sec"><span class="num">08</span> Practice — type to learn</h2>
+    <p class="lede" style="margin-bottom:24px">Fill the blanks from memory. Each correct answer bumps your score and streak; a wrong one resets the streak. Stuck? Hit <strong>Hint</strong> to reveal — but you learn more by typing. Comparison is case-insensitive.</p>
+
+    <div class="statgrid">
+      <div class="statcell"><div class="l">Total blanks</div><div class="v"><em id="pr-total">0</em></div></div>
+      <div class="statcell"><div class="l">Solved</div><div class="v" id="pr-solved">0</div></div>
+      <div class="statcell"><div class="l">Streak</div><div class="v" id="pr-streak">0</div></div>
+      <div class="statcell"><div class="l">Complete</div><div class="v" id="pr-pct">0<span style="font-size:18px;color:var(--muted)">%</span></div></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Softmax &amp; Cross-Entropy</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">1</span> Softmax in NumPy — normalise the exponentials so they sum to 1.</div>
+      <pre class="exercise">e = np.exp(z - z.max())          <span style="color:var(--comment)"># stability shift</span>
+p = e / np.<input class="blank" data-answer="sum" size="5" placeholder="?">(e)             <span style="color:var(--comment)"># σ(z)ᵢ = e^zᵢ / Σ e^zⱼ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">2</span> Cross-entropy loss for the correct token $y$ — fill the sign and the function.</div>
+      <pre class="exercise">loss = <input class="blank" data-answer="-" size="3" placeholder="?"> np.<input class="blank" data-answer="log" size="5" placeholder="?">(p[y])      <span style="color:var(--comment)"># L = −log pᵧ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">3</span> The two softmax properties: every output is in $(0,1)$ and they all sum to…</div>
+      <pre class="exercise">assert (p &gt; 0).all() and (p &lt; 1).all()
+assert np.isclose(p.sum(), <input class="blank" data-answer="1|1.0|one" size="4" placeholder="?">)</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">4</span> Temperature scaling — divide the logits by $T$ before softmax.</div>
+      <pre class="exercise">p = softmax(z <input class="blank" data-answer="/" size="3" placeholder="?"> T)        <span style="color:var(--comment)"># T&gt;1 flatter, T&lt;1 sharper</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">5</span> If the model is perfectly confident and correct ($p_y = 1$), what is the loss?</div>
+      <pre class="exercise">L = -log(1.0)  →  L = <input class="blank" data-answer="0|0.0|zero" size="4" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Combined &amp; Gradient</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">6</span> The fused, numerically-stable loss — fill the log-sum-exp normaliser.</div>
+      <pre class="exercise">L = -z[y] + <input class="blank" data-answer="logsumexp|log_sum_exp|lse" size="11" placeholder="?">(z)   <span style="color:var(--comment)"># −zᵧ + log Σ e^zⱼ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">7</span> The famous gradient of softmax + cross-entropy w.r.t. the logits.</div>
+      <pre class="exercise">grad = p - <input class="blank" data-answer="y|y_onehot|onehot" size="5" placeholder="?">        <span style="color:var(--comment)"># ∂L/∂zᵢ = pᵢ − yᵢ</span>
+grad[y] = p[y] - <input class="blank" data-answer="1|1.0" size="4" placeholder="?">   <span style="color:var(--comment)"># correct class: pᵧ − 1 &lt; 0</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">8</span> Across all classes, the softmax-CE gradients always sum to…</div>
+      <pre class="exercise">(p - y).sum()  →  <input class="blank" data-answer="0|0.0|zero" size="4" placeholder="?">   <span style="color:var(--comment)"># mass removed = mass added</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Calculus rules</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">9</span> Quotient rule — fill the first numerator term and the denominator power.</div>
+      <pre class="exercise">f = u/v
+f' = (<input class="blank" data-answer="u'|up|u_prime" size="4" placeholder="?">*v - u*v') / v**<input class="blank" data-answer="2|two" size="3" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">10</span> Chain rule — derivative of the outside times the derivative of the inside.</div>
+      <pre class="exercise">d/dx f(g(x)) = f'(g(x)) * <input class="blank" data-answer="g'|gp|g_prime" size="4" placeholder="?">(x)   <span style="color:var(--comment)"># outer′ × inner′</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">11</span> Gradient-descent weight update — fill the symbol that scales the step.</div>
+      <pre class="exercise">w = w - <input class="blank" data-answer="eta|lr|η|learning_rate|lrate" size="6" placeholder="?"> * grad     <span style="color:var(--comment)"># θ ← θ − η ∂L/∂θ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">12</span> GPT-2 random-init loss with $K=50257$ classes is $\ln K$ — fill the call.</div>
+      <pre class="exercise">L0 = math.<input class="blank" data-answer="log|ln" size="4" placeholder="?">(<input class="blank" data-answer="50257|K" size="7" placeholder="?">)   <span style="color:var(--comment)"># ≈ 10.82</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">Check</button><button class="btn ghost tiny" onclick="hintDrill(this)">Hint</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="note" style="margin-top:20px">Clear every blank to fire the confetti. Switch tabs with keys <strong>1–8</strong>, press <strong>?</strong> for shortcuts.</div>
+  </section>
+</main>
+
+<footer>
+  <span><a href="index.html">← all cheatsheets</a> · Browser-side · no build step · ⚡ logits → loss → gradient</span>
+  <span>Companion to <a href="softmax.html">softmax.html</a> · <a href="chainrule.html">chainrule.html</a></span>
+</footer>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>Keyboard shortcuts</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>8</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close overlay</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">Click anywhere to dismiss.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const TOKENS = ['Token A','Token B','Token C','Token D','Token E'];
+const COLORS = ['blue','green','purple','orange','red'];
+const DEFAULT_LOGITS = [2.0, 1.0, 0.5, -0.5, -1.0];
+let logits     = DEFAULT_LOGITS.slice();
+let tempLogits = DEFAULT_LOGITS.slice();
+let fullLogits = DEFAULT_LOGITS.slice();
+let gradLogits = DEFAULT_LOGITS.slice();
+let fullCorrect = 2, gradCorrect = 2;
+let randSeed = 1;
+
+function softmax(z) {
+  const m = Math.max(...z);
+  const e = z.map(v => Math.exp(v - m));
+  const s = e.reduce((a,b) => a+b, 0);
+  return e.map(v => v / s);
+}
+function logSumExp(z) {
+  const m = Math.max(...z);
+  return m + Math.log(z.map(v => Math.exp(v - m)).reduce((a,b) => a+b, 0));
+}
+function entropy(p) { return -p.reduce((a,v) => a + (v > 1e-12 ? v*Math.log(v) : 0), 0); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ============== TABS ==============
+const tabBtns = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function switchTab(name) {
+  tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== SOFTMAX SECTION ==============
+function buildSoftmaxSliders() {
+  document.getElementById('logit-sliders').innerHTML = logits.map((v,i) => `
+    <div class="slider-group">
+      <div class="slider-label">${TOKENS[i]}: <span id="ls${i}">${v.toFixed(1)}</span></div>
+      <input type="range" min="-3" max="3" step="0.1" value="${v}" oninput="updateLogit(${i},this.value)">
+    </div>`).join('');
+}
+function updateLogit(i, v) {
+  logits[i] = parseFloat(v);
+  document.getElementById(`ls${i}`).textContent = parseFloat(v).toFixed(1);
+  renderSoftmaxBars();
+}
+function presetSoftmax(kind) {
+  if (kind === 'uniform') logits = [0,0,0,0,0];
+  else if (kind === 'peak') logits = [3,-1,-1,-1,-1];
+  else if (kind === 'reset') logits = DEFAULT_LOGITS.slice();
+  else if (kind === 'random') {
+    logits = logits.map((_, i) => {
+      randSeed = (randSeed * 1103515245 + 12345) & 0x7fffffff;
+      return Math.round(((randSeed / 0x7fffffff) * 6 - 3) * 10) / 10;
+    });
+  }
+  buildSoftmaxSliders();
+  renderSoftmaxBars();
+}
+function renderSoftmaxBars() {
+  const p = softmax(logits);
+  document.getElementById('logit-bar-rows').innerHTML = logits.map((v,i) => {
+    const pct = clamp((v+3)/6*100, 1, 100).toFixed(1);
+    return `<div class="bar-row"><div class="bar-label">${TOKENS[i]}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${pct}%">${v.toFixed(1)}</div></div>
+      <div class="bar-val">${v.toFixed(1)}</div></div>`;
+  }).join('');
+  document.getElementById('softmax-bar-rows').innerHTML = p.map((v,i) => `
+    <div class="bar-row"><div class="bar-label">${TOKENS[i]}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${(v*100).toFixed(1)}%">${(v*100).toFixed(1)}%</div></div>
+      <div class="bar-val">${v.toFixed(3)}</div></div>`).join('');
+  document.getElementById('prob-sum').textContent = p.reduce((a,b)=>a+b,0).toFixed(5);
+  const am = p.indexOf(Math.max(...p));
+  document.getElementById('argmax-token').textContent = `${TOKENS[am]} (p=${p[am].toFixed(3)})`;
+  document.getElementById('entropy-val').textContent = `${entropy(p).toFixed(4)}  (max = ${Math.log(p.length).toFixed(4)})`;
+}
+
+// temperature
+function updateTemp(el) {
+  const T = parseFloat(el.value);
+  document.getElementById('temp-val').textContent = T.toFixed(2);
+  const p = softmax(tempLogits.map(v => v/T));
+  document.getElementById('temp-bars').innerHTML = p.map((v,i) => `
+    <div class="bar-row"><div class="bar-label" style="width:60px">${TOKENS[i]}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${(v*100).toFixed(1)}%"></div></div>
+      <div class="bar-val">${v.toFixed(3)}</div></div>`).join('');
+  document.getElementById('temp-entropy').textContent = entropy(p).toFixed(4);
+}
+function setTemp(T) {
+  const s = document.getElementById('temp-slider');
+  s.value = T; updateTemp(s);
+}
+
+// ============== CE SECTION ==============
+function updateCE(el) {
+  const p = parseFloat(el.value);
+  document.getElementById('pval').textContent = p.toFixed(2);
+  const loss = -Math.log(p);
+  const d = document.getElementById('ce-display');
+  d.textContent = loss.toFixed(4);
+  d.style.color = loss < 0.3 ? 'var(--good)' : loss < 1.5 ? 'var(--amber)' : 'var(--bad)';
+  document.getElementById('ce-bar').style.width = Math.min(loss/6*100,100)+'%';
+  document.getElementById('ce-bar-val').textContent = loss.toFixed(4);
+  const s = loss < 0.1 ? 'barely surprised 😌' : loss < 0.7 ? 'mildly surprised 🤔' : loss < 2.3 ? 'quite surprised 😟' : 'shocked 😱';
+  document.getElementById('ce-surprise').textContent = s;
+}
+
+// ============== COMBINED SECTION ==============
+function buildCorrectBtns(id, sel, cb) {
+  const c = document.getElementById(id);
+  c.innerHTML = '';
+  TOKENS.forEach((t,i) => {
+    const b = document.createElement('button');
+    b.className = 'btn tiny' + (i===sel ? '' : ' ghost');
+    b.textContent = t;
+    b.onclick = () => cb(i);
+    c.appendChild(b);
+  });
+}
+function buildFullSliders() {
+  document.getElementById('full-sliders').innerHTML = fullLogits.map((v,i) => `
+    <div class="slider-group">
+      <div class="slider-label">${TOKENS[i]}: <span id="fl${i}">${v.toFixed(1)}</span></div>
+      <input type="range" min="-3" max="3" step="0.1" value="${v}" oninput="updateFullLogit(${i},this.value)">
+    </div>`).join('');
+}
+function updateFullLogit(i,v) {
+  fullLogits[i]=parseFloat(v);
+  document.getElementById(`fl${i}`).textContent=parseFloat(v).toFixed(1);
+  renderFull();
+}
+function setFullCorrect(i) { fullCorrect=i; buildCorrectBtns('correct-btns',i,setFullCorrect); renderFull(); }
+function renderFull() {
+  const p = softmax(fullLogits);
+  const lse = logSumExp(fullLogits);
+  const py = p[fullCorrect], zy = fullLogits[fullCorrect];
+  document.getElementById('full-logit-bars').innerHTML = fullLogits.map((v,i) => {
+    const pct = clamp((v+3)/6*100,1,100).toFixed(1);
+    return `<div class="bar-row"><div class="bar-label">${TOKENS[i]}${i===fullCorrect?' ★':''}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${pct}%"></div></div>
+      <div class="bar-val">${v.toFixed(1)}</div></div>`;
+  }).join('');
+  document.getElementById('full-prob-bars').innerHTML = p.map((v,i) => `
+    <div class="bar-row"><div class="bar-label">${TOKENS[i]}${i===fullCorrect?' ★':''}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${(v*100).toFixed(1)}%"></div></div>
+      <div class="bar-val">${v.toFixed(3)}</div></div>`).join('');
+  document.getElementById('zy-val').textContent  = zy.toFixed(4);
+  document.getElementById('lse-val').textContent = lse.toFixed(4);
+  document.getElementById('py-val').textContent  = py.toFixed(5);
+  document.getElementById('full-loss').textContent = (-Math.log(py)).toFixed(5);
+}
+
+// ============== GRADIENT SECTION ==============
+function buildGradSliders() {
+  document.getElementById('grad-sliders').innerHTML = gradLogits.map((v,i) => `
+    <div class="slider-group">
+      <div class="slider-label">${TOKENS[i]}: <span id="gl${i}">${v.toFixed(1)}</span></div>
+      <input type="range" min="-3" max="3" step="0.1" value="${v}" oninput="updateGradLogit(${i},this.value)">
+    </div>`).join('');
+}
+function updateGradLogit(i,v) {
+  gradLogits[i]=parseFloat(v);
+  document.getElementById(`gl${i}`).textContent=parseFloat(v).toFixed(1);
+  renderGrad();
+}
+function setGradCorrect(i) { gradCorrect=i; buildCorrectBtns('grad-correct-btns',i,setGradCorrect); renderGrad(); }
+function renderGrad() {
+  const p = softmax(gradLogits);
+  const loss = -Math.log(p[gradCorrect]);
+  let sum = 0, html = '';
+  p.forEach((pi,i) => {
+    const yi = i===gradCorrect ? 1 : 0;
+    const g = pi - yi; sum += g;
+    const cls = g < -0.01 ? 'positive' : g > 0.01 ? 'negative' : 'neutral';
+    const eff = g < -0.01 ? '↑ push up' : g > 0.01 ? '↓ push down' : '≈ no change';
+    html += `<tr>
+      <td>${TOKENS[i]}${i===gradCorrect?' ★':''}</td>
+      <td>${gradLogits[i].toFixed(2)}</td>
+      <td>${pi.toFixed(4)}</td>
+      <td>${yi}</td>
+      <td class="${cls}">${g.toFixed(4)}</td>
+      <td class="${cls}">${eff}</td>
+    </tr>`;
+  });
+  document.getElementById('grad-table-body').innerHTML = html;
+  document.getElementById('grad-loss').textContent = loss.toFixed(4);
+  document.getElementById('grad-sum').textContent  = sum.toFixed(7) + '  (≈ 0)';
+}
+
+// ============== QUOTIENT RULE: f(x) = x^2 / (x+1) ==============
+function updateQuotient(el) {
+  const x = parseFloat(el.value);
+  document.getElementById('qr-x').textContent = x.toFixed(2);
+  const f = (t) => (t*t)/(t+1);
+  const u = x*x, v = x+1, up = 2*x;
+  const exact = (up*v - u*1)/(v*v);
+  const h = 1e-4;
+  const num = (f(x+h) - f(x-h))/(2*h);
+  document.getElementById('qr-u').textContent = u.toFixed(4);
+  document.getElementById('qr-v').textContent = v.toFixed(4);
+  document.getElementById('qr-up').textContent = up.toFixed(4);
+  document.getElementById('qr-f').textContent = f(x).toFixed(4);
+  document.getElementById('qr-exact').textContent = exact.toFixed(4);
+  document.getElementById('qr-num').textContent = num.toFixed(4);
+  const ok = Math.abs(exact - num) < 1e-3;
+  const box = document.getElementById('qr-match');
+  box.className = ok ? 'note' : 'warn';
+  box.textContent = ok ? '✓ The two derivatives agree — the quotient rule is correct.'
+                       : 'Δ ' + Math.abs(exact-num).toExponential(2) + ' (rounding only)';
+}
+
+// ============== CHAIN RULE: y = (2x+1)^3 ==============
+function updateChain(el) {
+  const x = parseFloat(el.value);
+  document.getElementById('cr-x').textContent = x.toFixed(2);
+  const g = (t) => 2*t+1;
+  const y = (t) => Math.pow(2*t+1, 3);
+  const u = g(x), fp = 3*u*u, gp = 2;
+  const exact = fp * gp;
+  const h = 1e-4;
+  const num = (y(x+h) - y(x-h))/(2*h);
+  document.getElementById('cr-u').textContent = u.toFixed(4);
+  document.getElementById('cr-fp').textContent = fp.toFixed(4);
+  document.getElementById('cr-y').textContent = y(x).toFixed(4);
+  document.getElementById('cr-exact').textContent = exact.toFixed(4);
+  document.getElementById('cr-num').textContent = num.toFixed(4);
+}
+
+// ============== LEARNING RATE: minimise L(w) = w^2 ==============
+function updateLR() {
+  const eta = parseFloat(document.querySelector('#tab-lr input[min="0.01"]').value);
+  const w0  = parseFloat(document.querySelector('#tab-lr input[min="-10"]').value);
+  document.getElementById('lr-eta').textContent = eta.toFixed(2);
+  document.getElementById('lr-w0').textContent = w0.toFixed(1);
+
+  const N = 30;
+  let w = w0, steps = -1;
+  const losses = [w*w];
+  for (let k = 1; k <= N; k++) {
+    w = w - eta * (2*w);
+    losses.push(w*w);
+    if (steps < 0 && Math.abs(w) < 0.01) steps = k;
+  }
+  const finalLoss = w*w;
+  const diverged = !isFinite(finalLoss) || finalLoss > w0*w0 + 1e-6;
+
+  document.getElementById('lr-steps').textContent = steps < 0 ? '—' : steps;
+  document.getElementById('lr-final').textContent = isFinite(w) ? w.toFixed(4) : '∞';
+  document.getElementById('lr-loss').textContent = isFinite(finalLoss) ? finalLoss.toFixed(4) : '∞';
+
+  let behav;
+  if (diverged)                      behav = '💥 diverges';
+  else if (steps >= 0 && steps <= 5) behav = '✅ fast convergence';
+  else if (steps >= 0)               behav = '🐌 slow convergence';
+  else                               behav = '↔️ oscillating / slow';
+  const bh = document.getElementById('lr-behav');
+  bh.textContent = behav;
+  bh.style.color = diverged ? 'var(--bad)' : 'var(--good)';
+
+  const maxL = Math.max(...losses.filter(isFinite), 1);
+  document.getElementById('lr-bars').innerHTML = losses.slice(0, 16).map((L,k) => {
+    const pct = isFinite(L) ? clamp(L/maxL*100, 1, 100) : 100;
+    const col = !isFinite(L) || L > losses[0] ? 'red' : L < 0.1 ? 'green' : 'orange';
+    return `<div class="bar-row"><div class="bar-label" style="width:34px">${k}</div>
+      <div class="bar-wrap" style="height:16px"><div class="bar-fill ${col}" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="bar-val" style="width:72px">${isFinite(L)?L.toFixed(2):'∞'}</div></div>`;
+  }).join('');
+}
+
+// ============== PRACTICE / DRILLS ==============
+let solved = 0;
+const totalDrills = document.querySelectorAll('.blank').length;
+let streak = 0;
+const sectionsCompleted = new Set();
+document.getElementById('scoreTot').textContent = totalDrills;
+document.getElementById('pr-total').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+  document.getElementById('pr-solved').textContent = solved;
+  document.getElementById('pr-streak').textContent = streak;
+  document.getElementById('pr-pct').innerHTML = Math.round(solved/totalDrills*100) + '<span style="font-size:18px;color:var(--muted)">%</span>';
+}
+
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong', 'pop', 'shake');
+    void b.offsetWidth;
+    if (ok) b.classList.add('correct', 'pop');
+    else b.classList.add('wrong', 'shake');
+  });
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1'; b.disabled = true; newlySolved++;
+    }
+  });
+  if (Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good'; fb.textContent = randomGood();
+    if (newlySolved > 0) { solved += newlySolved; streak += newlySolved; sparkle(drill); updateProgress(); checkSectionComplete(); }
+  } else if (newlySolved > 0) {
+    solved += newlySolved; streak += newlySolved;
+    fb.className = 'feedback good'; fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0; fb.className = 'feedback bad'; fb.textContent = randomBad(); updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = ''; b.classList.remove('correct', 'wrong'); b.disabled = false;
+        b.dataset.revealed = ''; b.dataset.solved = ''; solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved'); drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint'; fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress(); return;
+  }
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want; b.classList.remove('wrong'); b.classList.add('correct');
+    b.dataset.solved = '1'; b.dataset.revealed = '1'; b.disabled = true; revealedCount++;
+  });
+  if (revealedCount === 0) { fb.className = 'feedback hint'; fb.textContent = 'all done.'; return; }
+  solved += revealedCount; streak = 0; drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) { drill.classList.add('solved'); sparkle(drill); }
+  fb.className = 'feedback hint'; fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'spot on.', '✓ exactly.', 'sharp.', "that's the one.", 'clean.', 'gradient approves.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'red. try once more.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('all drills complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span'); c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `position:fixed;left:${rect.left + rect.width/2}px;top:${rect.top + 20}px;
+      width:6px;height:6px;border-radius:50%;background:radial-gradient(circle,#fff,var(--accent));
+      pointer-events:none;z-index:170;box-shadow:0 0 10px var(--accent);`;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200, dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() { confCanvas.width = window.innerWidth; confCanvas.height = window.innerHeight; }
+sizeConf();
+window.addEventListener('resize', sizeConf);
+let particles = [], confettiRunning = false;
+function burstConfetti() {
+  const colors = ['#22d3ee','#38bdf8','#a5f3fc','#4ade80','#fbbf24','#c084fc','#ffffff'];
+  for (let i = 0; i < 150; i++) {
+    particles.push({
+      x: window.innerWidth/2 + (Math.random()-0.5)*80, y: window.innerHeight/3,
+      vx: (Math.random()-0.5)*14, vy: -Math.random()*12 - 4, g: 0.32,
+      size: Math.random()*5 + 3, color: colors[Math.floor(Math.random()*colors.length)],
+      rot: Math.random()*Math.PI*2, vr: (Math.random()-0.5)*0.4, life: 120 + Math.random()*40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      confCtx.save(); confCtx.translate(p.x, p.y); confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color; confCtx.fillRect(-p.size, -p.size/2, p.size*2, p.size); confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame); else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== HELP ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+// ============== KEYBOARD ==============
+const TAB_ORDER = ['softmax','crossentropy','combined','gradient','quotient','chain','lr','practice'];
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) { const cb = drill.querySelector('.btn:not(.ghost)'); if (cb) cb.click(); }
+    }
+    return;
+  }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  else if (e.key === 'Escape') hideHelp();
+  else if (/^[1-8]$/.test(e.key)) switchTab(TAB_ORDER[parseInt(e.key) - 1]);
+});
+
+// ============== INIT ==============
+buildSoftmaxSliders(); renderSoftmaxBars(); updateTemp({value:1.0});
+updateCE({value:0.5});
+buildFullSliders(); buildCorrectBtns('correct-btns', fullCorrect, setFullCorrect); renderFull();
+buildGradSliders(); buildCorrectBtns('grad-correct-btns', gradCorrect, setGradCorrect); renderGrad();
+updateQuotient({value:2.0});
+updateChain({value:1.0});
+updateLR();
+updateProgress();
+</script>
+</body>
+</html>

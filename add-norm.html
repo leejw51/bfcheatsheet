@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Add &amp; Norm · The Residual + LayerNorm Sublayer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,900;1,9..144,400;1,9..144,600;1,9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]});"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-2: #12121a;
+    --bg-3: #1a1a26;
+    --ink: #f4f0e6;
+    --ink-dim: #8a8478;
+    --ink-faint: #5a564e;
+    --line: rgba(255, 240, 220, 0.09);
+    --line-soft: rgba(255, 240, 220, 0.05);
+    --grid: rgba(255, 240, 220, 0.035);
+    --accent: #34d399;          /* emerald — "normalized / stable" */
+    --accent-2: #22d3ee;        /* cyan */
+    --good: #3affb8;            /* mint */
+    --bad: #ff5e7a;             /* rose */
+    --warn: #fbbf24;
+    --code-bg: #08101e;
+    --serif: 'Fraunces', Georgia, serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--serif);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at 80% -10%, rgba(52, 211, 153, 0.12), transparent 55%),
+      radial-gradient(ellipse at 0% 110%, rgba(34, 211, 238, 0.06), transparent 50%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 34px 34px, 34px 34px;
+  }
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; z-index: 200; opacity: 0.045;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  ::selection { background: var(--accent); color: #050510; }
+
+  /* ============ STICKY TOP ============ */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 80;
+    background: rgba(10, 10, 15, 0.82);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    padding: 16px 32px; max-width: 1280px; margin: 0 auto;
+  }
+  .brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.32em;
+    text-transform: uppercase; color: var(--ink);
+    display: flex; align-items: center; gap: 10px; white-space: nowrap;
+  }
+  .brand .mark { color: var(--accent); font-size: 13px; filter: drop-shadow(0 0 6px var(--accent)); }
+  .brand b { font-weight: 700; }
+  .progress-bar-outer {
+    flex: 1; min-width: 140px; height: 2px;
+    background: rgba(255, 240, 220, 0.12); position: relative; overflow: hidden;
+  }
+  .progress-bar-inner {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 16px var(--accent);
+    transition: width 0.6s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    color: var(--ink-dim); display: flex; align-items: baseline; gap: 5px; white-space: nowrap;
+  }
+  .stat .num { font-family: var(--serif); font-weight: 600; font-size: 22px; color: var(--ink); font-feature-settings: "tnum"; }
+  .stat .num#scoreNum { color: var(--accent); }
+  .stat .lbl { text-transform: uppercase; font-size: 9px; letter-spacing: 0.22em; }
+  .streak { font-family: var(--mono); font-size: 13px; color: var(--ink-dim); display: flex; align-items: center; gap: 5px; }
+  .streak .num { font-family: var(--serif); font-weight: 600; color: var(--accent-2); font-size: 18px; }
+  .help-btn {
+    font-family: var(--mono); font-size: 13px; width: 30px; height: 30px;
+    background: transparent; color: var(--ink-dim);
+    border: 1px solid var(--line); cursor: pointer; transition: all 0.15s;
+  }
+  .help-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  nav.tabs {
+    display: flex; gap: 2px; flex-wrap: wrap;
+    padding: 0 32px; max-width: 1280px; margin: 0 auto;
+    border-top: 1px solid var(--line-soft);
+  }
+  nav.tabs button {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint);
+    border: none; border-bottom: 2px solid transparent;
+    padding: 14px 15px; cursor: pointer; transition: all 0.18s;
+  }
+  nav.tabs button:hover { color: var(--ink-dim); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .tnum { color: var(--ink-faint); margin-right: 7px; transition: color 0.18s; }
+  nav.tabs button.active .tnum { color: var(--accent-2); }
+  nav.tabs button .check { color: var(--good); margin-left: 7px; }
+
+  /* ============ LAYOUT ============ */
+  main { max-width: 1280px; margin: 0 auto; padding: 56px 32px 120px; }
+  section.tab-section { display: none; }
+  section.tab-section.active { display: block; animation: rise 0.45s cubic-bezier(.2,.8,.2,1); }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--accent); display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ''; width: 34px; height: 1px; background: var(--accent); }
+
+  h1 {
+    font-family: var(--serif); font-weight: 300; font-size: clamp(44px, 7vw, 96px);
+    line-height: 0.94; letter-spacing: -0.035em; margin-bottom: 26px; max-width: 16ch;
+  }
+  h1 em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+
+  .lede {
+    font-size: clamp(16px, 1.9vw, 20px); max-width: 700px; line-height: 1.55;
+    color: var(--ink-dim); font-weight: 300; margin-bottom: 8px;
+  }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .lede em { font-style: italic; color: var(--ink); }
+  .lede code, p code, li code { font-family: var(--mono); font-size: 0.88em; color: var(--accent-2); background: var(--code-bg); padding: 1px 6px; border-radius: 2px; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--ink-dim);
+    display: flex; align-items: center; gap: 16px; margin: 56px 0 28px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  h3 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 24px; margin-bottom: 12px; letter-spacing: -0.01em; }
+  p { color: var(--ink-dim); max-width: 720px; margin-bottom: 14px; }
+  p strong, .ink { color: var(--ink); font-weight: 600; }
+  p em { font-style: italic; color: var(--ink); }
+  ul { color: var(--ink-dim); margin: 0; padding-left: 0; list-style: none; }
+  ul li { margin: 9px 0; }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* ---------- panel w/ corner brackets ---------- */
+  .panel { background: var(--bg-2); border: 1px solid var(--line); padding: 32px; margin: 22px 0; position: relative; }
+  .panel.tight { padding: 22px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 22px; height: 22px; }
+  .panel::before { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  .panel::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+  .panel-label {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* ---------- idea cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin: 26px 0; }
+  .cards.three { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 820px) { .cards, .cards.three { grid-template-columns: 1fr; } }
+  .idea { background: var(--bg-2); padding: 28px 26px; position: relative; }
+  .idea .k { font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 14px; }
+  .idea h4 { font-family: var(--serif); font-style: italic; font-weight: 600; font-size: 21px; margin-bottom: 10px; }
+  .idea p { font-size: 14px; margin: 0; }
+  .idea code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+
+  /* ---------- shape pills ---------- */
+  .shapes { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0; font-family: var(--mono); }
+  .pill {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em;
+    background: var(--bg-3); border: 1px solid var(--line); color: var(--ink);
+    padding: 5px 11px; border-radius: 2px; white-space: nowrap;
+  }
+  .pill b { color: var(--accent); font-weight: 700; }
+  .pill.out b { color: var(--good); }
+  .pill.dim { color: var(--ink-dim); }
+  .shapes .to { color: var(--ink-faint); font-family: var(--serif); font-style: italic; font-size: 20px; }
+  .shapes .plus { color: var(--accent); font-family: var(--serif); font-size: 22px; }
+
+  /* ---------- note ---------- */
+  .note {
+    border-left: 2px solid var(--accent); background: rgba(52, 211, 153, 0.07);
+    padding: 14px 20px; margin: 22px 0; font-size: 14px; color: var(--ink-dim); max-width: 800px;
+  }
+  .note strong { color: var(--accent); }
+  .note code { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); }
+  .note.mint { border-left-color: var(--good); background: rgba(58, 255, 184, 0.05); }
+  .note.mint strong { color: var(--good); }
+  .note.warn { border-left-color: var(--warn); background: rgba(251, 191, 36, 0.06); }
+  .note.warn strong { color: var(--warn); }
+
+  /* ---------- formula panel ---------- */
+  .formula-panel {
+    background: var(--code-bg); border: 1px solid var(--line);
+    padding: 26px 28px; margin: 20px 0; text-align: center; overflow-x: auto;
+  }
+  .katex { color: var(--ink); }
+  .katex-display { margin: 14px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+  /* ---------- lab (canvas + controls) ---------- */
+  .lab { display: grid; grid-template-columns: 1.25fr 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 860px) { .lab { grid-template-columns: 1fr; gap: 22px; } }
+  canvas {
+    display: block; width: 100%; max-width: 100%;
+    background: var(--code-bg); border: 1px solid var(--line);
+  }
+  .cmap-legend { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 10px; color: var(--ink-dim); margin-top: 12px; flex-wrap: wrap; }
+  .cmap-bar { height: 10px; flex: 1; min-width: 140px; max-width: 230px; border: 1px solid var(--line); background: linear-gradient(90deg, #22d3ee, #08101e 50%, #34d399); }
+
+  .ctrl { margin-bottom: 22px; }
+  .ctrl-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .ctrl-name { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; color: var(--ink-dim); }
+  .ctrl-val { font-family: var(--serif); font-size: 30px; font-weight: 600; color: var(--ink); font-feature-settings: "tnum"; line-height: 1; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 2px;
+    background: rgba(255, 240, 220, 0.15); outline: none; cursor: pointer; margin: 4px 0;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 18px; height: 18px; background: var(--accent);
+    cursor: pointer; border-radius: 0; box-shadow: 0 0 0 1px var(--bg), 0 0 18px var(--accent); transition: transform 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25) rotate(45deg); }
+  input[type=range]::-moz-range-thumb {
+    width: 18px; height: 18px; background: var(--accent); border: none; cursor: pointer;
+    box-shadow: 0 0 0 1px var(--bg), 0 0 18px var(--accent);
+  }
+  .ctrl-meta { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em; margin-top: 6px; }
+  .lab-readout { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+  .lab-readout b { color: var(--accent); }
+  .readout-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); margin-top: 14px; }
+  .readout-grid .rc { background: var(--bg-3); padding: 12px 14px; }
+  .readout-grid .rc .rk { font-family: var(--mono); font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-faint); }
+  .readout-grid .rc .rv { font-family: var(--serif); font-size: 24px; font-weight: 600; color: var(--ink); font-feature-settings: "tnum"; }
+  .readout-grid .rc .rv.good { color: var(--good); }
+  .readout-grid .rc .rv.warn { color: var(--warn); }
+  .toggle-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  .toggle-row button {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-dim); border: 1px solid var(--line);
+    padding: 7px 13px; cursor: pointer; transition: all 0.15s;
+  }
+  .toggle-row button.on { color: #050510; background: var(--accent); border-color: var(--accent); }
+
+  /* ---------- variants compare ---------- */
+  .vcompare { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 900px) { .vcompare { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .vcompare { grid-template-columns: 1fr; } }
+  .vcol { background: var(--bg-2); padding: 24px 20px; }
+  .vcol .vh { font-family: var(--serif); font-style: italic; font-size: 22px; font-weight: 600; margin-bottom: 3px; }
+  .vcol .vsub { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+  .vrow { margin: 12px 0; }
+  .vrow .vk { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 3px; }
+  .vrow .vv { font-size: 13.5px; color: var(--ink); line-height: 1.45; }
+  .vrow .vv code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); background: var(--code-bg); padding: 1px 5px; }
+  .vrow .vv em { font-style: italic; color: var(--accent); }
+
+  .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .mini-grid { grid-template-columns: 1fr; } }
+  .mini { background: var(--bg-2); padding: 22px 20px; }
+  .mini .op { font-family: var(--serif); font-size: 34px; font-weight: 300; color: var(--accent); line-height: 1; }
+  .mini h4 { font-family: var(--serif); font-style: italic; font-size: 18px; font-weight: 600; margin: 8px 0 8px; }
+  .mini p { font-size: 13px; margin: 0; }
+
+  /* ---------- block-flow diagrams (post/pre LN) ---------- */
+  .flow2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); margin: 24px 0; }
+  @media (max-width: 760px) { .flow2 { grid-template-columns: 1fr; } }
+  .flowcol { background: var(--bg-2); padding: 28px 24px; }
+  .flowcol .fh { font-family: var(--serif); font-style: italic; font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .flowcol .fsub { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 20px; }
+  .fstack { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .fnode {
+    font-family: var(--mono); font-size: 12px; text-align: center; width: 100%; max-width: 240px;
+    padding: 10px 12px; border: 1px solid var(--line); background: var(--bg-3); color: var(--ink);
+  }
+  .fnode.norm { border-color: var(--accent); color: var(--accent); }
+  .fnode.add { border-color: var(--accent-2); color: var(--accent-2); }
+  .fnode.sub { color: var(--ink-dim); }
+  .fnode.io { background: var(--code-bg); color: var(--ink-faint); border-style: dashed; }
+  .farrow { color: var(--ink-faint); font-size: 16px; line-height: 1.4; }
+  .fnote { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); margin-top: 16px; line-height: 1.6; }
+  .fnote b { color: var(--accent); }
+
+  /* ---------- interactive trace (Add & Norm walkthrough) ---------- */
+  .trace-lab { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start; }
+  @media (max-width: 860px) { .trace-lab { grid-template-columns: 1fr; gap: 26px; } }
+  .trace-v { display: flex; flex-direction: column; align-items: center; }
+  .skip-wrap { position: relative; width: 100%; max-width: 360px; display: flex; flex-direction: column; align-items: center; padding-right: 70px; }
+  .tstage {
+    width: 100%; max-width: 290px; min-height: 56px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 1px solid var(--line); background: var(--bg-3); color: var(--ink);
+    font-family: var(--mono); font-size: 13px; text-align: center; border-radius: 2px;
+    transition: border-color .25s, box-shadow .25s, background .25s, opacity .25s;
+  }
+  .tstage code { font-family: var(--mono); font-size: 11px; color: var(--accent-2); }
+  .tstage small { color: var(--ink-faint); font-size: 10px; letter-spacing: .07em; margin-top: 3px; }
+  .tstage.active { border-color: var(--accent); box-shadow: 0 0 22px rgba(52,211,153,.35); background: rgba(52,211,153,.08); }
+  .tstage.active small { color: var(--accent); }
+  .tstage.add.active { border-color: var(--accent-2); box-shadow: 0 0 22px rgba(34,211,238,.35); background: rgba(34,211,238,.08); }
+  .tstage.add.active small { color: var(--accent-2); }
+  .tstage.done { opacity: .45; }
+  .tarrow-v { color: var(--ink-faint); font-size: 17px; line-height: 1; padding: 6px 0; }
+  /* the residual rail: spans exactly input → Add */
+  .skip-rail { position: absolute; top: 28px; bottom: 28px; right: 24px; width: 2px;
+    background: var(--line); color: var(--ink-faint); transition: all .25s; }
+  .skip-rail::before, .skip-rail::after { content: ''; position: absolute; right: 0; width: 40px; height: 2px; background: inherit; }
+  .skip-rail::before { top: 0; }       /* branch out of input */
+  .skip-rail::after  { bottom: 0; }    /* merge into Add */
+  .skip-rail .head { position: absolute; bottom: -7px; right: 35px; font-size: 11px; line-height: 1; color: currentColor; }
+  .skip-rail .lbl { position: absolute; top: 50%; right: 7px; transform: translateY(-50%);
+    writing-mode: vertical-rl; font-family: var(--mono); font-size: 8.5px; letter-spacing: .2em;
+    text-transform: uppercase; color: currentColor; white-space: nowrap; }
+  .skip-rail.active { background: var(--accent-2); color: var(--accent-2); box-shadow: 0 0 14px var(--accent-2); }
+
+  /* scope: the vector at the current stage */
+  .scope-cap { font-size: 15px; color: var(--ink); line-height: 1.5; margin-bottom: 14px; min-height: 66px; }
+  .scope-cap b { color: var(--accent); font-weight: 600; }
+  .scope-op { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); background: var(--code-bg);
+    border: 1px solid var(--line); padding: 10px 12px; margin-bottom: 16px; overflow-x: auto; white-space: nowrap; }
+  .scope-vec { display: flex; align-items: stretch; justify-content: center; gap: 10px; height: 130px; margin-bottom: 6px; }
+  .vcell { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 56px; }
+  .vbar-area { position: relative; width: 26px; height: 96px; }
+  .vbar-mid { position: absolute; left: -7px; right: -7px; top: 50%; height: 1px; background: rgba(138,161,189,.35); }
+  .vbar { position: absolute; left: 0; width: 100%; transition: height .3s, top .3s, bottom .3s, background .3s; }
+  .vnum { font-family: var(--mono); font-size: 11px; color: var(--ink); margin-top: 8px; font-feature-settings: "tnum"; }
+  .trace-ctrls { display: flex; gap: 10px; align-items: center; margin: 4px 0 18px; flex-wrap: wrap; }
+  .step-dots { display: flex; gap: 6px; margin-left: 4px; }
+  .step-dots .d { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: background .2s, box-shadow .2s; }
+  .step-dots .d.on { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  /* axis explainer (shown at the LayerNorm step) */
+  .axis-box { border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    background: rgba(52,211,153,.06); padding: 14px 16px; margin-top: 16px; font-size: 13px; color: var(--ink-dim); animation: rise .3s ease; }
+  .axis-box .at { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .axis-box code { font-family: var(--mono); color: var(--accent-2); font-size: 12px; }
+  .axis-box b { color: var(--ink); }
+  .axis-box ul { margin: 10px 0 0; }
+  .axis-box li { margin: 6px 0; padding-left: 16px; position: relative; }
+  .axis-box li::before { content: '›'; position: absolute; left: 0; color: var(--accent); }
+  .axis-diagram { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); background: var(--code-bg);
+    border: 1px solid var(--line); padding: 11px 13px; margin: 4px 0 2px; line-height: 1.75; white-space: pre; overflow-x: auto; }
+  .axis-diagram b { color: var(--accent); }
+  .axis-diagram .hl { color: var(--accent-2); }
+
+  /* ---------- code ---------- */
+  pre.code, pre.exercise {
+    background: var(--code-bg); border-left: 2px solid var(--accent);
+    padding: 20px 24px; font-family: var(--mono); font-size: 13px; line-height: 1.85;
+    overflow-x: auto; margin: 0; color: var(--ink-dim);
+  }
+  pre.exercise { font-size: 14px; line-height: 2.15; }
+  .cm { color: var(--ink-faint); font-style: italic; }
+  .copy-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    background: transparent; color: var(--ink-faint); border: 1px solid var(--line);
+    padding: 4px 10px; cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: var(--good); border-color: var(--good); }
+
+  /* ============ DRILLS ============ */
+  .drill {
+    background: var(--bg-2); border: 1px solid var(--line); border-left: 2px solid var(--accent);
+    padding: 22px 24px; margin: 16px 0; transition: border-color 0.2s;
+  }
+  .drill.solved { border-left-color: var(--good); background: linear-gradient(100deg, rgba(58,255,184,0.05), transparent 60%); }
+  .drill .prompt { font-size: 16px; color: var(--ink); margin-bottom: 14px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .drill .prompt .pn { font-family: var(--mono); font-size: 12px; color: var(--accent); flex: 0 0 auto; }
+  .drill.solved .prompt .pn { color: var(--good); }
+  .drill .prompt code { font-family: var(--mono); font-size: 14px; color: var(--accent-2); }
+  pre.exercise .blank, .drill .blank {
+    display: inline-block; min-width: 64px; max-width: 260px; padding: 3px 10px;
+    background: var(--code-bg); border: 1px solid var(--accent); color: var(--accent);
+    font-family: var(--mono); font-size: 14px; text-align: center; outline: none; border-radius: 2px;
+    transition: all 0.15s;
+  }
+  .blank:focus { box-shadow: 0 0 0 2px rgba(52,211,153,0.3); background: rgba(52,211,153,0.06); }
+  .blank.correct { border-color: var(--good); color: var(--good); background: rgba(58,255,184,0.08); animation: pop 220ms ease-out; }
+  .blank.wrong { border-color: var(--bad); color: var(--bad); animation: shake 240ms ease-in-out; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.13)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-2px)} }
+  .controls-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 500;
+    background: var(--accent); color: #050510; border: none; padding: 9px 18px; cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+  }
+  .btn:hover { filter: brightness(1.12); box-shadow: 0 0 18px rgba(52,211,153,0.4); }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--ink-dim); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--accent); border-color: var(--accent); box-shadow: none; }
+  .feedback { margin-top: 12px; font-size: 13px; min-height: 16px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); } .feedback.bad { color: var(--bad); } .feedback.hint { color: var(--ink-faint); font-style: italic; }
+
+  /* ============ CONFETTI / TOAST / HELP ============ */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; background: transparent; border: none; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(48px);
+    background: var(--bg-2); border: 1px solid var(--accent); color: var(--ink);
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; padding: 12px 22px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 22px rgba(52,211,153,0.25);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s, transform 0.3s; z-index: 160;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,5,8,0.78); backdrop-filter: blur(6px);
+    z-index: 210; display: none; align-items: center; justify-content: center; padding: 24px;
+  }
+  #help-overlay.show { display: flex; animation: rise 0.25s ease; }
+  #help-overlay .help-content { background: var(--bg-2); border: 1px solid var(--line); padding: 34px 38px; max-width: 460px; width: 100%; position: relative; }
+  #help-overlay .help-content::before { content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); }
+  #help-overlay h3 { color: var(--accent); font-style: italic; margin-bottom: 16px; }
+  #help-overlay table { width: 100%; font-family: var(--mono); font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--ink-dim); }
+  kbd { font-family: var(--mono); background: var(--code-bg); border: 1px solid var(--line); padding: 2px 9px; color: var(--accent); font-size: 12px; }
+
+  footer {
+    max-width: 1280px; margin: 70px auto 0; padding: 28px 32px 50px;
+    border-top: 1px solid var(--line); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.04em;
+  }
+  footer a { color: var(--accent); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="brand"><span class="mark">◆</span> <b>ADD &amp; NORM</b></div>
+    <div class="progress-bar-outer" title="overall progress"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat" title="exercises solved"><span class="num" id="scoreNum">0</span><span style="color:var(--ink-faint)">/</span><span class="num" id="scoreTot">0</span><span class="lbl">solved</span></div>
+    <div class="streak" title="streak">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="help-btn" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="welcome"><span class="tnum">01</span>Why</button>
+    <button data-tab="flow"><span class="tnum">02</span>Walkthrough</button>
+    <button data-tab="formula"><span class="tnum">03</span>Formula</button>
+    <button data-tab="add"><span class="tnum">04</span>Add</button>
+    <button data-tab="norm"><span class="tnum">05</span>Norm</button>
+    <button data-tab="prepost"><span class="tnum">06</span>Pre vs Post</button>
+    <button data-tab="variants"><span class="tnum">07</span>Variants</button>
+    <button data-tab="drills"><span class="tnum">08</span>Practice</button>
+  </nav>
+</div>
+
+<main>
+
+<!-- ========================= WELCOME ========================= -->
+<section class="tab-section active" id="tab-welcome">
+  <div class="eyebrow">Section 3.1 · the glue between sub-layers</div>
+  <h1>The <em>Add&nbsp;&amp;&nbsp;Norm</em> sublayer</h1>
+  <p class="lede">
+    Every box in the Transformer diagram labelled <strong>"Add &amp; Norm"</strong> is two operations
+    stacked: a <em>residual connection</em> that adds the sub-layer's input back to its output, then
+    <em>layer normalization</em>. In symbols, the output of <strong>each</strong> sub-layer is
+    <code>LayerNorm(x + Sublayer(x))</code>. It carries no understanding of language — its only job is to
+    make a deep stack of attention and feed-forward blocks <strong>trainable</strong>.
+  </p>
+
+  <h2 class="sec"><span class="num">01</span> Two jobs, one box</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">the Add — residual</div>
+      <h4>A gradient highway</h4>
+      <p>The skip path <code>x + Sublayer(x)</code> lets gradients flow straight back through dozens of layers without vanishing. Each sub-layer only has to learn a <em>correction</em> to its input, not rebuild it from scratch.</p>
+    </div>
+    <div class="idea">
+      <div class="k">the Norm — LayerNorm</div>
+      <h4>A scale tamer</h4>
+      <p>Re-centers and re-scales each token vector so its features have mean&nbsp;0 and variance&nbsp;1, then applies learnable <code>γ</code> and <code>β</code>. Activations stay in a healthy range layer after layer.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Why it matters:</strong> the original Transformer is <em>6 encoder + 6 decoder</em> layers,
+    each with two sub-layers — over <em>two dozen</em> stacked non-linear blocks. Without residuals the
+    gradient signal dies before it reaches the early layers; without normalization the activation
+    magnitudes drift and training diverges. Add &amp; Norm is what keeps the whole tower stable.
+  </div>
+
+  <h2 class="sec"><span class="num">01·b</span> Where it sits in a block</h2>
+  <div class="panel">
+    <div class="panel-label">one encoder layer · two Add &amp; Norm boxes</div>
+    <div class="shapes">
+      <span class="pill dim">x <b>[B, T, D]</b></span>
+      <span class="to">→</span>
+      <span class="pill">Self-Attn</span>
+      <span class="to">→</span>
+      <span class="pill out">Add&amp;Norm</span>
+      <span class="to">→</span>
+      <span class="pill">Feed-Fwd</span>
+      <span class="to">→</span>
+      <span class="pill out">Add&amp;Norm</span>
+      <span class="to">→</span>
+      <span class="pill dim">out <b>[B, T, D]</b></span>
+    </div>
+    <p style="margin:18px 0 0; font-size:14px;">
+      Both attention and the feed-forward network are wrapped by their own Add&nbsp;&amp;&nbsp;Norm. The
+      shape <code>[B, T, D]</code> is preserved end to end — addition and normalization never change
+      dimensionality, which is exactly why <code>d_model</code> is kept constant across the whole model.
+    </p>
+  </div>
+
+  <div class="note mint">
+    <strong>How to use this page:</strong> walk the tabs <span class="ink">01 → 08</span>. Tab 02 steps a
+    token through one box, tab 04 shows the residual as a live <em>gradient highway</em>, tab 05 lets you
+    watch LayerNorm flatten any input (with a live <em>tensor</em> view of the [B, T, D] cube), tab 06
+    compares Post-LN vs Pre-LN, and tab 08 scores you. Press <kbd>?</kbd> for shortcuts.
+  </div>
+</section>
+
+<!-- ========================= WALKTHROUGH ========================= -->
+<section class="tab-section" id="tab-flow">
+  <div class="eyebrow">Watch one token flow through</div>
+  <h1>One box, <em>step by step</em></h1>
+  <p class="lede">
+    Still fuzzy on what "Add &amp; Norm" actually <em>does</em>? Step a single token vector through the box
+    and watch each operation. The <span style="color:var(--accent-2)">cyan rail on the right</span> is the
+    <strong>residual / skip</strong> — it copies the input forward, <em>around</em> the sub-layer, and
+    merges it back at the <strong>Add</strong>. That copy-around is the whole trick.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label"><span>add &amp; norm · live trace · D = 4 (toy)</span><span id="stepCounter">step 1 / 5</span></div>
+    <div class="trace-lab">
+      <!-- left: the block diagram -->
+      <div class="trace-v">
+        <div class="skip-wrap">
+          <div class="skip-rail" id="skipRail"><span class="head">▼</span><span class="lbl">residual · skip</span></div>
+          <div class="tstage" id="st-0" data-stage="0">x &nbsp;·&nbsp; <code>[B, T, D]</code><small>input token sequence</small></div>
+          <div class="tarrow-v">↓</div>
+          <div class="tstage" id="st-1" data-stage="1">Sublayer(x) &nbsp;·&nbsp; <code>[B, T, D]</code><small>multi-head attn · or · FFN</small></div>
+          <div class="tarrow-v">↓</div>
+          <div class="tstage add" id="st-2" data-stage="2">Add &nbsp;·&nbsp; <code>[B, T, D]</code><small>x + Sublayer(x)</small></div>
+        </div>
+        <div class="tarrow-v">↓</div>
+        <div class="tstage norm" id="st-3" data-stage="3">LayerNorm &nbsp;·&nbsp; <code>[B, T, D]</code><small>μ→0, σ→1, then ·γ + β</small></div>
+        <div class="tarrow-v">↓</div>
+        <div class="tstage" id="st-4" data-stage="4">out &nbsp;·&nbsp; <code>[B, T, D]</code><small>to next sub-layer</small></div>
+      </div>
+
+      <!-- right: the values at this stage -->
+      <div>
+        <div class="trace-ctrls">
+          <button class="btn ghost" onclick="traceStep(-1)" id="tracePrev">◀ prev</button>
+          <button class="btn" onclick="traceStep(1)" id="traceNext">next ▶</button>
+          <button class="btn ghost tiny" onclick="traceReset()">↻</button>
+          <div class="step-dots" id="stepDots"></div>
+        </div>
+        <div class="shapes" style="margin-bottom:14px;">
+          <span class="pill dim">B <b>2</b></span>
+          <span class="pill dim">T <b>5</b></span>
+          <span class="pill dim">D = d_model <b>512</b></span>
+          <span class="to">→</span>
+          <span class="pill out">shape <b>[2, 5, 512]</b></span>
+        </div>
+        <div class="ctrl-meta" style="margin:-6px 0 14px;">Add &amp; Norm <b style="color:var(--accent)">never changes the shape</b> — it's <code style="color:var(--accent-2)">[B, T, D]</code> at every stage above. The bars below show <b style="color:var(--accent)">one token's D features</b> (D = 4 here for clarity).</div>
+        <div class="scope-cap" id="traceCap"></div>
+        <div class="scope-op" id="traceOp"></div>
+        <div class="scope-vec" id="traceVec"></div>
+        <div class="readout-grid" id="traceStats" style="display:none; margin-top:14px;">
+          <div class="rc"><div class="rk">mean across D</div><div class="rv good" id="traceMean">—</div></div>
+          <div class="rc"><div class="rk">std across D</div><div class="rv good" id="traceStd">—</div></div>
+        </div>
+        <div class="axis-box" id="traceAxis" style="display:none;">
+          <div class="at">which axis LayerNorm reduces</div>
+          Statistics come from the <b style="color:var(--accent)">last axis D only</b> — computed <b>per token</b>:
+          <div class="axis-diagram">[B, T, D]   B = batch · T = seq len · D = d_model
+
+ token (b,t):  [ <span class="hl">x₀  x₁  …  x_D-1</span> ]  ──reduce over D──▶  <b>μ(b,t), σ(b,t)</b>
+               y = (x − μ) / √(σ² + ε) · γ + β     → same shape [B, T, D]</div>
+          <ul>
+            <li><code>μ</code>, <code>σ</code> carry only the <b>b, t</b> index (not j) → <b>one pair per token</b>, <b>B×T pairs</b> in all.</li>
+            <li><b>Every</b> B·T·D element is normalized; the stats just come from each token's own D values.</li>
+            <li><b>B and T never mix</b> into the statistics — the key difference from BatchNorm.</li>
+            <li>In code: <code>nn.LayerNorm(d_model)</code> reduces the last dim only.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>The one thing to remember:</strong> the sub-layer never has to reproduce its input — the skip
+    rail already carries <code>x</code> forward. The sub-layer only learns a small <em>update</em>, the
+    Add merges it in, and LayerNorm rescales the result so the next box receives clean activations.
+    Use <kbd>←</kbd> / <kbd>→</kbd> to step.
+  </div>
+</section>
+
+<!-- ========================= FORMULA ========================= -->
+<section class="tab-section" id="tab-formula">
+  <div class="eyebrow">Vaswani et al. · 2017</div>
+  <h1>One line, two <em>operations</em></h1>
+  <p class="lede">
+    The paper states it in a single sentence: <em>"the output of each sub-layer is
+    $\mathrm{LayerNorm}(x + \mathrm{Sublayer}(x))$, where $\mathrm{Sublayer}(x)$ is the function
+    implemented by the sub-layer itself."</em> Read it inside-out.
+  </p>
+
+  <div class="formula-panel">
+    $$\text{out} = \mathrm{LayerNorm}\big(\underbrace{x}_{\text{residual}} + \underbrace{\mathrm{Sublayer}(x)}_{\text{attn or FFN}}\big)$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">read it inside-out</div>
+    <ul>
+      <li><span class="pill">Sublayer(x)</span> &nbsp;run multi-head attention <em>or</em> the feed-forward net on the input.</li>
+      <li><span class="pill">x + …</span> &nbsp;<strong>Add</strong> — the residual / skip connection puts the original input back.</li>
+      <li><span class="pill">LayerNorm(…)</span> &nbsp;<strong>Norm</strong> — normalize the summed vector across its features.</li>
+    </ul>
+  </div>
+
+  <h2 class="sec"><span class="num">02</span> LayerNorm, expanded</h2>
+  <p class="lede">
+    LayerNorm (Ba, Kiros &amp; Hinton, 2016) normalizes <em>each token</em> over its $D$ feature
+    dimensions — independent of the batch and of other tokens. Mean&nbsp;and&nbsp;variance are computed
+    per row; two learnable vectors $\gamma$ (scale) and $\beta$ (shift) restore expressivity.
+  </p>
+
+  <div class="formula-panel">
+    $$\mu = \frac1D\sum_{j=1}^{D} x_j, \qquad
+      \sigma^2 = \frac1D\sum_{j=1}^{D} (x_j-\mu)^2$$
+    $$\mathrm{LayerNorm}(x)_j = \gamma_j \cdot \frac{x_j - \mu}{\sqrt{\sigma^2 + \epsilon}} + \beta_j$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">the whole sublayer in PyTorch <button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre class="exercise">class AddNorm(nn.Module):
+    def __init__(self, d_model, dropout=0.1):
+        super().__init__()
+        self.norm = nn.LayerNorm(d_model)      <span class="cm"># learns γ, β of size [D]</span>
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, x, sublayer):
+        <span class="cm"># Post-LN, as in the 2017 paper</span>
+        return self.norm(x + self.drop(sublayer(x)))</pre>
+  </div>
+
+  <div class="note">
+    <strong>The $\epsilon$:</strong> a tiny constant (e.g. <code>1e-5</code>) added under the square root
+    so we never divide by zero when a token's features happen to be (nearly) constant.
+  </div>
+  <div class="note warn">
+    <strong>Dropout detail:</strong> the paper applies dropout to each sub-layer's <em>output</em>
+    <em>before</em> it is added to the residual and normalized — that's the <code>drop(sublayer(x))</code>
+    above, not <code>drop(x)</code>.
+  </div>
+</section>
+
+<!-- ========================= ADD (residual) ========================= -->
+<section class="tab-section" id="tab-add">
+  <div class="eyebrow">The skip connection</div>
+  <h1>Add — the <em>gradient highway</em></h1>
+  <p class="lede">
+    Stacking many layers normally makes the backward gradient shrink (or blow up) geometrically with
+    depth — the <strong>vanishing gradient</strong> problem. A residual connection changes each layer's
+    Jacobian from $J$ to $I + J$: the identity term $I$ guarantees a path of magnitude&nbsp;1 straight to
+    the input. Slide depth and per-layer gain below and watch the two regimes diverge.
+  </p>
+
+  <div class="formula-panel">
+    $$\frac{\partial\,\text{out}}{\partial x} = \underbrace{I}_{\text{skip}} + \underbrace{\frac{\partial\,\mathrm{Sublayer}(x)}{\partial x}}_{J}
+      \;\;\Longrightarrow\;\; \text{gradient} \sim (1+g)^{N}\ \text{instead of}\ g^{N}$$
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">gradient magnitude vs depth · log scale</div>
+    <p style="font-size:13.5px; margin:0 0 16px;">
+      Each layer multiplies the back-flowing gradient by roughly its Jacobian norm <code>g</code>. The
+      <span style="color:var(--bad)">rose</span> curve is a plain stack (factor <code>g</code> per layer);
+      the <span style="color:var(--accent)">emerald</span> curve adds a residual (factor <code>1 + g</code>).
+    </p>
+    <div class="lab">
+      <div>
+        <canvas id="gradCanvas" width="560" height="320"></canvas>
+        <div class="cmap-legend">
+          <span style="color:var(--bad)">■ plain&nbsp; gᴺ</span>
+          <span style="color:var(--accent)">■ residual&nbsp; (1+g)ᴺ</span>
+          <span style="margin-left:6px;">y-axis = log₁₀(‖grad‖), x-axis = layer depth</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">depth · N layers</span><span class="ctrl-val" id="depthV">24</span></div>
+          <input type="range" id="depth" min="2" max="60" step="1" value="24">
+          <div class="ctrl-meta">how tall the stack is</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">per-layer gain · g</span><span class="ctrl-val" id="gainV">0.70</span></div>
+          <input type="range" id="gain" min="0.30" max="1.40" step="0.01" value="0.70">
+          <div class="ctrl-meta">‖∂Sublayer/∂x‖ — Jacobian norm</div>
+        </div>
+        <div class="readout-grid">
+          <div class="rc"><div class="rk">plain · gᴺ</div><div class="rv warn" id="plainRO">—</div></div>
+          <div class="rc"><div class="rk">residual · (1+g)ᴺ</div><div class="rv good" id="resRO">—</div></div>
+        </div>
+        <div class="note" style="font-size:12.5px; margin-top:16px;">
+          <strong>Read it:</strong> when <code>g &lt; 1</code> the plain gradient collapses toward zero by
+          the bottom layer — early weights barely update. The residual factor <code>1 + g</code> stays
+          above&nbsp;1, so the signal survives the full depth. That surviving path is the "highway."
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note mint">
+    <strong>Intuition:</strong> a residual block only needs to learn the <em>difference</em> between its
+    input and the desired output (<code>Sublayer(x) = out − x</code>). Learning a small correction is far
+    easier than relearning the whole signal — which is why a near-zero sub-layer at init still passes the
+    input through cleanly.
+  </div>
+</section>
+
+<!-- ========================= NORM (LayerNorm) ========================= -->
+<section class="tab-section" id="tab-norm">
+  <div class="eyebrow">Per-token feature normalization</div>
+  <h1>Norm — <em>flatten</em> then reshape</h1>
+  <p class="lede">
+    LayerNorm takes one token's $D$ features, subtracts their mean and divides by their standard
+    deviation — so <em>whatever</em> goes in comes out with mean&nbsp;0 and variance&nbsp;1. Below, a
+    fixed feature pattern is fed through a <code>gain</code> and <code>bias</code> you control. Watch the
+    raw bars swing wildly while the normalized output refuses to budge — then use <code>γ</code> and
+    <code>β</code> to reshape it on purpose.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label">LayerNorm over D = 16 features · normalized = (x − μ) / √(σ²+ε)</div>
+    <div class="lab">
+      <div>
+        <canvas id="lnCanvas" width="560" height="300"></canvas>
+        <div class="cmap-legend">
+          <span>raw input</span><span>→</span><span>normalized (μ=0, σ=1)</span><span>→</span>
+          <span style="color:var(--accent)">output = γ·n + β</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">input gain</span><span class="ctrl-val" id="lnGainV">1.0</span></div>
+          <input type="range" id="lnGain" min="0.2" max="3.0" step="0.1" value="1.0">
+          <div class="ctrl-meta">scales the raw features — output ignores it</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">input bias</span><span class="ctrl-val" id="lnBiasV">0.0</span></div>
+          <input type="range" id="lnBias" min="-2.0" max="2.0" step="0.1" value="0.0">
+          <div class="ctrl-meta">shifts the raw features — output ignores it</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">γ · learned scale</span><span class="ctrl-val" id="gammaV">1.0</span></div>
+          <input type="range" id="gamma" min="0.0" max="2.5" step="0.1" value="1.0">
+          <div class="ctrl-meta">stretches the normalized vector</div>
+        </div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name">β · learned shift</span><span class="ctrl-val" id="betaV">0.0</span></div>
+          <input type="range" id="beta" min="-1.5" max="1.5" step="0.1" value="0.0">
+          <div class="ctrl-meta">offsets the output</div>
+        </div>
+        <div class="readout-grid">
+          <div class="rc"><div class="rk">raw mean μ</div><div class="rv" id="rawMeanRO">—</div></div>
+          <div class="rc"><div class="rk">raw std σ</div><div class="rv" id="rawStdRO">—</div></div>
+          <div class="rc"><div class="rk">norm mean</div><div class="rv good" id="normMeanRO">0.00</div></div>
+          <div class="rc"><div class="rk">norm std</div><div class="rv good" id="normStdRO">1.00</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>The invariance is the point:</strong> push <code>gain</code> and <code>bias</code> to any
+    extreme — the middle (normalized) strip is unchanged, and <em>norm mean</em> stays 0 while <em>norm
+    std</em> stays 1. LayerNorm erases the per-token scale and offset, so the next sub-layer always
+    receives activations in the same well-behaved range.
+  </div>
+
+  <h2 class="sec"><span class="num">05·b</span> Which slice gets normalized?</h2>
+  <p class="lede">
+    A transformer activation is a <strong>[B, T, D]</strong> cube — <em>B</em> sequences in the batch,
+    <em>T</em> tokens each, <em>D</em> features per token. LayerNorm reduces over the <strong>D</strong>
+    axis: every token is normalized on its own, using <em>its own</em> mean and std. Move the slider to
+    pick a slice and flip the toggle to see how BatchNorm would instead reduce over the batch/token axis.
+  </p>
+
+  <div class="panel">
+    <div class="panel-label"><span>tensor · B = 1 shown, T = 10 tokens, D = 12 features</span><span id="tnStatRO">μ=0.00 · σ=1.00</span></div>
+    <div class="toggle-row">
+      <button id="tnLN" class="on" onclick="setNormMode('ln')">LayerNorm · per token (over D)</button>
+      <button id="tnBN" onclick="setNormMode('bn')">BatchNorm · per feature (over tokens)</button>
+    </div>
+    <div class="lab">
+      <div>
+        <canvas id="tensorCanvas" width="560" height="360"></canvas>
+        <div class="cmap-legend">
+          <span>cyan = negative</span><span class="cmap-bar"></span><span>emerald = positive</span>
+          <span style="margin-left:6px;">bright band = the slice being normalized</span>
+        </div>
+      </div>
+      <div>
+        <div class="ctrl">
+          <div class="ctrl-label"><span class="ctrl-name" id="tnSelName">token · t</span><span class="ctrl-val" id="tnSelV">3</span></div>
+          <input type="range" id="tnSel" min="0" max="9" step="1" value="3">
+          <div class="ctrl-meta" id="tnSelMeta">which token row to normalize</div>
+        </div>
+        <div class="scope-cap" id="tnCap"></div>
+        <div class="readout-grid">
+          <div class="rc"><div class="rk" id="tnRawMeanK">slice mean μ</div><div class="rv" id="tnRawMean">—</div></div>
+          <div class="rc"><div class="rk">slice std σ</div><div class="rv" id="tnRawStd">—</div></div>
+          <div class="rc"><div class="rk">after · mean</div><div class="rv good" id="tnNormMean">0.00</div></div>
+          <div class="rc"><div class="rk">after · std</div><div class="rv good" id="tnNormStd">1.00</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="axis-box" style="max-width:820px; margin-top:8px;">
+    <div class="at">the rule, exactly</div>
+    LayerNorm reduces over the <b style="color:var(--accent)">last axis D only</b> — once per token:
+    <div class="axis-diagram">[B, T, D]   B = batch · T = seq len · D = d_model
+
+ token (b,t):  [ <span class="hl">x₀  x₁  …  x_D-1</span> ]  ──reduce over D──▶  <b>μ(b,t), σ(b,t)</b>
+               y = (x − μ) / √(σ² + ε) · γ + β     → same shape [B, T, D]</div>
+    <ul>
+      <li><code>μ</code>, <code>σ</code> carry only the <b>b, t</b> index (not j) → <b>one pair per token</b> → <b>B×T pairs</b> total (here <code>1 × 10 = 10</code> normalizations).</li>
+      <li><b>Every</b> B·T·D element is normalized; the statistics simply come from each token's own D values.</li>
+      <li><b>B (batch) and T (seq length) never enter the statistics</b> — that's the key difference from BatchNorm, which pools down the batch/token axis.</li>
+      <li>In code: <code>nn.LayerNorm(d_model)</code> reduces the last dim only.</li>
+    </ul>
+  </div>
+
+  <h2 class="sec"><span class="num">05·c</span> LayerNorm vs BatchNorm</h2>
+  <div class="cards">
+    <div class="idea">
+      <div class="k">LayerNorm — used here</div>
+      <h4>Across features</h4>
+      <p>Normalizes over the $D$ axis, <em>per token</em>. No dependence on batch size or other examples — so it behaves identically at train and inference, and works with variable-length sequences.</p>
+    </div>
+    <div class="idea">
+      <div class="k">BatchNorm — not used</div>
+      <h4>Across the batch</h4>
+      <p>Normalizes each feature over the <em>batch</em>. Unstable for short/variable sequences and small batches, and needs running statistics at inference — a poor fit for sequence models, hence LayerNorm.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= PRE VS POST ========================= -->
+<section class="tab-section" id="tab-prepost">
+  <div class="eyebrow">Where does the Norm go?</div>
+  <h1>Post-LN vs <em>Pre-LN</em></h1>
+  <p class="lede">
+    The 2017 paper puts LayerNorm <em>after</em> the residual add — <strong>Post-LN</strong>. Later work
+    found that moving it <em>inside</em> the residual branch, <em>before</em> the sub-layer —
+    <strong>Pre-LN</strong> — trains far more stably and usually removes the need for a learning-rate
+    warm-up. Almost every modern LLM (GPT-2 onward) uses Pre-LN.
+  </p>
+
+  <div class="flow2">
+    <div class="flowcol">
+      <div class="fh">Post-LN</div>
+      <div class="fsub">original · 2017</div>
+      <div class="fstack">
+        <div class="fnode io">x</div>
+        <div class="farrow">│ ┌───── skip ─────┐</div>
+        <div class="fnode sub">Sublayer(x)</div>
+        <div class="farrow">↓</div>
+        <div class="fnode add">Add &nbsp;( + x )</div>
+        <div class="farrow">↓</div>
+        <div class="fnode norm">LayerNorm</div>
+        <div class="farrow">↓</div>
+        <div class="fnode io">out</div>
+      </div>
+      <div class="fnote">
+        <b>LayerNorm(x + Sublayer(x))</b><br>
+        Norm sits on the main path — the residual stream itself gets normalized every layer.
+      </div>
+    </div>
+    <div class="flowcol">
+      <div class="fh">Pre-LN</div>
+      <div class="fsub">GPT-2, modern LLMs</div>
+      <div class="fstack">
+        <div class="fnode io">x</div>
+        <div class="farrow">│ ┌───── skip ─────┐</div>
+        <div class="fnode norm">LayerNorm</div>
+        <div class="farrow">↓</div>
+        <div class="fnode sub">Sublayer( · )</div>
+        <div class="farrow">↓</div>
+        <div class="fnode add">Add &nbsp;( + x )</div>
+        <div class="farrow">↓</div>
+        <div class="fnode io">out</div>
+      </div>
+      <div class="fnote">
+        <b>x + Sublayer(LayerNorm(x))</b><br>
+        Norm sits inside the branch — the skip path stays a clean, un-normalized identity stream.
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Why Pre-LN is steadier:</strong> the residual stream is never re-normalized, so the identity
+    highway runs unobstructed from the last layer to the first — gradients reach early layers at full
+    strength. Post-LN's gradients can grow with depth, which is why the original Transformer needed a
+    careful warm-up schedule.
+  </div>
+  <div class="note warn">
+    <strong>Trade-off:</strong> well-tuned Post-LN can reach slightly better final quality, but it is
+    finicky to train deep. Pre-LN is the robust default; some recipes (e.g. <em>DeepNorm</em>) re-engineer
+    Post-LN to scale to hundreds of layers.
+  </div>
+</section>
+
+<!-- ========================= VARIANTS ========================= -->
+<section class="tab-section" id="tab-variants">
+  <div class="eyebrow">Beyond the 2017 recipe</div>
+  <h1>Four flavors of <em>normalize</em></h1>
+  <p class="lede">
+    The Add stays the same everywhere; what changes is the normalizer and where it sits. These are the
+    families you'll meet across real architectures.
+  </p>
+
+  <div class="vcompare">
+    <div class="vcol">
+      <div class="vh">Post-LN</div>
+      <div class="vsub">original</div>
+      <div class="vrow"><span class="vk">formula</span><div class="vv"><code>LN(x + f(x))</code></div></div>
+      <div class="vrow"><span class="vk">perk</span><div class="vv">Strong final quality when tuned.</div></div>
+      <div class="vrow"><span class="vk">cost</span><div class="vv">Needs warm-up; unstable when deep.</div></div>
+      <div class="vrow"><span class="vk">used by</span><div class="vv">Transformer, BERT</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">Pre-LN</div>
+      <div class="vsub">in-branch</div>
+      <div class="vrow"><span class="vk">formula</span><div class="vv"><code>x + f(LN(x))</code></div></div>
+      <div class="vrow"><span class="vk">perk</span><div class="vv">Stable; warm-up optional.</div></div>
+      <div class="vrow"><span class="vk">cost</span><div class="vv">Often a final LN before the head.</div></div>
+      <div class="vrow"><span class="vk">used by</span><div class="vv">GPT-2/3, ViT</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">RMSNorm</div>
+      <div class="vsub">no mean</div>
+      <div class="vrow"><span class="vk">formula</span><div class="vv"><code>x / rms(x) · γ</code></div></div>
+      <div class="vrow"><span class="vk">perk</span><div class="vv"><em>Skips</em> mean-subtraction &amp; β — cheaper, same quality.</div></div>
+      <div class="vrow"><span class="vk">cost</span><div class="vv">Drops the re-centering step.</div></div>
+      <div class="vrow"><span class="vk">used by</span><div class="vv">LLaMA, T5, Gemma</div></div>
+    </div>
+    <div class="vcol">
+      <div class="vh">DeepNorm</div>
+      <div class="vsub">scaled Post-LN</div>
+      <div class="vrow"><span class="vk">formula</span><div class="vv"><code>LN(αx + f(x))</code></div></div>
+      <div class="vrow"><span class="vk">perk</span><div class="vv">Up-scales the residual to train <em>1000-layer</em> models.</div></div>
+      <div class="vrow"><span class="vk">cost</span><div class="vv">Extra depth-tuned constant α.</div></div>
+      <div class="vrow"><span class="vk">used by</span><div class="vv">DeepNet, BLOOM-style</div></div>
+    </div>
+  </div>
+
+  <div class="mini-grid">
+    <div class="mini"><div class="op">+</div><h4>the Add never changes</h4><p>A residual / skip connection is in every variant. It is the non-negotiable gradient highway.</p></div>
+    <div class="mini"><div class="op">μ</div><h4>mean is optional</h4><p>RMSNorm drops the μ subtraction and β shift — just divide by the root-mean-square and scale by γ.</p></div>
+    <div class="mini"><div class="op">α</div><h4>scale the residual</h4><p>DeepNorm multiplies the skip path by a constant α so very deep Post-LN stacks stay stable.</p></div>
+  </div>
+
+  <div class="formula-panel">
+    $$\mathrm{RMSNorm}(x)_j = \gamma_j \cdot \frac{x_j}{\sqrt{\tfrac1D\sum_k x_k^2 + \epsilon}}
+      \qquad\text{(no }\mu\text{, no }\beta\text{)}$$
+  </div>
+</section>
+
+<!-- ========================= DRILLS ========================= -->
+<section class="tab-section" id="tab-drills">
+  <div class="eyebrow">Type the answer · earn the streak</div>
+  <h1><em>Practice</em></h1>
+  <p class="lede">
+    <kbd>Enter</kbd> checks · <kbd>Hint</kbd> reveals all unsolved blanks (toggle) · <kbd>Tab</kbd> moves
+    between blanks. Solve them all to finish the section.
+  </p>
+
+  <h2 class="sec"><span class="num">07·a</span> The formula</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">01</span> Fill the canonical Post-LN sublayer expression.</div>
+    <pre class="exercise">out = LayerNorm(<input class="blank" data-answer="x" size="4" placeholder="?"> + Sublayer(x))</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">02</span> The two operations inside an "Add &amp; Norm" box.</div>
+    <pre class="exercise">add  = <input class="blank" data-answer="residual|skip" size="9" placeholder="?"> connection
+norm = <input class="blank" data-answer="layernorm|layer norm|layer normalization" size="12" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">03</span> LayerNorm normalizes over which axis? (one word)</div>
+    <pre class="exercise">stats computed over the <input class="blank" data-answer="feature|features|d|d_model|channel" size="9" placeholder="?"> dimension, per token</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">04</span> After normalizing, the two learnable parameters that reshape it.</div>
+    <pre class="exercise">y = <input class="blank" data-answer="gamma|γ" size="6" placeholder="?"> * norm + <input class="blank" data-answer="beta|β" size="6" placeholder="?"></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">05</span> The small constant under the square root that prevents divide-by-zero.</div>
+    <pre class="exercise">norm = (x - mu) / sqrt(var + <input class="blank" data-answer="eps|epsilon|ε" size="7" placeholder="?">)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·b</span> The residual</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">06</span> Differentiating <code>out = x + Sublayer(x)</code> adds which matrix to the Jacobian?</div>
+    <pre class="exercise">d(out)/dx = <input class="blank" data-answer="I|identity" size="6" placeholder="?"> + d(Sublayer)/dx</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">07</span> The problem residuals solve when a network gets very deep.</div>
+    <pre class="exercise">without skips, gradients <input class="blank" data-answer="vanish|vanishing" size="9" placeholder="?"> with depth</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">08</span> The Add keeps the shape unchanged — fill the residual sum's shape.</div>
+    <pre class="exercise">x[B,T,D] + sublayer(x)[B,T,D]  →  [B, T, <input class="blank" data-answer="D|d|d_model" size="6" placeholder="?">]</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <h2 class="sec"><span class="num">07·c</span> Pre / Post &amp; variants</h2>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">09</span> Complete the Pre-LN form (norm inside the branch).</div>
+    <pre class="exercise">out = x + Sublayer(<input class="blank" data-answer="LayerNorm(x)|LN(x)|layernorm(x)" size="14" placeholder="?">)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">10</span> Which normalization drops mean-subtraction and β? (LLaMA / T5)</div>
+    <pre class="exercise">norm = "<input class="blank" data-answer="rmsnorm|rms norm|rms" size="9" placeholder="?">"   <span class="cm"># x / sqrt(mean(x^2)+eps) * gamma</span></pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="drill" data-drill>
+    <div class="prompt"><span class="pn">11</span> The sequence-model-friendly norm the Transformer uses (not Batch).</div>
+    <pre class="exercise">self.norm = nn.<input class="blank" data-answer="LayerNorm" size="12" placeholder="?">(d_model)</pre>
+    <div class="controls-row"><button class="btn" onclick="checkDrill(this)">Check</button><button class="btn ghost" onclick="hintDrill(this)">Hint</button></div>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="note mint" style="margin-top:24px;">
+    <strong>Solved all eleven?</strong> You now know exactly what every "Add &amp; Norm" box does: a
+    residual highway to keep gradients alive, plus LayerNorm to keep activations tame — and how Pre-LN,
+    RMSNorm, and DeepNorm tweak the recipe.
+  </div>
+</section>
+
+</main>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="if(event.target===this)hideHelp()">
+  <div class="help-content">
+    <h3>keyboard</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>jump to next blank</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>check current drill</td></tr>
+      <tr><td><kbd>1</kbd> … <kbd>8</kbd></td><td>switch tab</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>step the walkthrough</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>close</td></tr>
+    </table>
+  </div>
+</div>
+
+<footer>
+  <span>Add &amp; Norm · interactive field guide · gradient highway &amp; LayerNorm recompute live in JS</span>
+  <span><a href="index.html">← all cheatsheets</a></span>
+</footer>
+
+<script>
+'use strict';
+
+// ============== TABS ==============
+const tabs = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabs.forEach(b => {
+  b.addEventListener('click', () => switchTab(b.dataset.tab));
+});
+function switchTab(name) {
+  tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== STATE ==============
+let solved = 0;
+const totalDrills = countDrills();
+let streak = 0;
+const sectionsCompleted = new Set();
+
+function countDrills() {
+  return document.querySelectorAll('.blank').length;
+}
+document.getElementById('scoreTot').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+}
+
+// ============== DRILL CHECKING ==============
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  const ok = variants.includes(norm);
+  return ok;
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  let allOk = true;
+  blanks.forEach(b => {
+    const ok = checkBlank(b);
+    if (b.dataset.solved === '1') return;
+    b.classList.remove('correct', 'wrong');
+    if (ok) b.classList.add('correct');
+    else { b.classList.add('wrong'); allOk = false; }
+  });
+
+  // count newly solved
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1';
+      b.disabled = true;
+      newlySolved++;
+    }
+  });
+
+  if (allOk && Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good';
+    fb.textContent = randomGood();
+    if (newlySolved > 0) {
+      solved += newlySolved;
+      streak += newlySolved;
+      sparkle(drill);
+      updateProgress();
+      checkSectionComplete();
+    }
+  } else if (newlySolved > 0) {
+    solved += newlySolved;
+    streak += newlySolved;
+    fb.className = 'feedback good';
+    fb.textContent = 'partial — ' + newlySolved + ' correct, keep going.';
+    updateProgress();
+  } else {
+    streak = 0;
+    fb.className = 'feedback bad';
+    fb.textContent = randomBad();
+    updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+
+  if (showing) {
+    // Hide: clear all hint-revealed blanks (leave user-solved ones alone)
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = '';
+        b.classList.remove('correct', 'wrong');
+        b.disabled = false;
+        b.dataset.revealed = '';
+        b.dataset.solved = '';
+        solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved');
+    drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint';
+    fb.textContent = 'answers hidden — try typing them yourself';
+    updateProgress();
+    return;
+  }
+
+  // Show: fill every still-unsolved blank with its canonical answer
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want;
+    b.classList.remove('wrong');
+    b.classList.add('correct');
+    b.dataset.solved = '1';
+    b.dataset.revealed = '1';
+    b.disabled = true;
+    revealedCount++;
+  });
+  if (revealedCount === 0) {
+    fb.className = 'feedback hint'; fb.textContent = 'all done.'; return;
+  }
+  solved += revealedCount;
+  streak = 0;
+  drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) {
+    drill.classList.add('solved');
+    sparkle(drill);
+  }
+  fb.className = 'feedback hint';
+  fb.textContent = 'all answers revealed · click again to hide';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['nice.', 'correct!', 'normalized.', '✓ exactly.', 'sharp.', "that's the one.", 'stable.', 'gradient flows.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['not quite — try again.', 'close. peek the hint?', 'almost. check spelling.', 'off by a bit. once more.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+// Enter / Tab handling
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) {
+        const checkBtn = drill.querySelector('.btn:not(.ghost)');
+        if (checkBtn) checkBtn.click();
+      }
+    }
+  }
+});
+
+// Section completion = all drills in current section solved
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('section complete! 🎉  +' + drills.length + ' solved');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span');
+      c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ============== SPARKLE on correct ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `
+      position: fixed;
+      left: ${rect.left + rect.width / 2}px;
+      top:  ${rect.top + 20}px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: radial-gradient(circle, #fff, var(--accent));
+      pointer-events: none; z-index: 90;
+      box-shadow: 0 0 10px var(--accent);
+    `;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200;
+    const dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+}
+sizeConf();
+window.addEventListener('resize', sizeConf);
+
+let particles = [];
+function burstConfetti() {
+  const colors = ['#34d399','#22d3ee','#3affb8','#67e8f9','#a7f3d0','#5eead4','#f4f0e6'];
+  for (let i = 0; i < 140; i++) {
+    particles.push({
+      x: window.innerWidth / 2 + (Math.random() - 0.5) * 80,
+      y: window.innerHeight / 3,
+      vx: (Math.random() - 0.5) * 14,
+      vy: -Math.random() * 12 - 4,
+      g: 0.32,
+      size: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 120 + Math.random() * 40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+let confettiRunning = false;
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vr; p.life--;
+      confCtx.save();
+      confCtx.translate(p.x, p.y);
+      confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color;
+      confCtx.fillRect(-p.size, -p.size / 2, p.size * 2, p.size);
+      confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame);
+    else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== COPY ==============
+function copyCode(btn) {
+  const card = btn.closest('.panel, .card');
+  const code = card.querySelector('pre.code, pre.exercise');
+  if (!code) return;
+  const txt = code.innerText;
+  navigator.clipboard.writeText(txt).then(() => {
+    btn.classList.add('copied');
+    btn.textContent = 'copied!';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = 'copy'; }, 1300);
+  });
+}
+
+// ============== SHARED COLOR ==============
+// diverging colormap: v<0 -> cyan, v>0 -> emerald, ~0 -> dark
+function divColor(v) {
+  const a = Math.min(1, Math.abs(v) / 2.2 + 0.05);
+  if (v >= 0) return `rgba(52,211,153,${a})`;    // emerald
+  return `rgba(34,211,238,${a})`;                // cyan
+}
+
+// ============== GRADIENT HIGHWAY LAB (Add) ==============
+const gradCanvas = document.getElementById('gradCanvas');
+function drawGrad() {
+  if (!gradCanvas) return;
+  const ctx = gradCanvas.getContext('2d');
+  const W = gradCanvas.width, H = gradCanvas.height;
+  const N = +document.getElementById('depth').value;
+  const g = +document.getElementById('gain').value;
+  document.getElementById('depthV').textContent = N;
+  document.getElementById('gainV').textContent = g.toFixed(2);
+
+  // gradient magnitude at depth d (counting from output): plain g^d, residual (1+g)^d
+  const plainEnd = Math.pow(g, N);
+  const resEnd = Math.pow(1 + g, N);
+  document.getElementById('plainRO').textContent = fmtSci(plainEnd);
+  document.getElementById('resRO').textContent = fmtSci(resEnd);
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const padL = 46, padR = 14, padT = 14, padB = 30;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  // y-axis: log10 of magnitude. Determine range from both curves.
+  const logVals = [];
+  for (let d = 0; d <= N; d++) {
+    logVals.push(d * Math.log10(Math.max(1e-12, g)));
+    logVals.push(d * Math.log10(1 + g));
+  }
+  let lo = Math.min(...logVals), hi = Math.max(...logVals);
+  if (hi - lo < 1) { hi += 0.5; lo -= 0.5; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+
+  const x = d => padL + (N === 0 ? 0 : (d / N) * plotW);
+  const y = lg => padT + (1 - (lg - lo) / (hi - lo)) * plotH;
+
+  // gridlines at integer log decades
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.textAlign = 'right';
+  const decLo = Math.ceil(lo), decHi = Math.floor(hi);
+  for (let e = decLo; e <= decHi; e++) {
+    const yy = y(e);
+    ctx.strokeStyle = (e === 0) ? 'rgba(138,161,189,0.45)' : 'rgba(138,161,189,0.15)';
+    ctx.lineWidth = (e === 0) ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(padL + plotW, yy); ctx.stroke();
+    ctx.fillStyle = '#8aa1bd';
+    ctx.fillText('1e' + e, padL - 6, yy + 3);
+  }
+
+  // plain curve (rose)
+  drawCurve(ctx, N, x, y, d => d * Math.log10(Math.max(1e-12, g)), '#ff5e7a');
+  // residual curve (emerald)
+  drawCurve(ctx, N, x, y, d => d * Math.log10(1 + g), '#34d399');
+
+  // axis labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('layer depth →', padL + plotW / 2, H - 7);
+  ctx.textAlign = 'left';
+  ctx.fillText('log₁₀ ‖grad‖', padL + 2, padT + 10);
+}
+function drawCurve(ctx, N, x, y, lgFn, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 7;
+  ctx.beginPath();
+  for (let d = 0; d <= N; d++) {
+    const xx = x(d), yy = y(lgFn(d));
+    if (d === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // end dot
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(x(N), y(lgFn(N)), 4, 0, Math.PI * 2); ctx.fill();
+}
+function fmtSci(v) {
+  if (v === 0) return '0';
+  if (v >= 1e-3 && v < 1e4) return v.toFixed(v < 10 ? 2 : 0);
+  const e = Math.floor(Math.log10(v));
+  const m = v / Math.pow(10, e);
+  return m.toFixed(1) + 'e' + e;
+}
+['depth', 'gain'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawGrad);
+});
+
+// ============== LAYERNORM LAB (Norm) ==============
+const LN_D = 16, LN_EPS = 1e-5;
+// fixed base feature pattern in ~[-1, 1]
+const lnBase = (() => {
+  const v = new Array(LN_D);
+  for (let k = 0; k < LN_D; k++) {
+    const s = Math.sin((k + 1) * 12.9898) * 43758.5453;
+    v[k] = (s - Math.floor(s)) * 2 - 1;
+  }
+  return v;
+})();
+const lnCanvas = document.getElementById('lnCanvas');
+function drawLN() {
+  if (!lnCanvas) return;
+  const ctx = lnCanvas.getContext('2d');
+  const W = lnCanvas.width, H = lnCanvas.height;
+  const gain = +document.getElementById('lnGain').value;
+  const bias = +document.getElementById('lnBias').value;
+  const gamma = +document.getElementById('gamma').value;
+  const beta = +document.getElementById('beta').value;
+  document.getElementById('lnGainV').textContent = gain.toFixed(1);
+  document.getElementById('lnBiasV').textContent = bias.toFixed(1);
+  document.getElementById('gammaV').textContent = gamma.toFixed(1);
+  document.getElementById('betaV').textContent = beta.toFixed(1);
+
+  // raw = gain * base + bias
+  const raw = lnBase.map(v => gain * v + bias);
+  const mu = raw.reduce((a, b) => a + b, 0) / LN_D;
+  const variance = raw.reduce((a, b) => a + (b - mu) * (b - mu), 0) / LN_D;
+  const std = Math.sqrt(variance + LN_EPS);
+  const norm = raw.map(v => (v - mu) / std);
+  const out = norm.map(v => gamma * v + beta);
+
+  // readouts
+  document.getElementById('rawMeanRO').textContent = mu.toFixed(2);
+  document.getElementById('rawStdRO').textContent = Math.sqrt(variance).toFixed(2);
+  const nMean = norm.reduce((a, b) => a + b, 0) / LN_D;
+  const nVar = norm.reduce((a, b) => a + (b - nMean) * (b - nMean), 0) / LN_D;
+  document.getElementById('normMeanRO').textContent = (Math.abs(nMean) < 0.005 ? 0 : nMean).toFixed(2);
+  document.getElementById('normStdRO').textContent = Math.sqrt(nVar).toFixed(2);
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  const rows = [
+    { label: 'raw',  data: raw },
+    { label: 'norm', data: norm },
+    { label: 'out',  data: out }
+  ];
+  const padL = 64, padR = 12;
+  const stripW = W - padL - padR;
+  const cw = stripW / LN_D;
+  const rowH = 64, gap = 18, top = 18;
+  // shared scale across rows so heights are comparable
+  const maxAbs = Math.max(1.2, ...rows.flatMap(r => r.data.map(Math.abs)));
+
+  ctx.font = '12px ui-monospace, monospace';
+  rows.forEach((row, ri) => {
+    const yTop = top + ri * (rowH + gap);
+    const yMid = yTop + rowH / 2;
+    // zero baseline
+    ctx.strokeStyle = 'rgba(138,161,189,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, yMid); ctx.lineTo(padL + stripW, yMid); ctx.stroke();
+    // bars
+    for (let k = 0; k < LN_D; k++) {
+      const v = row.data[k];
+      const h = (v / maxAbs) * (rowH / 2 - 2);
+      ctx.fillStyle = (ri === 2) ? (v >= 0 ? '#34d399' : '#22d3ee') : divColor(v);
+      const bx = padL + k * cw + 1;
+      const bw = Math.max(1, cw - 2);
+      if (v >= 0) ctx.fillRect(bx, yMid - h, bw, h);
+      else ctx.fillRect(bx, yMid, bw, -h);
+    }
+    // label
+    ctx.fillStyle = (ri === 2) ? '#34d399' : '#8aa1bd';
+    ctx.textAlign = 'right';
+    ctx.fillText(row.label, padL - 10, yMid + 4);
+    ctx.textAlign = 'left';
+  });
+}
+['lnGain', 'lnBias', 'gamma', 'beta'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', drawLN);
+});
+
+// ============== TENSOR AXIS LAB (Norm) ==============
+const TN_T = 10, TN_D = 12;
+let tnMode = 'ln';   // 'ln' = per-token (over D) | 'bn' = per-feature (over tokens)
+// deterministic [T x D] matrix in ~[-1.8, 1.8]
+function tnVal(t, d) {
+  const s = Math.sin((t * 31 + d * 7 + 1) * 12.9898) * 43758.5453;
+  return ((s - Math.floor(s)) * 2 - 1) * 1.8;
+}
+function statsOf(arr) {
+  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const v = arr.reduce((a, b) => a + (b - m) * (b - m), 0) / arr.length;
+  return { mean: m, std: Math.sqrt(v) };
+}
+function setNormMode(mode) {
+  tnMode = mode;
+  document.getElementById('tnLN').classList.toggle('on', mode === 'ln');
+  document.getElementById('tnBN').classList.toggle('on', mode === 'bn');
+  const sel = document.getElementById('tnSel');
+  if (mode === 'ln') {
+    sel.max = TN_T - 1;
+    if (+sel.value > TN_T - 1) sel.value = TN_T - 1;
+    document.getElementById('tnSelName').textContent = 'token · t';
+    document.getElementById('tnSelMeta').textContent = 'which token row to normalize';
+    document.getElementById('tnRawMeanK').textContent = 'slice mean μ';
+  } else {
+    sel.max = TN_D - 1;
+    if (+sel.value > TN_D - 1) sel.value = TN_D - 1;
+    document.getElementById('tnSelName').textContent = 'feature · d';
+    document.getElementById('tnSelMeta').textContent = 'which feature column BatchNorm would pool';
+    document.getElementById('tnRawMeanK').textContent = 'slice mean μ';
+  }
+  drawTensor();
+}
+const tensorCanvas = document.getElementById('tensorCanvas');
+function drawTensor() {
+  if (!tensorCanvas) return;
+  const ctx = tensorCanvas.getContext('2d');
+  const W = tensorCanvas.width, H = tensorCanvas.height;
+  const idx = +document.getElementById('tnSel').value;
+  document.getElementById('tnSelV').textContent = idx;
+
+  ctx.fillStyle = '#08101e';
+  ctx.fillRect(0, 0, W, H);
+
+  // grid geometry
+  const padL = 60, padT = 28, padR = 16, padB = 56;
+  const gW = W - padL - padR, gH = H - padT - padB;
+  const cw = gW / TN_D, ch = gH / TN_T;
+
+  // selected slice values
+  const slice = [];
+  if (tnMode === 'ln') { for (let d = 0; d < TN_D; d++) slice.push(tnVal(idx, d)); }
+  else { for (let t = 0; t < TN_T; t++) slice.push(tnVal(t, idx)); }
+
+  // draw cells (dim the ones not in the slice)
+  for (let t = 0; t < TN_T; t++) {
+    for (let d = 0; d < TN_D; d++) {
+      const inSlice = (tnMode === 'ln') ? (t === idx) : (d === idx);
+      const v = tnVal(t, d);
+      ctx.globalAlpha = inSlice ? 1 : 0.28;
+      ctx.fillStyle = divColor(v);
+      ctx.fillRect(padL + d * cw + 1, padT + t * ch + 1, cw - 2, ch - 2);
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // highlight band around the slice
+  ctx.strokeStyle = (tnMode === 'ln') ? '#34d399' : '#22d3ee';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10;
+  if (tnMode === 'ln') ctx.strokeRect(padL, padT + idx * ch, gW, ch);
+  else ctx.strokeRect(padL + idx * cw, padT, cw, gH);
+  ctx.shadowBlur = 0;
+
+  // axis labels
+  ctx.fillStyle = '#8aa1bd';
+  ctx.font = '11px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('D = features →   (' + TN_D + ')', padL + gW / 2, padT + gH + 20);
+  // reduction-direction arrow caption
+  ctx.fillStyle = (tnMode === 'ln') ? '#34d399' : '#22d3ee';
+  ctx.fillText(tnMode === 'ln'
+    ? 'LayerNorm reduces ALONG this row →  (one token, over its D features)'
+    : 'BatchNorm reduces DOWN this column ↓  (one feature, over all tokens)',
+    padL + gW / 2, padT + gH + 40);
+  // token axis label (vertical)
+  ctx.save();
+  ctx.translate(16, padT + gH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#8aa1bd';
+  ctx.textAlign = 'center';
+  ctx.fillText('tokens (T) ↓   (' + TN_T + ')', 0, 0);
+  ctx.restore();
+  ctx.textAlign = 'left';
+
+  // stats + caption
+  const st = statsOf(slice);
+  document.getElementById('tnStatRO').textContent = 'μ=' + st.mean.toFixed(2) + ' · σ=' + st.std.toFixed(2);
+  document.getElementById('tnRawMean').textContent = st.mean.toFixed(2);
+  document.getElementById('tnRawStd').textContent = st.std.toFixed(2);
+  document.getElementById('tnCap').innerHTML = (tnMode === 'ln')
+    ? 'Token <b>' + idx + '</b> is normalized using the <b>' + TN_D + ' values in its own row</b> — independent of every other token and of the batch. Subtract μ, divide by σ → mean 0, var 1.'
+    : '<b>BatchNorm</b> would pool feature <b>' + idx + '</b> down the <b>token/batch axis</b> instead. For variable-length sequences and small batches that statistic is noisy — which is why transformers use LayerNorm.';
+}
+const tnSelEl = document.getElementById('tnSel');
+if (tnSelEl) tnSelEl.addEventListener('input', drawTensor);
+
+// ============== HELP / KEYBOARD ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+document.addEventListener('keydown', (e) => {
+  const inField = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+  if (e.key === 'Escape') hideHelp();
+  if (inField) return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  const tabKeys = { '1':'welcome','2':'flow','3':'formula','4':'add','5':'norm','6':'prepost','7':'variants','8':'drills' };
+  if (tabKeys[e.key]) switchTab(tabKeys[e.key]);
+  // ← / → step the walkthrough when the Walkthrough tab is active
+  const flowActive = document.getElementById('tab-flow').classList.contains('active');
+  if (flowActive && e.key === 'ArrowRight') { e.preventDefault(); traceStep(1); }
+  if (flowActive && e.key === 'ArrowLeft')  { e.preventDefault(); traceStep(-1); }
+});
+
+// ============== WALKTHROUGH TRACE (Flow) ==============
+const TR_EPS = 1e-5;
+const trX     = [2.0, -1.0, 0.5, 1.5];          // input token
+const trDelta = [0.3,  0.8, -0.4, 0.1];          // Sublayer(x) — proposed update
+const trSum   = trX.map((v, k) => v + trDelta[k]);
+const trMu    = trSum.reduce((a, b) => a + b, 0) / trSum.length;
+const trVar   = trSum.reduce((a, b) => a + (b - trMu) * (b - trMu), 0) / trSum.length;
+const trStd   = Math.sqrt(trVar + TR_EPS);
+const trNorm  = trSum.map(v => (v - trMu) / trStd);   // γ=1, β=0 here
+
+const fmt = a => '[' + a.map(v => v.toFixed(2)).join(', ') + ']';
+const TRACE = [
+  { stage: 0, vec: trX,
+    cap: 'A single token vector <b>x</b> enters the box. (Here <b>D = 4</b> for clarity — really 512.)',
+    op: 'x = ' + fmt(trX) },
+  { stage: 1, vec: trDelta,
+    cap: 'The <b>sub-layer</b> — multi-head attention or the feed-forward net — turns x into a proposed <b>update</b>, Sublayer(x).',
+    op: 'Sublayer(x) = ' + fmt(trDelta) },
+  { stage: 2, vec: trSum, skip: true,
+    cap: '<b>Add</b> — the residual. The skip rail carries the original x forward and we add it back: <b>x + Sublayer(x)</b>. The sub-layer only had to learn the correction.',
+    op: 'x + Sublayer(x) = ' + fmt(trSum) },
+  { stage: 3, vec: trNorm,
+    cap: '<b>LayerNorm</b> — reduce over the <b>last axis D only</b>: subtract this token’s mean, divide by its std (across its D features), then apply learnable γ, β (here γ=1, β=0). Each token gets its own μ, σ.',
+    op: '(s − μ)/√(σ²+ε):  μ = ' + trMu.toFixed(2) + ',  σ = ' + Math.sqrt(trVar).toFixed(2),
+    stats: true },
+  { stage: 4, vec: trNorm,
+    cap: '<b>Output</b> — same shape <b>[B, T, D]</b>, normalized and ready for the next sub-layer. That entire path is one "Add &amp; Norm" box.',
+    op: 'out = ' + fmt(trNorm) + '   ·   shape [B, T, D]',
+    stats: true },
+];
+let traceCur = 0;
+
+// build the step dots once
+(function buildDots() {
+  const dots = document.getElementById('stepDots');
+  if (!dots) return;
+  TRACE.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'd'; dots.appendChild(d);
+  });
+})();
+
+function drawTrace() {
+  const t = TRACE[traceCur];
+  if (!t) return;
+  // stage boxes
+  for (let i = 0; i <= 4; i++) {
+    const box = document.getElementById('st-' + i);
+    if (!box) continue;
+    box.classList.toggle('active', i === t.stage);
+    box.classList.toggle('done', i < t.stage);
+  }
+  // residual rail glows once the Add merges the skip
+  const rail = document.getElementById('skipRail');
+  if (rail) rail.classList.toggle('active', !!t.skip);
+
+  // counter + dots
+  document.getElementById('stepCounter').textContent = 'step ' + (traceCur + 1) + ' / ' + TRACE.length;
+  document.querySelectorAll('#stepDots .d').forEach((d, i) => d.classList.toggle('on', i === traceCur));
+
+  // caption + op
+  document.getElementById('traceCap').innerHTML = t.cap;
+  document.getElementById('traceOp').textContent = t.op;
+
+  // vector bars
+  const vecEl = document.getElementById('traceVec');
+  const maxAbs = Math.max(1.0, ...TRACE.flatMap(s => s.vec.map(Math.abs)));
+  vecEl.innerHTML = '';
+  t.vec.forEach(v => {
+    const h = Math.min(48, Math.abs(v) / maxAbs * 48);
+    const pos = v >= 0;
+    const color = pos ? 'var(--accent)' : 'var(--accent-2)';
+    const cell = document.createElement('div');
+    cell.className = 'vcell';
+    cell.innerHTML =
+      '<div class="vbar-area"><div class="vbar-mid"></div>' +
+      '<div class="vbar" style="height:' + h + 'px;' +
+        (pos ? 'bottom:48px;' : 'top:48px;') +
+        'background:' + color + ';"></div></div>' +
+      '<div class="vnum">' + v.toFixed(2) + '</div>';
+    vecEl.appendChild(cell);
+  });
+
+  // stats (only after normalization)
+  const statsEl = document.getElementById('traceStats');
+  if (t.stats) {
+    statsEl.style.display = 'grid';
+    const m = t.vec.reduce((a, b) => a + b, 0) / t.vec.length;
+    const vr = t.vec.reduce((a, b) => a + (b - m) * (b - m), 0) / t.vec.length;
+    document.getElementById('traceMean').textContent = (Math.abs(m) < 0.005 ? 0 : m).toFixed(2);
+    document.getElementById('traceStd').textContent = Math.sqrt(vr).toFixed(2);
+  } else {
+    statsEl.style.display = 'none';
+  }
+  // axis explainer rides along with the normalization steps
+  document.getElementById('traceAxis').style.display = t.stats ? 'block' : 'none';
+
+  // button enable/disable
+  document.getElementById('tracePrev').disabled = (traceCur === 0);
+  document.getElementById('traceNext').disabled = (traceCur === TRACE.length - 1);
+}
+function traceStep(d) {
+  traceCur = Math.max(0, Math.min(TRACE.length - 1, traceCur + d));
+  drawTrace();
+}
+function traceReset() { traceCur = 0; drawTrace(); }
+
+// ============== INIT ==============
+drawGrad();
+drawLN();
+drawTensor();
+drawTrace();
+updateProgress();
+</script>
+</body>
+</html>

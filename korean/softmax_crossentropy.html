@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Softmax &amp; 크로스 엔트로피 · 인터랙티브</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,600;9..144,900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {
+    delimiters: [
+      {left:'$$', right:'$$', display:true},
+      {left:'$', right:'$', display:false}
+    ],
+    throwOnError: false
+  })"></script>
+<style>
+  :root {
+    --bg: #0a0e17;          --bg-2: #0f1626;
+    --panel: #111a2b;       --panel-2: #16213a;
+    --code-bg: #070d18;
+    --ink: #e6f1ff;         --muted: #8aa1bd;
+    --line: rgba(255,255,255,0.07);
+    --grid: rgba(125, 211, 252, 0.035);
+    --accent: #22d3ee;      --accent-2: #38bdf8;
+    --amber: #fde68a;       --good: #4ade80;   --bad: #f87171;
+    --warn: #fbbf24;        --purple: #c084fc; --orange: #fb923c;
+    --comment: #7d8fa6;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Fraunces', Georgia, serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at top right, rgba(34, 211, 238, 0.10), transparent 55%),
+      radial-gradient(ellipse at bottom left, rgba(192, 132, 252, 0.07), transparent 55%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+    min-height: 100vh;
+  }
+
+  /* film grain overlay */
+  .grain {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.04; z-index: 200;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* subtle scanlines */
+  .scanlines {
+    position: fixed; inset: 0; pointer-events: none; opacity: 0.30; z-index: 199;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.10) 0 1px, transparent 1px 3px);
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ---------- STICKY HEADER ---------- */
+  .sticky-top {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(10, 14, 23, 0.82);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--line);
+  }
+  header {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 24px 12px; flex-wrap: wrap;
+  }
+  .logo {
+    font-family: var(--serif); font-weight: 600; font-size: 18px; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 9px; color: var(--ink);
+  }
+  .logo .spark { filter: drop-shadow(0 0 6px var(--accent)); }
+  .logo em { font-style: italic; color: var(--accent); font-weight: 900; }
+  .badge {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--bg); background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    padding: 3px 8px; border-radius: 999px; font-weight: 700;
+  }
+  .progress-bar-outer {
+    flex: 1; min-width: 90px; height: 7px; border-radius: 999px;
+    background: #0d1626; border: 1px solid var(--line); overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%; width: 0%;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    box-shadow: 0 0 14px var(--accent); transition: width 0.5s cubic-bezier(.2,.8,.2,1);
+  }
+  .stat {
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
+    display: flex; align-items: baseline; gap: 2px;
+  }
+  .stat .num { color: var(--accent); font-weight: 700; font-size: 15px; }
+  .stat .lbl { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-left: 4px; }
+  .streak { font-family: var(--mono); font-size: 14px; color: var(--warn); white-space: nowrap; }
+  .streak .num { font-weight: 700; }
+
+  .btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #06121b; border: none; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    font-family: var(--mono); font-size: 13px; font-weight: 600; transition: transform .12s, box-shadow .2s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(34,211,238,0.25); }
+  .btn:active { transform: translateY(0); }
+  .btn.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+  .btn.ghost:hover { color: var(--ink); border-color: var(--accent); box-shadow: none; }
+  .btn.tiny { padding: 5px 11px; font-size: 12px; }
+  .btn.copied { background: var(--good); color: #06121b; }
+
+  /* ---------- TAB NAV ---------- */
+  nav.tabs {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; gap: 4px; padding: 0 16px 0; overflow-x: auto; scrollbar-width: thin;
+  }
+  nav.tabs button {
+    background: none; border: none; cursor: pointer; white-space: nowrap;
+    color: var(--muted); font-family: var(--mono); font-size: 12.5px; padding: 11px 14px;
+    border-bottom: 2px solid transparent; transition: color .2s, border-color .2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  nav.tabs button:hover { color: var(--ink); }
+  nav.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  nav.tabs button .check { color: var(--good); font-size: 12px; }
+
+  /* ---------- LAYOUT ---------- */
+  main { max-width: 1080px; margin: 0 auto; padding: 36px 24px 120px; }
+  .tab-section { display: none; animation: fadeUp .35s ease; }
+  .tab-section.active { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 12px;
+  }
+  .eyebrow::before { content: ''; width: 30px; height: 1px; background: var(--accent); }
+
+  .display-h {
+    font-family: var(--serif); font-weight: 300; letter-spacing: -0.03em;
+    font-size: clamp(34px, 6vw, 60px); line-height: 0.98; margin-bottom: 14px;
+  }
+  .display-h em { font-style: italic; font-weight: 900; color: var(--accent); font-variation-settings: "opsz" 144; }
+  .lede { font-size: 17px; max-width: 660px; color: var(--muted); font-weight: 300; margin-bottom: 34px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  h2.sec {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--muted); margin: 40px 0 22px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  h2.sec .num { color: var(--accent); }
+  h2.sec::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
+  /* ---------- PANELS / CARDS ---------- */
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px; margin-bottom: 22px; position: relative;
+  }
+  .card.accented::before {
+    content: ''; position: absolute; top: -1px; left: -1px; width: 22px; height: 22px;
+    border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); border-radius: 14px 0 0 0;
+  }
+  .card.accented::after {
+    content: ''; position: absolute; bottom: -1px; right: -1px; width: 22px; height: 22px;
+    border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); border-radius: 0 0 14px 0;
+  }
+  .card h3 {
+    font-family: var(--serif); font-size: 1.35rem; font-weight: 600; color: var(--ink);
+    margin-bottom: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .tag {
+    font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em; background: var(--accent);
+    color: #06121b; padding: 3px 9px; border-radius: 999px; font-weight: 700; white-space: nowrap;
+  }
+  .tag.green  { background: var(--good); }
+  .tag.purple { background: var(--purple); }
+  .tag.orange { background: var(--orange); }
+  .tag.amber  { background: var(--amber); color: #1e293b; }
+
+  p.desc { color: var(--muted); font-size: 0.95rem; margin-bottom: 14px; }
+
+  /* ---------- MATH ---------- */
+  .math-block {
+    background: var(--code-bg); border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 12px; padding: 20px 26px; margin: 14px 0; text-align: center; overflow-x: auto;
+  }
+  .math-block .katex { font-size: 1.22em; color: #fef3c7; }
+  .math-block .caption { margin-top: 9px; font-size: 0.78rem; color: var(--muted); font-style: italic; }
+  .katex { color: var(--amber); }
+
+  .deriv-chain {
+    background: var(--code-bg); border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 12px; padding: 22px 28px; margin: 14px 0; overflow-x: auto;
+  }
+  .deriv-row { display: flex; align-items: center; gap: 16px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+  .deriv-row:last-child { border-bottom: none; }
+  .deriv-row .eq { flex: 1; min-width: 200px; }
+  .deriv-row .reason { font-size: 0.76rem; color: var(--muted); font-style: italic; min-width: 140px; text-align: right; }
+  .deriv-row.highlight { background: rgba(74, 222, 128, 0.07); border-radius: 8px; padding: 12px 12px; border-bottom: none; margin-top: 6px; }
+  .deriv-row.highlight .katex { color: #86efac; }
+
+  .intuition {
+    background: rgba(34, 211, 238, 0.06); border-left: 3px solid var(--accent);
+    padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 14px 0; font-size: 0.9rem; color: #cbd5e1;
+  }
+  .intuition strong { color: var(--accent); }
+
+  .context-box {
+    background: var(--bg-2); border: 1px dashed rgba(255,255,255,0.18); border-radius: 10px;
+    padding: 18px; margin: 14px 0; font-size: 0.9rem; color: var(--muted); font-family: var(--mono); line-height: 1.9;
+  }
+  .context-box .hl { color: var(--amber); font-weight: 600; }
+  .context-box code { color: var(--accent-2); }
+
+  .note { background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #bbf7d0; margin: 14px 0; }
+  .warn { background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.4); border-radius: 10px; padding: 13px 16px; font-size: 0.85rem; color: #fecaca; margin: 14px 0; }
+
+  /* ---------- SLIDERS ---------- */
+  .slider-group { margin: 14px 0; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; font-family: var(--mono); }
+  .slider-label span { color: var(--accent); font-weight: 700; }
+  input[type=range] {
+    -webkit-appearance: none; width: 100%; height: 3px; border-radius: 999px;
+    background: rgba(255,255,255,0.14); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 17px; height: 17px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); transition: transform .15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.25); }
+  input[type=range]::-moz-range-thumb { width: 17px; height: 17px; border: none; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1px var(--bg), 0 0 16px var(--accent); }
+
+  /* ---------- BARS ---------- */
+  .bar-container { margin: 14px 0; }
+  .bar-row { display: flex; align-items: center; gap: 12px; margin: 7px 0; }
+  .bar-label { width: 84px; font-size: 0.8rem; color: var(--muted); text-align: right; font-family: var(--mono); }
+  .bar-wrap { flex: 1; background: #0c1424; border-radius: 5px; height: 24px; overflow: hidden; border: 1px solid var(--line); }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.35s cubic-bezier(.2,.8,.2,1); display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 0.72rem; font-weight: 700; color: white; min-width: 2px; }
+  .bar-fill.blue   { background: linear-gradient(90deg, #0ea5e9, #38bdf8); box-shadow: 0 0 14px rgba(56,189,248,0.4); }
+  .bar-fill.green  { background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 14px rgba(74,222,128,0.4); }
+  .bar-fill.red    { background: linear-gradient(90deg, #ef4444, #f87171); box-shadow: 0 0 14px rgba(248,113,113,0.4); }
+  .bar-fill.purple { background: linear-gradient(90deg, #a855f7, #c084fc); box-shadow: 0 0 14px rgba(192,132,252,0.4); }
+  .bar-fill.orange { background: linear-gradient(90deg, #f97316, #fb923c); box-shadow: 0 0 14px rgba(251,146,60,0.4); }
+  .bar-val { width: 62px; font-size: 0.8rem; color: var(--ink); font-family: var(--mono); text-align: right; }
+
+  .output { background: var(--bg-2); border-radius: 10px; padding: 14px 18px; margin-top: 14px; border: 1px solid var(--line); }
+  .output-row { display: flex; justify-content: space-between; margin: 6px 0; font-size: 0.88rem; }
+  .output-row .key { color: var(--muted); }
+  .output-row .val { color: var(--amber); font-family: var(--mono); font-weight: 600; }
+  .output-row .val.loss { color: var(--bad); }
+
+  .preset-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+
+  .grad-table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 0.85rem; }
+  .grad-table th { background: var(--bg-2); color: var(--accent); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 0.78rem; }
+  .grad-table td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: var(--mono); }
+  .grad-table tr:hover td { background: rgba(255,255,255,0.02); }
+  td.positive { color: var(--good); }
+  td.negative { color: var(--bad); }
+  td.neutral  { color: var(--muted); }
+
+  .big-loss { text-align: center; font-family: var(--serif); font-size: 3.2rem; font-weight: 900; margin: 16px 0; transition: color 0.3s; font-feature-settings: "tnum"; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media(max-width:640px){ .two-col { grid-template-columns: 1fr; } }
+
+  .range-bar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; margin: 16px 0; font-size: 0.76rem; font-weight: 700; }
+  .range-seg { display: flex; align-items: center; justify-content: center; color: white; }
+
+  /* stats grid (lora style) */
+  .statgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-radius: 12px; overflow: hidden; margin: 16px 0; }
+  @media(max-width:640px){ .statgrid { grid-template-columns: repeat(2, 1fr); } }
+  .statcell { background: var(--panel); padding: 22px 18px; }
+  .statcell .l { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .statcell .v { font-family: var(--serif); font-size: 30px; font-weight: 300; line-height: 1; font-feature-settings: "tnum"; }
+  .statcell .v em { font-style: italic; font-weight: 900; color: var(--accent); }
+
+  /* ---------- DRILLS / PRACTICE ---------- */
+  .drill { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 18px; transition: border-color .3s, box-shadow .3s; }
+  .drill.solved { border-color: rgba(74,222,128,0.5); box-shadow: 0 0 24px rgba(74,222,128,0.10); }
+  .drill .prompt { font-size: 0.96rem; color: var(--ink); margin-bottom: 12px; display: flex; gap: 9px; align-items: baseline; }
+  .drill .prompt .num { font-family: var(--mono); font-size: 12px; color: var(--accent); border: 1px solid rgba(34,211,238,0.4); border-radius: 6px; padding: 1px 7px; flex-shrink: 0; }
+  pre.exercise {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px;
+    font-family: var(--mono); font-size: 0.86rem; color: #cbd5e1; overflow-x: auto; line-height: 2.1; white-space: pre-wrap;
+  }
+  .blank {
+    font-family: var(--mono); font-size: 0.84rem; background: #0c1626; border: none;
+    border-bottom: 2px solid var(--accent); color: var(--amber); text-align: center;
+    padding: 3px 4px; border-radius: 5px 5px 0 0; outline: none; transition: all .2s; min-width: 44px;
+  }
+  .blank:focus { background: #122036; box-shadow: 0 2px 12px rgba(34,211,238,0.25); }
+  .blank.correct { color: var(--good); border-bottom-color: var(--good); background: rgba(74,222,128,0.08); }
+  .blank.wrong { color: var(--bad); border-bottom-color: var(--bad); }
+  .blank.pop { animation: pop .3s ease; }
+  .blank.shake { animation: shake .35s ease; }
+  @keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.25)} 100%{transform:scale(1)} }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 40%{transform:translateX(5px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .controls { display: flex; gap: 8px; margin-top: 14px; }
+  .feedback { margin-top: 11px; font-size: 0.85rem; min-height: 18px; font-family: var(--mono); }
+  .feedback.good { color: var(--good); }
+  .feedback.bad { color: var(--bad); }
+  .feedback.hint { color: var(--warn); }
+
+  /* ---------- OVERLAYS / TOAST / CONFETTI ---------- */
+  #confetti-canvas { position: fixed; inset: 0; pointer-events: none; z-index: 150; }
+  .toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(120px);
+    background: var(--panel-2); border: 1px solid var(--accent); color: var(--ink);
+    padding: 13px 22px; border-radius: 12px; font-family: var(--mono); font-size: 14px; z-index: 160;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5); transition: transform .4s cubic-bezier(.2,.9,.3,1.2); opacity: 0;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  #help-overlay {
+    position: fixed; inset: 0; background: rgba(5,8,14,0.78); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 180;
+  }
+  #help-overlay.show { display: flex; animation: fade .2s ease; }
+  @keyframes fade { from{opacity:0} to{opacity:1} }
+  #help-overlay .help-content { background: var(--panel); border: 1px solid var(--accent); border-radius: 16px; padding: 30px 34px; max-width: 440px; width: 90%; }
+  #help-overlay h3 { font-family: var(--serif); margin: 0 0 16px; color: var(--accent); font-size: 1.4rem; }
+  #help-overlay table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  #help-overlay td { padding: 7px 0; color: var(--muted); }
+  #help-overlay kbd { font-family: var(--mono); background: var(--bg-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 2px 8px; color: var(--ink); font-size: 12px; }
+
+  footer {
+    max-width: 1080px; margin: 0 auto; padding: 30px 24px 60px;
+    border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="scanlines"></div>
+
+<div class="sticky-top">
+  <header>
+    <div class="logo"><span class="spark">⚡</span> Softmax <em>×</em> 크로스 엔트로피 <span class="badge">타이핑 학습</span></div>
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="stat"><span class="num" id="scoreNum">0</span><span style="margin:0 2px">/</span><span class="num" id="scoreTot">0</span><span class="lbl">해결</span></div>
+    <div class="streak">🔥 <span class="num" id="streakNum">0</span></div>
+    <button class="btn ghost tiny" onclick="showHelp()">?</button>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button class="active" data-tab="softmax">1 · Softmax</button>
+    <button data-tab="crossentropy">2 · 크로스 엔트로피</button>
+    <button data-tab="combined">3 · 결합</button>
+    <button data-tab="gradient">4 · 그래디언트 ∂L/∂z</button>
+    <button data-tab="quotient">📐 몫의 법칙</button>
+    <button data-tab="chain">🔗 연쇄 법칙</button>
+    <button data-tab="lr">🎯 학습률</button>
+    <button data-tab="practice">✦ 연습</button>
+  </nav>
+</div>
+
+<main>
+  <div class="eyebrow">신경망 학습 · 로짓에서 손실, 그리고 그래디언트까지</div>
+  <h1 class="display-h">Softmax &amp; <em>크로스 엔트로피</em></h1>
+  <p class="lede">모델의 원시 점수에서 하나의 아름다운 그래디언트까지 이어지는 인터랙티브 여정. <strong>슬라이더를 직접 움직여</strong> 확률이 흐르는 모습을 보고, 연쇄 법칙 유도를 단계별로 따라간 뒤 <strong>연습</strong> 탭에서 직접 증명해 보세요.</p>
+
+  <!-- ==================== SOFTMAX ==================== -->
+  <section class="tab-section active" id="tab-softmax">
+    <h2 class="sec"><span class="num">01</span> Softmax — 로짓 → 확률</h2>
+
+    <div class="card accented">
+      <h3>Softmax <span class="tag">로짓 → 확률</span></h3>
+      <p class="desc">모델이 내놓은 원시 점수(로짓)를 받아, softmax는 이를 올바른 확률 분포로 변환합니다 — 모든 값이 양수이고, 전부 더하면 1이 됩니다.</p>
+      <div class="math-block">
+        $$\sigma(\mathbf{z})_i \;=\; \frac{e^{z_i}}{\displaystyle\sum_{j=1}^{K} e^{z_j}}$$
+        <div class="caption">$z_i$ = 클래스 $i$의 로짓, &nbsp; $K$ = 클래스 수 (GPT-2에서는 어휘 크기)</div>
+      </div>
+      <div class="intuition">
+        <strong>왜 지수 함수일까?</strong> $e^x$는 항상 양수라 올바른 확률을 보장하고, 차이를 증폭합니다 — 로짓이 2 단위 더 높으면 $e^2 \approx 7.4\times$ 더 가능성이 높아집니다. 분모는 전체를 합이 1이 되도록 정규화합니다.
+      </div>
+      <div class="math-block">
+        $$\sum_{i=1}^{K} \sigma(\mathbf{z})_i = 1, \qquad \sigma(\mathbf{z})_i \in (0, 1)$$
+        <div class="caption">이 두 성질 덕분에 출력이 올바른 확률 분포가 됩니다.</div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 로짓을 조절하며 확률을 관찰</h3>
+      <div class="preset-row">
+        <button class="btn tiny ghost" onclick="presetSoftmax('uniform')">⇋ 균등</button>
+        <button class="btn tiny ghost" onclick="presetSoftmax('peak')">▲ 하나만 뾰족</button>
+        <button class="btn tiny ghost" onclick="presetSoftmax('reset')">↺ 리셋</button>
+        <button class="btn tiny ghost" onclick="presetSoftmax('random')">🎲 랜덤</button>
+      </div>
+      <div id="logit-sliders"></div>
+      <div class="bar-container">
+        <p style="color:var(--accent);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">로짓 $z_i$ (원시 점수):</p>
+        <div id="logit-bar-rows"></div>
+      </div>
+      <div class="bar-container">
+        <p style="color:var(--good);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Softmax 출력 $\sigma(\mathbf{z})_i$ (합 = 1):</p>
+        <div id="softmax-bar-rows"></div>
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">$\sum p_i$</span><span class="val" id="prob-sum">1.0000</span></div>
+        <div class="output-row"><span class="key">$\arg\max p_i$</span><span class="val" id="argmax-token">—</span></div>
+        <div class="output-row"><span class="key">엔트로피 $H = -\sum p_i \log p_i$</span><span class="val" id="entropy-val">—</span></div>
+      </div>
+      <div class="note">모든 로짓을 같게 → 각각 균등하게 $1/K$ (최대 엔트로피). 하나만 아주 높게 → 확률이 그 토큰으로 쏠림 (엔트로피 → 0).</div>
+    </div>
+
+    <div class="card accented">
+      <h3>온도 스케일링 <span class="tag amber">샘플링 손잡이</span></h3>
+      <p class="desc">softmax 전에 로짓을 $T$로 나누면 "날카로움"을 조절합니다. GPT-2 추론이 이 방식을 씁니다.</p>
+      <div class="math-block">
+        $$\sigma\!\left(\frac{\mathbf{z}}{T}\right)_i = \frac{e^{z_i/T}}{\sum_j e^{z_j/T}}$$
+      </div>
+      <div class="two-col">
+        <div>
+          <div class="preset-row">
+            <button class="btn tiny ghost" onclick="setTemp(0.3)">T=0.3</button>
+            <button class="btn tiny ghost" onclick="setTemp(1)">T=1.0</button>
+            <button class="btn tiny ghost" onclick="setTemp(2)">T=2.0</button>
+          </div>
+          <div class="slider-group">
+            <div class="slider-label">온도 $T$: <span id="temp-val">1.00</span></div>
+            <input type="range" id="temp-slider" min="0.1" max="3" step="0.05" value="1.0" oninput="updateTemp(this)">
+          </div>
+          <div id="temp-bars"></div>
+          <div class="output" style="margin-top:10px"><div class="output-row"><span class="key">엔트로피 $H$</span><span class="val" id="temp-entropy">—</span></div></div>
+        </div>
+        <div>
+          <div class="intuition" style="margin-top:0">
+            <strong>$T \to 0$:</strong> argmax — 항상 최상위 토큰 선택<br><br>
+            <strong>$T = 1$:</strong> 모델의 원래 확률<br><br>
+            <strong>$T > 1$:</strong> 더 평평 — 더 무작위 / 창의적
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CROSS-ENTROPY ==================== -->
+  <section class="tab-section" id="tab-crossentropy">
+    <h2 class="sec"><span class="num">02</span> 크로스 엔트로피 — 놀라움의 측정</h2>
+
+    <div class="card accented">
+      <h3>크로스 엔트로피 손실 <span class="tag green">예측 품질을 측정</span></h3>
+      <p class="desc">크로스 엔트로피는 모델이 정답 레이블에 얼마나 놀랐는지를 측정합니다. 낮을수록 좋습니다.</p>
+      <div class="math-block">
+        $$\mathcal{L} \;=\; -\sum_{i=1}^{K} y_i \log p_i$$
+        <div class="caption">일반형. $y_i \in \{0,1\}$는 원-핫 레이블, $p_i$는 예측 확률입니다.</div>
+      </div>
+      <div class="math-block">
+        $$\mathcal{L} \;=\; -\log p_y$$
+        <div class="caption">단순화: $y$가 원-핫이므로 정답 클래스 $y$를 제외한 모든 항이 사라집니다.</div>
+      </div>
+      <div class="intuition">
+        <strong>왜 $-\log$일까?</strong> &nbsp; $p_y = 1 \Rightarrow \mathcal{L} = 0$ (완벽). &nbsp; $p_y \to 0 \Rightarrow \mathcal{L} \to \infty$ (치명적). 로그 스케일은 과신한 틀린 예측을 강하게 벌합니다.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>크로스 엔트로피 손실의 범위</h3>
+      <div class="math-block">
+        $$\mathcal{L} = -\log p_y, \qquad p_y \in (0,\, 1]$$
+        $$\mathcal{L} \;\in\; [0,\; +\infty)$$
+      </div>
+      <div style="margin: 18px 0 6px; font-size:0.83rem; color:var(--muted);font-family:var(--mono)">시각적 범위 ($\mathcal{L}=5$에서 클램프):</div>
+      <div class="range-bar">
+        <div class="range-seg" style="width:10%;background:#22c55e;">0</div>
+        <div class="range-seg" style="width:20%;background:#4ade80;"></div>
+        <div class="range-seg" style="width:20%;background:#fde68a;color:#1e293b;">ln 2 ≈ 0.69</div>
+        <div class="range-seg" style="width:20%;background:#f97316;">ln 10 ≈ 2.30</div>
+        <div class="range-seg" style="width:30%;background:#ef4444;">→ ∞</div>
+      </div>
+      <table class="grad-table">
+        <thead><tr><th>$p_y$</th><th>$\mathcal{L} = -\log p_y$</th><th>의미</th><th>전형적 상황</th></tr></thead>
+        <tbody>
+          <tr><td>1.000</td><td class="positive">0.000</td><td class="positive">완벽</td><td>100% 확신, 정답</td></tr>
+          <tr><td>0.990</td><td class="positive">0.010</td><td class="positive">탁월</td><td>잘 학습된 GPT-2</td></tr>
+          <tr><td>0.900</td><td class="positive">0.105</td><td class="positive">좋음</td><td></td></tr>
+          <tr><td>0.500</td><td class="neutral">0.693 = ln 2</td><td class="neutral">2-클래스 동전 던지기</td><td>학습 초기</td></tr>
+          <tr><td>1/K</td><td class="neutral">ln K</td><td class="neutral">균등 K-클래스</td><td>랜덤 초기화 (ln 50257 ≈ 10.8)</td></tr>
+          <tr><td>0.100</td><td class="negative">2.303 = ln 10</td><td class="negative">나쁨</td><td></td></tr>
+          <tr><td>0.010</td><td class="negative">4.605</td><td class="negative">매우 나쁨</td><td></td></tr>
+          <tr><td>→ 0</td><td class="negative">→ ∞</td><td class="negative">치명적</td><td>과신했는데 틀림</td></tr>
+        </tbody>
+      </table>
+      <div class="note">랜덤 초기화된 GPT-2는 $K = 50257$ 클래스 → $\mathcal{L}_0 = \ln 50257 \approx 10.82$. 잘 학습된 모델은 보통 텍스트에서 $\mathcal{L} \approx 2$–$3$에 도달합니다.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 예측 확신도 바꿔보기</h3>
+      <p class="desc">정답 토큰에 부여된 확률을 드래그로 바꿔보세요. $\mathcal{L} = -\log p_y$.</p>
+      <div class="slider-group">
+        <div class="slider-label">$p_y$ (정답 토큰 확률): <span id="pval">0.50</span></div>
+        <input type="range" min="0.01" max="0.9999" step="0.01" value="0.50" oninput="updateCE(this)">
+      </div>
+      <div class="big-loss" id="ce-display">0.6931</div>
+      <div class="bar-container">
+        <div class="bar-row">
+          <div class="bar-label">$\mathcal{L}$</div>
+          <div class="bar-wrap"><div class="bar-fill red" id="ce-bar" style="width:11.5%"></div></div>
+          <div class="bar-val" id="ce-bar-val">0.6931</div>
+        </div>
+      </div>
+      <div class="output"><div class="output-row"><span class="key">모델의 "놀라움"</span><span class="val" id="ce-surprise">—</span></div></div>
+    </div>
+
+    <div class="card accented">
+      <h3>GPT-2에서는</h3>
+      <div class="context-box">
+        입력: <span class="hl">"The cat sat on the"</span><br>
+        목표 다음 토큰: <span class="hl">"mat"</span> (어휘 인덱스 3456)<br><br>
+        GPT-2가 로짓 $\mathbf{z} \in \mathbb{R}^{50257}$ 출력<br>
+        → softmax → $\mathbf{p} \in (0,1)^{50257}$<br>
+        → 손실 $= -\log p_{\text{"mat"}}$<br><br>
+        배치 내 모든 토큰에 대해 평균 → <span class="hl">평균 크로스 엔트로피 손실</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== COMBINED ==================== -->
+  <section class="tab-section" id="tab-combined">
+    <h2 class="sec"><span class="num">03</span> 결합 — 융합된 log-sum-exp 형태</h2>
+
+    <div class="card accented">
+      <h3>Softmax + 크로스 엔트로피 융합 <span class="tag purple">log-sum-exp 형태</span></h3>
+      <p class="desc">softmax를 크로스 엔트로피에 대입하면 PyTorch가 내부적으로 쓰는 수치적으로 안정적인 형태가 나옵니다.</p>
+      <div class="math-block">$$p_i = \frac{e^{z_i}}{\sum_j e^{z_j}}$$</div>
+      <div class="math-block">$$\mathcal{L} = -\log p_y = -\log \frac{e^{z_y}}{\sum_j e^{z_j}}$$</div>
+      <div class="math-block">
+        $$\boxed{\mathcal{L} = -z_y + \log \sum_{j=1}^K e^{z_j}}$$
+        <div class="caption">$z_y$ = 정답 클래스의 로짓 · $\log \sum_j e^{z_j}$ = LogSumExp (정규화 항)</div>
+      </div>
+      <div class="intuition">
+        <strong>이 형태가 중요한 이유:</strong><br>
+        • 명시적 softmax 불필요 — 큰 $e^{z_i}$로 인한 오버플로 방지<br>
+        • PyTorch의 <code>F.cross_entropy(logits, targets)</code>가 정확히 이것을 계산<br>
+        • 그래디언트가 깔끔하게 떨어짐 (다음 탭)
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 전체 파이프라인</h3>
+      <p class="desc">정답 토큰을 선택하고, 로짓을 조절하며, 전체 연쇄를 실시간으로 관찰하세요.</p>
+      <div style="margin-bottom:12px;"><strong style="color:var(--ink);font-size:0.9rem">정답 토큰 $y$: </strong><span id="correct-btns"></span></div>
+      <div id="full-sliders"></div>
+      <div class="two-col" style="margin-top:16px;">
+        <div>
+          <p style="color:var(--accent);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">로짓 $z_i$:</p>
+          <div id="full-logit-bars"></div>
+        </div>
+        <div>
+          <p style="color:var(--good);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">Softmax $p_i$:</p>
+          <div id="full-prob-bars"></div>
+        </div>
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">$z_y$ (정답 로짓)</span><span class="val" id="zy-val">—</span></div>
+        <div class="output-row"><span class="key">$\log\sum_j e^{z_j}$ (LogSumExp)</span><span class="val" id="lse-val">—</span></div>
+        <div class="output-row"><span class="key">$p_y = \sigma(\mathbf{z})_y$</span><span class="val" id="py-val">—</span></div>
+        <div class="output-row"><span class="key">$\mathcal{L} = -\log p_y$</span><span class="val loss" id="full-loss">—</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== GRADIENT ==================== -->
+  <section class="tab-section" id="tab-gradient">
+    <h2 class="sec"><span class="num">04</span> 그래디언트 ∂L/∂z — 우아한 결과</h2>
+
+    <div class="card accented">
+      <h3>우아한 결과 <span class="tag orange">∂L/∂z</span></h3>
+      <p class="desc">softmax × 크로스 엔트로피를 미분하면 단 하나의 우아한 공식으로 압축됩니다.</p>
+      <div class="math-block">
+        $$\frac{\partial \mathcal{L}}{\partial z_i} \;=\; p_i - y_i$$
+        <div class="caption">$p_i$ = 예측 확률 · $y_i \in \{0,1\}$ = 원-핫 레이블</div>
+      </div>
+      <div class="two-col">
+        <div class="math-block">
+          $$\frac{\partial \mathcal{L}}{\partial z_y} = p_y - 1 \;<0$$
+          <div class="caption">정답 클래스: 로짓을 항상 <strong style="color:var(--good)">위로</strong></div>
+        </div>
+        <div class="math-block">
+          $$\frac{\partial \mathcal{L}}{\partial z_i} = p_i \;>0 \quad (i \neq y)$$
+          <div class="caption">오답 클래스: 로짓을 <strong style="color:var(--bad)">아래로</strong></div>
+        </div>
+      </div>
+      <div class="intuition">
+        <strong>직관:</strong> 그래디언트는 "얼마나 틀렸는가?"를 말해줍니다 — 정답 토큰에서 당신은 $p_y$만큼 확신했지만 1.0이어야 했으므로 오차는 $p_y - 1$. 오답 토큰에서는 $p_i$만큼 확신했지만 0이어야 했으므로 오차는 $p_i$.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>전체 연쇄 법칙 유도</h3>
+      <p class="desc">로짓 $z_i$에 대해 $\mathcal{L}$를 두 경우로 나눠 미분합니다. 먼저 softmax 야코비안:</p>
+      <div class="math-block">
+        $$\frac{\partial p_i}{\partial z_j} = \begin{cases} p_i(1 - p_i) & i = j \\ -p_i\, p_j & i \neq j \end{cases}$$
+        <div class="caption">$e^{z_i}/\sum_k e^{z_k}$에 몫의 법칙을 적용해 유도됩니다.</div>
+      </div>
+      <div class="intuition">
+        <strong>몫의 법칙 복습.</strong> &nbsp; 분수 $f = \dfrac{u}{v}$에 대해:
+        $$f' = \frac{u'\,v - u\,v'}{v^2} \quad\text{“(분자}'\times\text{분모} - \text{분자}\times\text{분모}')\,/\,\text{분모}^2\text{”}$$
+        여기서 $u = e^{z_i}$, $v = S = \sum_k e^{z_k}$. <strong>아직 크로스 엔트로피는 등장하지 않습니다</strong> — 이 단계는 로짓 $z_j$를 살짝 움직일 때 softmax 출력 $p_i$가 어떻게 변하는지만 묻습니다.
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">야코비안은 어디서 나올까?</strong> &nbsp; $p_i = e^{z_i}/S$에 몫의 법칙을 적용합니다. $z_j$에 의존하는 부분은 분자 $e^{z_i}$ ($i=j$일 때만 미분이 0이 아님)와 $S$ (그 미분은 항상 $e^{z_j}$)뿐입니다.</p>
+      <div class="deriv-chain">
+        <div class="deriv-row">
+          <div class="eq">$p_i = \dfrac{e^{z_i}}{S}, \quad S = \displaystyle\sum_k e^{z_k}$</div>
+          <div class="eq">$\dfrac{\partial S}{\partial z_j} = e^{z_j}$</div>
+          <div class="reason">설정 · 분모의 미분</div>
+        </div>
+        <div class="deriv-row">
+          <div class="eq">$\dfrac{\partial p_i}{\partial z_j}$</div>
+          <div class="eq">$= \dfrac{\dfrac{\partial e^{z_i}}{\partial z_j}\, S \;-\; e^{z_i}\dfrac{\partial S}{\partial z_j}}{S^2}$</div>
+          <div class="reason">몫의 법칙</div>
+        </div>
+        <div class="deriv-row">
+          <div class="eq">$= \dfrac{[i=j]\,e^{z_i} S - e^{z_i} e^{z_j}}{S^2}$</div>
+          <div class="eq">$= [i=j]\,\dfrac{e^{z_i}}{S} - \dfrac{e^{z_i}}{S}\dfrac{e^{z_j}}{S}$</div>
+          <div class="reason">$\partial e^{z_i}/\partial z_j = e^{z_i}$ ($i=j$일 때), 아니면 $0$</div>
+        </div>
+        <div class="deriv-row">
+          <div class="eq"></div>
+          <div class="eq">$= [i=j]\,p_i - p_i\, p_j$</div>
+          <div class="reason">$e^{z_i}/S = p_i,\; e^{z_j}/S = p_j$ 인식</div>
+        </div>
+        <div class="deriv-row highlight">
+          <div class="eq">$i = j:\;\; p_i(1 - p_i)$</div>
+          <div class="eq">$i \neq j:\;\; -p_i\, p_j$</div>
+          <div class="reason">지시자 $[i=j]$ 분리</div>
+        </div>
+      </div>
+      <div class="intuition">
+        <strong>읽어내기:</strong> $-p_i p_j$ 항은 항상 존재합니다 (어떤 로짓 $z_j$를 올려도 클래스 $i$의 확률을 빼앗아 옴). $i = j$일 때는 추가로 $+p_i$가 생겨 $p_i - p_i^2 = p_i(1-p_i)$가 됩니다.
+      </div>
+      <div class="note">
+        <strong>그렇다면 크로스 엔트로피는 어디서 들어올까?</strong> 위 야코비안은 <em>오직</em> $\partial p_i/\partial z_j$ — softmax 자체의 미분입니다. 크로스 엔트로피는 <strong>실제로 우리가 미분하는 손실</strong>입니다. 먼저 이를 떠올린 뒤 연쇄 법칙을 적용하세요.
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">0단계 — 크로스 엔트로피 손실 자체:</strong></p>
+      <div class="deriv-chain">
+        <div class="deriv-row">
+          <div class="eq">$\mathcal{L}$</div>
+          <div class="eq">$= -\displaystyle\sum_{i=1}^K y_i \log p_i$</div>
+          <div class="reason">크로스 엔트로피, 일반형</div>
+        </div>
+        <div class="deriv-row highlight">
+          <div class="eq"></div>
+          <div class="eq">$= -\log p_y$</div>
+          <div class="reason">$y$는 원-핫: $y_y=1$, 나머지 $0$</div>
+        </div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">1단계 — 연쇄 법칙이 손실을 CE 부분 × softmax 부분으로 분리:</strong></p>
+      <div class="intuition">
+        <strong>연쇄 법칙 복습.</strong> &nbsp; $\mathcal{L} = f(p_y)$이고 $p_y = g(z_i)$라면:
+        $$\frac{d}{dx}\,f\big(g(x)\big) = f'\big(g(x)\big)\cdot g'(x), \qquad \frac{\partial \mathcal{L}}{\partial z_i} = \frac{\partial \mathcal{L}}{\partial p_y}\cdot\frac{\partial p_y}{\partial z_i}$$
+      </div>
+      <div class="math-block">
+        $$\frac{\partial \mathcal{L}}{\partial z_i} \;=\; \underbrace{\frac{\partial \mathcal{L}}{\partial p_y}}_{\text{바깥: CE}}\cdot \underbrace{\frac{\partial p_y}{\partial z_i}}_{\text{안쪽: softmax}} \;=\; \underbrace{-\frac{1}{p_y}}_{\text{CE 미분}}\cdot \underbrace{\frac{\partial p_y}{\partial z_i}}_{\text{softmax 야코비안}}$$
+        <div class="caption">바깥쪽 CE 손실이 $-\tfrac{1}{p_y}$를 기여합니다 ($\frac{d}{dx}(-\log x) = -\tfrac1x$이므로). $p_y$는 매번 약분됩니다.</div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">경우 1 — 정답 클래스 ($i = y$):</strong></p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$\dfrac{\partial \mathcal{L}}{\partial z_y}$</div><div class="eq">$= \dfrac{\partial}{\partial z_y}\bigl[-\log p_y\bigr]$</div><div class="reason">$\mathcal{L}$의 정의</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot \dfrac{\partial p_y}{\partial z_y}$</div><div class="reason">연쇄 법칙</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot p_y(1 - p_y)$</div><div class="reason">softmax 야코비안, $i=j$ 경우</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= p_y - 1$</div><div class="reason">정리 · 항상 $< 0$</div></div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">경우 2 — 오답 클래스 ($i \neq y$):</strong></p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$\dfrac{\partial \mathcal{L}}{\partial z_i}$</div><div class="eq">$= \dfrac{\partial}{\partial z_i}\bigl[-\log p_y\bigr]$</div><div class="reason">$\mathcal{L}$의 정의</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot \dfrac{\partial p_y}{\partial z_i}$</div><div class="reason">연쇄 법칙</div></div>
+        <div class="deriv-row"><div class="eq"></div><div class="eq">$= -\dfrac{1}{p_y} \cdot \bigl(-p_y \cdot p_i\bigr)$</div><div class="reason">softmax 야코비안, $i \neq j$ 경우</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= p_i$</div><div class="reason">정리 · 항상 $> 0$</div></div>
+      </div>
+      <p class="desc" style="margin-top:16px;"><strong style="color:var(--ink)">통합 (두 경우를 한 번에):</strong></p>
+      <div class="math-block" style="border-color:var(--good);">
+        $$\boxed{\frac{\partial \mathcal{L}}{\partial z_i} = p_i - y_i}$$
+        <div class="caption">$y_y = 1$이고 $i \neq y$에서 $y_i = 0$이므로 하나의 공식이 두 경우를 모두 포괄합니다.</div>
+      </div>
+      <div class="note">$p_y$가 두 경우 모두에서 완벽히 약분됩니다 — 그래서 softmax + 크로스 엔트로피 결합 그래디언트가 이렇게 깔끔합니다.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 그래디언트 실시간 보기</h3>
+      <p class="desc">로짓과 정답 클래스를 조절하세요. 각 그래디언트 = $p_i - y_i$.</p>
+      <div style="margin-bottom:12px;"><strong style="color:var(--ink);font-size:0.9rem">정답 클래스 $y$: </strong><span id="grad-correct-btns"></span></div>
+      <div id="grad-sliders"></div>
+      <table class="grad-table" style="margin-top:14px;">
+        <thead><tr><th>토큰</th><th>$z_i$</th><th>$p_i$</th><th>$y_i$</th><th>$\partial\mathcal{L}/\partial z_i = p_i - y_i$</th><th>효과</th></tr></thead>
+        <tbody id="grad-table-body"></tbody>
+      </table>
+      <div class="output">
+        <div class="output-row"><span class="key">$\mathcal{L}$</span><span class="val loss" id="grad-loss">—</span></div>
+        <div class="output-row"><span class="key">$\sum_i \partial\mathcal{L}/\partial z_i$</span><span class="val" id="grad-sum">—</span></div>
+      </div>
+      <div class="note">그래디언트의 합은 항상 0 — 오답 클래스에서 빠져나간 확률 질량이 정답 클래스에 더해진 질량과 정확히 같습니다.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>GPT-2 연결</h3>
+      <div class="context-box">
+        <code>lm_head</code>는 각 토큰 위치마다 로짓 $\mathbf{z} \in \mathbb{R}^{50257}$를 출력합니다.<br><br>
+        <span class="hl"><code>loss = F.cross_entropy(logits.view(-1, 50257), targets.view(-1))</code></span><br><br>
+        PyTorch는 softmax + CE를 내부적으로 융합 → <code>loss.backward()</code> 중에 그래디언트를 $p_i - y_i$로 직접 계산한 뒤 모든 어텐션 레이어로 역전파합니다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== QUOTIENT RULE ==================== -->
+  <section class="tab-section" id="tab-quotient">
+    <h2 class="sec"><span class="num">05</span> 몫의 법칙 — 분수의 미분</h2>
+
+    <div class="card accented">
+      <h3>몫의 법칙 <span class="tag">분수의 미분</span></h3>
+      <p class="desc">함수가 무언가를 다른 것으로 나눈 형태로 쓰일 때 — softmax의 $e^{z_i}/S$처럼 — 그 미분에 쓰는 법칙입니다.</p>
+      <div class="math-block">
+        $$f(x) = \frac{u(x)}{v(x)} \quad\Longrightarrow\quad f'(x) = \frac{u'\,v - u\,v'}{v^2}$$
+        <div class="caption">$u$ = 위(분자), &nbsp; $v$ = 아래(분모)</div>
+      </div>
+      <div class="intuition">
+        <strong>외우는 법:</strong> &nbsp; <em>“분자′×분모 − 분자×분모′, 분모 제곱으로 나누기.”</em><br><br>
+        (<strong>분자′ × 분모</strong>) − (<strong>분자 × 분모′</strong>), 전부 <strong>분모²</strong>로 나눕니다.<br><br>
+        순서가 중요합니다 — $u'v$ 항이 <em>먼저</em> 옵니다.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>예제 풀이</h3>
+      <p class="desc">구체적인 분수를 잡아 법칙을 단계별로 적용합니다.</p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$f(x) = \dfrac{x^2}{x+1}$</div><div class="eq">$u = x^2,\quad v = x+1$</div><div class="reason">위 &amp; 아래 식별</div></div>
+        <div class="deriv-row"><div class="eq">$u' = 2x$</div><div class="eq">$v' = 1$</div><div class="reason">각 부분 미분</div></div>
+        <div class="deriv-row"><div class="eq">$f' = \dfrac{u'v - uv'}{v^2}$</div><div class="eq">$= \dfrac{2x(x+1) - x^2(1)}{(x+1)^2}$</div><div class="reason">법칙에 대입</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= \dfrac{x^2 + 2x}{(x+1)^2}$</div><div class="reason">분자 정리</div></div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 수치적으로 검증</h3>
+      <p class="desc">$x$를 움직여 <strong>정확한</strong> 미분과 <strong>수치적</strong> 추정 $\frac{f(x+h)-f(x-h)}{2h}$를 비교하세요. 일치해야 합니다.</p>
+      <div class="slider-group">
+        <div class="slider-label">$x$: <span id="qr-x">2.00</span></div>
+        <input type="range" min="0" max="5" step="0.05" value="2.0" oninput="updateQuotient(this)">
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">$u = x^2$</span><span class="val" id="qr-u">—</span></div>
+        <div class="output-row"><span class="key">$v = x+1$</span><span class="val" id="qr-v">—</span></div>
+        <div class="output-row"><span class="key">$u' = 2x$</span><span class="val" id="qr-up">—</span></div>
+        <div class="output-row"><span class="key">$v' = 1$</span><span class="val" id="qr-vp">1.0000</span></div>
+        <div class="output-row"><span class="key">$f(x) = u/v$</span><span class="val" id="qr-f">—</span></div>
+        <div class="output-row"><span class="key">$f'(x)$ — 몫의 법칙 (정확)</span><span class="val" id="qr-exact">—</span></div>
+        <div class="output-row"><span class="key">$f'(x)$ — 수치적 추정</span><span class="val" id="qr-num">—</span></div>
+      </div>
+      <div class="note" id="qr-match">✓ 두 미분이 일치합니다 — 몫의 법칙이 맞습니다.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>왜 softmax에 필요한가 <span class="tag green">연결</span></h3>
+      <p class="desc">softmax는 말 그대로 분수이므로, 그 미분은 몫의 법칙 문제입니다.</p>
+      <div class="math-block">$$p_i = \frac{\overbrace{e^{z_i}}^{u}}{\underbrace{\textstyle\sum_k e^{z_k}}_{v\,=\,S}}$$</div>
+      <div class="intuition">
+        여기서 $u = e^{z_i}$, $v = S = \sum_k e^{z_k}$. 위 법칙을 <em>그대로</em> 적용하면 <strong>그래디언트</strong> 탭에 나온 <strong>softmax 야코비안</strong> $\partial p_i/\partial z_j$가 나옵니다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== CHAIN RULE ==================== -->
+  <section class="tab-section" id="tab-chain">
+    <h2 class="sec"><span class="num">06</span> 연쇄 법칙 — 중첩된 함수</h2>
+
+    <div class="card accented">
+      <h3>연쇄 법칙 <span class="tag purple">중첩 함수의 미분</span></h3>
+      <p class="desc">함수가 다른 함수 안에 감싸여 있을 때 — $\mathcal{L} = -\log(\,p_y(z)\,)$처럼 — 이렇게 층을 따라 미분합니다.</p>
+      <div class="math-block">
+        $$\frac{d}{dx}\,f\big(g(x)\big) = f'\big(g(x)\big)\cdot g'(x)$$
+        <div class="caption">$f$ = 바깥 함수, &nbsp; $g$ = 안쪽 함수</div>
+      </div>
+      <div class="intuition">
+        <strong>외우는 법:</strong> &nbsp; <em>“바깥의 미분 × 안쪽의 미분.”</em><br><br>
+        양파 껍질을 벗기듯: 가장 바깥 층을 먼저 미분하고(안쪽은 그대로 둠), 그다음 안쪽의 미분을 곱합니다.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>예제 풀이</h3>
+      <p class="desc">$y = (2x+1)^3$를 미분 — 직선(안쪽)을 감싼 세제곱(바깥).</p>
+      <div class="deriv-chain">
+        <div class="deriv-row"><div class="eq">$y = (2x+1)^3$</div><div class="eq">바깥 $f(u)=u^3$, &nbsp; 안쪽 $u=2x+1$</div><div class="reason">층 이름 붙이기</div></div>
+        <div class="deriv-row"><div class="eq">$f'(u) = 3u^2$</div><div class="eq">$g'(x) = 2$</div><div class="reason">각 층 미분</div></div>
+        <div class="deriv-row"><div class="eq">$\dfrac{dy}{dx} = f'(u)\cdot g'(x)$</div><div class="eq">$= 3(2x+1)^2 \cdot 2$</div><div class="reason">바깥′ × 안쪽′</div></div>
+        <div class="deriv-row highlight"><div class="eq"></div><div class="eq">$= 6(2x+1)^2$</div><div class="reason">정리</div></div>
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 수치적으로 검증</h3>
+      <p class="desc">$x$를 움직여 <strong>정확한</strong> 연쇄 법칙 미분과 <strong>수치적</strong> 추정을 비교하세요. 일치해야 합니다.</p>
+      <div class="slider-group">
+        <div class="slider-label">$x$: <span id="cr-x">1.00</span></div>
+        <input type="range" min="-2" max="3" step="0.05" value="1.0" oninput="updateChain(this)">
+      </div>
+      <div class="output">
+        <div class="output-row"><span class="key">안쪽 $u = 2x+1$</span><span class="val" id="cr-u">—</span></div>
+        <div class="output-row"><span class="key">바깥′ $f'(u) = 3u^2$</span><span class="val" id="cr-fp">—</span></div>
+        <div class="output-row"><span class="key">안쪽′ $g'(x) = 2$</span><span class="val" id="cr-gp">2.0000</span></div>
+        <div class="output-row"><span class="key">$y = (2x+1)^3$</span><span class="val" id="cr-y">—</span></div>
+        <div class="output-row"><span class="key">$dy/dx$ — 연쇄 법칙 (정확)</span><span class="val" id="cr-exact">—</span></div>
+        <div class="output-row"><span class="key">$dy/dx$ — 수치적 추정</span><span class="val" id="cr-num">—</span></div>
+      </div>
+      <div class="note">✓ 바깥′ × 안쪽′이 수치적 기울기와 일치합니다.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>왜 크로스 엔트로피에 필요한가 <span class="tag green">연결</span></h3>
+      <p class="desc">손실은 함수의 함수의 함수입니다 — 세 겹의 중첩된 층.</p>
+      <div class="math-block">$$\mathcal{L} = -\log\big(\,\underbrace{p_y}_{\text{안쪽}}\,\big), \qquad p_y = \underbrace{\text{softmax}(\mathbf{z})_y}_{\text{로짓에 의존}}$$</div>
+      <div class="deriv-chain">
+        <div class="deriv-row highlight">
+          <div class="eq">$\dfrac{\partial \mathcal{L}}{\partial z_i} = \dfrac{\partial \mathcal{L}}{\partial p_y}\cdot\dfrac{\partial p_y}{\partial z_i}$</div>
+          <div class="eq">$= \underbrace{-\dfrac{1}{p_y}}_{\text{바깥: }-\log}\cdot\underbrace{\dfrac{\partial p_y}{\partial z_i}}_{\text{안쪽: softmax}}$</div>
+          <div class="reason">바깥′ × 안쪽′</div>
+        </div>
+      </div>
+      <div class="intuition">
+        바깥 층 $-\log(\cdot)$는 $-\tfrac{1}{p_y}$를 기여하고, 안쪽 층(softmax)은 야코비안을 기여합니다. 곱하면 $p_y$가 약분되어 $\partial\mathcal{L}/\partial z_i = p_i - y_i$가 남습니다.
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== LEARNING RATE ==================== -->
+  <section class="tab-section" id="tab-lr">
+    <h2 class="sec"><span class="num">07</span> 학습률 — 한 걸음의 크기</h2>
+
+    <div class="card accented">
+      <h3>학습률 <span class="tag orange">한 걸음을 얼마나 크게</span></h3>
+      <p class="desc">그래디언트(예: $p_i - y_i$)를 구하고 나면, 그것은 움직일 <em>방향</em>만 알려줍니다. 학습률 $\eta$가 <em>얼마나 멀리</em> 갈지 결정합니다.</p>
+      <div class="math-block">
+        $$\theta \;\leftarrow\; \theta \;-\; \eta \,\frac{\partial \mathcal{L}}{\partial \theta}$$
+        <div class="caption">$\theta$ = 파라미터(가중치) · $\eta$ = 학습률 · $\partial\mathcal{L}/\partial\theta$ = 그래디언트</div>
+      </div>
+      <div class="intuition">
+        <strong>왜 빼는가?</strong> 그래디언트는 <em>오르막</em>을 가리킵니다. 우리는 손실을 <em>줄이고</em> 싶으므로 반대 방향으로 걷습니다 — 그래서 마이너스 부호. 이것이 <strong>경사 하강법</strong>입니다.<br><br>
+        <strong>왜 $\eta$로 스케일하는가?</strong> 원시 그래디언트는 매우 크거나 작을 수 있습니다. $\eta$가 이를 적절한 걸음 크기로 바꿉니다.
+      </div>
+    </div>
+
+    <div class="card accented">
+      <h3>너무 작음 · 딱 적당 · 너무 큼</h3>
+      <table class="grad-table">
+        <thead><tr><th>$\eta$</th><th>무슨 일이 일어나나</th><th>그림</th></tr></thead>
+        <tbody>
+          <tr><td class="neutral">너무 작음</td><td>손실이 아주 천천히 내려감 — 학습이 끝없이 걸림.</td><td>🐌 잔걸음</td></tr>
+          <tr><td class="positive">딱 적당</td><td>손실이 부드럽고 빠르게 최솟값으로 떨어짐.</td><td>✅ 매끄러운 하강</td></tr>
+          <tr><td class="negative">너무 큼</td><td>걸음이 최솟값을 지나침 — 손실이 튀거나 진동하거나 ∞로 폭발.</td><td>💥 발산</td></tr>
+        </tbody>
+      </table>
+      <div class="warn">너무 높은 학습률은 학습이 "폭발"(손실 → NaN)하는 가장 흔한 원인입니다. 의심스러우면 낮추세요.</div>
+    </div>
+
+    <div class="card accented">
+      <h3>인터랙티브 — 경사 하강법 실시간</h3>
+      <p class="desc">그릇 모양 손실 $\mathcal{L}(w) = w^2$를 최소화 (그래디언트 $= 2w$, 최솟값 $w=0$). 학습률과 시작점을 고르고 $w \leftarrow w - \eta\cdot 2w$를 지켜보세요.</p>
+      <div class="two-col">
+        <div>
+          <div class="slider-group">
+            <div class="slider-label">학습률 $\eta$: <span id="lr-eta">0.10</span></div>
+            <input type="range" min="0.01" max="1.1" step="0.01" value="0.1" oninput="updateLR()">
+          </div>
+          <div class="slider-group">
+            <div class="slider-label">시작 $w_0$: <span id="lr-w0">8.0</span></div>
+            <input type="range" min="-10" max="10" step="0.5" value="8" oninput="updateLR()">
+          </div>
+          <div class="output">
+            <div class="output-row"><span class="key">$|w|<0.01$ 도달 스텝</span><span class="val" id="lr-steps">—</span></div>
+            <div class="output-row"><span class="key">최종 $w$ (30스텝 후)</span><span class="val" id="lr-final">—</span></div>
+            <div class="output-row"><span class="key">최종 손실 $w^2$</span><span class="val loss" id="lr-loss">—</span></div>
+            <div class="output-row"><span class="key">거동</span><span class="val" id="lr-behav">—</span></div>
+          </div>
+        </div>
+        <div>
+          <p style="color:var(--accent);font-size:0.83rem;margin-bottom:8px;font-family:var(--mono)">각 스텝의 손실 $w^2$:</p>
+          <div id="lr-bars"></div>
+        </div>
+      </div>
+      <div class="note" id="lr-note">$\mathcal{L}=w^2$의 경우: $\eta<0.5$ 수렴, $\eta=0.5$ 단번에 0으로, $0.5<\eta<1$ 안쪽으로 진동, $\eta=1$ 영원히 튕김, $\eta>1$ 발산. 각각 해보세요!</div>
+    </div>
+
+    <div class="card accented">
+      <h3>softmax + 크로스 엔트로피와의 연결 <span class="tag green">전체 루프</span></h3>
+      <div class="context-box">
+        모든 탭을 합치면, 한 번의 학습 스텝은:<br><br>
+        1. 순전파: 로짓 $\mathbf{z}$ → softmax → $p_i$ → 손실 $\mathcal{L} = -\log p_y$<br>
+        2. 역전파: 그래디언트 $\dfrac{\partial \mathcal{L}}{\partial z_i} = p_i - y_i$ &nbsp;(몫 + 연쇄 법칙)<br>
+        3. <span class="hl">업데이트: 모든 가중치 $\theta \leftarrow \theta - \eta\,\dfrac{\partial \mathcal{L}}{\partial \theta}$</span><br><br>
+        그래디언트 $p_i - y_i$가 모든 층으로 거슬러 흐르고, $\eta$가 각 가중치 조정의 크기를 정합니다.
+      </div>
+      <div class="note">GPT-2 / nanoGPT는 보통 $\eta \approx 3\times10^{-4}$ (AdamW)를 쓰며, <strong>워밍업</strong>과 <strong>코사인 감쇠</strong>를 함께 사용합니다.</div>
+    </div>
+  </section>
+
+  <!-- ==================== PRACTICE ==================== -->
+  <section class="tab-section" id="tab-practice">
+    <h2 class="sec"><span class="num">08</span> 연습 — 타이핑으로 익히기</h2>
+    <p class="lede" style="margin-bottom:24px">기억을 더듬어 빈칸을 채우세요. 정답을 맞힐 때마다 점수와 연속 기록이 올라가고, 틀리면 연속 기록이 0이 됩니다. 막히면 <strong>힌트</strong>를 눌러 답을 볼 수 있지만, 직접 타이핑할수록 더 잘 익혀집니다. 대소문자는 구분하지 않습니다.</p>
+
+    <div class="statgrid">
+      <div class="statcell"><div class="l">전체 빈칸</div><div class="v"><em id="pr-total">0</em></div></div>
+      <div class="statcell"><div class="l">해결</div><div class="v" id="pr-solved">0</div></div>
+      <div class="statcell"><div class="l">연속</div><div class="v" id="pr-streak">0</div></div>
+      <div class="statcell"><div class="l">완료율</div><div class="v" id="pr-pct">0<span style="font-size:18px;color:var(--muted)">%</span></div></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">Softmax &amp; 크로스 엔트로피</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">1</span> NumPy의 Softmax — 지수값들을 합이 1이 되도록 정규화하세요.</div>
+      <pre class="exercise">e = np.exp(z - z.max())          <span style="color:var(--comment)"># 안정성 보정</span>
+p = e / np.<input class="blank" data-answer="sum" size="5" placeholder="?">(e)             <span style="color:var(--comment)"># σ(z)ᵢ = e^zᵢ / Σ e^zⱼ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">2</span> 정답 토큰 $y$에 대한 크로스 엔트로피 손실 — 부호와 함수를 채우세요.</div>
+      <pre class="exercise">loss = <input class="blank" data-answer="-" size="3" placeholder="?"> np.<input class="blank" data-answer="log" size="5" placeholder="?">(p[y])      <span style="color:var(--comment)"># L = −log pᵧ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">3</span> softmax의 두 성질: 모든 출력은 $(0,1)$ 안에 있고, 전부 더하면…</div>
+      <pre class="exercise">assert (p &gt; 0).all() and (p &lt; 1).all()
+assert np.isclose(p.sum(), <input class="blank" data-answer="1|1.0|one" size="4" placeholder="?">)</pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">4</span> 온도 스케일링 — softmax 전에 로짓을 $T$로 나누세요.</div>
+      <pre class="exercise">p = softmax(z <input class="blank" data-answer="/" size="3" placeholder="?"> T)        <span style="color:var(--comment)"># T&gt;1 더 평평, T&lt;1 더 날카로움</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">5</span> 모델이 완벽히 확신하고 정답이면 ($p_y = 1$), 손실은 얼마일까요?</div>
+      <pre class="exercise">L = -log(1.0)  →  L = <input class="blank" data-answer="0|0.0|zero" size="4" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">결합 &amp; 그래디언트</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">6</span> 융합된, 수치적으로 안정적인 손실 — log-sum-exp 정규화 항을 채우세요.</div>
+      <pre class="exercise">L = -z[y] + <input class="blank" data-answer="logsumexp|log_sum_exp|lse" size="11" placeholder="?">(z)   <span style="color:var(--comment)"># −zᵧ + log Σ e^zⱼ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">7</span> 로짓에 대한 softmax + 크로스 엔트로피의 그 유명한 그래디언트.</div>
+      <pre class="exercise">grad = p - <input class="blank" data-answer="y|y_onehot|onehot" size="5" placeholder="?">        <span style="color:var(--comment)"># ∂L/∂zᵢ = pᵢ − yᵢ</span>
+grad[y] = p[y] - <input class="blank" data-answer="1|1.0" size="4" placeholder="?">   <span style="color:var(--comment)"># 정답 클래스: pᵧ − 1 &lt; 0</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">8</span> 모든 클래스에 걸쳐, softmax-CE 그래디언트의 합은 항상…</div>
+      <pre class="exercise">(p - y).sum()  →  <input class="blank" data-answer="0|0.0|zero" size="4" placeholder="?">   <span style="color:var(--comment)"># 빠진 질량 = 더해진 질량</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <h3 style="font-family:var(--serif);color:var(--ink);margin:26px 0 12px;font-size:1.2rem">미적분 법칙</h3>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">9</span> 몫의 법칙 — 분자의 첫 항과 분모의 거듭제곱을 채우세요.</div>
+      <pre class="exercise">f = u/v
+f' = (<input class="blank" data-answer="u'|up|u_prime" size="4" placeholder="?">*v - u*v') / v**<input class="blank" data-answer="2|two" size="3" placeholder="?"></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">10</span> 연쇄 법칙 — 바깥의 미분 곱하기 안쪽의 미분.</div>
+      <pre class="exercise">d/dx f(g(x)) = f'(g(x)) * <input class="blank" data-answer="g'|gp|g_prime" size="4" placeholder="?">(x)   <span style="color:var(--comment)"># 바깥′ × 안쪽′</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">11</span> 경사 하강 가중치 업데이트 — 걸음 크기를 스케일하는 기호를 채우세요.</div>
+      <pre class="exercise">w = w - <input class="blank" data-answer="eta|lr|η|learning_rate|lrate" size="6" placeholder="?"> * grad     <span style="color:var(--comment)"># θ ← θ − η ∂L/∂θ</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="drill" data-drill>
+      <div class="prompt"><span class="num">12</span> $K=50257$ 클래스에서 GPT-2의 랜덤 초기화 손실은 $\ln K$ — 호출을 채우세요.</div>
+      <pre class="exercise">L0 = math.<input class="blank" data-answer="log|ln" size="4" placeholder="?">(<input class="blank" data-answer="50257|K" size="7" placeholder="?">)   <span style="color:var(--comment)"># ≈ 10.82</span></pre>
+      <div class="controls"><button class="btn tiny" onclick="checkDrill(this)">확인</button><button class="btn ghost tiny" onclick="hintDrill(this)">힌트</button></div>
+      <div class="feedback"></div>
+    </div>
+
+    <div class="note" style="margin-top:20px">모든 빈칸을 비우면 색종이가 터집니다. <strong>1–8</strong> 키로 탭을 전환하고, <strong>?</strong>로 단축키를 보세요.</div>
+  </section>
+</main>
+
+<footer>
+  <span><a href="index.html">← 전체 치트시트</a> · 브라우저 실행 · 빌드 불필요 · ⚡ 로짓 → 손실 → 그래디언트</span>
+  <span>관련 자료: <a href="softmax.html">softmax.html</a> · <a href="chainrule.html">chainrule.html</a></span>
+</footer>
+
+<canvas id="confetti-canvas"></canvas>
+<div class="toast" id="toast"></div>
+
+<div id="help-overlay" onclick="hideHelp()">
+  <div class="help-content" onclick="event.stopPropagation()">
+    <h3>키보드 단축키</h3>
+    <table>
+      <tr><td><kbd>Tab</kbd></td><td>다음 빈칸으로 이동</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>현재 드릴 확인</td></tr>
+      <tr><td><kbd>?</kbd></td><td>이 도움말</td></tr>
+      <tr><td><kbd>1</kbd>..<kbd>8</kbd></td><td>탭 전환</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>오버레이 닫기</td></tr>
+    </table>
+    <p style="color: var(--muted); font-size: 12px; margin-top: 14px;">아무 곳이나 클릭하면 닫힙니다.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const TOKENS = ['Token A','Token B','Token C','Token D','Token E'];
+const COLORS = ['blue','green','purple','orange','red'];
+const DEFAULT_LOGITS = [2.0, 1.0, 0.5, -0.5, -1.0];
+let logits     = DEFAULT_LOGITS.slice();
+let tempLogits = DEFAULT_LOGITS.slice();
+let fullLogits = DEFAULT_LOGITS.slice();
+let gradLogits = DEFAULT_LOGITS.slice();
+let fullCorrect = 2, gradCorrect = 2;
+let randSeed = 1;
+
+function softmax(z) {
+  const m = Math.max(...z);
+  const e = z.map(v => Math.exp(v - m));
+  const s = e.reduce((a,b) => a+b, 0);
+  return e.map(v => v / s);
+}
+function logSumExp(z) {
+  const m = Math.max(...z);
+  return m + Math.log(z.map(v => Math.exp(v - m)).reduce((a,b) => a+b, 0));
+}
+function entropy(p) { return -p.reduce((a,v) => a + (v > 1e-12 ? v*Math.log(v) : 0), 0); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ============== TABS ==============
+const tabBtns = document.querySelectorAll('nav.tabs button');
+const sections = document.querySelectorAll('section.tab-section');
+tabBtns.forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+function switchTab(name) {
+  tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  sections.forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============== SOFTMAX SECTION ==============
+function buildSoftmaxSliders() {
+  document.getElementById('logit-sliders').innerHTML = logits.map((v,i) => `
+    <div class="slider-group">
+      <div class="slider-label">${TOKENS[i]}: <span id="ls${i}">${v.toFixed(1)}</span></div>
+      <input type="range" min="-3" max="3" step="0.1" value="${v}" oninput="updateLogit(${i},this.value)">
+    </div>`).join('');
+}
+function updateLogit(i, v) {
+  logits[i] = parseFloat(v);
+  document.getElementById(`ls${i}`).textContent = parseFloat(v).toFixed(1);
+  renderSoftmaxBars();
+}
+function presetSoftmax(kind) {
+  if (kind === 'uniform') logits = [0,0,0,0,0];
+  else if (kind === 'peak') logits = [3,-1,-1,-1,-1];
+  else if (kind === 'reset') logits = DEFAULT_LOGITS.slice();
+  else if (kind === 'random') {
+    logits = logits.map((_, i) => {
+      randSeed = (randSeed * 1103515245 + 12345) & 0x7fffffff;
+      return Math.round(((randSeed / 0x7fffffff) * 6 - 3) * 10) / 10;
+    });
+  }
+  buildSoftmaxSliders();
+  renderSoftmaxBars();
+}
+function renderSoftmaxBars() {
+  const p = softmax(logits);
+  document.getElementById('logit-bar-rows').innerHTML = logits.map((v,i) => {
+    const pct = clamp((v+3)/6*100, 1, 100).toFixed(1);
+    return `<div class="bar-row"><div class="bar-label">${TOKENS[i]}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${pct}%">${v.toFixed(1)}</div></div>
+      <div class="bar-val">${v.toFixed(1)}</div></div>`;
+  }).join('');
+  document.getElementById('softmax-bar-rows').innerHTML = p.map((v,i) => `
+    <div class="bar-row"><div class="bar-label">${TOKENS[i]}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${(v*100).toFixed(1)}%">${(v*100).toFixed(1)}%</div></div>
+      <div class="bar-val">${v.toFixed(3)}</div></div>`).join('');
+  document.getElementById('prob-sum').textContent = p.reduce((a,b)=>a+b,0).toFixed(5);
+  const am = p.indexOf(Math.max(...p));
+  document.getElementById('argmax-token').textContent = `${TOKENS[am]} (p=${p[am].toFixed(3)})`;
+  document.getElementById('entropy-val').textContent = `${entropy(p).toFixed(4)}  (max = ${Math.log(p.length).toFixed(4)})`;
+}
+
+// temperature
+function updateTemp(el) {
+  const T = parseFloat(el.value);
+  document.getElementById('temp-val').textContent = T.toFixed(2);
+  const p = softmax(tempLogits.map(v => v/T));
+  document.getElementById('temp-bars').innerHTML = p.map((v,i) => `
+    <div class="bar-row"><div class="bar-label" style="width:60px">${TOKENS[i]}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${(v*100).toFixed(1)}%"></div></div>
+      <div class="bar-val">${v.toFixed(3)}</div></div>`).join('');
+  document.getElementById('temp-entropy').textContent = entropy(p).toFixed(4);
+}
+function setTemp(T) {
+  const s = document.getElementById('temp-slider');
+  s.value = T; updateTemp(s);
+}
+
+// ============== CE SECTION ==============
+function updateCE(el) {
+  const p = parseFloat(el.value);
+  document.getElementById('pval').textContent = p.toFixed(2);
+  const loss = -Math.log(p);
+  const d = document.getElementById('ce-display');
+  d.textContent = loss.toFixed(4);
+  d.style.color = loss < 0.3 ? 'var(--good)' : loss < 1.5 ? 'var(--amber)' : 'var(--bad)';
+  document.getElementById('ce-bar').style.width = Math.min(loss/6*100,100)+'%';
+  document.getElementById('ce-bar-val').textContent = loss.toFixed(4);
+  const s = loss < 0.1 ? '거의 안 놀람 😌' : loss < 0.7 ? '약간 놀람 🤔' : loss < 2.3 ? '꽤 놀람 😟' : '충격 😱';
+  document.getElementById('ce-surprise').textContent = s;
+}
+
+// ============== COMBINED SECTION ==============
+function buildCorrectBtns(id, sel, cb) {
+  const c = document.getElementById(id);
+  c.innerHTML = '';
+  TOKENS.forEach((t,i) => {
+    const b = document.createElement('button');
+    b.className = 'btn tiny' + (i===sel ? '' : ' ghost');
+    b.textContent = t;
+    b.onclick = () => cb(i);
+    c.appendChild(b);
+  });
+}
+function buildFullSliders() {
+  document.getElementById('full-sliders').innerHTML = fullLogits.map((v,i) => `
+    <div class="slider-group">
+      <div class="slider-label">${TOKENS[i]}: <span id="fl${i}">${v.toFixed(1)}</span></div>
+      <input type="range" min="-3" max="3" step="0.1" value="${v}" oninput="updateFullLogit(${i},this.value)">
+    </div>`).join('');
+}
+function updateFullLogit(i,v) {
+  fullLogits[i]=parseFloat(v);
+  document.getElementById(`fl${i}`).textContent=parseFloat(v).toFixed(1);
+  renderFull();
+}
+function setFullCorrect(i) { fullCorrect=i; buildCorrectBtns('correct-btns',i,setFullCorrect); renderFull(); }
+function renderFull() {
+  const p = softmax(fullLogits);
+  const lse = logSumExp(fullLogits);
+  const py = p[fullCorrect], zy = fullLogits[fullCorrect];
+  document.getElementById('full-logit-bars').innerHTML = fullLogits.map((v,i) => {
+    const pct = clamp((v+3)/6*100,1,100).toFixed(1);
+    return `<div class="bar-row"><div class="bar-label">${TOKENS[i]}${i===fullCorrect?' ★':''}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${pct}%"></div></div>
+      <div class="bar-val">${v.toFixed(1)}</div></div>`;
+  }).join('');
+  document.getElementById('full-prob-bars').innerHTML = p.map((v,i) => `
+    <div class="bar-row"><div class="bar-label">${TOKENS[i]}${i===fullCorrect?' ★':''}</div>
+      <div class="bar-wrap"><div class="bar-fill ${COLORS[i]}" style="width:${(v*100).toFixed(1)}%"></div></div>
+      <div class="bar-val">${v.toFixed(3)}</div></div>`).join('');
+  document.getElementById('zy-val').textContent  = zy.toFixed(4);
+  document.getElementById('lse-val').textContent = lse.toFixed(4);
+  document.getElementById('py-val').textContent  = py.toFixed(5);
+  document.getElementById('full-loss').textContent = (-Math.log(py)).toFixed(5);
+}
+
+// ============== GRADIENT SECTION ==============
+function buildGradSliders() {
+  document.getElementById('grad-sliders').innerHTML = gradLogits.map((v,i) => `
+    <div class="slider-group">
+      <div class="slider-label">${TOKENS[i]}: <span id="gl${i}">${v.toFixed(1)}</span></div>
+      <input type="range" min="-3" max="3" step="0.1" value="${v}" oninput="updateGradLogit(${i},this.value)">
+    </div>`).join('');
+}
+function updateGradLogit(i,v) {
+  gradLogits[i]=parseFloat(v);
+  document.getElementById(`gl${i}`).textContent=parseFloat(v).toFixed(1);
+  renderGrad();
+}
+function setGradCorrect(i) { gradCorrect=i; buildCorrectBtns('grad-correct-btns',i,setGradCorrect); renderGrad(); }
+function renderGrad() {
+  const p = softmax(gradLogits);
+  const loss = -Math.log(p[gradCorrect]);
+  let sum = 0, html = '';
+  p.forEach((pi,i) => {
+    const yi = i===gradCorrect ? 1 : 0;
+    const g = pi - yi; sum += g;
+    const cls = g < -0.01 ? 'positive' : g > 0.01 ? 'negative' : 'neutral';
+    const eff = g < -0.01 ? '↑ push up' : g > 0.01 ? '↓ push down' : '≈ no change';
+    html += `<tr>
+      <td>${TOKENS[i]}${i===gradCorrect?' ★':''}</td>
+      <td>${gradLogits[i].toFixed(2)}</td>
+      <td>${pi.toFixed(4)}</td>
+      <td>${yi}</td>
+      <td class="${cls}">${g.toFixed(4)}</td>
+      <td class="${cls}">${eff}</td>
+    </tr>`;
+  });
+  document.getElementById('grad-table-body').innerHTML = html;
+  document.getElementById('grad-loss').textContent = loss.toFixed(4);
+  document.getElementById('grad-sum').textContent  = sum.toFixed(7) + '  (≈ 0)';
+}
+
+// ============== QUOTIENT RULE: f(x) = x^2 / (x+1) ==============
+function updateQuotient(el) {
+  const x = parseFloat(el.value);
+  document.getElementById('qr-x').textContent = x.toFixed(2);
+  const f = (t) => (t*t)/(t+1);
+  const u = x*x, v = x+1, up = 2*x;
+  const exact = (up*v - u*1)/(v*v);
+  const h = 1e-4;
+  const num = (f(x+h) - f(x-h))/(2*h);
+  document.getElementById('qr-u').textContent = u.toFixed(4);
+  document.getElementById('qr-v').textContent = v.toFixed(4);
+  document.getElementById('qr-up').textContent = up.toFixed(4);
+  document.getElementById('qr-f').textContent = f(x).toFixed(4);
+  document.getElementById('qr-exact').textContent = exact.toFixed(4);
+  document.getElementById('qr-num').textContent = num.toFixed(4);
+  const ok = Math.abs(exact - num) < 1e-3;
+  const box = document.getElementById('qr-match');
+  box.className = ok ? 'note' : 'warn';
+  box.textContent = ok ? '✓ 두 미분이 일치합니다 — 몫의 법칙이 맞습니다.'
+                       : 'Δ ' + Math.abs(exact-num).toExponential(2) + ' (반올림 오차일 뿐)';
+}
+
+// ============== CHAIN RULE: y = (2x+1)^3 ==============
+function updateChain(el) {
+  const x = parseFloat(el.value);
+  document.getElementById('cr-x').textContent = x.toFixed(2);
+  const g = (t) => 2*t+1;
+  const y = (t) => Math.pow(2*t+1, 3);
+  const u = g(x), fp = 3*u*u, gp = 2;
+  const exact = fp * gp;
+  const h = 1e-4;
+  const num = (y(x+h) - y(x-h))/(2*h);
+  document.getElementById('cr-u').textContent = u.toFixed(4);
+  document.getElementById('cr-fp').textContent = fp.toFixed(4);
+  document.getElementById('cr-y').textContent = y(x).toFixed(4);
+  document.getElementById('cr-exact').textContent = exact.toFixed(4);
+  document.getElementById('cr-num').textContent = num.toFixed(4);
+}
+
+// ============== LEARNING RATE: minimise L(w) = w^2 ==============
+function updateLR() {
+  const eta = parseFloat(document.querySelector('#tab-lr input[min="0.01"]').value);
+  const w0  = parseFloat(document.querySelector('#tab-lr input[min="-10"]').value);
+  document.getElementById('lr-eta').textContent = eta.toFixed(2);
+  document.getElementById('lr-w0').textContent = w0.toFixed(1);
+
+  const N = 30;
+  let w = w0, steps = -1;
+  const losses = [w*w];
+  for (let k = 1; k <= N; k++) {
+    w = w - eta * (2*w);
+    losses.push(w*w);
+    if (steps < 0 && Math.abs(w) < 0.01) steps = k;
+  }
+  const finalLoss = w*w;
+  const diverged = !isFinite(finalLoss) || finalLoss > w0*w0 + 1e-6;
+
+  document.getElementById('lr-steps').textContent = steps < 0 ? '—' : steps;
+  document.getElementById('lr-final').textContent = isFinite(w) ? w.toFixed(4) : '∞';
+  document.getElementById('lr-loss').textContent = isFinite(finalLoss) ? finalLoss.toFixed(4) : '∞';
+
+  let behav;
+  if (diverged)                      behav = '💥 발산';
+  else if (steps >= 0 && steps <= 5) behav = '✅ 빠른 수렴';
+  else if (steps >= 0)               behav = '🐌 느린 수렴';
+  else                               behav = '↔️ 진동 / 느림';
+  const bh = document.getElementById('lr-behav');
+  bh.textContent = behav;
+  bh.style.color = diverged ? 'var(--bad)' : 'var(--good)';
+
+  const maxL = Math.max(...losses.filter(isFinite), 1);
+  document.getElementById('lr-bars').innerHTML = losses.slice(0, 16).map((L,k) => {
+    const pct = isFinite(L) ? clamp(L/maxL*100, 1, 100) : 100;
+    const col = !isFinite(L) || L > losses[0] ? 'red' : L < 0.1 ? 'green' : 'orange';
+    return `<div class="bar-row"><div class="bar-label" style="width:34px">${k}</div>
+      <div class="bar-wrap" style="height:16px"><div class="bar-fill ${col}" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="bar-val" style="width:72px">${isFinite(L)?L.toFixed(2):'∞'}</div></div>`;
+  }).join('');
+}
+
+// ============== PRACTICE / DRILLS ==============
+let solved = 0;
+const totalDrills = document.querySelectorAll('.blank').length;
+let streak = 0;
+const sectionsCompleted = new Set();
+document.getElementById('scoreTot').textContent = totalDrills;
+document.getElementById('pr-total').textContent = totalDrills;
+
+function updateProgress() {
+  document.getElementById('scoreNum').textContent = solved;
+  document.getElementById('progressBar').style.width = (solved / totalDrills * 100) + '%';
+  document.getElementById('streakNum').textContent = streak;
+  document.getElementById('pr-solved').textContent = solved;
+  document.getElementById('pr-streak').textContent = streak;
+  document.getElementById('pr-pct').innerHTML = Math.round(solved/totalDrills*100) + '<span style="font-size:18px;color:var(--muted)">%</span>';
+}
+
+function checkBlank(input) {
+  const want = (input.dataset.answer || '').trim();
+  const got = input.value.trim();
+  const variants = want.split('|').map(s => s.replace(/^['"]|['"]$/g, '').toLowerCase());
+  const norm = got.toLowerCase().replace(/^['"]|['"]$/g, '');
+  return variants.includes(norm);
+}
+
+function checkDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const ok = checkBlank(b);
+    b.classList.remove('correct', 'wrong', 'pop', 'shake');
+    void b.offsetWidth;
+    if (ok) b.classList.add('correct', 'pop');
+    else b.classList.add('wrong', 'shake');
+  });
+  let newlySolved = 0;
+  blanks.forEach(b => {
+    if (b.classList.contains('correct') && b.dataset.solved !== '1') {
+      b.dataset.solved = '1'; b.disabled = true; newlySolved++;
+    }
+  });
+  if (Array.from(blanks).every(b => b.dataset.solved === '1')) {
+    drill.classList.add('solved');
+    fb.className = 'feedback good'; fb.textContent = randomGood();
+    if (newlySolved > 0) { solved += newlySolved; streak += newlySolved; sparkle(drill); updateProgress(); checkSectionComplete(); }
+  } else if (newlySolved > 0) {
+    solved += newlySolved; streak += newlySolved;
+    fb.className = 'feedback good'; fb.textContent = '부분 정답 — ' + newlySolved + '개 맞음, 계속하세요.';
+    updateProgress();
+  } else {
+    streak = 0; fb.className = 'feedback bad'; fb.textContent = randomBad(); updateProgress();
+  }
+}
+
+function hintDrill(btn) {
+  const drill = btn.closest('[data-drill]');
+  const blanks = drill.querySelectorAll('.blank');
+  const fb = drill.querySelector('.feedback');
+  const showing = drill.dataset.hintShowing === '1';
+  if (showing) {
+    blanks.forEach(b => {
+      if (b.dataset.revealed === '1') {
+        b.value = ''; b.classList.remove('correct', 'wrong'); b.disabled = false;
+        b.dataset.revealed = ''; b.dataset.solved = ''; solved = Math.max(0, solved - 1);
+      }
+    });
+    drill.classList.remove('solved'); drill.dataset.hintShowing = '';
+    fb.className = 'feedback hint'; fb.textContent = '답을 숨겼습니다 — 직접 타이핑해 보세요';
+    updateProgress(); return;
+  }
+  let revealedCount = 0;
+  blanks.forEach(b => {
+    if (b.dataset.solved === '1') return;
+    const want = b.dataset.answer.split('|')[0].replace(/^['"]|['"]$/g, '');
+    b.value = want; b.classList.remove('wrong'); b.classList.add('correct');
+    b.dataset.solved = '1'; b.dataset.revealed = '1'; b.disabled = true; revealedCount++;
+  });
+  if (revealedCount === 0) { fb.className = 'feedback hint'; fb.textContent = '모두 완료.'; return; }
+  solved += revealedCount; streak = 0; drill.dataset.hintShowing = '1';
+  const allSolved = Array.from(blanks).every(b => b.dataset.solved === '1');
+  if (allSolved) { drill.classList.add('solved'); sparkle(drill); }
+  fb.className = 'feedback hint'; fb.textContent = '모든 답 공개 · 다시 누르면 숨김';
+  updateProgress();
+  if (allSolved) checkSectionComplete();
+}
+
+function randomGood() {
+  const m = ['좋아요.', '정답!', '정확해요.', '✓ 바로 그거예요.', '날카롭네요.', '그게 답이에요.', '깔끔해요.', '그래디언트가 인정.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+function randomBad() {
+  const m = ['아쉬워요 — 다시 해보세요.', '거의 다 왔어요. 힌트 볼까요?', '거의. 철자를 확인하세요.', '오답. 한 번 더.'];
+  return m[Math.floor(Math.random() * m.length)];
+}
+
+function checkSectionComplete() {
+  const active = document.querySelector('section.tab-section.active');
+  if (!active) return;
+  const drills = active.querySelectorAll('[data-drill]');
+  if (drills.length === 0) return;
+  const allDone = Array.from(drills).every(d => d.classList.contains('solved'));
+  if (allDone && !sectionsCompleted.has(active.id)) {
+    sectionsCompleted.add(active.id);
+    burstConfetti();
+    showToast('모든 드릴 완료! 🎉  +' + drills.length + ' 해결');
+    const tabName = active.id.replace('tab-', '');
+    const tabBtn = document.querySelector(`nav.tabs button[data-tab="${tabName}"]`);
+    if (tabBtn && !tabBtn.querySelector('.check')) {
+      const c = document.createElement('span'); c.className = 'check'; c.textContent = '✓'; tabBtn.appendChild(c);
+    }
+  }
+}
+
+// ============== TOAST ==============
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ============== SPARKLE ==============
+function sparkle(el) {
+  const rect = el.getBoundingClientRect();
+  for (let i = 0; i < 14; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `position:fixed;left:${rect.left + rect.width/2}px;top:${rect.top + 20}px;
+      width:6px;height:6px;border-radius:50%;background:radial-gradient(circle,#fff,var(--accent));
+      pointer-events:none;z-index:170;box-shadow:0 0 10px var(--accent);`;
+    document.body.appendChild(s);
+    const dx = (Math.random() - 0.5) * 200, dy = -Math.random() * 80 - 40;
+    s.animate([
+      { transform: 'translate(0,0) scale(1)', opacity: 1 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+    ], { duration: 700, easing: 'cubic-bezier(.2,.8,.4,1)' });
+    setTimeout(() => s.remove(), 720);
+  }
+}
+
+// ============== CONFETTI ==============
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+function sizeConf() { confCanvas.width = window.innerWidth; confCanvas.height = window.innerHeight; }
+sizeConf();
+window.addEventListener('resize', sizeConf);
+let particles = [], confettiRunning = false;
+function burstConfetti() {
+  const colors = ['#22d3ee','#38bdf8','#a5f3fc','#4ade80','#fbbf24','#c084fc','#ffffff'];
+  for (let i = 0; i < 150; i++) {
+    particles.push({
+      x: window.innerWidth/2 + (Math.random()-0.5)*80, y: window.innerHeight/3,
+      vx: (Math.random()-0.5)*14, vy: -Math.random()*12 - 4, g: 0.32,
+      size: Math.random()*5 + 3, color: colors[Math.floor(Math.random()*colors.length)],
+      rot: Math.random()*Math.PI*2, vr: (Math.random()-0.5)*0.4, life: 120 + Math.random()*40
+    });
+  }
+  if (!confettiRunning) runConfetti();
+}
+function runConfetti() {
+  confettiRunning = true;
+  function frame() {
+    confCtx.clearRect(0, 0, confCanvas.width, confCanvas.height);
+    particles = particles.filter(p => p.life > 0 && p.y < window.innerHeight + 30);
+    particles.forEach(p => {
+      p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life--;
+      confCtx.save(); confCtx.translate(p.x, p.y); confCtx.rotate(p.rot);
+      confCtx.fillStyle = p.color; confCtx.fillRect(-p.size, -p.size/2, p.size*2, p.size); confCtx.restore();
+    });
+    if (particles.length > 0) requestAnimationFrame(frame); else confettiRunning = false;
+  }
+  frame();
+}
+
+// ============== HELP ==============
+function showHelp() { document.getElementById('help-overlay').classList.add('show'); }
+function hideHelp() { document.getElementById('help-overlay').classList.remove('show'); }
+
+// ============== KEYBOARD ==============
+const TAB_ORDER = ['softmax','crossentropy','combined','gradient','quotient','chain','lr','practice'];
+document.addEventListener('keydown', (e) => {
+  if (e.target.classList && e.target.classList.contains('blank')) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const drill = e.target.closest('[data-drill]');
+      if (drill) { const cb = drill.querySelector('.btn:not(.ghost)'); if (cb) cb.click(); }
+    }
+    return;
+  }
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === '?') { e.preventDefault(); showHelp(); }
+  else if (e.key === 'Escape') hideHelp();
+  else if (/^[1-8]$/.test(e.key)) switchTab(TAB_ORDER[parseInt(e.key) - 1]);
+});
+
+// ============== INIT ==============
+buildSoftmaxSliders(); renderSoftmaxBars(); updateTemp({value:1.0});
+updateCE({value:0.5});
+buildFullSliders(); buildCorrectBtns('correct-btns', fullCorrect, setFullCorrect); renderFull();
+buildGradSliders(); buildCorrectBtns('grad-correct-btns', gradCorrect, setGradCorrect); renderGrad();
+updateQuotient({value:2.0});
+updateChain({value:1.0});
+updateLR();
+updateProgress();
+</script>
+</body>
+</html>

@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Gradients Sync in Massive AI Training — Ring · Hierarchical · Tree All-Reduce</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --card: #ffffff;
+    --text: #2c2c2a;
+    --muted: #6b6a64;
+    --faint: #9c9a92;
+    --border: rgba(0,0,0,0.12);
+    --surface: #f1efe8;
+    --green-1: #C0DD97;
+    --green-2: #97C459;
+    --green-3: #639922;
+    --green-4: #3B6D11;
+    --purple: #7F77DD;
+    --purple-d: #534AB7;
+    --amber: #EF9F27;
+    --coral: #D85A30;
+    --teal: #1D9E75;
+    --teal-l: #9FE1CB;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 24px rgba(0,0,0,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1d1d1b;
+      --card: #2a2a28;
+      --text: #e8e6df;
+      --muted: #b3b1a8;
+      --faint: #82807a;
+      --border: rgba(255,255,255,0.14);
+      --surface: #3a3a37;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 24px rgba(0,0,0,0.25);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    line-height: 1.7;
+    font-size: 16px;
+  }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  /* ---- top nav ---- */
+  .topnav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .navin { max-width: 1020px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 16px; }
+  .brand { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand .dot { color: var(--purple); }
+  .tabs { margin-left: auto; display: flex; gap: 6px; background: var(--surface); border-radius: 999px; padding: 3px; }
+  .tabbtn {
+    border: none; background: transparent; border-radius: 999px;
+    padding: 6px 18px; font-size: 14px; cursor: pointer; color: var(--muted);
+    font-family: inherit; font-weight: 500;
+  }
+  .tabbtn.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+
+  /* ---- hero ---- */
+  .hero { padding: 30px 0 8px; }
+  h1 {
+    font-size: 34px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.02em; line-height: 1.25;
+    background: linear-gradient(100deg, var(--text) 30%, var(--purple) 75%, var(--teal));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h3 { font-size: 15px; font-weight: 700; margin: 14px 0 4px; }
+  .sub { color: var(--muted); font-size: 15px; margin: 0 0 22px; max-width: 760px; }
+  .herostats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 12px; margin: 0 0 28px; }
+  .hstat { background: var(--card); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .hstat .n { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .hstat .l { font-size: 12px; color: var(--muted); }
+
+  .card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 26px;
+    margin: 0 0 26px;
+    box-shadow: var(--shadow);
+  }
+  .secnum {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    background: linear-gradient(135deg, var(--purple), var(--teal)); color: #fff;
+    margin-right: 8px; vertical-align: -5px;
+  }
+  .desc { font-size: 14px; color: var(--muted); min-height: 64px; margin: 10px 0 14px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 4px 0 16px; }
+  button {
+    background: transparent;
+    border: 0.5px solid var(--border);
+    border-radius: 9px;
+    color: var(--text);
+    padding: 7px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, transform .1s;
+  }
+  button:hover:not(:disabled) { background: var(--surface); }
+  button:active:not(:disabled) { transform: scale(0.97); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.primary { background: var(--purple); border-color: var(--purple); color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--purple-d); }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    font-size: 12px; padding: 4px 12px; border-radius: 999px;
+    background: var(--surface); color: var(--muted); font-weight: 500;
+  }
+  .pill.green { background: rgba(99,153,34,0.15); color: var(--green-3); }
+  .pill.purple { background: rgba(127,119,221,0.15); color: var(--purple-d); }
+  @media (prefers-color-scheme: dark) {
+    .pill.green { color: var(--green-1); }
+    .pill.purple { color: #AFA9EC; }
+  }
+  .steplab { font-size: 13px; color: var(--faint); margin-left: auto; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 0.5px solid var(--border); }
+  .caption { font-size: 12px; color: var(--faint); margin: 12px 0 0; line-height: 1.6; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  @media (max-width: 700px) { .grid4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .grid3 { grid-template-columns: 1fr; } }
+  .gpu-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+  .gpu-head { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .chunkrow { display: flex; align-items: center; gap: 6px; margin: 4px 0; padding: 3px 5px; border-radius: 6px; }
+  .chunkrow.hl { box-shadow: 0 0 0 2px var(--amber); }
+  .clab { font-size: 12px; color: var(--muted); width: 14px; }
+  .segs { display: flex; gap: 3px; }
+  .seg { width: 11px; height: 11px; border-radius: 2px; border: 0.5px solid var(--border); background: var(--surface); transition: background .25s; }
+  .cnt { font-size: 11px; color: var(--faint); margin-left: auto; }
+  .cnt.full { color: var(--teal); font-weight: 600; }
+  .nvtag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--faint); font-weight: 400; }
+  .nvtag.on { background: rgba(99,153,34,0.15); color: var(--green-3); }
+  @media (prefers-color-scheme: dark) { .nvtag.on { color: var(--green-1); } }
+  .spine {
+    margin-top: 12px; border: 0.5px solid var(--border); border-radius: 12px;
+    padding: 10px 14px; font-size: 13px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px; transition: box-shadow .3s;
+  }
+  .spine.on { box-shadow: 0 0 0 2px var(--purple); }
+  .sliderrow { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+  .sliderrow label { font-size: 14px; color: var(--muted); width: 130px; flex-shrink: 0; }
+  .sliderrow input[type=range] { flex: 1; accent-color: var(--purple); }
+  .sliderrow .val { font-size: 14px; font-weight: 600; min-width: 110px; text-align: right; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin: 16px 0; }
+  .metric { background: var(--surface); border-radius: 12px; padding: 14px 16px; }
+  .metric .lab { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .metric .num { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .barrow { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .barrow .blab { font-size: 13px; color: var(--muted); width: 160px; flex-shrink: 0; }
+  .track { flex: 1; height: 18px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  .bval { font-size: 13px; font-weight: 600; min-width: 84px; text-align: right; }
+  svg text { font-family: inherit; }
+  .toc { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 28px; }
+  .toc a {
+    font-size: 13px; color: var(--muted); text-decoration: none;
+    border: 0.5px solid var(--border); border-radius: 999px; padding: 5px 14px;
+    background: var(--card); transition: background .15s;
+  }
+  .toc a:hover { background: var(--surface); }
+  table.facts { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.facts td { padding: 9px 10px; border-top: 0.5px solid var(--border); }
+  table.facts td:first-child { color: var(--muted); width: 230px; }
+  table.facts tr:first-child td { border-top: none; }
+
+  /* ---- parallelism cards ---- */
+  .pcard { background: var(--bg); border: 0.5px solid var(--border); border-radius: 14px; padding: 16px; transition: transform .15s, box-shadow .15s; }
+  .pcard:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .pcard h3 { margin: 10px 0 4px; font-size: 14px; }
+  .pcard p { font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.55; }
+  .ptag { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px; display: inline-block; }
+
+  /* ---- faq accordions ---- */
+  details.faq { border: 0.5px solid var(--border); border-radius: 12px; margin: 10px 0; background: var(--bg); overflow: hidden; }
+  details.faq summary { cursor: pointer; padding: 13px 16px; font-size: 14.5px; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 12px; }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::before { content: '+'; color: var(--purple); font-weight: 700; font-size: 17px; width: 14px; flex-shrink: 0; }
+  details.faq[open] summary::before { content: '−'; }
+  details.faq summary:hover { background: var(--surface); }
+  .faq-body { padding: 0 16px 14px 42px; font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+  .faq-body ul, .faq-body ol { margin: 8px 0; padding-left: 20px; }
+  .faq-body li { margin: 4px 0; }
+  table.facts.compact td:first-child { width: 200px; }
+
+  /* ---- quiz ---- */
+  .qprog { display: flex; gap: 6px; margin: 0 0 18px; }
+  .qdot { flex: 1; height: 6px; border-radius: 3px; background: var(--surface); transition: background .2s; }
+  .qdot.done-right { background: var(--green-2); }
+  .qdot.done-wrong { background: var(--coral); }
+  .qdot.current { background: var(--purple); }
+  .qtext { font-size: 17px; font-weight: 600; margin: 0 0 16px; line-height: 1.5; }
+  .qopt {
+    display: block; width: 100%; text-align: left; margin: 8px 0; padding: 12px 16px;
+    border-radius: 12px; font-size: 14.5px; line-height: 1.5; background: var(--bg);
+  }
+  .qopt:hover:not(:disabled) { background: var(--surface); }
+  .qopt.right { border-color: var(--green-3); background: rgba(99,153,34,0.12); opacity: 1; }
+  .qopt.wrong { border-color: var(--coral); background: rgba(216,90,48,0.12); opacity: 1; }
+  .qexplain {
+    border-left: 3px solid var(--purple); background: var(--surface);
+    border-radius: 0 10px 10px 0; padding: 12px 16px; font-size: 13.5px; color: var(--muted);
+    margin: 14px 0; line-height: 1.6;
+  }
+  .qscore { text-align: center; padding: 18px 0 6px; }
+  .qscore .big { font-size: 44px; font-weight: 800; letter-spacing: -0.02em; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="navin">
+    <span class="brand">All-Reduce<span class="dot">·</span>Visually</span>
+    <div class="tabs">
+      <button class="tabbtn active" id="tab-btn-learn" onclick="showTab('learn')">Learn</button>
+      <button class="tabbtn" id="tab-btn-practice" onclick="showTab('practice')">Practice</button>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ============================ LEARN TAB ============================ -->
+<div id="tab-learn">
+
+<div class="hero">
+  <h1>How gradients are synchronized in massive distributed training</h1>
+  <p class="sub">How labs like Anthropic and OpenAI train one model on <b>thousands of nodes</b> (each node = 8 GPUs): ring all-reduce, hierarchical 3-phase sync, tree topology, overlap with backward — and how long one step actually takes.</p>
+</div>
+
+<div class="herostats">
+  <div class="hstat"><div class="n">8,192</div><div class="l">GPUs in our running example (1,024 nodes × 8)</div></div>
+  <div class="hstat"><div class="n">140 GB</div><div class="l">gradient synced <b>every step</b> (70B params, bf16)</div></div>
+  <div class="hstat"><div class="n">~0.3–0.7 s</div><div class="l">raw all-reduce time per step (mostly hidden)</div></div>
+  <div class="hstat"><div class="n">≈ 0 s</div><div class="l">exposed sync time after overlap with backward</div></div>
+</div>
+
+<div class="toc">
+  <a href="#sec-intro">Key facts</a>
+  <a href="#sec-cluster">1 · Anatomy of a cluster</a>
+  <a href="#sec-step">2 · One training step</a>
+  <a href="#sec-ring">3 · Ring all-reduce</a>
+  <a href="#sec-hier">4 · Hierarchical 3-phase</a>
+  <a href="#sec-tree">5 · Tree all-reduce</a>
+  <a href="#sec-calc">6 · Bandwidth calculator</a>
+  <a href="#sec-timing">7 · Real step timing</a>
+  <a href="#sec-faq">8 · Speed FAQ</a>
+</div>
+
+<div class="card" id="sec-intro">
+  <h2>Key facts</h2>
+  <table class="facts">
+    <tr><td>Training data (e.g. 5 TB)</td><td>Only <b>sharded</b> — each node reads a different slice. <b>Never synchronized.</b></td></tr>
+    <tr><td>What gets synchronized</td><td><b>Gradients</b> — proportional to model size (70B model in bf16 → <b>140 GB</b>, every single step)</td></tr>
+    <tr><td>Inside a node (8 GPUs)</td><td>NVLink/NVSwitch at ~900 GB/s does reduce-scatter / all-gather</td></tr>
+    <tr><td>Between nodes (thousands)</td><td><b>Tree all-reduce</b> over InfiniBand/RoCE — hop count is O(log N)</td></tr>
+    <tr><td>Perceived cost</td><td>Overlapped with backward compute → nearly hidden; ZeRO/FSDP halves the traffic</td></tr>
+  </table>
+</div>
+
+<!-- ============ 1. CLUSTER ANATOMY ============ -->
+<div class="card" id="sec-cluster">
+  <h2><span class="secnum">1</span>Anatomy of a frontier training cluster</h2>
+  <p class="lead">One <b>node</b> packs 8 GPUs joined by NVSwitch (~900 GB/s all-to-all) plus 8 NICs — one 400 Gb/s NIC per GPU, “rail-optimized”. Thousands of nodes hang off a leaf/spine InfiniBand or RoCE fabric. Slide the cluster size to feel the scale.</p>
+
+  <div style="overflow-x:auto"><svg width="100%" viewBox="0 0 960 290" style="min-width:720px">
+    <!-- node box -->
+    <rect x="20" y="20" width="330" height="240" rx="14" fill="var(--bg)" stroke="var(--border)"/>
+    <text x="36" y="46" font-size="13" font-weight="700" fill="var(--text)">1 node (e.g. DGX/HGX class)</text>
+    <!-- 8 gpus -->
+    <g id="cl-gpus"></g>
+    <!-- nvswitch -->
+    <rect x="40" y="148" width="290" height="26" rx="7" fill="var(--purple)" opacity="0.9"/>
+    <text x="185" y="165" text-anchor="middle" font-size="11.5" font-weight="600" fill="#fff">NVSwitch — ~900 GB/s GPU↔GPU</text>
+    <!-- nics -->
+    <g id="cl-nics"></g>
+    <text x="185" y="246" text-anchor="middle" font-size="10.5" fill="var(--faint)">8 × 400 Gb/s NICs — one rail per GPU</text>
+    <!-- links to leaf -->
+    <path d="M 350 215 C 410 215 410 120 460 105" stroke="var(--amber)" stroke-width="2" fill="none"/>
+    <path d="M 350 225 C 415 228 415 185 460 178" stroke="var(--amber)" stroke-width="2" fill="none" opacity="0.55"/>
+    <!-- leaf switches -->
+    <rect x="460" y="85" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--border)"/>
+    <text x="525" y="109" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">Leaf switch</text>
+    <rect x="460" y="158" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--border)"/>
+    <text x="525" y="182" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">Leaf switch</text>
+    <!-- spine -->
+    <rect x="650" y="120" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--purple)" stroke-width="1.4"/>
+    <text x="715" y="144" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">Spine switch</text>
+    <line x1="590" y1="104" x2="650" y2="132" stroke="var(--border)" stroke-width="1.5"/>
+    <line x1="590" y1="177" x2="650" y2="148" stroke="var(--border)" stroke-width="1.5"/>
+    <!-- cluster note -->
+    <rect x="650" y="195" width="290" height="62" rx="10" fill="var(--bg)" stroke="var(--border)" stroke-dasharray="4 3"/>
+    <text x="665" y="220" font-size="11.5" fill="var(--muted)">⋯ × thousands of nodes, grouped into pods</text>
+    <text x="665" y="240" font-size="11.5" fill="var(--muted)">(scalable units of ~256 nodes each)</text>
+    <text x="800" y="80" font-size="11" fill="var(--faint)">InfiniBand / RoCE fabric</text>
+    <text x="800" y="96" font-size="11" fill="var(--faint)">fat-tree, full bisection</text>
+  </svg></div>
+
+  <div class="sliderrow" style="margin-top:14px">
+    <label for="cl-n">Cluster size</label>
+    <input type="range" id="cl-n" min="0" max="5" step="1" value="2" oninput="clCalc()">
+    <span class="val" id="cl-nval">1,024 nodes</span>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">Total GPUs</div><div class="num" id="cl-gpu">8,192</div></div>
+    <div class="metric"><div class="lab">bf16 compute (≈1 PFLOPS/GPU)</div><div class="num" id="cl-flops">8.2 EFLOPS</div></div>
+    <div class="metric"><div class="lab">Network injection bandwidth</div><div class="num" id="cl-bw">3.3 Pb/s</div></div>
+    <div class="metric"><div class="lab">Power draw (~10 kW/node)</div><div class="num" id="cl-pw">10 MW</div></div>
+  </div>
+
+  <h3>How the model is actually split — 3D parallelism</h3>
+  <p class="lead" style="margin-bottom:12px">A 70B+ model doesn't fit (or run fast enough) on one GPU, so frontier labs combine three kinds of parallelism. Gradient all-reduce — this page's topic — happens across the <b>data-parallel</b> dimension.</p>
+  <div class="grid3">
+    <div class="pcard">
+      <span class="ptag" style="background:rgba(127,119,221,0.15);color:var(--purple-d)">Data parallel</span>
+      <h3>Same model, different data</h3>
+      <p>Each replica trains on its own data shard, then <b>all-reduces gradients every step</b> so all replicas stay identical. This is the traffic we visualize below.</p>
+    </div>
+    <div class="pcard">
+      <span class="ptag" style="background:rgba(29,158,117,0.15);color:var(--teal)">Tensor parallel</span>
+      <h3>One layer, split across 8 GPUs</h3>
+      <p>Each matrix multiply is sliced across the 8 GPUs <b>inside a node</b> — needs an all-reduce inside every layer, so it must stay on NVLink.</p>
+    </div>
+    <div class="pcard">
+      <span class="ptag" style="background:rgba(239,159,39,0.18);color:var(--amber)">Pipeline parallel</span>
+      <h3>Layers split into stages</h3>
+      <p>Groups of layers live on different nodes; micro-batches flow through like an assembly line. Only thin activations cross stage boundaries.</p>
+    </div>
+  </div>
+  <p class="caption">Example layout for 8,192 GPUs: tensor parallel = 8 (inside each node) × pipeline parallel = 16 → one model copy spans 128 GPUs → data parallel = 64 replicas. The gradient all-reduce then runs across those 64 replicas, and each GPU only syncs its 1/128 slice of the model — much smaller than the full 140 GB.</p>
+</div>
+
+<!-- ============ 2. ONE TRAINING STEP ============ -->
+<div class="card" id="sec-step">
+  <h2><span class="secnum">2</span>One training step — yes, gradients sync <i>every</i> step</h2>
+  <p class="lead">Each step: <b>forward</b> (compute loss) → <b>backward</b> (compute gradients) → <b>all-reduce</b> (average gradients across all replicas) → <b>optimizer</b> (update weights). The trick: gradients for the last layers are ready <i>first</i> during backward, so communication starts immediately and runs <b>concurrently</b> with the rest of backward. Toggle overlap and press play.</p>
+  <div class="controls" style="margin-bottom:10px">
+    <button class="primary" id="tl-play" onclick="tlPlay()">▶ Play step</button>
+    <button onclick="tlStop();tlT=0;tlRender()">Reset</button>
+    <label style="font-size:14px;color:var(--muted);display:flex;align-items:center;gap:7px;cursor:pointer">
+      <input type="checkbox" id="tl-ov" checked onchange="tlStop();tlT=0;tlRender()" style="accent-color:var(--purple)">
+      Overlap communication with backward
+    </label>
+    <span class="steplab" id="tl-time">t = 0.00 s</span>
+  </div>
+  <input type="range" id="tl-scrub" min="0" max="5.4" step="0.01" value="0" style="width:100%;accent-color:var(--purple)" oninput="tlStop();tlT=+this.value;tlRender()">
+  <div style="overflow-x:auto"><svg id="tl-svg" width="100%" viewBox="0 0 960 235" style="min-width:720px"></svg></div>
+  <div class="metrics" style="margin-top:6px">
+    <div class="metric"><div class="lab">Step time</div><div class="num" id="tl-total" style="color:var(--purple-d)">4.15 s</div></div>
+    <div class="metric"><div class="lab">Exposed (visible) comm time</div><div class="num" id="tl-exposed">0.35 s</div></div>
+    <div class="metric"><div class="lab">Comm cost vs no overlap</div><div class="num" id="tl-save" style="color:var(--teal)">−78%</div></div>
+  </div>
+  <p class="caption">Illustrative numbers for a 70B-class run. With overlap, the all-reduce is chopped into <b>buckets</b> (≈25–100 MB each): as soon as backward finishes the gradients of the last layers, their bucket starts flying over the network while earlier layers are still computing. Only a small tail of communication remains exposed after backward ends.</p>
+</div>
+
+<!-- ============ 3. RING ============ -->
+<div class="card" id="sec-ring">
+  <h2><span class="secnum">3</span>Ring all-reduce — the basic algorithm GPUs use to build a sum</h2>
+  <p class="lead">4 GPUs split the gradient into 4 chunks (A–D) and pass them around a ring. 3 reduce-scatter steps + 3 all-gather steps and everyone holds the full sum. Per-GPU traffic ≈ 2 × gradient size, <b>independent of GPU count</b>.</p>
+  <div class="controls">
+    <button id="r-back" onclick="rGo(-1)">← Back</button>
+    <button id="r-next" onclick="rGo(1)">Next →</button>
+    <button id="r-play" onclick="rPlay()">▶ Auto-play</button>
+    <button onclick="rStopAuto();rStep=0;rRender()">Reset</button>
+    <span class="pill" id="r-pill">Start</span>
+    <span class="steplab" id="r-lab">Step 0 / 6</span>
+  </div>
+  <p class="desc" id="r-desc"></p>
+  <div class="grid4" id="r-gpus"></div>
+  <p class="caption">Ring direction: GPU 0 → 1 → 2 → 3 → back to 0. Filled squares = how many GPUs' contributions are summed into that chunk. Amber outline = chunk received this step.</p>
+</div>
+
+<!-- ============ 4. HIERARCHICAL ============ -->
+<div class="card" id="sec-hier">
+  <h2><span class="secnum">4</span>Hierarchical 3-phase — what actually happens with thousands of nodes</h2>
+  <p class="lead">Example: 1,024 nodes × 8 GPUs = 8,192 GPUs, 70B model (140 GB gradient). The picture shows 2 of the 1,024 nodes and 4 of the 8 GPUs per node.</p>
+  <div class="controls">
+    <button id="h-back" onclick="hGo(-1)">← Back</button>
+    <button id="h-next" onclick="hGo(1)">Next →</button>
+    <button onclick="hStep=0;hRender()">Reset</button>
+    <span class="pill" id="h-pill">Start</span>
+    <span class="steplab" id="h-lab">Step 0 / 3</span>
+  </div>
+  <p class="desc" id="h-desc"></p>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--surface)"></span>own gradient only</span>
+    <span><span class="sw" style="background:var(--green-2);border-color:var(--green-2)"></span>node-local sum (8 GPUs)</span>
+    <span><span class="sw" style="background:var(--purple);border-color:var(--purple)"></span>global sum (8,192 GPUs)</span>
+  </div>
+  <div class="grid2" id="h-nodes"></div>
+  <div class="spine" id="h-spine"><span style="font-size:18px">⇄</span><span id="h-spt"></span></div>
+  <p class="caption">Each GPU's 4 squares = gradient chunks A–D. In phase 2, GPUs responsible for the same chunk (GPU k of node 0 ↔ GPU k of node 1 ↔ …) sum across node boundaries.</p>
+</div>
+
+<!-- ============ 5. TREE ============ -->
+<div class="card" id="sec-tree">
+  <h2><span class="secnum">5</span>Tree all-reduce — the structure that connects nodes</h2>
+  <p class="lead">16-node example (real clusters: 1,024+). Leaves = the gradient chunk each node holds. Pairs sum upward (<b>reduce</b>); once the root holds the global sum it flows back down (<b>broadcast</b>). A ring needs hops proportional to node count, but a tree finishes in log₂(N) levels.</p>
+  <div class="controls">
+    <button id="t-back" onclick="tGo(-1)">← Back</button>
+    <button id="t-next" onclick="tGo(1)">Next →</button>
+    <button id="t-play" onclick="tPlay()">▶ Auto-play</button>
+    <button onclick="tStop();tStep=0;tRender()">Reset</button>
+    <span class="pill" id="t-pill">Start</span>
+    <span class="steplab" id="t-lab">Step 0 / 8</span>
+  </div>
+  <p class="desc" id="t-desc"></p>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--surface)"></span>waiting (own chunk only)</span>
+    <span><span class="sw" style="background:var(--green-2);border-color:var(--green-2)"></span>partial sum (number = nodes merged)</span>
+    <span><span class="sw" style="background:var(--purple);border-color:var(--purple)"></span>global sum (16/16)</span>
+  </div>
+  <div style="overflow-x:auto"><svg id="t-svg" width="100%" viewBox="0 0 960 480" style="min-width:720px"></svg></div>
+  <p class="caption">Inner vertices are not separate machines — one of the two children simply holds the partial sum on behalf of the pair. In practice NCCL runs two complementary trees at once (double binary tree) so no link sits idle.</p>
+  <div style="margin-top:20px;border-top:0.5px solid var(--border);padding-top:16px">
+    <div class="sliderrow">
+      <label for="t-n">Node count</label>
+      <input type="range" id="t-n" min="0" max="6" step="1" value="3" oninput="tHops()">
+      <span class="val" id="t-nval">1,024 nodes</span>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="lab">Ring hops (latency ∝)</div><div class="num" style="color:var(--coral)" id="t-ring">2,046</div></div>
+      <div class="metric"><div class="lab">Tree hops (latency ∝)</div><div class="num" style="color:var(--purple-d)" id="t-tree">20</div></div>
+      <div class="metric"><div class="lab">Latency reduction</div><div class="num" id="t-ratio">102×</div></div>
+    </div>
+    <p class="caption">ring hops = 2(N−1), tree hops ≈ 2·log₂N. Both are near-optimal on bandwidth, but with thousands of nodes <b>latency</b> kills the ring — that's why inter-node traffic uses trees.</p>
+  </div>
+</div>
+
+<!-- ============ 6. CALCULATOR ============ -->
+<div class="card" id="sec-calc">
+  <h2><span class="secnum">6</span>Bandwidth calculator — how much moves in one step</h2>
+  <p class="lead">Play with model size / GPU count / link speed. Per-GPU traffic in ring all-reduce stays flat as you add GPUs, while a naive everyone-sends-to-everyone scheme explodes.</p>
+  <div class="sliderrow">
+    <label for="c-p">Model size</label>
+    <input type="range" id="c-p" min="0" max="6" step="1" value="3" oninput="cCalc()">
+    <span class="val" id="c-pv">70B params</span>
+  </div>
+  <div class="sliderrow">
+    <label for="c-g">GPU count</label>
+    <input type="range" id="c-g" min="0" max="5" step="1" value="3" oninput="cCalc()">
+    <span class="val" id="c-gv">2,048</span>
+  </div>
+  <div class="sliderrow">
+    <label for="c-b">Link per GPU</label>
+    <input type="range" id="c-b" min="0" max="3" step="1" value="2" oninput="cCalc()">
+    <span class="val" id="c-bv">400 Gb/s</span>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">Gradient size (bf16)</div><div class="num" id="c-grad">140 GB</div></div>
+    <div class="metric"><div class="lab">Per-GPU traffic (ring)</div><div class="num" id="c-ring">280 GB</div></div>
+    <div class="metric"><div class="lab">Sync time (flat ring)</div><div class="num" id="c-time">5.6 s</div></div>
+    <div class="metric"><div class="lab">Hierarchical (÷8 via NVLink)</div><div class="num" id="c-hier" style="color:var(--teal)">0.7 s</div></div>
+  </div>
+  <div class="barrow">
+    <span class="blab">Ring all-reduce</span>
+    <div class="track"><div class="fill" id="c-bar-ring" style="background:var(--teal);width:30%"></div></div>
+    <span class="bval" id="c-val-ring">280 GB</span>
+  </div>
+  <div class="barrow">
+    <span class="blab">Naive (send to all)</span>
+    <div class="track"><div class="fill" style="background:var(--coral);width:100%"></div></div>
+    <span class="bval" id="c-val-naive">286.6 TB</span>
+  </div>
+  <p class="caption">Log scale. In real runs, hierarchy (NVLink does 8× the work locally) + overlap with backward hides most of the sync time behind compute, and ZeRO/FSDP skips the all-gather, halving the traffic.</p>
+</div>
+
+<!-- ============ 7. REAL TIMING ============ -->
+<div class="card" id="sec-timing">
+  <h2><span class="secnum">7</span>Putting numbers on it — how long is one step, really?</h2>
+  <p class="lead">Worked example: 70B-class model, 8,192 H100s (1,024 nodes), ~4M tokens per global batch, 3D parallelism (TP 8 · PP 16 · DP 64).</p>
+  <table class="facts">
+    <tr><td>Compute per step</td><td>≈ 6 × 70B params × 4M tokens ≈ 1.7×10¹⁸ FLOPs → at ~40–50% MFU on 8,192 H100s ≈ <b>0.5–1.5 s</b></td></tr>
+    <tr><td>Gradient each GPU must sync</td><td>140 GB ÷ 128 (TP×PP shards) ≈ <b>1.1 GB</b> per GPU, all-reduced across 64 DP replicas</td></tr>
+    <tr><td>Raw all-reduce time</td><td>~2 × 1.1 GB at 400 Gb/s (50 GB/s) + tree latency ≈ <b>50–300 ms</b></td></tr>
+    <tr><td>Exposed after overlap</td><td>Buckets fly during backward → typically <b>≈ 0–100 ms</b> visible</td></tr>
+    <tr><td><b>Total step time</b></td><td><b>≈ 1–2 seconds</b> → tens of thousands of steps over weeks of training</td></tr>
+  </table>
+  <h3>Scaling up — a 175B (GPT-3-class) model</h3>
+  <p class="lead" style="margin-bottom:8px">Compute per step ≈ 6 × params × batch tokens = 6 × 175B × 4M ≈ 4.2×10¹⁸ FLOPs. Iteration time barely changes with model size — labs just scale the cluster to keep it in the same 1–5 s band.</p>
+  <table class="facts compact">
+    <tr><td>Modern run (8,192 H100s)</td><td><b>≈ 1.5–2 s per iteration</b> — gradient is 350 GB, but only ~2.7 GB per GPU after TP×PP sharding, so the all-reduce is ~0.1–0.3 s and hidden by overlap. ~500k steps over 2T tokens ≈ <b>10–12 days</b> of pure step time.</td></tr>
+    <tr><td>Original GPT-3 (2020, ~10,000 V100s)</td><td><b>≈ 13 s per iteration</b> at ~20% MFU with a 3.2M-token batch — ~94k steps over 300B tokens ≈ a month. Same model class, ~8× slower per step than today's hardware (V100 → H100, 100 → 400 Gb/s NICs).</td></tr>
+  </table>
+  <p class="caption" style="margin-top:14px">So the answers to the two big questions: <b>(1) Yes — gradients are synchronized on every single optimizer step</b>; skip it and the replicas drift apart into different models. <b>(2) The all-reduce itself takes tens to hundreds of milliseconds</b> at frontier scale, and because it overlaps with backward compute, the <i>visible</i> cost is close to zero on a healthy network. That's why labs obsess over fabric reliability: one slow link (a "straggler") stalls all 8,192 GPUs at the synchronization barrier every step.</p>
+</div>
+
+<!-- ============ 8. SPEED FAQ ============ -->
+<div class="card" id="sec-faq">
+  <h2><span class="secnum">8</span>Speed intuition — "but copying 100 GB takes seconds!"</h2>
+  <p class="lead">Fair instinct — through <b>one</b> link, it does. Every answer below comes down to a single principle: <b>no link ever carries the whole gradient, and every link in the datacenter works at the same time.</b></p>
+
+  <h3>How long does moving 100 GB actually take?</h3>
+  <table class="facts compact">
+    <tr><td>NVMe SSD</td><td>~7 GB/s → <b>~14 s</b></td></tr>
+    <tr><td>One 400 Gb/s NIC (InfiniBand)</td><td>50 GB/s → <b>2 s</b></td></tr>
+    <tr><td>PCIe Gen5 x16</td><td>~64 GB/s → <b>~1.6 s</b></td></tr>
+    <tr><td>One node's 8 NICs combined</td><td>400 GB/s → <b>0.25 s</b></td></tr>
+    <tr><td>NVLink/NVSwitch (intra-node)</td><td>~900 GB/s → <b>~0.11 s</b></td></tr>
+  </table>
+  <p class="caption" style="margin: 10px 0 18px">The sync pipeline is engineered precisely to dodge the "2 s per NIC" reality: shrink what each NIC carries, push the bulk over NVLink (18× faster), and hide the rest behind backward compute.</p>
+
+  <details class="faq">
+    <summary>If one NIC needs ~2 s for 100 GB, how is the whole all-reduce sub-second?</summary>
+    <div class="faq-body">
+      Because the 140 GB never goes through one pipe.
+      <ol>
+        <li><b>All-reduce isn't "everyone sends everything to everyone."</b> With ring/tree algorithms, each byte crosses each link about twice in total — once being reduced, once being broadcast back.</li>
+        <li><b>The gradient is split 8 ways before touching the network.</b> After the NVLink reduce-scatter, each GPU holds only 17.5 GB (140 ÷ 8) and all-reduces it through <b>its own NIC</b> — 8 NICs per node streaming in parallel ⇒ 400 GB/s per node.</li>
+        <li><b>Every node does this simultaneously.</b> 8,192 NICs together move ~410 TB/s. Per-GPU cost ≈ 2 × 17.5 GB ÷ 50 GB/s = 0.7 s — regardless of node count.</li>
+        <li><b>With 3D parallelism it's smaller still:</b> each GPU owns ~1–3 GB, so the all-reduce drops to tens of milliseconds.</li>
+      </ol>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>The tree merges pairs level by level — isn't that one-by-one?</summary>
+    <div class="faq-body">
+      <p style="margin:0 0 8px">Within a level: <b>fully parallel</b> — node1+node2 → node12 and node3+node4 → node34 happen at the same instant on different links (512 simultaneous merges at the first level of a 1,024-node tree). Across levels: yes, there's a dependency chain — node12+node34 must wait for both inputs — but the chain is only as long as the tree is <i>tall</i>: <b>log₂(1024) = 10 levels</b>. So 1,023 merges of <i>work</i> finish in 10 steps of <i>time</i>.</p>
+      <p style="margin:0"><b>Chunk pipelining hides even those 10 levels.</b> The data streams as many small chunks: while level 2 sums chunk #1, level 1 is summing chunk #2 and the leaves are sending chunk #3. Once the pipeline fills (10 hops × microseconds), every level is busy simultaneously — tree height costs only a tiny latency term, not bandwidth.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>The final sum must reach all 1,024 nodes — doesn't that cost 1,024 × copy time?</summary>
+    <div class="faq-body">
+      <p style="margin:0 0 8px">No — <b>every node that receives the result immediately becomes a sender too.</b> Coverage doubles each hop: 1 → 2 → 4 → 8 → … → 1,024 in just 10 hops. The <i>total work</i> is still N−1 = 1,023 copies, but it's spread across 1,023 <i>different links</i> running in parallel, and with chunk pipelining the wall-clock converges to ≈ the time to copy the data <b>once</b> (17.5 GB ÷ 50 GB/s ≈ 0.35 s) — whether there are 16 nodes or 16,000.</p>
+      <p style="margin:0">"N × copy time" is real in exactly one design: the old <b>parameter-server star</b>, where one server pushes the result to N workers through its single uplink. That's the red "naive: send to all" bar in the calculator above — and it's precisely what all-reduce replaced. Watch it live in section 5: during broadcast (steps 5–8), the active amber links go 1 → 2 → 4 → 8.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>So… everything runs in parallel?</summary>
+    <div class="faq-body">
+      Yes — parallelism is stacked at every layer:
+      <ol>
+        <li><b>Within a tree level</b> — all pair-merges fire simultaneously on different links.</li>
+        <li><b>Across levels</b> — chunk streaming pipelines them; every level works on a different chunk at once.</li>
+        <li><b>Across the 8 gradient slices</b> — each NIC runs its own independent tree, concurrently.</li>
+        <li><b>Across all nodes</b> — every node participates in every phase at the same time; nobody waits a turn.</li>
+        <li><b>Against compute</b> — the whole all-reduce runs while the GPUs are still doing backward (network engines and compute units are separate hardware).</li>
+      </ol>
+      The only genuinely serial residue: the ~10-hop pipeline fill-up (microseconds) and the final gradient bucket the optimizer must wait for — the small exposed tail in the section 2 timeline. The right mental model isn't "data moving around a cluster"; it's <b>every link in the datacenter firing at once, each carrying a different small piece</b>.
+    </div>
+  </details>
+</div>
+
+<div class="card" style="text-align:center;background:linear-gradient(120deg, rgba(127,119,221,0.10), rgba(29,158,117,0.10))">
+  <h2 style="margin-bottom:8px">Ready to test yourself?</h2>
+  <p class="lead" style="margin-bottom:16px">10 questions covering everything above — instant feedback with explanations.</p>
+  <button class="primary" onclick="showTab('practice')" style="font-size:15px;padding:10px 26px">Go to Practice →</button>
+</div>
+
+</div><!-- /tab-learn -->
+
+<!-- ============================ PRACTICE TAB ============================ -->
+<div id="tab-practice" class="hidden">
+  <div class="hero">
+    <h1>Practice — check your understanding</h1>
+    <p class="sub">10 questions. Pick an answer to get instant feedback and a short explanation. Your score is tallied at the end.</p>
+  </div>
+  <div class="card">
+    <div class="qprog" id="q-prog"></div>
+    <div id="q-body"></div>
+  </div>
+  <div class="card" style="background:var(--surface);border:none">
+    <p class="lead" style="margin:0">Stuck? Jump back to <a href="#" onclick="showTab('learn');return false" style="color:var(--purple-d);font-weight:600">the Learn tab</a> — every question maps to one of the interactive sections.</p>
+  </div>
+</div><!-- /tab-practice -->
+
+</div>
+
+<script>
+// ---------- tabs ----------
+function showTab(t) {
+  document.getElementById('tab-learn').classList.toggle('hidden', t!=='learn');
+  document.getElementById('tab-practice').classList.toggle('hidden', t!=='practice');
+  document.getElementById('tab-btn-learn').classList.toggle('active', t==='learn');
+  document.getElementById('tab-btn-practice').classList.toggle('active', t==='practice');
+  window.scrollTo({top:0});
+}
+
+// ---------- 1. cluster anatomy ----------
+(function clBuild() {
+  let g = '';
+  for (let i=0;i<8;i++) {
+    const x = 40 + (i%4)*73, y = 60 + Math.floor(i/4)*42;
+    g += '<rect x="'+x+'" y="'+y+'" width="60" height="32" rx="7" fill="var(--green-2)" opacity="0.92"/>' +
+         '<text x="'+(x+30)+'" y="'+(y+21)+'" text-anchor="middle" font-size="11" font-weight="600" fill="#243a0e">GPU '+i+'</text>';
+  }
+  document.getElementById('cl-gpus').innerHTML = g;
+  let n = '';
+  for (let i=0;i<8;i++) {
+    const x = 52 + i*38;
+    n += '<circle cx="'+x+'" cy="218" r="8" fill="var(--amber)"/>' +
+         '<line x1="'+x+'" y1="174" x2="'+x+'" y2="210" stroke="var(--border)" stroke-width="1"/>';
+  }
+  document.getElementById('cl-nics').innerHTML = n;
+})();
+function clCalc() {
+  const NODES = [128, 512, 1024, 4096, 8192, 24576];
+  const N = NODES[+document.getElementById('cl-n').value];
+  const gpus = N*8;
+  const ef = gpus/1000; // ~1 PFLOPS bf16 per GPU
+  const bw = gpus*400/1e6; // Pb/s
+  const pw = N*10.2/1000; // MW
+  document.getElementById('cl-nval').textContent = N.toLocaleString()+' nodes';
+  document.getElementById('cl-gpu').textContent = gpus.toLocaleString();
+  document.getElementById('cl-flops').textContent = ef >= 1 ? ef.toFixed(1) + ' EFLOPS' : Math.round(ef*1000) + ' PFLOPS';
+  document.getElementById('cl-bw').textContent = bw>=1 ? bw.toFixed(1)+' Pb/s' : (bw*1000).toFixed(0)+' Tb/s';
+  document.getElementById('cl-pw').textContent = pw>=1 ? Math.round(pw)+' MW' : (pw*1000).toFixed(0)+' kW';
+}
+
+// ---------- 2. step timeline ----------
+const TLROWS = [
+  {key:'fwd',  lab:'Forward pass',        color:'var(--green-2)'},
+  {key:'bwd',  lab:'Backward pass',       color:'var(--teal)'},
+  {key:'comm', lab:'Gradient all-reduce', color:'var(--purple)'},
+  {key:'opt',  lab:'Optimizer step',      color:'var(--amber)'},
+];
+const TL_MAX = 5.4;
+let tlT = 0, tlRaf = null, tlLast = 0;
+function tlSegs() {
+  const ov = document.getElementById('tl-ov').checked;
+  if (ov) return { fwd:{s:0,d:1.2}, bwd:{s:1.2,d:2.4}, comm:{s:1.7,d:2.25}, opt:{s:3.95,d:0.2}, total:4.15, ov:true };
+  return { fwd:{s:0,d:1.2}, bwd:{s:1.2,d:2.4}, comm:{s:3.6,d:1.6}, opt:{s:5.2,d:0.2}, total:5.4, ov:false };
+}
+function tlRender() {
+  const sg = tlSegs();
+  const X0 = 175, W = 760, scale = W/TL_MAX;
+  let out = '';
+  for (let s=0; s<=5; s++) {
+    const x = X0 + s*scale;
+    out += '<line x1="'+x+'" y1="18" x2="'+x+'" y2="200" stroke="var(--border)" stroke-width="0.7" stroke-dasharray="3 4"/>' +
+           '<text x="'+x+'" y="215" text-anchor="middle" font-size="10.5" fill="var(--faint)">'+s+'s</text>';
+  }
+  TLROWS.forEach((r,i) => {
+    const y = 28 + i*44, seg = sg[r.key];
+    out += '<text x="165" y="'+(y+15)+'" text-anchor="end" font-size="12.5" font-weight="600" fill="var(--muted)">'+r.lab+'</text>';
+    const drawSeg = (s,d) => {
+      const x = X0 + s*scale, w = d*scale;
+      const fw = Math.max(0, Math.min(tlT-s, d))*scale;
+      let h = '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="22" rx="5" fill="'+r.color+'" opacity="0.18"/>';
+      if (fw > 0.5) h += '<rect x="'+x+'" y="'+y+'" width="'+fw+'" height="22" rx="5" fill="'+r.color+'"/>';
+      return h;
+    };
+    if (r.key==='comm' && sg.ov) {
+      const nB = 6, gap = seg.d/nB;
+      for (let b=0;b<nB;b++) out += drawSeg(seg.s + b*gap, gap*0.78);
+      out += '<text x="'+(X0+(seg.s+seg.d)*scale+8)+'" y="'+(y+15)+'" font-size="10.5" fill="var(--faint)">buckets, during backward</text>';
+    } else {
+      out += drawSeg(seg.s, seg.d);
+    }
+  });
+  const cx = X0 + Math.min(tlT, sg.total)*scale;
+  out += '<line x1="'+cx+'" y1="14" x2="'+cx+'" y2="204" stroke="var(--coral)" stroke-width="1.8"/>' +
+         '<circle cx="'+cx+'" cy="14" r="4" fill="var(--coral)"/>';
+  document.getElementById('tl-svg').innerHTML = out;
+  document.getElementById('tl-time').textContent = 't = ' + tlT.toFixed(2) + ' s';
+  const scrub = document.getElementById('tl-scrub');
+  scrub.max = sg.total; if (+scrub.value !== tlT) scrub.value = tlT;
+  document.getElementById('tl-total').textContent = sg.total.toFixed(2) + ' s';
+  document.getElementById('tl-exposed').textContent = sg.ov ? '0.35 s' : '1.60 s';
+  document.getElementById('tl-save').textContent = sg.ov ? '−78%' : '—';
+}
+function tlPlay() {
+  if (tlRaf) { tlStop(); return; }
+  if (tlT >= tlSegs().total - 0.01) tlT = 0;
+  document.getElementById('tl-play').textContent = '⏸ Pause';
+  tlLast = performance.now();
+  const tick = now => {
+    tlT += (now - tlLast)/1000 * 1.1;
+    tlLast = now;
+    const tot = tlSegs().total;
+    if (tlT >= tot) { tlT = tot; tlRender(); tlStop(); return; }
+    tlRender();
+    tlRaf = requestAnimationFrame(tick);
+  };
+  tlRaf = requestAnimationFrame(tick);
+}
+function tlStop() {
+  if (tlRaf) { cancelAnimationFrame(tlRaf); tlRaf = null; }
+  document.getElementById('tl-play').textContent = '▶ Play step';
+}
+
+// ---------- 3. Ring all-reduce ----------
+const RN = 4, RCH = ['A','B','C','D'];
+let rStep = 0, rTimer = null;
+const RDESC = [
+  "Start — every GPU computed gradients from its own data shard. Each GPU holds only its own contribution (1/4) for all 4 chunks. Goal: everyone ends up with the full sum of all 4.",
+  "reduce-scatter 1/3 — all GPUs simultaneously send one chunk to their right neighbor; the receiver adds it to its own. All 4 links are busy at once.",
+  "reduce-scatter 2/3 — partial sums travel around the ring, gaining one more contribution per hop.",
+  "reduce-scatter 3/3 — done. Each GPU now owns one fully-summed chunk (4/4): GPU0→B, GPU1→C, GPU2→D, GPU3→A.",
+  "all-gather 1/3 — the completed chunks start circulating. Receivers replace their stale partial sums with the finished version.",
+  "all-gather 2/3 — completed chunks advance two hops.",
+  "all-gather 3/3 — finished. Every GPU holds the identical full sum. Per-GPU traffic = 2×(N−1)/N ≈ 2× gradient size — independent of GPU count."
+];
+function rState(s) {
+  const st = Array.from({length:RN},()=>Array(RN).fill(1));
+  let recv = Array.from({length:RN},()=>Array(RN).fill(false));
+  for (let i=0; i<Math.min(s,RN-1); i++) {
+    const upd=[];
+    for (let g=0; g<RN; g++) { const k=((g-i)%RN+RN)%RN, r=(g+1)%RN; upd.push([r,k,st[g][k]]); }
+    recv = Array.from({length:RN},()=>Array(RN).fill(false));
+    upd.forEach(u=>{ st[u[0]][u[1]]+=u[2]; recv[u[0]][u[1]]=true; });
+  }
+  for (let i=0; i<Math.max(0,s-(RN-1)); i++) {
+    const upd=[];
+    for (let g=0; g<RN; g++) { const k=((g+1-i)%RN+RN)%RN, r=(g+1)%RN; upd.push([r,k]); }
+    recv = Array.from({length:RN},()=>Array(RN).fill(false));
+    upd.forEach(u=>{ st[u[0]][u[1]]=RN; recv[u[0]][u[1]]=true; });
+  }
+  return {st, recv};
+}
+function rRender() {
+  const {st, recv} = rState(rStep);
+  const wrap = document.getElementById('r-gpus');
+  wrap.innerHTML = '';
+  for (let g=0; g<RN; g++) {
+    let h = '<div class="gpu-head">GPU ' + g + '</div>';
+    for (let c=0; c<RN; c++) {
+      const n = st[g][c], full = n===RN;
+      let segs = '';
+      for (let k=0; k<RN; k++) {
+        const bg = k<n ? (full ? 'background:var(--teal);border-color:var(--teal)' : 'background:var(--teal-l);border-color:var(--teal-l)') : '';
+        segs += '<span class="seg" style="' + bg + '"></span>';
+      }
+      h += '<div class="chunkrow' + (recv[g][c] ? ' hl' : '') + '"><span class="clab">' + RCH[c] + '</span><span class="segs">' + segs + '</span><span class="cnt' + (full?' full':'') + '">' + n + '/4</span></div>';
+    }
+    const card = document.createElement('div');
+    card.className = 'gpu-card';
+    card.innerHTML = h;
+    wrap.appendChild(card);
+  }
+  document.getElementById('r-desc').textContent = RDESC[rStep];
+  document.getElementById('r-lab').textContent = 'Step ' + rStep + ' / 6';
+  const pill = document.getElementById('r-pill');
+  if (rStep===0) { pill.textContent='Start'; pill.className='pill'; }
+  else if (rStep<=3) { pill.textContent='reduce-scatter'; pill.className='pill green'; }
+  else if (rStep<6) { pill.textContent='all-gather'; pill.className='pill purple'; }
+  else { pill.textContent='Done'; pill.className='pill green'; }
+  document.getElementById('r-back').disabled = rStep===0;
+  document.getElementById('r-next').disabled = rStep===6;
+}
+function rGo(d) { rStopAuto(); rStep = Math.max(0, Math.min(6, rStep+d)); rRender(); }
+function rPlay() {
+  if (rTimer) { rStopAuto(); return; }
+  if (rStep===6) rStep = 0;
+  document.getElementById('r-play').textContent = '⏸ Pause';
+  rTimer = setInterval(() => {
+    if (rStep >= 6) { rStopAuto(); return; }
+    rStep++; rRender();
+  }, 1300);
+}
+function rStopAuto() {
+  if (rTimer) { clearInterval(rTimer); rTimer = null; }
+  document.getElementById('r-play').textContent = '▶ Auto-play';
+}
+
+// ---------- 4. Hierarchical 3-phase ----------
+const HG = 4;
+let hStep = 0;
+const HDESC = [
+  "Start — 8,192 GPUs each ran backward on their own data shard. Every GPU holds a different 140 GB gradient. The data (5 TB) is only sharded; the gradients are what get synchronized.",
+  "Phase 1 · intra-node reduce-scatter (NVLink ~900 GB/s) — the 8 GPUs in each node split the gradient into 8 chunks and sum them. GPU k ends up with the node-local sum of its chunk (140÷8 = 17.5 GB). No network involved → ~0.15 s.",
+  "Phase 2 · inter-node tree all-reduce (InfiniBand) — across the 1,024 nodes, GPUs responsible for the same chunk sum their 17.5 GB through a tree. Hop count: log₂(1024)=10. The node's 8 NICs run 8 streams concurrently, ~35 GB per GPU (~0.7 s).",
+  "Phase 3 · intra-node all-gather (NVLink) — the completed global-sum chunks are redistributed to all 8 GPUs in the node. Every GPU now holds the identical 140 GB summed gradient → optimizer step. Repeat on the next mini-batch."
+];
+function hStateOf(s, g, c) {
+  if (s===0) return 'L';
+  if (s===1) return c===g ? 'N' : 'S';
+  if (s===2) return c===g ? 'G' : 'S';
+  return 'G';
+}
+function hCell(t) {
+  if (t==='N') return 'background:var(--green-2);border-color:var(--green-2)';
+  if (t==='G') return 'background:var(--purple);border-color:var(--purple)';
+  if (t==='S') return 'opacity:0.3';
+  return '';
+}
+function hRender() {
+  const wrap = document.getElementById('h-nodes');
+  wrap.innerHTML = '';
+  for (let n=0; n<2; n++) {
+    let h = '<div class="gpu-head">Node ' + n + ' <span class="nvtag' + ((hStep===1||hStep===3)?' on':'') + '">NVLink</span></div>';
+    for (let g=0; g<HG; g++) {
+      let cells = '';
+      for (let c=0; c<HG; c++) {
+        const t = hStateOf(hStep,g,c);
+        const prev = hStep>0 ? hStateOf(hStep-1,g,c) : t;
+        const hl = (hStep>0 && t!==prev && t!=='S') ? 'box-shadow:0 0 0 2px var(--amber);' : '';
+        cells += '<span class="seg" style="width:16px;height:16px;border-radius:4px;' + hCell(t) + ';' + hl + '"></span>';
+      }
+      h += '<div class="chunkrow"><span class="clab" style="width:42px">GPU ' + g + '</span><span class="segs" style="gap:5px">' + cells + '</span></div>';
+    }
+    const card = document.createElement('div');
+    card.className = 'gpu-card';
+    card.innerHTML = h;
+    wrap.appendChild(card);
+  }
+  document.getElementById('h-desc').textContent = HDESC[hStep];
+  document.getElementById('h-lab').textContent = 'Step ' + hStep + ' / 3';
+  const pill = document.getElementById('h-pill');
+  if (hStep===0) { pill.textContent='Start'; pill.className='pill'; }
+  else if (hStep===1) { pill.textContent='intra-node reduce-scatter'; pill.className='pill green'; }
+  else if (hStep===2) { pill.textContent='inter-node tree all-reduce'; pill.className='pill purple'; }
+  else { pill.textContent='Done · all-gather'; pill.className='pill green'; }
+  const sp = document.getElementById('h-spine'), spt = document.getElementById('h-spt');
+  if (hStep===2) { sp.classList.add('on'); spt.textContent = 'InfiniBand spine — same-chunk GPUs running tree all-reduce across all 1,024 nodes (log₂ 1024 = 10 hops)'; }
+  else { sp.classList.remove('on'); spt.textContent = 'InfiniBand spine — idle (the other 1,022 nodes connect here too)'; }
+  document.getElementById('h-back').disabled = hStep===0;
+  document.getElementById('h-next').disabled = hStep===3;
+}
+function hGo(d) { hStep = Math.max(0, Math.min(3, hStep+d)); hRender(); }
+
+// ---------- 5. Tree all-reduce ----------
+const TLEAF = 16, TLEV = 4;
+let tStep = 0, tTimer = null;
+const TDESC = [
+  "Start — 16 nodes each hold their gradient chunk (after the phase-1 intra-node reduce-scatter). The number = how many nodes' values are merged in.",
+  "reduce 1/4 — neighboring pairs sum up. 8 pairs proceed simultaneously; each partial sum covers 2 nodes.",
+  "reduce 2/4 — pairs sum again. Partial sums cover 4 nodes. All sums run in parallel, so this costs only one extra hop of time.",
+  "reduce 3/4 — partial sums cover 8 nodes. 3 hops so far.",
+  "reduce 4/4 — root reached. The sum over all 16 nodes is complete (purple). Even with 1,024 nodes this takes just 10 hops.",
+  "broadcast 1/4 — the finished sum starts flowing back down the tree.",
+  "broadcast 2/4 — one level further down. Each node forwards to its children immediately.",
+  "broadcast 3/4 — almost fully distributed.",
+  "broadcast 4/4 — done. All 16 nodes hold the global sum. Total 2·log₂(16) = 8 hops (a ring would need 2×15 = 30)."
+];
+function tBuild() {
+  const svg = document.getElementById('t-svg');
+  const ys = [420, 330, 240, 150, 60];
+  const pos = [];
+  pos[0] = [];
+  for (let i=0; i<TLEAF; i++) pos[0].push([30 + i*60, ys[0]]);
+  for (let l=1; l<=TLEV; l++) {
+    pos[l] = [];
+    const cnt = TLEAF >> l;
+    for (let j=0; j<cnt; j++) {
+      const a = pos[l-1][2*j], b = pos[l-1][2*j+1];
+      pos[l].push([(a[0]+b[0])/2, ys[l]]);
+    }
+  }
+  let edges = '', nodes = '';
+  for (let l=1; l<=TLEV; l++) {
+    for (let j=0; j<pos[l].length; j++) {
+      const p = pos[l][j];
+      [pos[l-1][2*j], pos[l-1][2*j+1]].forEach((c,ci) => {
+        edges += '<line id="te-' + l + '-' + j + '-' + ci + '" x1="' + c[0] + '" y1="' + (c[1]-16) + '" x2="' + p[0] + '" y2="' + (p[1]+16) + '" stroke="var(--border)" stroke-width="1.2"/>';
+      });
+    }
+  }
+  for (let l=0; l<=TLEV; l++) {
+    for (let j=0; j<pos[l].length; j++) {
+      const p = pos[l][j];
+      nodes += '<g id="tn-' + l + '-' + j + '"><circle cx="' + p[0] + '" cy="' + p[1] + '" r="16" fill="var(--surface)" stroke="var(--border)" stroke-width="0.8"/>' +
+        '<text x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="600" fill="var(--muted)">1</text></g>';
+    }
+  }
+  let labels = '';
+  labels += '<text x="952" y="424" text-anchor="end" font-size="11" fill="var(--faint)">nodes ×16 (leaves)</text>';
+  labels += '<text x="952" y="64" text-anchor="end" font-size="11" fill="var(--faint)">root (global sum)</text>';
+  svg.innerHTML = edges + nodes + labels;
+}
+function tSet(l, j, count, color, textColor) {
+  const g = document.getElementById('tn-' + l + '-' + j);
+  const c = g.querySelector('circle'), t = g.querySelector('text');
+  c.setAttribute('fill', color);
+  c.setAttribute('stroke', color === 'var(--surface)' ? 'var(--border)' : color);
+  t.setAttribute('fill', textColor);
+  t.textContent = count;
+}
+function tEdge(l, j, ci, on) {
+  const e = document.getElementById('te-' + l + '-' + j + '-' + ci);
+  e.setAttribute('stroke', on ? 'var(--amber)' : 'var(--border)');
+  e.setAttribute('stroke-width', on ? '2.5' : '1.2');
+}
+function tRender() {
+  const s = tStep;
+  for (let l=0; l<=TLEV; l++) {
+    const cnt = TLEAF >> l;
+    for (let j=0; j<cnt; j++) {
+      let count, color, tc;
+      const reduceDone = (l>=1 && s>=l);
+      const bcastReached = s >= (4 + (TLEV - l)) && s > 4;
+      if (l===TLEV && s>=4 || bcastReached) {
+        count = 16; color = 'var(--purple)'; tc = '#fff';
+      } else if (l===0) {
+        count = 1; color = 'var(--surface)'; tc = 'var(--muted)';
+      } else if (reduceDone) {
+        count = 1 << l;
+        const greens = ['', 'var(--green-1)', 'var(--green-2)', 'var(--green-3)', 'var(--green-4)'];
+        color = greens[l]; tc = l>=3 ? '#fff' : '#2c3a14';
+      } else {
+        count = '·'; color = 'var(--surface)'; tc = 'var(--faint)';
+      }
+      tSet(l, j, count, color, tc);
+    }
+  }
+  for (let l=1; l<=TLEV; l++) {
+    const cnt = TLEAF >> l;
+    for (let j=0; j<cnt; j++) for (let ci=0; ci<2; ci++) {
+      const reduceActive = (s>=1 && s<=4 && l===s);
+      const bcastActive = (s>4 && (TLEV - (s-4)) === l-1);
+      tEdge(l, j, ci, reduceActive || bcastActive);
+    }
+  }
+  document.getElementById('t-desc').textContent = TDESC[s];
+  document.getElementById('t-lab').textContent = 'Step ' + s + ' / 8';
+  const pill = document.getElementById('t-pill');
+  if (s===0) { pill.textContent='Start'; pill.className='pill'; }
+  else if (s<=4) { pill.textContent='reduce ↑ (summing upward)'; pill.className='pill green'; }
+  else if (s<8) { pill.textContent='broadcast ↓ (distributing down)'; pill.className='pill purple'; }
+  else { pill.textContent='Done — 8 hops total'; pill.className='pill purple'; }
+  document.getElementById('t-back').disabled = s===0;
+  document.getElementById('t-next').disabled = s===8;
+}
+function tGo(d) { tStop(); tStep = Math.max(0, Math.min(8, tStep+d)); tRender(); }
+function tPlay() {
+  if (tTimer) { tStop(); return; }
+  if (tStep===8) tStep = 0;
+  document.getElementById('t-play').textContent = '⏸ Pause';
+  tTimer = setInterval(() => {
+    if (tStep >= 8) { tStop(); return; }
+    tStep++; tRender();
+  }, 1000);
+}
+function tStop() {
+  if (tTimer) { clearInterval(tTimer); tTimer = null; }
+  document.getElementById('t-play').textContent = '▶ Auto-play';
+}
+function tHops() {
+  const NS = [16, 64, 256, 1024, 4096, 16384, 65536];
+  const N = NS[+document.getElementById('t-n').value];
+  const ring = 2*(N-1), tree = 2*Math.log2(N);
+  document.getElementById('t-nval').textContent = N.toLocaleString() + ' nodes';
+  document.getElementById('t-ring').textContent = ring.toLocaleString();
+  document.getElementById('t-tree').textContent = Math.round(tree);
+  document.getElementById('t-ratio').textContent = Math.round(ring/tree).toLocaleString() + '×';
+}
+
+// ---------- 6. bandwidth calculator ----------
+function cCalc() {
+  const PARAMS = [7, 13, 34, 70, 175, 405, 1000];
+  const GPUS = [8, 64, 512, 2048, 4096, 16384];
+  const BW = [12.5, 25, 50, 100];
+  const BWL = ['100 Gb/s', '200 Gb/s', '400 Gb/s', '800 Gb/s'];
+  const P = PARAMS[+document.getElementById('c-p').value];
+  const N = GPUS[+document.getElementById('c-g').value];
+  const bi = +document.getElementById('c-b').value;
+  const S = 2*P;
+  const ring = 2*(N-1)/N*S;
+  const naive = (N-1)*S;
+  const t = ring/BW[bi];
+  const fmtB = gb => gb>=1e6 ? (gb/1e6).toFixed(1)+' PB' : gb>=1000 ? (gb/1000).toFixed(1)+' TB' : Math.round(gb)+' GB';
+  const fmtT = s => s<1 ? Math.round(s*1000)+' ms' : s<120 ? s.toFixed(1)+' s' : (s/60).toFixed(1)+' min';
+  document.getElementById('c-pv').textContent = P + 'B params';
+  document.getElementById('c-gv').textContent = N.toLocaleString();
+  document.getElementById('c-bv').textContent = BWL[bi];
+  document.getElementById('c-grad').textContent = fmtB(S);
+  document.getElementById('c-ring').textContent = fmtB(ring);
+  document.getElementById('c-time').textContent = fmtT(t);
+  document.getElementById('c-hier').textContent = fmtT(t/8);
+  document.getElementById('c-val-ring').textContent = fmtB(ring);
+  document.getElementById('c-val-naive').textContent = fmtB(naive);
+  const pct = Math.max(8, 100*Math.log10(ring+1)/Math.log10(naive+1));
+  document.getElementById('c-bar-ring').style.width = Math.round(pct) + '%';
+}
+
+// ---------- quiz ----------
+const QUIZ = [
+  { q: "During distributed training, what is synchronized between GPUs on every step?",
+    opts: ["The training data, so all GPUs see the same examples",
+           "The gradients — averaged across all replicas",
+           "The model architecture definition",
+           "Nothing — GPUs train independently and merge at the end"],
+    a: 1,
+    ex: "Data is only sharded (each node reads a different slice) and never synchronized. What must stay identical across replicas are the weights — so the gradients, one full model-size tensor, are averaged every single optimizer step." },
+  { q: "A 70B-parameter model keeps gradients in bf16 (2 bytes per parameter). How much gradient data exists per step?",
+    opts: ["70 GB", "140 GB", "280 GB", "5 TB"],
+    a: 1,
+    ex: "70 × 10⁹ params × 2 bytes = 140 GB. That entire tensor is all-reduced every step — which is why the interconnect matters so much." },
+  { q: "In ring all-reduce, how does per-GPU traffic change as you add more GPUs?",
+    opts: ["Grows linearly with GPU count",
+           "Grows with log₂ of GPU count",
+           "Stays roughly constant at ≈ 2× the gradient size",
+           "Shrinks, since each GPU handles a smaller share"],
+    a: 2,
+    ex: "Per-GPU traffic is 2×(N−1)/N × gradient size, which approaches 2× the gradient size as N grows. That bandwidth-optimality is why ring is the workhorse — its weakness is latency, not volume." },
+  { q: "Why do clusters use a tree instead of a ring across thousands of nodes?",
+    opts: ["Trees move strictly less data than rings",
+           "Ring latency grows linearly with node count, tree latency grows with log₂(N)",
+           "Rings require special hardware that trees don't",
+           "Trees skip the reduction math entirely"],
+    a: 1,
+    ex: "A ring needs 2(N−1) sequential hops — 2,046 hops for 1,024 nodes. A tree needs ≈ 2·log₂(N) = 20. Both are near-optimal on bandwidth; latency is what kills the ring at scale." },
+  { q: "With 1,024 nodes, roughly how many hops does tree all-reduce take (reduce up + broadcast down)?",
+    opts: ["About 2,046", "About 1,024", "About 20", "Exactly 4"],
+    a: 2,
+    ex: "log₂(1024) = 10 levels up to reduce, 10 levels down to broadcast → ≈ 20 hops. Every pair-sum at a level happens in parallel, so each level costs only one hop of time." },
+  { q: "What hides most of the gradient-sync time in real training runs?",
+    opts: ["Compressing gradients to 1 bit",
+           "Overlapping communication with the backward pass",
+           "Synchronizing only every 100th step",
+           "Using a faster optimizer like AdamW"],
+    a: 1,
+    ex: "Backward computes gradients layer-by-layer from the end. As soon as the last layers' gradients are ready, their bucket starts all-reducing while earlier layers are still computing. On a healthy network, almost no communication time is exposed." },
+  { q: "Inside one node, what connects the 8 GPUs for the fast local reduce-scatter?",
+    opts: ["Standard Ethernet", "PCIe only", "NVLink / NVSwitch at ~900 GB/s", "InfiniBand between the GPUs"],
+    a: 2,
+    ex: "NVSwitch gives every GPU ~900 GB/s to every other GPU in the node — roughly 18× a 400 Gb/s NIC. That's why the hierarchy does as much work as possible inside the node before touching the network." },
+  { q: "What does ZeRO / FSDP mainly change about gradient synchronization?",
+    opts: ["It eliminates synchronization entirely",
+           "Each GPU keeps only a shard of the optimizer state and parameters, so a reduce-scatter suffices — roughly halving communication versus a full all-reduce",
+           "It synchronizes the training data instead of gradients",
+           "It switches gradients to fp64 for accuracy"],
+    a: 1,
+    ex: "If each GPU only updates its own shard of the weights, it only needs the summed gradient for that shard — a reduce-scatter (1× gradient size) instead of a full all-reduce (2×). The updated shards are all-gathered later, overlapped with the next forward pass." },
+  { q: "Moving 100 GB through a single 400 Gb/s NIC takes ~2 s. Why doesn't a 140 GB all-reduce across 1,024 nodes take many seconds?",
+    opts: ["Gradients are compressed 100× before sending",
+           "No single link ever carries the full gradient — it's split into slices, each crossing its own link, with every link in the cluster busy in parallel",
+           "Datacenter NICs are secretly much faster than their rated speed",
+           "Gradients are only synchronized every few minutes, not every step"],
+    a: 1,
+    ex: "The gradient is split 8 ways onto the node's 8 NICs (17.5 GB each), all 8,192 NICs in the cluster stream simultaneously (~410 TB/s aggregate), and each byte crosses each link only ~2×. With 3D parallelism the per-GPU slice is ~1–3 GB, making it tens of milliseconds." },
+  { q: "After the reduce, the final summed gradient must reach all 1,024 nodes. How long does the broadcast take?",
+    opts: ["1,024 × the single-copy time, since each node needs its own copy",
+           "It isn't broadcast — only the root node keeps the result",
+           "≈ one single-copy time — receivers immediately forward to others, so holders double every hop and all links work in parallel",
+           "It depends on the optimizer being used"],
+    a: 2,
+    ex: "Coverage doubles each hop (1→2→4→…→1,024 in 10 hops). Total work is N−1 copies, but spread over N−1 different links in parallel, and chunk pipelining makes wall-clock ≈ one copy time. 'N × copy time' is the old parameter-server star design that all-reduce replaced." },
+];
+let qIdx = 0, qAnswers = [];
+function qRenderProg() {
+  let h = '';
+  for (let i=0; i<QUIZ.length; i++) {
+    let cls = 'qdot';
+    if (qAnswers[i] !== undefined) cls += qAnswers[i] === QUIZ[i].a ? ' done-right' : ' done-wrong';
+    else if (i === qIdx) cls += ' current';
+    h += '<div class="' + cls + '"></div>';
+  }
+  document.getElementById('q-prog').innerHTML = h;
+}
+function qRender() {
+  qRenderProg();
+  const body = document.getElementById('q-body');
+  if (qIdx >= QUIZ.length) {
+    const score = qAnswers.filter((a,i) => a === QUIZ[i].a).length;
+    const pct = Math.round(100*score/QUIZ.length);
+    const msg = pct === 100 ? "Perfect — you could brief an infra team." :
+                pct >= 75 ? "Strong grasp of distributed training. Review the ones you missed." :
+                pct >= 50 ? "Good start — revisit the Learn tab sections for the questions you missed." :
+                "Worth another pass through the Learn tab — the interactives make it stick.";
+    body.innerHTML =
+      '<div class="qscore"><div class="big">' + score + ' / ' + QUIZ.length + '</div>' +
+      '<p class="lead">' + msg + '</p>' +
+      '<div style="display:flex;gap:10px;justify-content:center;margin-top:10px">' +
+      '<button class="primary" onclick="qIdx=0;qAnswers=[];qRender()">↻ Retake quiz</button>' +
+      '<button onclick="showTab(\'learn\')">← Back to Learn</button></div></div>';
+    return;
+  }
+  const item = QUIZ[qIdx];
+  const answered = qAnswers[qIdx] !== undefined;
+  let h = '<p class="lead" style="margin-bottom:4px">Question ' + (qIdx+1) + ' of ' + QUIZ.length + '</p>' +
+          '<p class="qtext">' + item.q + '</p>';
+  item.opts.forEach((o,i) => {
+    let cls = 'qopt';
+    if (answered) {
+      if (i === item.a) cls += ' right';
+      else if (i === qAnswers[qIdx]) cls += ' wrong';
+    }
+    h += '<button class="' + cls + '" ' + (answered ? 'disabled' : '') + ' onclick="qAnswer(' + i + ')">' +
+         String.fromCharCode(65+i) + '. &nbsp;' + o + '</button>';
+  });
+  if (answered) {
+    const right = qAnswers[qIdx] === item.a;
+    h += '<div class="qexplain"><b style="color:' + (right ? 'var(--green-3)' : 'var(--coral)') + '">' +
+         (right ? '✓ Correct.' : '✗ Not quite.') + '</b> ' + item.ex + '</div>' +
+         '<div style="text-align:right"><button class="primary" onclick="qIdx++;qRender()">' +
+         (qIdx === QUIZ.length-1 ? 'See score →' : 'Next question →') + '</button></div>';
+  }
+  body.innerHTML = h;
+}
+function qAnswer(i) { qAnswers[qIdx] = i; qRender(); }
+
+// ---------- init ----------
+clCalc();
+tlRender();
+rRender();
+hRender();
+tBuild();
+tRender();
+tHops();
+cCalc();
+qRender();
+</script>
+</body>
+</html>

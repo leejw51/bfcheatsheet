@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>초대규모 AI 학습에서 그래디언트는 어떻게 동기화되는가 — 링 · 계층형 · 트리 All-Reduce</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --card: #ffffff;
+    --text: #2c2c2a;
+    --muted: #6b6a64;
+    --faint: #9c9a92;
+    --border: rgba(0,0,0,0.12);
+    --surface: #f1efe8;
+    --green-1: #C0DD97;
+    --green-2: #97C459;
+    --green-3: #639922;
+    --green-4: #3B6D11;
+    --purple: #7F77DD;
+    --purple-d: #534AB7;
+    --amber: #EF9F27;
+    --coral: #D85A30;
+    --teal: #1D9E75;
+    --teal-l: #9FE1CB;
+    --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 6px 24px rgba(0,0,0,0.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1d1d1b;
+      --card: #2a2a28;
+      --text: #e8e6df;
+      --muted: #b3b1a8;
+      --faint: #82807a;
+      --border: rgba(255,255,255,0.14);
+      --surface: #3a3a37;
+      --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 6px 24px rgba(0,0,0,0.25);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", Roboto, "Helvetica Neue", sans-serif;
+    line-height: 1.7;
+    font-size: 16px;
+  }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  /* ---- top nav ---- */
+  .topnav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .navin { max-width: 1020px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 16px; }
+  .brand { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+  .brand .dot { color: var(--purple); }
+  .tabs { margin-left: auto; display: flex; gap: 6px; background: var(--surface); border-radius: 999px; padding: 3px; }
+  .tabbtn {
+    border: none; background: transparent; border-radius: 999px;
+    padding: 6px 18px; font-size: 14px; cursor: pointer; color: var(--muted);
+    font-family: inherit; font-weight: 500;
+  }
+  .tabbtn.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+
+  /* ---- hero ---- */
+  .hero { padding: 30px 0 8px; }
+  h1 {
+    font-size: 34px; font-weight: 800; margin: 0 0 8px; letter-spacing: -0.02em; line-height: 1.25;
+    background: linear-gradient(100deg, var(--text) 30%, var(--purple) 75%, var(--teal));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  h2 { font-size: 20px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h3 { font-size: 15px; font-weight: 700; margin: 14px 0 4px; }
+  .sub { color: var(--muted); font-size: 15px; margin: 0 0 22px; max-width: 760px; }
+  .herostats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 12px; margin: 0 0 28px; }
+  .hstat { background: var(--card); border: 0.5px solid var(--border); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .hstat .n { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+  .hstat .l { font-size: 12px; color: var(--muted); }
+
+  .card {
+    background: var(--card);
+    border: 0.5px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 26px;
+    margin: 0 0 26px;
+    box-shadow: var(--shadow);
+  }
+  .secnum {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 8px; font-size: 13px; font-weight: 700;
+    background: linear-gradient(135deg, var(--purple), var(--teal)); color: #fff;
+    margin-right: 8px; vertical-align: -5px;
+  }
+  .desc { font-size: 14px; color: var(--muted); min-height: 64px; margin: 10px 0 14px; }
+  .lead { font-size: 14px; color: var(--muted); margin: 4px 0 16px; }
+  button {
+    background: transparent;
+    border: 0.5px solid var(--border);
+    border-radius: 9px;
+    color: var(--text);
+    padding: 7px 15px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background .15s, transform .1s;
+  }
+  button:hover:not(:disabled) { background: var(--surface); }
+  button:active:not(:disabled) { transform: scale(0.97); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  button.primary { background: var(--purple); border-color: var(--purple); color: #fff; font-weight: 600; }
+  button.primary:hover:not(:disabled) { background: var(--purple-d); }
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    font-size: 12px; padding: 4px 12px; border-radius: 999px;
+    background: var(--surface); color: var(--muted); font-weight: 500;
+  }
+  .pill.green { background: rgba(99,153,34,0.15); color: var(--green-3); }
+  .pill.purple { background: rgba(127,119,221,0.15); color: var(--purple-d); }
+  @media (prefers-color-scheme: dark) {
+    .pill.green { color: var(--green-1); }
+    .pill.purple { color: #AFA9EC; }
+  }
+  .steplab { font-size: 13px; color: var(--faint); margin-left: auto; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; border: 0.5px solid var(--border); }
+  .caption { font-size: 12px; color: var(--faint); margin: 12px 0 0; line-height: 1.6; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 10px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  @media (max-width: 700px) { .grid4 { grid-template-columns: repeat(2, minmax(0,1fr)); } .grid3 { grid-template-columns: 1fr; } }
+  .gpu-card { background: var(--bg); border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+  .gpu-head { font-size: 13px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .chunkrow { display: flex; align-items: center; gap: 6px; margin: 4px 0; padding: 3px 5px; border-radius: 6px; }
+  .chunkrow.hl { box-shadow: 0 0 0 2px var(--amber); }
+  .clab { font-size: 12px; color: var(--muted); width: 14px; }
+  .segs { display: flex; gap: 3px; }
+  .seg { width: 11px; height: 11px; border-radius: 2px; border: 0.5px solid var(--border); background: var(--surface); transition: background .25s; }
+  .cnt { font-size: 11px; color: var(--faint); margin-left: auto; }
+  .cnt.full { color: var(--teal); font-weight: 600; }
+  .nvtag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface); color: var(--faint); font-weight: 400; }
+  .nvtag.on { background: rgba(99,153,34,0.15); color: var(--green-3); }
+  @media (prefers-color-scheme: dark) { .nvtag.on { color: var(--green-1); } }
+  .spine {
+    margin-top: 12px; border: 0.5px solid var(--border); border-radius: 12px;
+    padding: 10px 14px; font-size: 13px; color: var(--muted);
+    display: flex; align-items: center; gap: 8px; transition: box-shadow .3s;
+  }
+  .spine.on { box-shadow: 0 0 0 2px var(--purple); }
+  .sliderrow { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+  .sliderrow label { font-size: 14px; color: var(--muted); width: 130px; flex-shrink: 0; }
+  .sliderrow input[type=range] { flex: 1; accent-color: var(--purple); }
+  .sliderrow .val { font-size: 14px; font-weight: 600; min-width: 110px; text-align: right; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin: 16px 0; }
+  .metric { background: var(--surface); border-radius: 12px; padding: 14px 16px; }
+  .metric .lab { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .metric .num { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .barrow { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+  .barrow .blab { font-size: 13px; color: var(--muted); width: 160px; flex-shrink: 0; }
+  .track { flex: 1; height: 18px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+  .fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  .bval { font-size: 13px; font-weight: 600; min-width: 84px; text-align: right; }
+  svg text { font-family: inherit; }
+  .toc { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 28px; }
+  .toc a {
+    font-size: 13px; color: var(--muted); text-decoration: none;
+    border: 0.5px solid var(--border); border-radius: 999px; padding: 5px 14px;
+    background: var(--card); transition: background .15s;
+  }
+  .toc a:hover { background: var(--surface); }
+  table.facts { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.facts td { padding: 9px 10px; border-top: 0.5px solid var(--border); }
+  table.facts td:first-child { color: var(--muted); width: 230px; }
+  table.facts tr:first-child td { border-top: none; }
+
+  /* ---- parallelism cards ---- */
+  .pcard { background: var(--bg); border: 0.5px solid var(--border); border-radius: 14px; padding: 16px; transition: transform .15s, box-shadow .15s; }
+  .pcard:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .pcard h3 { margin: 10px 0 4px; font-size: 14px; }
+  .pcard p { font-size: 12.5px; color: var(--muted); margin: 0; line-height: 1.55; }
+  .ptag { font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 999px; display: inline-block; }
+
+  /* ---- faq accordions ---- */
+  details.faq { border: 0.5px solid var(--border); border-radius: 12px; margin: 10px 0; background: var(--bg); overflow: hidden; }
+  details.faq summary { cursor: pointer; padding: 13px 16px; font-size: 14.5px; font-weight: 600; list-style: none; display: flex; align-items: center; gap: 12px; }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::before { content: '+'; color: var(--purple); font-weight: 700; font-size: 17px; width: 14px; flex-shrink: 0; }
+  details.faq[open] summary::before { content: '−'; }
+  details.faq summary:hover { background: var(--surface); }
+  .faq-body { padding: 0 16px 14px 42px; font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+  .faq-body ul, .faq-body ol { margin: 8px 0; padding-left: 20px; }
+  .faq-body li { margin: 4px 0; }
+  table.facts.compact td:first-child { width: 200px; }
+
+  /* ---- quiz ---- */
+  .qprog { display: flex; gap: 6px; margin: 0 0 18px; }
+  .qdot { flex: 1; height: 6px; border-radius: 3px; background: var(--surface); transition: background .2s; }
+  .qdot.done-right { background: var(--green-2); }
+  .qdot.done-wrong { background: var(--coral); }
+  .qdot.current { background: var(--purple); }
+  .qtext { font-size: 17px; font-weight: 600; margin: 0 0 16px; line-height: 1.5; }
+  .qopt {
+    display: block; width: 100%; text-align: left; margin: 8px 0; padding: 12px 16px;
+    border-radius: 12px; font-size: 14.5px; line-height: 1.5; background: var(--bg);
+  }
+  .qopt:hover:not(:disabled) { background: var(--surface); }
+  .qopt.right { border-color: var(--green-3); background: rgba(99,153,34,0.12); opacity: 1; }
+  .qopt.wrong { border-color: var(--coral); background: rgba(216,90,48,0.12); opacity: 1; }
+  .qexplain {
+    border-left: 3px solid var(--purple); background: var(--surface);
+    border-radius: 0 10px 10px 0; padding: 12px 16px; font-size: 13.5px; color: var(--muted);
+    margin: 14px 0; line-height: 1.6;
+  }
+  .qscore { text-align: center; padding: 18px 0 6px; }
+  .qscore .big { font-size: 44px; font-weight: 800; letter-spacing: -0.02em; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="navin">
+    <span class="brand">All-Reduce<span class="dot">·</span>시각화</span>
+    <div class="tabs">
+      <button class="tabbtn active" id="tab-btn-learn" onclick="showTab('learn')">학습</button>
+      <button class="tabbtn" id="tab-btn-practice" onclick="showTab('practice')">연습</button>
+    </div>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ============================ LEARN TAB ============================ -->
+<div id="tab-learn">
+
+<div class="hero">
+  <h1>초대규모 분산 학습에서 그래디언트가 동기화되는 방식</h1>
+  <p class="sub">Anthropic, OpenAI 같은 연구소가 <b>수천 개의 노드</b>(노드당 GPU 8개)에서 하나의 모델을 학습하는 방법: 링 all-reduce, 계층형 3단계 동기화, 트리 토폴로지, backward와의 중첩(overlap) — 그리고 한 스텝이 실제로 걸리는 시간.</p>
+</div>
+
+<div class="herostats">
+  <div class="hstat"><div class="n">8,192</div><div class="l">예시 클러스터의 GPU 수 (1,024 노드 × 8)</div></div>
+  <div class="hstat"><div class="n">140 GB</div><div class="l"><b>매 스텝마다</b> 동기화되는 그래디언트 (70B 파라미터, bf16)</div></div>
+  <div class="hstat"><div class="n">~0.3–0.7초</div><div class="l">스텝당 순수 all-reduce 시간 (대부분 숨겨짐)</div></div>
+  <div class="hstat"><div class="n">≈ 0초</div><div class="l">backward와 중첩한 뒤 실제로 드러나는 동기화 시간</div></div>
+</div>
+
+<div class="toc">
+  <a href="#sec-intro">핵심 정리</a>
+  <a href="#sec-cluster">1 · 클러스터의 구조</a>
+  <a href="#sec-step">2 · 학습 한 스텝</a>
+  <a href="#sec-ring">3 · 링 all-reduce</a>
+  <a href="#sec-hier">4 · 계층형 3단계</a>
+  <a href="#sec-tree">5 · 트리 all-reduce</a>
+  <a href="#sec-calc">6 · 대역폭 계산기</a>
+  <a href="#sec-timing">7 · 실제 스텝 시간</a>
+  <a href="#sec-faq">8 · 속도 FAQ</a>
+</div>
+
+<div class="card" id="sec-intro">
+  <h2>핵심 정리</h2>
+  <table class="facts">
+    <tr><td>학습 데이터 (예: 5 TB)</td><td><b>샤딩</b>만 됩니다 — 각 노드가 서로 다른 조각을 읽습니다. <b>절대 동기화되지 않습니다.</b></td></tr>
+    <tr><td>동기화되는 것</td><td><b>그래디언트</b> — 모델 크기에 비례 (bf16 기준 70B 모델 → <b>140 GB</b>, 매 스텝마다)</td></tr>
+    <tr><td>노드 내부 (GPU 8개)</td><td>NVLink/NVSwitch ~900 GB/s로 reduce-scatter / all-gather 수행</td></tr>
+    <tr><td>노드 사이 (수천 개)</td><td>InfiniBand/RoCE 위에서 <b>트리 all-reduce</b> — 홉 수는 O(log N)</td></tr>
+    <tr><td>체감 비용</td><td>backward 연산과 중첩 → 거의 숨겨짐; ZeRO/FSDP는 트래픽을 절반으로 줄임</td></tr>
+  </table>
+</div>
+
+<!-- ============ 1. CLUSTER ANATOMY ============ -->
+<div class="card" id="sec-cluster">
+  <h2><span class="secnum">1</span>프런티어 학습 클러스터의 구조</h2>
+  <p class="lead"><b>노드</b> 하나에는 NVSwitch(~900 GB/s 전대전)로 연결된 GPU 8개와 NIC 8개가 들어갑니다 — GPU당 400 Gb/s NIC 하나, “레일 최적화(rail-optimized)” 구성. 수천 개의 노드가 leaf/spine 구조의 InfiniBand 또는 RoCE 패브릭에 매달립니다. 클러스터 규모 슬라이더를 움직여 스케일을 체감해 보세요.</p>
+
+  <div style="overflow-x:auto"><svg width="100%" viewBox="0 0 960 290" style="min-width:720px">
+    <!-- node box -->
+    <rect x="20" y="20" width="330" height="240" rx="14" fill="var(--bg)" stroke="var(--border)"/>
+    <text x="36" y="46" font-size="13" font-weight="700" fill="var(--text)">노드 1개 (예: DGX/HGX급)</text>
+    <!-- 8 gpus -->
+    <g id="cl-gpus"></g>
+    <!-- nvswitch -->
+    <rect x="40" y="148" width="290" height="26" rx="7" fill="var(--purple)" opacity="0.9"/>
+    <text x="185" y="165" text-anchor="middle" font-size="11.5" font-weight="600" fill="#fff">NVSwitch — GPU↔GPU ~900 GB/s</text>
+    <!-- nics -->
+    <g id="cl-nics"></g>
+    <text x="185" y="246" text-anchor="middle" font-size="10.5" fill="var(--faint)">8 × 400 Gb/s NIC — GPU당 레일 하나</text>
+    <!-- links to leaf -->
+    <path d="M 350 215 C 410 215 410 120 460 105" stroke="var(--amber)" stroke-width="2" fill="none"/>
+    <path d="M 350 225 C 415 228 415 185 460 178" stroke="var(--amber)" stroke-width="2" fill="none" opacity="0.55"/>
+    <!-- leaf switches -->
+    <rect x="460" y="85" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--border)"/>
+    <text x="525" y="109" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">Leaf 스위치</text>
+    <rect x="460" y="158" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--border)"/>
+    <text x="525" y="182" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">Leaf 스위치</text>
+    <!-- spine -->
+    <rect x="650" y="120" width="130" height="38" rx="9" fill="var(--surface)" stroke="var(--purple)" stroke-width="1.4"/>
+    <text x="715" y="144" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">Spine 스위치</text>
+    <line x1="590" y1="104" x2="650" y2="132" stroke="var(--border)" stroke-width="1.5"/>
+    <line x1="590" y1="177" x2="650" y2="148" stroke="var(--border)" stroke-width="1.5"/>
+    <!-- cluster note -->
+    <rect x="650" y="195" width="290" height="62" rx="10" fill="var(--bg)" stroke="var(--border)" stroke-dasharray="4 3"/>
+    <text x="665" y="220" font-size="11.5" fill="var(--muted)">⋯ × 수천 개 노드, 포드(pod) 단위로 묶임</text>
+    <text x="665" y="240" font-size="11.5" fill="var(--muted)">(노드 ~256개씩의 확장 단위)</text>
+    <text x="800" y="80" font-size="11" fill="var(--faint)">InfiniBand / RoCE 패브릭</text>
+    <text x="800" y="96" font-size="11" fill="var(--faint)">fat-tree, 풀 바이섹션</text>
+  </svg></div>
+
+  <div class="sliderrow" style="margin-top:14px">
+    <label for="cl-n">클러스터 규모</label>
+    <input type="range" id="cl-n" min="0" max="5" step="1" value="2" oninput="clCalc()">
+    <span class="val" id="cl-nval">1,024 노드</span>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">전체 GPU 수</div><div class="num" id="cl-gpu">8,192</div></div>
+    <div class="metric"><div class="lab">bf16 연산 성능 (GPU당 ≈1 PFLOPS)</div><div class="num" id="cl-flops">8.2 EFLOPS</div></div>
+    <div class="metric"><div class="lab">네트워크 주입 대역폭</div><div class="num" id="cl-bw">3.3 Pb/s</div></div>
+    <div class="metric"><div class="lab">전력 소비 (노드당 ~10 kW)</div><div class="num" id="cl-pw">10 MW</div></div>
+  </div>
+
+  <h3>모델은 실제로 어떻게 쪼개지는가 — 3D 병렬화</h3>
+  <p class="lead" style="margin-bottom:12px">70B 이상의 모델은 GPU 하나에 들어가지 않(거나 충분히 빠르게 돌지 않)기 때문에, 프런티어 연구소들은 세 가지 병렬화를 조합합니다. 이 페이지의 주제인 그래디언트 all-reduce는 <b>데이터 병렬</b> 차원에서 일어납니다.</p>
+  <div class="grid3">
+    <div class="pcard">
+      <span class="ptag" style="background:rgba(127,119,221,0.15);color:var(--purple-d)">데이터 병렬</span>
+      <h3>같은 모델, 다른 데이터</h3>
+      <p>각 복제본이 자기 데이터 샤드로 학습한 뒤, <b>매 스텝 그래디언트를 all-reduce</b>해서 모든 복제본을 동일하게 유지합니다. 아래에서 시각화하는 트래픽이 바로 이것입니다.</p>
+    </div>
+    <div class="pcard">
+      <span class="ptag" style="background:rgba(29,158,117,0.15);color:var(--teal)">텐서 병렬</span>
+      <h3>한 레이어를 GPU 8개에 분할</h3>
+      <p>각 행렬 곱이 <b>노드 내부의</b> GPU 8개에 걸쳐 쪼개집니다 — 레이어마다 all-reduce가 필요하므로 NVLink 위에 머물러야 합니다.</p>
+    </div>
+    <div class="pcard">
+      <span class="ptag" style="background:rgba(239,159,39,0.18);color:var(--amber)">파이프라인 병렬</span>
+      <h3>레이어를 스테이지로 분할</h3>
+      <p>레이어 묶음이 서로 다른 노드에 놓이고, 마이크로배치가 조립 라인처럼 흘러갑니다. 스테이지 경계를 넘는 것은 얇은 activation뿐입니다.</p>
+    </div>
+  </div>
+  <p class="caption">8,192 GPU의 예시 배치: 텐서 병렬 = 8 (노드 내부) × 파이프라인 병렬 = 16 → 모델 사본 하나가 GPU 128개에 걸침 → 데이터 병렬 = 복제본 64개. 그래디언트 all-reduce는 이 64개 복제본 사이에서 돌고, 각 GPU는 모델의 1/128 조각만 동기화합니다 — 전체 140 GB보다 훨씬 작습니다.</p>
+</div>
+
+<!-- ============ 2. ONE TRAINING STEP ============ -->
+<div class="card" id="sec-step">
+  <h2><span class="secnum">2</span>학습 한 스텝 — 네, 그래디언트는 <i>매</i> 스텝 동기화됩니다</h2>
+  <p class="lead">각 스텝: <b>forward</b> (손실 계산) → <b>backward</b> (그래디언트 계산) → <b>all-reduce</b> (모든 복제본의 그래디언트 평균) → <b>optimizer</b> (가중치 업데이트). 비결: backward 중에 마지막 레이어들의 그래디언트가 <i>가장 먼저</i> 준비되므로, 통신이 즉시 시작되어 나머지 backward와 <b>동시에</b> 진행됩니다. 중첩(overlap)을 토글하고 재생을 눌러 보세요.</p>
+  <div class="controls" style="margin-bottom:10px">
+    <button class="primary" id="tl-play" onclick="tlPlay()">▶ 스텝 재생</button>
+    <button onclick="tlStop();tlT=0;tlRender()">초기화</button>
+    <label style="font-size:14px;color:var(--muted);display:flex;align-items:center;gap:7px;cursor:pointer">
+      <input type="checkbox" id="tl-ov" checked onchange="tlStop();tlT=0;tlRender()" style="accent-color:var(--purple)">
+      통신을 backward와 중첩
+    </label>
+    <span class="steplab" id="tl-time">t = 0.00 s</span>
+  </div>
+  <input type="range" id="tl-scrub" min="0" max="5.4" step="0.01" value="0" style="width:100%;accent-color:var(--purple)" oninput="tlStop();tlT=+this.value;tlRender()">
+  <div style="overflow-x:auto"><svg id="tl-svg" width="100%" viewBox="0 0 960 235" style="min-width:720px"></svg></div>
+  <div class="metrics" style="margin-top:6px">
+    <div class="metric"><div class="lab">스텝 시간</div><div class="num" id="tl-total" style="color:var(--purple-d)">4.15 s</div></div>
+    <div class="metric"><div class="lab">드러나는 통신 시간</div><div class="num" id="tl-exposed">0.35 s</div></div>
+    <div class="metric"><div class="lab">중첩 없을 때 대비 통신 비용</div><div class="num" id="tl-save" style="color:var(--teal)">−78%</div></div>
+  </div>
+  <p class="caption">70B급 학습을 보여주는 예시 수치입니다. 중첩을 켜면 all-reduce가 <b>버킷</b>(각 ≈25–100 MB)으로 잘게 나뉩니다: backward가 마지막 레이어들의 그래디언트를 끝내는 즉시 해당 버킷이 네트워크를 날기 시작하고, 그동안 앞쪽 레이어들은 아직 계산 중입니다. backward가 끝난 뒤에는 통신의 작은 꼬리만 드러납니다.</p>
+</div>
+
+<!-- ============ 3. RING ============ -->
+<div class="card" id="sec-ring">
+  <h2><span class="secnum">3</span>링 all-reduce — GPU들이 합을 만드는 기본 알고리즘</h2>
+  <p class="lead">GPU 4개가 그래디언트를 4개 청크(A–D)로 나눠 링을 따라 전달합니다. reduce-scatter 3단계 + all-gather 3단계면 모두가 전체 합을 갖게 됩니다. GPU당 트래픽 ≈ 그래디언트 크기의 2배, <b>GPU 수와 무관</b>합니다.</p>
+  <div class="controls">
+    <button id="r-back" onclick="rGo(-1)">← 이전</button>
+    <button id="r-next" onclick="rGo(1)">다음 →</button>
+    <button id="r-play" onclick="rPlay()">▶ 자동 재생</button>
+    <button onclick="rStopAuto();rStep=0;rRender()">초기화</button>
+    <span class="pill" id="r-pill">시작</span>
+    <span class="steplab" id="r-lab">단계 0 / 6</span>
+  </div>
+  <p class="desc" id="r-desc"></p>
+  <div class="grid4" id="r-gpus"></div>
+  <p class="caption">링 방향: GPU 0 → 1 → 2 → 3 → 다시 0. 채워진 사각형 = 그 청크에 합산된 GPU 기여 수. 주황 테두리 = 이번 단계에 받은 청크.</p>
+</div>
+
+<!-- ============ 4. HIERARCHICAL ============ -->
+<div class="card" id="sec-hier">
+  <h2><span class="secnum">4</span>계층형 3단계 — 수천 노드에서 실제로 일어나는 일</h2>
+  <p class="lead">예시: 1,024 노드 × 8 GPU = 8,192 GPU, 70B 모델 (그래디언트 140 GB). 그림은 1,024개 노드 중 2개, 노드당 8개 GPU 중 4개만 보여줍니다.</p>
+  <div class="controls">
+    <button id="h-back" onclick="hGo(-1)">← 이전</button>
+    <button id="h-next" onclick="hGo(1)">다음 →</button>
+    <button onclick="hStep=0;hRender()">초기화</button>
+    <span class="pill" id="h-pill">시작</span>
+    <span class="steplab" id="h-lab">단계 0 / 3</span>
+  </div>
+  <p class="desc" id="h-desc"></p>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--surface)"></span>자기 그래디언트만</span>
+    <span><span class="sw" style="background:var(--green-2);border-color:var(--green-2)"></span>노드 내부 합 (GPU 8개)</span>
+    <span><span class="sw" style="background:var(--purple);border-color:var(--purple)"></span>전역 합 (8,192 GPU)</span>
+  </div>
+  <div class="grid2" id="h-nodes"></div>
+  <div class="spine" id="h-spine"><span style="font-size:18px">⇄</span><span id="h-spt"></span></div>
+  <p class="caption">각 GPU의 사각형 4개 = 그래디언트 청크 A–D. 2단계에서는 같은 청크를 담당하는 GPU들(노드 0의 GPU k ↔ 노드 1의 GPU k ↔ …)이 노드 경계를 넘어 합산합니다.</p>
+</div>
+
+<!-- ============ 5. TREE ============ -->
+<div class="card" id="sec-tree">
+  <h2><span class="secnum">5</span>트리 all-reduce — 노드들을 잇는 구조</h2>
+  <p class="lead">16노드 예시 (실제 클러스터: 1,024개 이상). 잎(leaf) = 각 노드가 들고 있는 그래디언트 청크. 쌍끼리 위로 합산하고(<b>reduce</b>), 루트가 전역 합을 가지면 다시 아래로 흘려보냅니다(<b>broadcast</b>). 링은 노드 수에 비례하는 홉이 필요하지만, 트리는 log₂(N) 레벨이면 끝납니다.</p>
+  <div class="controls">
+    <button id="t-back" onclick="tGo(-1)">← 이전</button>
+    <button id="t-next" onclick="tGo(1)">다음 →</button>
+    <button id="t-play" onclick="tPlay()">▶ 자동 재생</button>
+    <button onclick="tStop();tStep=0;tRender()">초기화</button>
+    <span class="pill" id="t-pill">시작</span>
+    <span class="steplab" id="t-lab">단계 0 / 8</span>
+  </div>
+  <p class="desc" id="t-desc"></p>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--surface)"></span>대기 (자기 청크만)</span>
+    <span><span class="sw" style="background:var(--green-2);border-color:var(--green-2)"></span>부분합 (숫자 = 합쳐진 노드 수)</span>
+    <span><span class="sw" style="background:var(--purple);border-color:var(--purple)"></span>전역 합 (16/16)</span>
+  </div>
+  <div style="overflow-x:auto"><svg id="t-svg" width="100%" viewBox="0 0 960 480" style="min-width:720px"></svg></div>
+  <p class="caption">내부 정점은 별도의 머신이 아닙니다 — 두 자식 중 하나가 그 쌍을 대표해 부분합을 들고 있을 뿐입니다. 실전에서 NCCL은 상호 보완적인 트리 두 개를 동시에 돌려서(이중 이진 트리, double binary tree) 어떤 링크도 놀지 않게 합니다.</p>
+  <div style="margin-top:20px;border-top:0.5px solid var(--border);padding-top:16px">
+    <div class="sliderrow">
+      <label for="t-n">노드 수</label>
+      <input type="range" id="t-n" min="0" max="6" step="1" value="3" oninput="tHops()">
+      <span class="val" id="t-nval">1,024 노드</span>
+    </div>
+    <div class="metrics">
+      <div class="metric"><div class="lab">링 홉 수 (지연 ∝)</div><div class="num" style="color:var(--coral)" id="t-ring">2,046</div></div>
+      <div class="metric"><div class="lab">트리 홉 수 (지연 ∝)</div><div class="num" style="color:var(--purple-d)" id="t-tree">20</div></div>
+      <div class="metric"><div class="lab">지연 감소</div><div class="num" id="t-ratio">102×</div></div>
+    </div>
+    <p class="caption">링 홉 = 2(N−1), 트리 홉 ≈ 2·log₂N. 둘 다 대역폭은 거의 최적이지만, 노드가 수천 개면 <b>지연(latency)</b>이 링을 죽입니다 — 노드 간 트래픽에 트리를 쓰는 이유입니다.</p>
+  </div>
+</div>
+
+<!-- ============ 6. CALCULATOR ============ -->
+<div class="card" id="sec-calc">
+  <h2><span class="secnum">6</span>대역폭 계산기 — 한 스텝에 얼마나 움직이는가</h2>
+  <p class="lead">모델 크기 / GPU 수 / 링크 속도를 바꿔 보세요. 링 all-reduce의 GPU당 트래픽은 GPU를 늘려도 평평하게 유지되지만, 모두가 모두에게 보내는 단순(naive) 방식은 폭발합니다.</p>
+  <div class="sliderrow">
+    <label for="c-p">모델 크기</label>
+    <input type="range" id="c-p" min="0" max="6" step="1" value="3" oninput="cCalc()">
+    <span class="val" id="c-pv">70B 파라미터</span>
+  </div>
+  <div class="sliderrow">
+    <label for="c-g">GPU 수</label>
+    <input type="range" id="c-g" min="0" max="5" step="1" value="3" oninput="cCalc()">
+    <span class="val" id="c-gv">2,048</span>
+  </div>
+  <div class="sliderrow">
+    <label for="c-b">GPU당 링크</label>
+    <input type="range" id="c-b" min="0" max="3" step="1" value="2" oninput="cCalc()">
+    <span class="val" id="c-bv">400 Gb/s</span>
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="lab">그래디언트 크기 (bf16)</div><div class="num" id="c-grad">140 GB</div></div>
+    <div class="metric"><div class="lab">GPU당 트래픽 (링)</div><div class="num" id="c-ring">280 GB</div></div>
+    <div class="metric"><div class="lab">동기화 시간 (평면 링)</div><div class="num" id="c-time">5.6 s</div></div>
+    <div class="metric"><div class="lab">계층형 (NVLink로 ÷8)</div><div class="num" id="c-hier" style="color:var(--teal)">0.7 s</div></div>
+  </div>
+  <div class="barrow">
+    <span class="blab">링 all-reduce</span>
+    <div class="track"><div class="fill" id="c-bar-ring" style="background:var(--teal);width:30%"></div></div>
+    <span class="bval" id="c-val-ring">280 GB</span>
+  </div>
+  <div class="barrow">
+    <span class="blab">단순 방식 (모두에게 전송)</span>
+    <div class="track"><div class="fill" style="background:var(--coral);width:100%"></div></div>
+    <span class="bval" id="c-val-naive">286.6 TB</span>
+  </div>
+  <p class="caption">로그 스케일. 실제 학습에서는 계층화(NVLink가 8배의 일을 로컬에서 처리) + backward와의 중첩이 동기화 시간 대부분을 연산 뒤에 숨기고, ZeRO/FSDP는 all-gather를 생략해 트래픽을 절반으로 줄입니다.</p>
+</div>
+
+<!-- ============ 7. REAL TIMING ============ -->
+<div class="card" id="sec-timing">
+  <h2><span class="secnum">7</span>숫자로 따져보기 — 한 스텝은 실제로 얼마나 걸릴까?</h2>
+  <p class="lead">계산 예시: 70B급 모델, H100 8,192개 (1,024 노드), 글로벌 배치당 약 4M 토큰, 3D 병렬화 (TP 8 · PP 16 · DP 64).</p>
+  <table class="facts">
+    <tr><td>스텝당 연산량</td><td>≈ 6 × 70B 파라미터 × 4M 토큰 ≈ 1.7×10¹⁸ FLOPs → H100 8,192개에서 MFU ~40–50% 기준 ≈ <b>0.5–1.5초</b></td></tr>
+    <tr><td>GPU당 동기화할 그래디언트</td><td>140 GB ÷ 128 (TP×PP 샤드) ≈ GPU당 <b>1.1 GB</b>, DP 복제본 64개 사이에서 all-reduce</td></tr>
+    <tr><td>순수 all-reduce 시간</td><td>~2 × 1.1 GB를 400 Gb/s(50 GB/s)로 전송 + 트리 지연 ≈ <b>50–300 ms</b></td></tr>
+    <tr><td>중첩 후 드러나는 시간</td><td>버킷들이 backward 중에 날아감 → 보통 <b>≈ 0–100 ms</b>만 보임</td></tr>
+    <tr><td><b>총 스텝 시간</b></td><td><b>≈ 1–2초</b> → 몇 주간의 학습 동안 수만 스텝</td></tr>
+  </table>
+  <h3>규모 키우기 — 175B (GPT-3급) 모델</h3>
+  <p class="lead" style="margin-bottom:8px">스텝당 연산량 ≈ 6 × 파라미터 × 배치 토큰 = 6 × 175B × 4M ≈ 4.2×10¹⁸ FLOPs. 반복(iteration) 시간은 모델이 커져도 거의 변하지 않습니다 — 연구소들은 클러스터를 키워서 같은 1–5초 대역을 유지합니다.</p>
+  <table class="facts compact">
+    <tr><td>최신 학습 (H100 8,192개)</td><td><b>≈ 반복당 1.5–2초</b> — 그래디언트는 350 GB지만 TP×PP 샤딩 후 GPU당 ~2.7 GB뿐이라 all-reduce는 ~0.1–0.3초이고 중첩에 가려집니다. 2T 토큰에 ~50만 스텝 ≈ 순수 스텝 시간만 <b>10–12일</b>.</td></tr>
+    <tr><td>오리지널 GPT-3 (2020, V100 ~10,000개)</td><td><b>≈ 반복당 13초</b> — MFU ~20%, 3.2M 토큰 배치 — 300B 토큰에 ~9.4만 스텝 ≈ 약 한 달. 같은 모델급인데 오늘날 하드웨어보다 스텝당 ~8배 느림 (V100 → H100, 100 → 400 Gb/s NIC).</td></tr>
+  </table>
+  <p class="caption" style="margin-top:14px">그래서 두 가지 큰 질문의 답은: <b>(1) 네 — 그래디언트는 매 optimizer 스텝마다 동기화됩니다</b>; 건너뛰면 복제본들이 서로 다른 모델로 갈라집니다. <b>(2) all-reduce 자체는 프런티어 규모에서 수십~수백 밀리초</b>가 걸리고, backward 연산과 중첩되기 때문에 건강한 네트워크에서는 <i>눈에 보이는</i> 비용이 거의 0입니다. 연구소들이 패브릭 신뢰성에 집착하는 이유죠: 느린 링크 하나(“스트래글러”)가 매 스텝 동기화 장벽에서 8,192개 GPU 전체를 멈춰 세웁니다.</p>
+</div>
+
+<!-- ============ 8. SPEED FAQ ============ -->
+<div class="card" id="sec-faq">
+  <h2><span class="secnum">8</span>속도 직관 — “근데 100 GB 복사는 몇 초나 걸리잖아요!”</h2>
+  <p class="lead">타당한 직관입니다 — 링크 <b>하나</b>를 거치면 정말 그렇습니다. 아래 모든 답은 한 가지 원칙으로 귀결됩니다: <b>어떤 링크도 그래디언트 전체를 나르지 않고, 데이터센터의 모든 링크가 동시에 일합니다.</b></p>
+
+  <h3>100 GB를 옮기는 데 실제로 얼마나 걸리나?</h3>
+  <table class="facts compact">
+    <tr><td>NVMe SSD</td><td>~7 GB/s → <b>~14초</b></td></tr>
+    <tr><td>400 Gb/s NIC 하나 (InfiniBand)</td><td>50 GB/s → <b>2초</b></td></tr>
+    <tr><td>PCIe Gen5 x16</td><td>~64 GB/s → <b>~1.6초</b></td></tr>
+    <tr><td>노드 하나의 NIC 8개 합산</td><td>400 GB/s → <b>0.25초</b></td></tr>
+    <tr><td>NVLink/NVSwitch (노드 내부)</td><td>~900 GB/s → <b>~0.11초</b></td></tr>
+  </table>
+  <p class="caption" style="margin: 10px 0 18px">동기화 파이프라인은 “NIC당 2초”라는 현실을 피하도록 정밀하게 설계되어 있습니다: 각 NIC이 나르는 양을 줄이고, 큰 덩어리는 NVLink(18배 빠름)로 처리하고, 나머지는 backward 연산 뒤에 숨깁니다.</p>
+
+  <details class="faq">
+    <summary>NIC 하나로 100 GB에 ~2초가 걸린다면, 어떻게 전체 all-reduce가 1초 미만인가요?</summary>
+    <div class="faq-body">
+      140 GB가 결코 파이프 하나를 통과하지 않기 때문입니다.
+      <ol>
+        <li><b>All-reduce는 “모두가 모두에게 전부 보내기”가 아닙니다.</b> 링/트리 알고리즘에서는 각 바이트가 각 링크를 총 두 번 정도만 지납니다 — 한 번은 합산(reduce)되며, 한 번은 다시 broadcast되며.</li>
+        <li><b>그래디언트는 네트워크에 닿기 전에 8등분됩니다.</b> NVLink reduce-scatter 후 각 GPU는 17.5 GB(140 ÷ 8)만 들고 <b>자기 NIC</b>으로 all-reduce합니다 — 노드당 NIC 8개가 병렬로 스트리밍 ⇒ 노드당 400 GB/s.</li>
+        <li><b>모든 노드가 이걸 동시에 합니다.</b> 8,192개 NIC이 합쳐서 ~410 TB/s를 옮깁니다. GPU당 비용 ≈ 2 × 17.5 GB ÷ 50 GB/s = 0.7초 — 노드 수와 무관합니다.</li>
+        <li><b>3D 병렬화까지 적용하면 더 작아집니다:</b> GPU당 ~1–3 GB만 담당하므로 all-reduce는 수십 밀리초로 떨어집니다.</li>
+      </ol>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>트리는 레벨별로 쌍을 합치는데 — 그거 하나씩 차례대로 아닌가요?</summary>
+    <div class="faq-body">
+      <p style="margin:0 0 8px">한 레벨 안에서는: <b>완전 병렬</b> — node1+node2 → node12와 node3+node4 → node34가 서로 다른 링크에서 같은 순간에 일어납니다 (1,024노드 트리의 첫 레벨에서는 512개의 병합이 동시 진행). 레벨 사이에는: 맞습니다, 의존 사슬이 있습니다 — node12+node34는 두 입력을 기다려야 하죠 — 하지만 그 사슬의 길이는 트리의 <i>높이</i>만큼입니다: <b>log₂(1024) = 10 레벨</b>. 그래서 1,023번의 병합이라는 <i>작업</i>이 10단계의 <i>시간</i>에 끝납니다.</p>
+      <p style="margin:0"><b>청크 파이프라이닝은 그 10레벨마저 숨깁니다.</b> 데이터는 작은 청크 여러 개로 흐릅니다: 레벨 2가 청크 #1을 합산하는 동안 레벨 1은 청크 #2를 합산하고, 잎들은 청크 #3을 보냅니다. 파이프라인이 한 번 차고 나면(10홉 × 마이크로초) 모든 레벨이 동시에 바쁩니다 — 트리 높이는 아주 작은 지연 항으로만 남고, 대역폭은 잃지 않습니다.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>최종 합이 1,024개 노드 전부에 도달해야 하는데 — 1,024 × 복사 시간이 들지 않나요?</summary>
+    <div class="faq-body">
+      <p style="margin:0 0 8px">아니요 — <b>결과를 받은 노드는 즉시 송신자가 됩니다.</b> 커버리지가 홉마다 2배가 됩니다: 1 → 2 → 4 → 8 → … → 1,024, 단 10홉. <i>총 작업량</i>은 여전히 N−1 = 1,023회 복사지만, 그것이 1,023개의 <i>서로 다른 링크</i>에 병렬로 분산되고, 청크 파이프라이닝 덕분에 벽시계 시간은 데이터를 <b>한 번</b> 복사하는 시간(17.5 GB ÷ 50 GB/s ≈ 0.35초)으로 수렴합니다 — 노드가 16개든 16,000개든.</p>
+      <p style="margin:0">“N × 복사 시간”이 실제로 맞는 설계는 딱 하나: 옛날의 <b>파라미터 서버 스타</b> 구조로, 서버 하나가 단일 업링크를 통해 N개 워커에게 결과를 밀어 넣습니다. 위 계산기의 빨간 “단순 방식: 모두에게 전송” 막대가 바로 그것이고, all-reduce가 대체한 것이 정확히 그 방식입니다. 5번 섹션에서 실시간으로 확인하세요: broadcast(5–8단계) 동안 활성화된 주황 링크가 1 → 2 → 4 → 8로 늘어납니다.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>그러니까… 전부 병렬로 돈다는 건가요?</summary>
+    <div class="faq-body">
+      네 — 병렬성이 모든 층위에 겹겹이 쌓여 있습니다:
+      <ol>
+        <li><b>트리 레벨 안에서</b> — 모든 쌍-병합이 서로 다른 링크에서 동시에 발화합니다.</li>
+        <li><b>레벨 사이에서</b> — 청크 스트리밍이 레벨들을 파이프라인화합니다; 모든 레벨이 동시에 서로 다른 청크를 처리합니다.</li>
+        <li><b>8개 그래디언트 조각 사이에서</b> — 각 NIC이 독립적인 트리를 동시에 운영합니다.</li>
+        <li><b>모든 노드에 걸쳐</b> — 모든 노드가 모든 단계에 동시에 참여합니다; 누구도 차례를 기다리지 않습니다.</li>
+        <li><b>연산과 맞물려</b> — GPU가 아직 backward를 도는 동안 all-reduce 전체가 진행됩니다 (네트워크 엔진과 연산 유닛은 별개의 하드웨어).</li>
+      </ol>
+      정말로 직렬로 남는 것은: ~10홉짜리 파이프라인 채우기(마이크로초)와 optimizer가 기다려야 하는 마지막 그래디언트 버킷 — 2번 섹션 타임라인의 작은 노출 꼬리 — 뿐입니다. 올바른 멘탈 모델은 “데이터가 클러스터를 돌아다닌다”가 아니라, <b>데이터센터의 모든 링크가 각자 다른 작은 조각을 들고 일제히 발화하는 그림</b>입니다.
+    </div>
+  </details>
+</div>
+
+<div class="card" style="text-align:center;background:linear-gradient(120deg, rgba(127,119,221,0.10), rgba(29,158,117,0.10))">
+  <h2 style="margin-bottom:8px">스스로 점검해 볼까요?</h2>
+  <p class="lead" style="margin-bottom:16px">위 내용 전체를 다루는 10문제 — 즉각적인 피드백과 해설이 함께 제공됩니다.</p>
+  <button class="primary" onclick="showTab('practice')" style="font-size:15px;padding:10px 26px">연습 탭으로 →</button>
+</div>
+
+</div><!-- /tab-learn -->
+
+<!-- ============================ PRACTICE TAB ============================ -->
+<div id="tab-practice" class="hidden">
+  <div class="hero">
+    <h1>연습 — 이해도 점검</h1>
+    <p class="sub">10문제. 답을 고르면 즉시 피드백과 짧은 해설이 나옵니다. 점수는 마지막에 집계됩니다.</p>
+  </div>
+  <div class="card">
+    <div class="qprog" id="q-prog"></div>
+    <div id="q-body"></div>
+  </div>
+  <div class="card" style="background:var(--surface);border:none">
+    <p class="lead" style="margin:0">막히셨나요? <a href="#" onclick="showTab('learn');return false" style="color:var(--purple-d);font-weight:600">학습 탭</a>으로 돌아가세요 — 모든 문제는 위의 인터랙티브 섹션 중 하나와 연결됩니다.</p>
+  </div>
+</div><!-- /tab-practice -->
+
+</div>
+
+<script>
+// ---------- tabs ----------
+function showTab(t) {
+  document.getElementById('tab-learn').classList.toggle('hidden', t!=='learn');
+  document.getElementById('tab-practice').classList.toggle('hidden', t!=='practice');
+  document.getElementById('tab-btn-learn').classList.toggle('active', t==='learn');
+  document.getElementById('tab-btn-practice').classList.toggle('active', t==='practice');
+  window.scrollTo({top:0});
+}
+
+// ---------- 1. cluster anatomy ----------
+(function clBuild() {
+  let g = '';
+  for (let i=0;i<8;i++) {
+    const x = 40 + (i%4)*73, y = 60 + Math.floor(i/4)*42;
+    g += '<rect x="'+x+'" y="'+y+'" width="60" height="32" rx="7" fill="var(--green-2)" opacity="0.92"/>' +
+         '<text x="'+(x+30)+'" y="'+(y+21)+'" text-anchor="middle" font-size="11" font-weight="600" fill="#243a0e">GPU '+i+'</text>';
+  }
+  document.getElementById('cl-gpus').innerHTML = g;
+  let n = '';
+  for (let i=0;i<8;i++) {
+    const x = 52 + i*38;
+    n += '<circle cx="'+x+'" cy="218" r="8" fill="var(--amber)"/>' +
+         '<line x1="'+x+'" y1="174" x2="'+x+'" y2="210" stroke="var(--border)" stroke-width="1"/>';
+  }
+  document.getElementById('cl-nics').innerHTML = n;
+})();
+function clCalc() {
+  const NODES = [128, 512, 1024, 4096, 8192, 24576];
+  const N = NODES[+document.getElementById('cl-n').value];
+  const gpus = N*8;
+  const ef = gpus/1000; // ~1 PFLOPS bf16 per GPU
+  const bw = gpus*400/1e6; // Pb/s
+  const pw = N*10.2/1000; // MW
+  document.getElementById('cl-nval').textContent = N.toLocaleString()+' 노드';
+  document.getElementById('cl-gpu').textContent = gpus.toLocaleString();
+  document.getElementById('cl-flops').textContent = ef >= 1 ? ef.toFixed(1) + ' EFLOPS' : Math.round(ef*1000) + ' PFLOPS';
+  document.getElementById('cl-bw').textContent = bw>=1 ? bw.toFixed(1)+' Pb/s' : (bw*1000).toFixed(0)+' Tb/s';
+  document.getElementById('cl-pw').textContent = pw>=1 ? Math.round(pw)+' MW' : (pw*1000).toFixed(0)+' kW';
+}
+
+// ---------- 2. step timeline ----------
+const TLROWS = [
+  {key:'fwd',  lab:'Forward 패스',        color:'var(--green-2)'},
+  {key:'bwd',  lab:'Backward 패스',       color:'var(--teal)'},
+  {key:'comm', lab:'그래디언트 all-reduce', color:'var(--purple)'},
+  {key:'opt',  lab:'Optimizer 스텝',      color:'var(--amber)'},
+];
+const TL_MAX = 5.4;
+let tlT = 0, tlRaf = null, tlLast = 0;
+function tlSegs() {
+  const ov = document.getElementById('tl-ov').checked;
+  if (ov) return { fwd:{s:0,d:1.2}, bwd:{s:1.2,d:2.4}, comm:{s:1.7,d:2.25}, opt:{s:3.95,d:0.2}, total:4.15, ov:true };
+  return { fwd:{s:0,d:1.2}, bwd:{s:1.2,d:2.4}, comm:{s:3.6,d:1.6}, opt:{s:5.2,d:0.2}, total:5.4, ov:false };
+}
+function tlRender() {
+  const sg = tlSegs();
+  const X0 = 175, W = 760, scale = W/TL_MAX;
+  let out = '';
+  for (let s=0; s<=5; s++) {
+    const x = X0 + s*scale;
+    out += '<line x1="'+x+'" y1="18" x2="'+x+'" y2="200" stroke="var(--border)" stroke-width="0.7" stroke-dasharray="3 4"/>' +
+           '<text x="'+x+'" y="215" text-anchor="middle" font-size="10.5" fill="var(--faint)">'+s+'s</text>';
+  }
+  TLROWS.forEach((r,i) => {
+    const y = 28 + i*44, seg = sg[r.key];
+    out += '<text x="165" y="'+(y+15)+'" text-anchor="end" font-size="12.5" font-weight="600" fill="var(--muted)">'+r.lab+'</text>';
+    const drawSeg = (s,d) => {
+      const x = X0 + s*scale, w = d*scale;
+      const fw = Math.max(0, Math.min(tlT-s, d))*scale;
+      let h = '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="22" rx="5" fill="'+r.color+'" opacity="0.18"/>';
+      if (fw > 0.5) h += '<rect x="'+x+'" y="'+y+'" width="'+fw+'" height="22" rx="5" fill="'+r.color+'"/>';
+      return h;
+    };
+    if (r.key==='comm' && sg.ov) {
+      const nB = 6, gap = seg.d/nB;
+      for (let b=0;b<nB;b++) out += drawSeg(seg.s + b*gap, gap*0.78);
+      out += '<text x="'+(X0+(seg.s+seg.d)*scale+8)+'" y="'+(y+15)+'" font-size="10.5" fill="var(--faint)">버킷, backward 중</text>';
+    } else {
+      out += drawSeg(seg.s, seg.d);
+    }
+  });
+  const cx = X0 + Math.min(tlT, sg.total)*scale;
+  out += '<line x1="'+cx+'" y1="14" x2="'+cx+'" y2="204" stroke="var(--coral)" stroke-width="1.8"/>' +
+         '<circle cx="'+cx+'" cy="14" r="4" fill="var(--coral)"/>';
+  document.getElementById('tl-svg').innerHTML = out;
+  document.getElementById('tl-time').textContent = 't = ' + tlT.toFixed(2) + ' s';
+  const scrub = document.getElementById('tl-scrub');
+  scrub.max = sg.total; if (+scrub.value !== tlT) scrub.value = tlT;
+  document.getElementById('tl-total').textContent = sg.total.toFixed(2) + ' s';
+  document.getElementById('tl-exposed').textContent = sg.ov ? '0.35 s' : '1.60 s';
+  document.getElementById('tl-save').textContent = sg.ov ? '−78%' : '—';
+}
+function tlPlay() {
+  if (tlRaf) { tlStop(); return; }
+  if (tlT >= tlSegs().total - 0.01) tlT = 0;
+  document.getElementById('tl-play').textContent = '⏸ 일시정지';
+  tlLast = performance.now();
+  const tick = now => {
+    tlT += (now - tlLast)/1000 * 1.1;
+    tlLast = now;
+    const tot = tlSegs().total;
+    if (tlT >= tot) { tlT = tot; tlRender(); tlStop(); return; }
+    tlRender();
+    tlRaf = requestAnimationFrame(tick);
+  };
+  tlRaf = requestAnimationFrame(tick);
+}
+function tlStop() {
+  if (tlRaf) { cancelAnimationFrame(tlRaf); tlRaf = null; }
+  document.getElementById('tl-play').textContent = '▶ 스텝 재생';
+}
+
+// ---------- 3. Ring all-reduce ----------
+const RN = 4, RCH = ['A','B','C','D'];
+let rStep = 0, rTimer = null;
+const RDESC = [
+  "시작 — 모든 GPU가 자기 데이터 샤드로 그래디언트를 계산했습니다. 각 GPU는 4개 청크 모두에 대해 자기 몫(1/4)만 갖고 있습니다. 목표: 모두가 4개 청크 전부의 전체 합을 갖는 것.",
+  "reduce-scatter 1/3 — 모든 GPU가 동시에 청크 하나를 오른쪽 이웃에게 보내고, 받은 쪽은 자기 것에 더합니다. 4개 링크가 전부 동시에 일합니다.",
+  "reduce-scatter 2/3 — 부분합이 링을 돌며 홉마다 기여가 하나씩 더해집니다.",
+  "reduce-scatter 3/3 — 완료. 이제 각 GPU가 완전히 합산된 청크 하나(4/4)를 담당합니다: GPU0→B, GPU1→C, GPU2→D, GPU3→A.",
+  "all-gather 1/3 — 완성된 청크들이 돌기 시작합니다. 받는 쪽은 낡은 부분합을 완성본으로 교체합니다.",
+  "all-gather 2/3 — 완성된 청크가 두 홉 전진했습니다.",
+  "all-gather 3/3 — 끝. 모든 GPU가 동일한 전체 합을 갖습니다. GPU당 트래픽 = 2×(N−1)/N ≈ 그래디언트 크기의 2배 — GPU 수와 무관합니다."
+];
+function rState(s) {
+  const st = Array.from({length:RN},()=>Array(RN).fill(1));
+  let recv = Array.from({length:RN},()=>Array(RN).fill(false));
+  for (let i=0; i<Math.min(s,RN-1); i++) {
+    const upd=[];
+    for (let g=0; g<RN; g++) { const k=((g-i)%RN+RN)%RN, r=(g+1)%RN; upd.push([r,k,st[g][k]]); }
+    recv = Array.from({length:RN},()=>Array(RN).fill(false));
+    upd.forEach(u=>{ st[u[0]][u[1]]+=u[2]; recv[u[0]][u[1]]=true; });
+  }
+  for (let i=0; i<Math.max(0,s-(RN-1)); i++) {
+    const upd=[];
+    for (let g=0; g<RN; g++) { const k=((g+1-i)%RN+RN)%RN, r=(g+1)%RN; upd.push([r,k]); }
+    recv = Array.from({length:RN},()=>Array(RN).fill(false));
+    upd.forEach(u=>{ st[u[0]][u[1]]=RN; recv[u[0]][u[1]]=true; });
+  }
+  return {st, recv};
+}
+function rRender() {
+  const {st, recv} = rState(rStep);
+  const wrap = document.getElementById('r-gpus');
+  wrap.innerHTML = '';
+  for (let g=0; g<RN; g++) {
+    let h = '<div class="gpu-head">GPU ' + g + '</div>';
+    for (let c=0; c<RN; c++) {
+      const n = st[g][c], full = n===RN;
+      let segs = '';
+      for (let k=0; k<RN; k++) {
+        const bg = k<n ? (full ? 'background:var(--teal);border-color:var(--teal)' : 'background:var(--teal-l);border-color:var(--teal-l)') : '';
+        segs += '<span class="seg" style="' + bg + '"></span>';
+      }
+      h += '<div class="chunkrow' + (recv[g][c] ? ' hl' : '') + '"><span class="clab">' + RCH[c] + '</span><span class="segs">' + segs + '</span><span class="cnt' + (full?' full':'') + '">' + n + '/4</span></div>';
+    }
+    const card = document.createElement('div');
+    card.className = 'gpu-card';
+    card.innerHTML = h;
+    wrap.appendChild(card);
+  }
+  document.getElementById('r-desc').textContent = RDESC[rStep];
+  document.getElementById('r-lab').textContent = '단계 ' + rStep + ' / 6';
+  const pill = document.getElementById('r-pill');
+  if (rStep===0) { pill.textContent='시작'; pill.className='pill'; }
+  else if (rStep<=3) { pill.textContent='reduce-scatter'; pill.className='pill green'; }
+  else if (rStep<6) { pill.textContent='all-gather'; pill.className='pill purple'; }
+  else { pill.textContent='완료'; pill.className='pill green'; }
+  document.getElementById('r-back').disabled = rStep===0;
+  document.getElementById('r-next').disabled = rStep===6;
+}
+function rGo(d) { rStopAuto(); rStep = Math.max(0, Math.min(6, rStep+d)); rRender(); }
+function rPlay() {
+  if (rTimer) { rStopAuto(); return; }
+  if (rStep===6) rStep = 0;
+  document.getElementById('r-play').textContent = '⏸ 일시정지';
+  rTimer = setInterval(() => {
+    if (rStep >= 6) { rStopAuto(); return; }
+    rStep++; rRender();
+  }, 1300);
+}
+function rStopAuto() {
+  if (rTimer) { clearInterval(rTimer); rTimer = null; }
+  document.getElementById('r-play').textContent = '▶ 자동 재생';
+}
+
+// ---------- 4. Hierarchical 3-phase ----------
+const HG = 4;
+let hStep = 0;
+const HDESC = [
+  "시작 — 8,192개 GPU가 각자 자기 데이터 샤드로 backward를 수행했습니다. 모든 GPU가 서로 다른 140 GB 그래디언트를 들고 있습니다. 데이터(5 TB)는 샤딩만 되고, 동기화되는 것은 그래디언트입니다.",
+  "1단계 · 노드 내부 reduce-scatter (NVLink ~900 GB/s) — 각 노드의 GPU 8개가 그래디언트를 8개 청크로 나눠 합산합니다. GPU k는 자기 청크의 노드 내부 합(140÷8 = 17.5 GB)을 갖게 됩니다. 네트워크 사용 없음 → 약 0.15초.",
+  "2단계 · 노드 간 트리 all-reduce (InfiniBand) — 1,024개 노드에 걸쳐, 같은 청크를 담당하는 GPU들이 각자의 17.5 GB를 트리로 합산합니다. 홉 수: log₂(1024)=10. 노드의 NIC 8개가 8개 스트림을 동시에 돌리며, GPU당 ~35 GB (~0.7초).",
+  "3단계 · 노드 내부 all-gather (NVLink) — 완성된 전역 합 청크들을 노드 안 GPU 8개 모두에게 다시 나눠줍니다. 이제 모든 GPU가 동일한 140 GB 합산 그래디언트를 갖습니다 → optimizer 스텝. 다음 미니배치에서 반복."
+];
+function hStateOf(s, g, c) {
+  if (s===0) return 'L';
+  if (s===1) return c===g ? 'N' : 'S';
+  if (s===2) return c===g ? 'G' : 'S';
+  return 'G';
+}
+function hCell(t) {
+  if (t==='N') return 'background:var(--green-2);border-color:var(--green-2)';
+  if (t==='G') return 'background:var(--purple);border-color:var(--purple)';
+  if (t==='S') return 'opacity:0.3';
+  return '';
+}
+function hRender() {
+  const wrap = document.getElementById('h-nodes');
+  wrap.innerHTML = '';
+  for (let n=0; n<2; n++) {
+    let h = '<div class="gpu-head">노드 ' + n + ' <span class="nvtag' + ((hStep===1||hStep===3)?' on':'') + '">NVLink</span></div>';
+    for (let g=0; g<HG; g++) {
+      let cells = '';
+      for (let c=0; c<HG; c++) {
+        const t = hStateOf(hStep,g,c);
+        const prev = hStep>0 ? hStateOf(hStep-1,g,c) : t;
+        const hl = (hStep>0 && t!==prev && t!=='S') ? 'box-shadow:0 0 0 2px var(--amber);' : '';
+        cells += '<span class="seg" style="width:16px;height:16px;border-radius:4px;' + hCell(t) + ';' + hl + '"></span>';
+      }
+      h += '<div class="chunkrow"><span class="clab" style="width:42px">GPU ' + g + '</span><span class="segs" style="gap:5px">' + cells + '</span></div>';
+    }
+    const card = document.createElement('div');
+    card.className = 'gpu-card';
+    card.innerHTML = h;
+    wrap.appendChild(card);
+  }
+  document.getElementById('h-desc').textContent = HDESC[hStep];
+  document.getElementById('h-lab').textContent = '단계 ' + hStep + ' / 3';
+  const pill = document.getElementById('h-pill');
+  if (hStep===0) { pill.textContent='시작'; pill.className='pill'; }
+  else if (hStep===1) { pill.textContent='노드 내부 reduce-scatter'; pill.className='pill green'; }
+  else if (hStep===2) { pill.textContent='노드 간 트리 all-reduce'; pill.className='pill purple'; }
+  else { pill.textContent='완료 · all-gather'; pill.className='pill green'; }
+  const sp = document.getElementById('h-spine'), spt = document.getElementById('h-spt');
+  if (hStep===2) { sp.classList.add('on'); spt.textContent = 'InfiniBand 스파인 — 같은 청크 담당 GPU들이 1,024개 노드 전체에 걸쳐 트리 all-reduce 수행 중 (log₂ 1024 = 10홉)'; }
+  else { sp.classList.remove('on'); spt.textContent = 'InfiniBand 스파인 — 대기 중 (나머지 1,022개 노드도 여기에 연결됩니다)'; }
+  document.getElementById('h-back').disabled = hStep===0;
+  document.getElementById('h-next').disabled = hStep===3;
+}
+function hGo(d) { hStep = Math.max(0, Math.min(3, hStep+d)); hRender(); }
+
+// ---------- 5. Tree all-reduce ----------
+const TLEAF = 16, TLEV = 4;
+let tStep = 0, tTimer = null;
+const TDESC = [
+  "시작 — 16개 노드가 각자 그래디언트 청크를 들고 있습니다 (1단계 노드 내부 reduce-scatter 이후). 숫자 = 합쳐진 노드 수.",
+  "reduce 1/4 — 이웃한 쌍끼리 합산합니다. 8쌍이 동시에 진행되며, 각 부분합은 노드 2개를 커버합니다.",
+  "reduce 2/4 — 다시 쌍끼리 합산합니다. 부분합이 노드 4개를 커버합니다. 모든 합산이 병렬이라 시간은 홉 하나만큼만 더 듭니다.",
+  "reduce 3/4 — 부분합이 노드 8개를 커버합니다. 지금까지 3홉.",
+  "reduce 4/4 — 루트 도달. 16개 노드 전체의 합이 완성됐습니다(보라색). 1,024개 노드라도 단 10홉이면 됩니다.",
+  "broadcast 1/4 — 완성된 합이 트리를 따라 다시 내려가기 시작합니다.",
+  "broadcast 2/4 — 한 레벨 더 내려갔습니다. 각 노드는 받자마자 자식에게 전달합니다.",
+  "broadcast 3/4 — 거의 다 퍼졌습니다.",
+  "broadcast 4/4 — 끝. 16개 노드 전부 전역 합을 갖습니다. 총 2·log₂(16) = 8홉 (링이라면 2×15 = 30홉)."
+];
+function tBuild() {
+  const svg = document.getElementById('t-svg');
+  const ys = [420, 330, 240, 150, 60];
+  const pos = [];
+  pos[0] = [];
+  for (let i=0; i<TLEAF; i++) pos[0].push([30 + i*60, ys[0]]);
+  for (let l=1; l<=TLEV; l++) {
+    pos[l] = [];
+    const cnt = TLEAF >> l;
+    for (let j=0; j<cnt; j++) {
+      const a = pos[l-1][2*j], b = pos[l-1][2*j+1];
+      pos[l].push([(a[0]+b[0])/2, ys[l]]);
+    }
+  }
+  let edges = '', nodes = '';
+  for (let l=1; l<=TLEV; l++) {
+    for (let j=0; j<pos[l].length; j++) {
+      const p = pos[l][j];
+      [pos[l-1][2*j], pos[l-1][2*j+1]].forEach((c,ci) => {
+        edges += '<line id="te-' + l + '-' + j + '-' + ci + '" x1="' + c[0] + '" y1="' + (c[1]-16) + '" x2="' + p[0] + '" y2="' + (p[1]+16) + '" stroke="var(--border)" stroke-width="1.2"/>';
+      });
+    }
+  }
+  for (let l=0; l<=TLEV; l++) {
+    for (let j=0; j<pos[l].length; j++) {
+      const p = pos[l][j];
+      nodes += '<g id="tn-' + l + '-' + j + '"><circle cx="' + p[0] + '" cy="' + p[1] + '" r="16" fill="var(--surface)" stroke="var(--border)" stroke-width="0.8"/>' +
+        '<text x="' + p[0] + '" y="' + p[1] + '" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="600" fill="var(--muted)">1</text></g>';
+    }
+  }
+  let labels = '';
+  labels += '<text x="952" y="424" text-anchor="end" font-size="11" fill="var(--faint)">노드 ×16 (잎)</text>';
+  labels += '<text x="952" y="64" text-anchor="end" font-size="11" fill="var(--faint)">루트 (전역 합)</text>';
+  svg.innerHTML = edges + nodes + labels;
+}
+function tSet(l, j, count, color, textColor) {
+  const g = document.getElementById('tn-' + l + '-' + j);
+  const c = g.querySelector('circle'), t = g.querySelector('text');
+  c.setAttribute('fill', color);
+  c.setAttribute('stroke', color === 'var(--surface)' ? 'var(--border)' : color);
+  t.setAttribute('fill', textColor);
+  t.textContent = count;
+}
+function tEdge(l, j, ci, on) {
+  const e = document.getElementById('te-' + l + '-' + j + '-' + ci);
+  e.setAttribute('stroke', on ? 'var(--amber)' : 'var(--border)');
+  e.setAttribute('stroke-width', on ? '2.5' : '1.2');
+}
+function tRender() {
+  const s = tStep;
+  for (let l=0; l<=TLEV; l++) {
+    const cnt = TLEAF >> l;
+    for (let j=0; j<cnt; j++) {
+      let count, color, tc;
+      const reduceDone = (l>=1 && s>=l);
+      const bcastReached = s >= (4 + (TLEV - l)) && s > 4;
+      if (l===TLEV && s>=4 || bcastReached) {
+        count = 16; color = 'var(--purple)'; tc = '#fff';
+      } else if (l===0) {
+        count = 1; color = 'var(--surface)'; tc = 'var(--muted)';
+      } else if (reduceDone) {
+        count = 1 << l;
+        const greens = ['', 'var(--green-1)', 'var(--green-2)', 'var(--green-3)', 'var(--green-4)'];
+        color = greens[l]; tc = l>=3 ? '#fff' : '#2c3a14';
+      } else {
+        count = '·'; color = 'var(--surface)'; tc = 'var(--faint)';
+      }
+      tSet(l, j, count, color, tc);
+    }
+  }
+  for (let l=1; l<=TLEV; l++) {
+    const cnt = TLEAF >> l;
+    for (let j=0; j<cnt; j++) for (let ci=0; ci<2; ci++) {
+      const reduceActive = (s>=1 && s<=4 && l===s);
+      const bcastActive = (s>4 && (TLEV - (s-4)) === l-1);
+      tEdge(l, j, ci, reduceActive || bcastActive);
+    }
+  }
+  document.getElementById('t-desc').textContent = TDESC[s];
+  document.getElementById('t-lab').textContent = '단계 ' + s + ' / 8';
+  const pill = document.getElementById('t-pill');
+  if (s===0) { pill.textContent='시작'; pill.className='pill'; }
+  else if (s<=4) { pill.textContent='reduce ↑ (위로 합산)'; pill.className='pill green'; }
+  else if (s<8) { pill.textContent='broadcast ↓ (아래로 분배)'; pill.className='pill purple'; }
+  else { pill.textContent='완료 — 총 8홉'; pill.className='pill purple'; }
+  document.getElementById('t-back').disabled = s===0;
+  document.getElementById('t-next').disabled = s===8;
+}
+function tGo(d) { tStop(); tStep = Math.max(0, Math.min(8, tStep+d)); tRender(); }
+function tPlay() {
+  if (tTimer) { tStop(); return; }
+  if (tStep===8) tStep = 0;
+  document.getElementById('t-play').textContent = '⏸ 일시정지';
+  tTimer = setInterval(() => {
+    if (tStep >= 8) { tStop(); return; }
+    tStep++; tRender();
+  }, 1000);
+}
+function tStop() {
+  if (tTimer) { clearInterval(tTimer); tTimer = null; }
+  document.getElementById('t-play').textContent = '▶ 자동 재생';
+}
+function tHops() {
+  const NS = [16, 64, 256, 1024, 4096, 16384, 65536];
+  const N = NS[+document.getElementById('t-n').value];
+  const ring = 2*(N-1), tree = 2*Math.log2(N);
+  document.getElementById('t-nval').textContent = N.toLocaleString() + ' 노드';
+  document.getElementById('t-ring').textContent = ring.toLocaleString();
+  document.getElementById('t-tree').textContent = Math.round(tree);
+  document.getElementById('t-ratio').textContent = Math.round(ring/tree).toLocaleString() + '×';
+}
+
+// ---------- 6. bandwidth calculator ----------
+function cCalc() {
+  const PARAMS = [7, 13, 34, 70, 175, 405, 1000];
+  const GPUS = [8, 64, 512, 2048, 4096, 16384];
+  const BW = [12.5, 25, 50, 100];
+  const BWL = ['100 Gb/s', '200 Gb/s', '400 Gb/s', '800 Gb/s'];
+  const P = PARAMS[+document.getElementById('c-p').value];
+  const N = GPUS[+document.getElementById('c-g').value];
+  const bi = +document.getElementById('c-b').value;
+  const S = 2*P;
+  const ring = 2*(N-1)/N*S;
+  const naive = (N-1)*S;
+  const t = ring/BW[bi];
+  const fmtB = gb => gb>=1e6 ? (gb/1e6).toFixed(1)+' PB' : gb>=1000 ? (gb/1000).toFixed(1)+' TB' : Math.round(gb)+' GB';
+  const fmtT = s => s<1 ? Math.round(s*1000)+' ms' : s<120 ? s.toFixed(1)+' s' : (s/60).toFixed(1)+' min';
+  document.getElementById('c-pv').textContent = P + 'B 파라미터';
+  document.getElementById('c-gv').textContent = N.toLocaleString();
+  document.getElementById('c-bv').textContent = BWL[bi];
+  document.getElementById('c-grad').textContent = fmtB(S);
+  document.getElementById('c-ring').textContent = fmtB(ring);
+  document.getElementById('c-time').textContent = fmtT(t);
+  document.getElementById('c-hier').textContent = fmtT(t/8);
+  document.getElementById('c-val-ring').textContent = fmtB(ring);
+  document.getElementById('c-val-naive').textContent = fmtB(naive);
+  const pct = Math.max(8, 100*Math.log10(ring+1)/Math.log10(naive+1));
+  document.getElementById('c-bar-ring').style.width = Math.round(pct) + '%';
+}
+
+// ---------- quiz ----------
+const QUIZ = [
+  { q: "분산 학습 중 매 스텝마다 GPU들 사이에서 동기화되는 것은 무엇일까요?",
+    opts: ["학습 데이터 — 모든 GPU가 같은 예시를 보도록",
+           "그래디언트 — 모든 복제본에 걸쳐 평균",
+           "모델 아키텍처 정의",
+           "아무것도 없음 — GPU들은 독립적으로 학습하고 마지막에 병합"],
+    a: 1,
+    ex: "데이터는 샤딩만 되고(각 노드가 서로 다른 조각을 읽음) 절대 동기화되지 않습니다. 복제본들 사이에서 동일하게 유지돼야 하는 것은 가중치 — 그래서 모델 크기와 같은 그래디언트 텐서가 매 optimizer 스텝마다 평균됩니다." },
+  { q: "70B 파라미터 모델이 그래디언트를 bf16(파라미터당 2바이트)으로 보관합니다. 스텝당 그래디언트 데이터는 얼마일까요?",
+    opts: ["70 GB", "140 GB", "280 GB", "5 TB"],
+    a: 1,
+    ex: "70 × 10⁹ 파라미터 × 2바이트 = 140 GB. 이 텐서 전체가 매 스텝 all-reduce됩니다 — 인터커넥트가 그토록 중요한 이유입니다." },
+  { q: "링 all-reduce에서 GPU를 더 추가하면 GPU당 트래픽은 어떻게 변할까요?",
+    opts: ["GPU 수에 비례해 선형 증가",
+           "GPU 수의 log₂로 증가",
+           "그래디언트 크기의 ≈ 2배에서 거의 일정하게 유지",
+           "각 GPU가 더 작은 몫을 처리하므로 감소"],
+    a: 2,
+    ex: "GPU당 트래픽은 2×(N−1)/N × 그래디언트 크기로, N이 커질수록 그래디언트 크기의 2배에 수렴합니다. 이 대역폭 최적성이 링이 주력 알고리즘인 이유이고, 약점은 양이 아니라 지연입니다." },
+  { q: "수천 개의 노드 사이에서는 왜 링 대신 트리를 쓸까요?",
+    opts: ["트리가 링보다 항상 더 적은 데이터를 옮겨서",
+           "링의 지연은 노드 수에 선형으로 늘고, 트리의 지연은 log₂(N)으로 늘어서",
+           "링은 트리에 없는 특수 하드웨어가 필요해서",
+           "트리는 합산 연산 자체를 건너뛰어서"],
+    a: 1,
+    ex: "링은 2(N−1)번의 순차 홉이 필요합니다 — 1,024개 노드면 2,046홉. 트리는 ≈ 2·log₂(N) = 20홉. 둘 다 대역폭은 거의 최적이고, 큰 규모에서 링을 죽이는 것은 지연입니다." },
+  { q: "1,024개 노드에서 트리 all-reduce(위로 reduce + 아래로 broadcast)는 대략 몇 홉일까요?",
+    opts: ["약 2,046", "약 1,024", "약 20", "정확히 4"],
+    a: 2,
+    ex: "log₂(1024) = 10레벨 올라가며 reduce, 10레벨 내려오며 broadcast → ≈ 20홉. 한 레벨의 모든 쌍-합산이 병렬로 일어나므로, 레벨당 시간은 홉 하나 값입니다." },
+  { q: "실제 학습에서 그래디언트 동기화 시간의 대부분을 숨겨주는 것은 무엇일까요?",
+    opts: ["그래디언트를 1비트로 압축",
+           "통신을 backward 패스와 중첩",
+           "100스텝마다 한 번만 동기화",
+           "AdamW 같은 더 빠른 optimizer 사용"],
+    a: 1,
+    ex: "Backward는 끝쪽 레이어부터 그래디언트를 계산합니다. 마지막 레이어들의 그래디언트가 준비되는 즉시 그 버킷이 all-reduce를 시작하고, 그동안 앞쪽 레이어들은 아직 계산 중입니다. 건강한 네트워크에서는 통신 시간이 거의 드러나지 않습니다." },
+  { q: "노드 안에서 빠른 로컬 reduce-scatter를 위해 8개 GPU를 잇는 것은 무엇일까요?",
+    opts: ["일반 이더넷", "PCIe만", "NVLink / NVSwitch ~900 GB/s", "GPU 사이의 InfiniBand"],
+    a: 2,
+    ex: "NVSwitch는 노드 안 모든 GPU 쌍에 ~900 GB/s를 제공합니다 — 400 Gb/s NIC의 약 18배. 그래서 계층 구조는 네트워크에 닿기 전에 노드 안에서 최대한 많은 일을 처리합니다." },
+  { q: "ZeRO / FSDP는 그래디언트 동기화의 무엇을 주로 바꿀까요?",
+    opts: ["동기화를 완전히 없앤다",
+           "각 GPU가 optimizer 상태와 파라미터의 샤드만 보관하므로 reduce-scatter면 충분 — 전체 all-reduce 대비 통신이 대략 절반",
+           "그래디언트 대신 학습 데이터를 동기화한다",
+           "정확도를 위해 그래디언트를 fp64로 바꾼다"],
+    a: 1,
+    ex: "각 GPU가 자기 가중치 샤드만 업데이트한다면 그 샤드의 합산 그래디언트만 있으면 됩니다 — 전체 all-reduce(2배) 대신 reduce-scatter(그래디언트 크기의 1배). 업데이트된 샤드는 나중에 다음 forward 패스와 중첩되어 all-gather됩니다." },
+  { q: "100 GB를 400 Gb/s NIC 하나로 옮기면 ~2초 걸립니다. 그런데 왜 1,024개 노드에 걸친 140 GB all-reduce는 몇 초씩 걸리지 않을까요?",
+    opts: ["전송 전에 그래디언트를 100배 압축해서",
+           "어떤 단일 링크도 그래디언트 전체를 나르지 않아서 — 조각으로 나뉘어 각자 자기 링크를 지나고, 클러스터의 모든 링크가 병렬로 바쁘게 일한다",
+           "데이터센터 NIC은 사실 정격 속도보다 훨씬 빨라서",
+           "그래디언트는 매 스텝이 아니라 몇 분에 한 번만 동기화돼서"],
+    a: 1,
+    ex: "그래디언트는 노드의 NIC 8개에 8등분되고(각 17.5 GB), 클러스터의 8,192개 NIC이 동시에 스트리밍하며(합계 ~410 TB/s), 각 바이트는 각 링크를 ~2번만 지납니다. 3D 병렬화를 쓰면 GPU당 조각은 ~1–3 GB라서 수십 밀리초가 됩니다." },
+  { q: "Reduce가 끝나면 최종 합산 그래디언트가 1,024개 노드 전부에 도달해야 합니다. Broadcast는 얼마나 걸릴까요?",
+    opts: ["각 노드가 자기 사본을 받아야 하므로 1,024 × 단일 복사 시간",
+           "broadcast하지 않는다 — 루트 노드만 결과를 보관",
+           "≈ 단일 복사 시간 — 받은 노드가 즉시 다른 노드로 전달해서 보유 노드가 홉마다 2배가 되고, 모든 링크가 병렬로 일한다",
+           "사용하는 optimizer에 따라 다르다"],
+    a: 2,
+    ex: "커버리지가 홉마다 2배가 됩니다 (10홉에 1→2→4→…→1,024). 총 작업은 N−1회 복사지만 N−1개의 서로 다른 링크에 병렬로 분산되고, 청크 파이프라이닝 덕분에 벽시계 시간 ≈ 복사 1회 시간. 'N × 복사 시간'은 all-reduce가 대체한 옛 파라미터 서버 스타 구조의 이야기입니다." },
+];
+let qIdx = 0, qAnswers = [];
+function qRenderProg() {
+  let h = '';
+  for (let i=0; i<QUIZ.length; i++) {
+    let cls = 'qdot';
+    if (qAnswers[i] !== undefined) cls += qAnswers[i] === QUIZ[i].a ? ' done-right' : ' done-wrong';
+    else if (i === qIdx) cls += ' current';
+    h += '<div class="' + cls + '"></div>';
+  }
+  document.getElementById('q-prog').innerHTML = h;
+}
+function qRender() {
+  qRenderProg();
+  const body = document.getElementById('q-body');
+  if (qIdx >= QUIZ.length) {
+    const score = qAnswers.filter((a,i) => a === QUIZ[i].a).length;
+    const pct = Math.round(100*score/QUIZ.length);
+    const msg = pct === 100 ? "완벽합니다 — 인프라 팀에 브리핑해도 되겠어요." :
+                pct >= 75 ? "분산 학습을 탄탄하게 이해하고 있습니다. 틀린 문제만 복습하세요." :
+                pct >= 50 ? "좋은 출발입니다 — 틀린 문제에 해당하는 학습 탭 섹션을 다시 보세요." :
+                "학습 탭을 한 번 더 돌아보세요 — 인터랙티브가 기억에 남게 해줍니다.";
+    body.innerHTML =
+      '<div class="qscore"><div class="big">' + score + ' / ' + QUIZ.length + '</div>' +
+      '<p class="lead">' + msg + '</p>' +
+      '<div style="display:flex;gap:10px;justify-content:center;margin-top:10px">' +
+      '<button class="primary" onclick="qIdx=0;qAnswers=[];qRender()">↻ 다시 풀기</button>' +
+      '<button onclick="showTab(\'learn\')">← 학습으로</button></div></div>';
+    return;
+  }
+  const item = QUIZ[qIdx];
+  const answered = qAnswers[qIdx] !== undefined;
+  let h = '<p class="lead" style="margin-bottom:4px">문제 ' + (qIdx+1) + ' / ' + QUIZ.length + '</p>' +
+          '<p class="qtext">' + item.q + '</p>';
+  item.opts.forEach((o,i) => {
+    let cls = 'qopt';
+    if (answered) {
+      if (i === item.a) cls += ' right';
+      else if (i === qAnswers[qIdx]) cls += ' wrong';
+    }
+    h += '<button class="' + cls + '" ' + (answered ? 'disabled' : '') + ' onclick="qAnswer(' + i + ')">' +
+         String.fromCharCode(65+i) + '. &nbsp;' + o + '</button>';
+  });
+  if (answered) {
+    const right = qAnswers[qIdx] === item.a;
+    h += '<div class="qexplain"><b style="color:' + (right ? 'var(--green-3)' : 'var(--coral)') + '">' +
+         (right ? '✓ 정답!' : '✗ 아쉽네요.') + '</b> ' + item.ex + '</div>' +
+         '<div style="text-align:right"><button class="primary" onclick="qIdx++;qRender()">' +
+         (qIdx === QUIZ.length-1 ? '점수 보기 →' : '다음 문제 →') + '</button></div>';
+  }
+  body.innerHTML = h;
+}
+function qAnswer(i) { qAnswers[qIdx] = i; qRender(); }
+
+// ---------- init ----------
+clCalc();
+tlRender();
+rRender();
+hRender();
+tBuild();
+tRender();
+tHops();
+cCalc();
+qRender();
+</script>
+</body>
+</html>
